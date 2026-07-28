@@ -1,0 +1,17 @@
+{
+  "id": "daily-mail-summary",
+  "name": "Daily mail summary",
+  "schedule": "0 7 * * *",
+  "prompt": "Summarize today's emails in French, 10 bullet points max.",
+  "tools": ["gmail", "filesystem"],
+  "workflow": [
+    "gmail.readToday",
+    "ai.summarize",
+    {
+      "step": "filesystem.write",
+      "args": { "path": "reports/daily-mail-summary.md", "content": "{{ai.summarize.output}}" }
+    }
+  ],
+  "enabled": true,
+  "errorPolicy": "StopOnError"
+}

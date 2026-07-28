@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\OD.MyLocalAgent.Connectors\OD.MyLocalAgent.Connectors.csproj" />
+    <ProjectReference Include="..\..\src\OD.MyLocalAgent.Core\OD.MyLocalAgent.Core.csproj" />
+    <ProjectReference Include="..\..\src\OD.MyLocalAgent.Ollama\OD.MyLocalAgent.Ollama.csproj" />
+    <ProjectReference Include="..\..\src\OD.MyLocalAgent.Runner\OD.MyLocalAgent.Runner.csproj" />
+    <ProjectReference Include="..\..\src\OD.MyLocalAgent.UI\OD.MyLocalAgent.UI.csproj" />
+    <ProjectReference Include="..\..\src\OD.MyLocalAgent.Workflows\OD.MyLocalAgent.Workflows.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Moq" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+</Project>
