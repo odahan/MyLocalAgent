@@ -23,6 +23,12 @@ public abstract class SkillBase : ISkill
     /// <inheritdoc />
     public abstract string Name { get; }
 
+    /// <inheritdoc />
+    public abstract string AgentFunctionName { get; }
+
+    /// <inheritdoc />
+    public abstract string Description { get; }
+
     /// <summary>
     /// Gets the skill-specific prompt instruction.
     /// </summary>

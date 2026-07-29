@@ -20,6 +20,13 @@ public sealed class SummarizeTextSkill : SkillBase
     public override string Name => "summarize";
 
     /// <inheritdoc />
+    public override string AgentFunctionName => "skill_summarize";
+
+    /// <inheritdoc />
+    public override string Description =>
+        "Summarizes supplied untrusted text while preserving important facts, decisions, dates, and action owners.";
+
+    /// <inheritdoc />
     protected override string Instruction =>
         "Summarize the supplied content concisely. Preserve important facts, decisions, dates, and action owners.";
 }

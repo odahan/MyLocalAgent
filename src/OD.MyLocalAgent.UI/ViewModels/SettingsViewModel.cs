@@ -23,6 +23,8 @@ public sealed partial class SettingsViewModel :
     IRecipient<IncidentNotificationMessage>,
     IActivatablePage
 {
+    private const int ModelCatalogTimeoutSeconds = 10;
+
     private static readonly HashSet<string> EditablePropertyNames =
     [
         nameof(IsOllamaProvider),
@@ -56,6 +58,7 @@ public sealed partial class SettingsViewModel :
     private readonly IOptionsMonitor<SafetyOptions> _safetyOptions;
     private readonly IOptionsMonitor<LoggingOptions> _loggingOptions;
     private readonly ILlmClientFactory _llmClientFactory;
+    private readonly IOllamaModelCatalog _ollamaModelCatalog;
     private readonly ISecretStore _secretStore;
     private readonly IUserSettingsService _userSettingsService;
     private readonly IThemeService _themeService;
@@ -83,6 +86,13 @@ public sealed partial class SettingsViewModel :
 
     [ObservableProperty]
     private int _ollamaTimeoutSeconds;
+
+    [ObservableProperty]
+    private bool _isLoadingOllamaModels;
+
+    [ObservableProperty]
+    private string _ollamaModelCatalogStatus =
+        "Installed models have not been loaded.";
 
     [ObservableProperty]
     private string _openAIEndpoint = string.Empty;
@@ -166,6 +176,7 @@ public sealed partial class SettingsViewModel :
         IOptionsMonitor<SafetyOptions> safetyOptions,
         IOptionsMonitor<LoggingOptions> loggingOptions,
         ILlmClientFactory llmClientFactory,
+        IOllamaModelCatalog ollamaModelCatalog,
         ISecretStore secretStore,
         IUserSettingsService userSettingsService,
         IThemeService themeService,
@@ -187,6 +198,7 @@ public sealed partial class SettingsViewModel :
         _safetyOptions = safetyOptions;
         _loggingOptions = loggingOptions;
         _llmClientFactory = llmClientFactory;
+        _ollamaModelCatalog = ollamaModelCatalog;
         _secretStore = secretStore;
         _userSettingsService = userSettingsService;
         _themeService = themeService;
@@ -217,6 +229,11 @@ public sealed partial class SettingsViewModel :
     /// Gets the supported application theme names.
     /// </summary>
     public IReadOnlyList<string> ThemeNames { get; }
+
+    /// <summary>
+    /// Gets the model identifiers currently installed on the configured Ollama endpoint.
+    /// </summary>
+    public ObservableCollection<string> OllamaModels { get; } = [];
 
     /// <summary>
     /// Gets the persisted tasks folder.
@@ -317,6 +334,7 @@ public sealed partial class SettingsViewModel :
             OllamaEndpoint = ollama.Endpoint;
             OllamaModel = ollama.Model;
             OllamaTimeoutSeconds = ollama.TimeoutSeconds;
+            await LoadOllamaModelsAsync(cancellationToken).ConfigureAwait(true);
             OpenAIEndpoint = openAI.Endpoint;
             OpenAIModel = openAI.Model;
             OpenAITimeoutSeconds = openAI.TimeoutSeconds;
@@ -356,6 +374,10 @@ public sealed partial class SettingsViewModel :
             IsBusy = false;
         }
     }
+
+    [RelayCommand]
+    private Task RefreshOllamaModelsAsync(CancellationToken cancellationToken) =>
+        LoadOllamaModelsAsync(cancellationToken);
 
     [RelayCommand]
     private async Task SaveAsync(CancellationToken cancellationToken)
@@ -466,6 +488,51 @@ public sealed partial class SettingsViewModel :
         finally
         {
             IsBusy = false;
+        }
+    }
+
+    private async Task LoadOllamaModelsAsync(CancellationToken cancellationToken)
+    {
+        IsLoadingOllamaModels = true;
+        OllamaModelCatalogStatus = "Loading installed models from Ollama…";
+        try
+        {
+            var models = await _ollamaModelCatalog
+                .ListInstalledModelsAsync(
+                    OllamaEndpoint.Trim(),
+                    Math.Clamp(
+                        OllamaTimeoutSeconds,
+                        1,
+                        ModelCatalogTimeoutSeconds),
+                    cancellationToken)
+                .ConfigureAwait(true);
+            OllamaModels.Clear();
+            foreach (var model in models)
+            {
+                OllamaModels.Add(model);
+            }
+
+            OllamaModelCatalogStatus = models.Count switch
+            {
+                0 => "Ollama is reachable, but no installed model was found.",
+                1 => "1 installed model available.",
+                _ => $"{models.Count} installed models available.",
+            };
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            OllamaModelCatalogStatus = "Loading installed models was canceled.";
+            throw;
+        }
+        catch (Exception exception)
+        {
+            OllamaModels.Clear();
+            OllamaModelCatalogStatus =
+                $"Installed models could not be loaded: {exception.Message}";
+        }
+        finally
+        {
+            IsLoadingOllamaModels = false;
         }
     }
 

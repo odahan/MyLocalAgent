@@ -891,3 +891,74 @@ Runner working directory, and `StartWhenAvailable=true`.
 - Diagnostics Save to disk and Reset remain an explicit human acceptance action because
   Reset archives and truncates the user's current rolling logs. Native-dialog high-contrast
   and non-100% DPI checks are also carried as deployment-environment follow-ups.
+
+### Post-Stage 6 usability enhancements — 2026-07-29
+
+#### User-interface changes
+
+- The AI playground now has explicit `Allow Tools` and `Allow Skills` opt-ins. With both
+  cleared it preserves the raw provider-completion path. Enabling tools switches to
+  `MyLocalAgentService` with all five tool groups; existing safety gates, the filesystem
+  sandbox, connector configuration, and the HTTP allowlist remain authoritative.
+- Built-in skills are exposed as agent-callable functions only for the new interactive
+  opt-in overloads on `IMyLocalAgentService`. Their actual execution remains a plain
+  completion without tools. Scheduled tasks, prompt testing, and workflows retain their
+  previous behavior, and the normative workflow aliases remain unchanged.
+- The task editor now offers common plain-language cron presets, an expandable five-field
+  syntax guide, validation, a common-pattern description, and the next three occurrences.
+- The Ollama model setting is now an editable combo box populated from the configured
+  endpoint. Loading uses a bounded ten-second catalog request and can be refreshed after an
+  endpoint change or model installation.
+
+#### Public API additions
+
+- `IOllamaModelCatalog.ListInstalledModelsAsync` exposes the distinct installed Ollama model
+  tags; `OllamaClientService` implements the contract and remains the single transport owner.
+- `IMyLocalAgentService` has opt-in overloads that accept `allowSkills`.
+- `ISkill` now exposes `AgentFunctionName` and `Description` metadata used only when skills
+  are enabled interactively.
+- `CronSchedulePreset` carries a user-facing scheduler label and cron expression.
+
+#### Verification
+
+- `dotnet build OD.MyLocalAgent.sln -m:1 --no-restore --configuration Release`: succeeded
+  with zero warnings and zero errors.
+- `dotnet test OD.MyLocalAgent.sln -m:1 --no-build --no-restore --configuration Release
+  --logger "console;verbosity=normal"`: 69 tests passed, zero failed, and the one expected
+  local Ollama integration probe was skipped.
+
+### Standalone user manual — 2026-07-29
+
+- Added `Docs/User-Manual.html`, a French HTML5 user manual that works offline as one file.
+  Its dark responsive layout, grouped sticky navigation, instant section search, reading
+  progress, active-section highlighting, mobile menu, expandable troubleshooting topics,
+  printable layout, and copy controls use only embedded CSS and JavaScript.
+- The manual provides step-by-step scenarios for Ollama configuration, a first local
+  filesystem task, prompt testing and real execution, Google authorization, Dropbox
+  credentials, the AI playground tool/skill opt-ins, isolated tool testing, and the explicit
+  OpenAI-compatible cloud switch.
+- The reference portion documents every application page, task and workflow rules,
+  placeholders, error policies, Tool Map aliases and arguments, cron scheduling, Windows
+  registration behavior, safety boundaries, reports, logs, diagnostics, troubleshooting,
+  data locations, and runner commands.
+- `README.md` now links to the standalone guide. The manual contains no external resource,
+  style, script, image, font, or network dependency.
+- Validation confirmed 20 HTML sections, 21 valid internal navigation targets, no duplicate
+  id, no missing anchor, balanced structural tags, zero external resources, valid inline
+  JavaScript syntax, and a clean `git diff --check`.
+
+### English standalone user manual — 2026-07-29
+
+- Added `Docs/User-Manual.en.html` as a complete English counterpart to the French guide.
+  It remains a single offline HTML5 file with an embedded dark responsive theme, grouped
+  navigation, instant search, reading progress, active-section highlighting, mobile menu,
+  expandable troubleshooting topics, printable layout, and code-copy controls.
+- The English edition mirrors the eight guided scenarios and the complete reference for
+  pages, workflows, Tool Map aliases and arguments, cron scheduling, safety, reporting,
+  diagnostics, troubleshooting, storage locations, and runner commands.
+- Both manuals now include reciprocal EN/FR language links, and `README.md` links directly
+  to both editions.
+- Validation confirmed matching 20-section structures, 21 valid internal navigation targets,
+  9 expandable reference/troubleshooting topics, 10 copyable code examples, no duplicate id,
+  no missing anchor, balanced structural tags, zero external resources, valid inline
+  JavaScript syntax, and a clean `git diff --check` for both editions.

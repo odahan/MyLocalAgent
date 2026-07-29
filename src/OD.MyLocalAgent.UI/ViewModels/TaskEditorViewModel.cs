@@ -75,6 +75,9 @@ public sealed partial class TaskEditorViewModel : ObservableObject
     private string _cronPreviewText = string.Empty;
 
     [ObservableProperty]
+    private CronSchedulePreset? _selectedCronPreset;
+
+    [ObservableProperty]
     private string _validationText = "Complete the task definition, then save.";
 
     [ObservableProperty]
@@ -105,6 +108,21 @@ public sealed partial class TaskEditorViewModel : ObservableObject
     public IReadOnlyList<WorkflowErrorPolicy> ErrorPolicies { get; }
 
     /// <summary>
+    /// Gets the common scheduler patterns that can be applied without writing cron syntax.
+    /// </summary>
+    public IReadOnlyList<CronSchedulePreset> CronPresets { get; } =
+    [
+        new("Every 5 minutes", "*/5 * * * *"),
+        new("Every 15 minutes", "*/15 * * * *"),
+        new("Every hour", "0 * * * *"),
+        new("Every day at 07:00", "0 7 * * *"),
+        new("Every day at 09:00", "0 9 * * *"),
+        new("Weekdays at 09:00", "0 9 * * 1-5"),
+        new("Every Monday at 09:00", "0 9 * * 1"),
+        new("First day of each month at 09:00", "0 9 1 * *"),
+    ];
+
+    /// <summary>
     /// Opens the editor for a new or existing task.
     /// </summary>
     /// <param name="taskId">The existing task identifier, or <see langword="null"/>.</param>
@@ -119,6 +137,18 @@ public sealed partial class TaskEditorViewModel : ObservableObject
 
     partial void OnScheduleChanged(string value) =>
         UpdateCronPreview();
+
+    partial void OnSelectedCronPresetChanged(CronSchedulePreset? value)
+    {
+        if (value is not null &&
+            !string.Equals(
+                Schedule,
+                value.Expression,
+                StringComparison.Ordinal))
+        {
+            Schedule = value.Expression;
+        }
+    }
 
     [RelayCommand]
     private async Task LoadAsync(CancellationToken cancellationToken)
@@ -282,6 +312,11 @@ public sealed partial class TaskEditorViewModel : ObservableObject
 
     private void UpdateCronPreview()
     {
+        SelectedCronPreset = CronPresets.FirstOrDefault(
+            preset => string.Equals(
+                preset.Expression,
+                Schedule.Trim(),
+                StringComparison.Ordinal));
         try
         {
             var cron = Schedule.Trim();

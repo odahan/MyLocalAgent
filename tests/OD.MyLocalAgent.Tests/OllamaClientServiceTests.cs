@@ -141,6 +141,29 @@ public sealed class OllamaClientServiceTests
         builder.ToString().Should().Be("Hello world!");
     }
 
+    /// <summary>
+    /// Verifies the model catalog returns distinct installed tags in display order.
+    /// </summary>
+    [Fact]
+    public async Task ListInstalledModelsAsyncReturnsDistinctSortedModelTags()
+    {
+        var handler = new StubHttpMessageHandler(
+            (_, _) => Task.FromResult(
+                JsonResponse(
+                    CreateTagsJson(
+                        "zeta:latest",
+                        "alpha:7b",
+                        "ALPHA:7B"))));
+        var service = CreateService(handler);
+
+        var models = await service.ListInstalledModelsAsync(
+            "http://localhost:11434",
+            10,
+            CancellationToken.None);
+
+        models.Should().Equal("alpha:7b", "zeta:latest");
+    }
+
     private static OllamaClientService CreateService(
         HttpMessageHandler handler,
         int timeoutSeconds = 10)
@@ -166,13 +189,12 @@ public sealed class OllamaClientServiceTests
         };
     }
 
-    private static string CreateTagsJson(string model)
+    private static string CreateTagsJson(params string[] models)
     {
         return JsonSerializer.Serialize(new
         {
-            models = new[]
-            {
-                new
+            models = models.Select(
+                model => new
                 {
                     name = model,
                     model,
@@ -187,8 +209,7 @@ public sealed class OllamaClientServiceTests
                         parameter_size = "12B",
                         quantization_level = "Q4",
                     },
-                },
-            },
+                }),
         });
     }
 

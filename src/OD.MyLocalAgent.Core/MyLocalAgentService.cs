@@ -17,6 +17,7 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
 
     private readonly ILlmClientFactory _clientFactory;
     private readonly IToolRegistry _toolRegistry;
+    private readonly IReadOnlyList<ISkill> _skills;
     private readonly IIncidentReporter _incidentReporter;
     private readonly TimeProvider _timeProvider;
 
@@ -26,23 +27,38 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
     public MyLocalAgentService(
         ILlmClientFactory clientFactory,
         IToolRegistry toolRegistry,
+        IEnumerable<ISkill> skills,
         IIncidentReporter incidentReporter,
         TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(clientFactory);
         ArgumentNullException.ThrowIfNull(toolRegistry);
+        ArgumentNullException.ThrowIfNull(skills);
         ArgumentNullException.ThrowIfNull(incidentReporter);
         ArgumentNullException.ThrowIfNull(timeProvider);
         _clientFactory = clientFactory;
         _toolRegistry = toolRegistry;
+        _skills = skills.ToArray();
         _incidentReporter = incidentReporter;
         _timeProvider = timeProvider;
     }
 
     /// <inheritdoc />
+    public Task<AgentRunResult> RunPromptAsync(
+        string prompt,
+        IEnumerable<string> enabledTools,
+        CancellationToken cancellationToken) =>
+        RunPromptAsync(
+            prompt,
+            enabledTools,
+            allowSkills: false,
+            cancellationToken);
+
+    /// <inheritdoc />
     public async Task<AgentRunResult> RunPromptAsync(
         string prompt,
         IEnumerable<string> enabledTools,
+        bool allowSkills,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
@@ -50,6 +66,7 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
 
         var (provider, agent) = await CreateAgentAsync(
             enabledTools,
+            allowSkills,
             cancellationToken).ConfigureAwait(false);
         var response = await agent.RunAsync(
             prompt,
@@ -58,9 +75,21 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
     }
 
     /// <inheritdoc />
+    public IAsyncEnumerable<string> RunPromptStreamingAsync(
+        string prompt,
+        IEnumerable<string> enabledTools,
+        CancellationToken cancellationToken) =>
+        RunPromptStreamingAsync(
+            prompt,
+            enabledTools,
+            allowSkills: false,
+            cancellationToken);
+
+    /// <inheritdoc />
     public async IAsyncEnumerable<string> RunPromptStreamingAsync(
         string prompt,
         IEnumerable<string> enabledTools,
+        bool allowSkills,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
@@ -68,6 +97,7 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
 
         var (_, agent) = await CreateAgentAsync(
             enabledTools,
+            allowSkills,
             cancellationToken).ConfigureAwait(false);
         await foreach (var update in agent.RunStreamingAsync(
                            prompt,
@@ -82,12 +112,18 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
 
     private async Task<(ILlmClientService Provider, ChatClientAgent Agent)> CreateAgentAsync(
         IEnumerable<string> enabledTools,
+        bool allowSkills,
         CancellationToken cancellationToken)
     {
         try
         {
             var provider = _clientFactory.Create();
             var tools = _toolRegistry.GetAgentTools(enabledTools);
+            if (allowSkills)
+            {
+                tools = [.. tools, .. CreateSkillTools()];
+            }
+
             var instructions = BuildSystemPrompt(_timeProvider.GetLocalNow());
             var agent = provider.ChatClient.AsAIAgent(
                 instructions: instructions,
@@ -104,6 +140,27 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
                 cancellationToken).ConfigureAwait(false);
             throw new AgentExecutionException(correlationId, exception);
         }
+    }
+
+    private AITool[] CreateSkillTools()
+    {
+        return _skills
+            .Select(
+                skill =>
+                {
+                    var method = skill.GetType().GetMethod(
+                        nameof(ISkill.ExecuteAsync),
+                        [typeof(string), typeof(CancellationToken)])
+                        ?? throw new InvalidOperationException(
+                            $"Skill '{skill.Name}' does not expose ExecuteAsync.");
+                    return (AITool)AIFunctionFactory.Create(
+                        method,
+                        skill,
+                        skill.AgentFunctionName,
+                        skill.Description,
+                        ToolJson.Options);
+                })
+            .ToArray();
     }
 
     private static string BuildSystemPrompt(DateTimeOffset localNow) =>

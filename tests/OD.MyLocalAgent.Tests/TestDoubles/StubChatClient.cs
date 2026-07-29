@@ -12,6 +12,8 @@ internal sealed class StubChatClient : IChatClient
         _response = response;
     }
 
+    public ChatOptions? LastOptions { get; private set; }
+
     public Task<ChatResponse> GetResponseAsync(
         IEnumerable<ChatMessage> messages,
         ChatOptions? options = null,
@@ -19,6 +21,7 @@ internal sealed class StubChatClient : IChatClient
     {
         cancellationToken.ThrowIfCancellationRequested();
         _ = messages.ToArray();
+        LastOptions = options;
         return Task.FromResult(
             new ChatResponse(new ChatMessage(ChatRole.Assistant, _response)));
     }
@@ -30,6 +33,7 @@ internal sealed class StubChatClient : IChatClient
     {
         cancellationToken.ThrowIfCancellationRequested();
         _ = messages.ToArray();
+        LastOptions = options;
         await Task.Yield();
         yield return new ChatResponseUpdate(ChatRole.Assistant, _response);
     }

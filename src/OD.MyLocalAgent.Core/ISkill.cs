@@ -11,6 +11,16 @@ public interface ISkill
     string Name { get; }
 
     /// <summary>
+    /// Gets the function name used when the skill is enabled in an interactive agent.
+    /// </summary>
+    string AgentFunctionName { get; }
+
+    /// <summary>
+    /// Gets the agent-facing description of the skill.
+    /// </summary>
+    string Description { get; }
+
+    /// <summary>
     /// Renders and runs the skill without tools.
     /// </summary>
     /// <param name="text">The untrusted input text.</param>

@@ -87,6 +87,14 @@
                     <StackPanel>
                         <TextBlock Style="{StaticResource SectionTitleStyle}"
                                    Text="Schedule" />
+                        <TextBlock Margin="0,5,0,0"
+                                   Style="{StaticResource CaptionTextStyle}"
+                                   Text="Choose a common schedule or enter a five-field cron expression." />
+                        <ComboBox Margin="0,14,0,0"
+                                  DisplayMemberPath="Label"
+                                  ItemsSource="{Binding CronPresets}"
+                                  SelectedItem="{Binding SelectedCronPreset, Mode=TwoWay}"
+                                  materialDesign:HintAssist.Hint="Quick schedule" />
                         <TextBox Margin="0,16,0,0"
                                  FontFamily="Consolas"
                                  Text="{Binding Schedule, UpdateSourceTrigger=PropertyChanged}"
@@ -113,6 +121,26 @@
                             <TextBlock FontWeight="SemiBold"
                                        Text="{Binding CronDescription}" />
                         </StackPanel>
+                        <Expander Margin="0,12,0,0"
+                                  Header="Cron format help">
+                            <StackPanel Margin="0,8,0,0">
+                                <TextBlock FontFamily="Consolas"
+                                           Text="minute   hour   day   month   weekday" />
+                                <TextBlock Margin="0,5,0,0"
+                                           Style="{StaticResource CaptionTextStyle}"
+                                           Text="Values: minute 0–59 · hour 0–23 · day 1–31 · month 1–12 · weekday 0–6 (Sunday = 0)."
+                                           TextWrapping="Wrap" />
+                                <TextBlock Margin="0,5,0,0"
+                                           Style="{StaticResource CaptionTextStyle}"
+                                           Text="Use * for every value, */n for an interval, commas for a list, and hyphens for a range."
+                                           TextWrapping="Wrap" />
+                                <TextBlock Margin="0,5,0,0"
+                                           FontFamily="Consolas"
+                                           Foreground="{DynamicResource SecondaryBrush}"
+                                           Text="Examples: 0 7 * * *  = daily 07:00    ·    0 9 * * 1-5  = weekdays 09:00"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Expander>
                     </StackPanel>
                     <StackPanel Grid.Column="2">
                         <TextBlock Style="{StaticResource SectionTitleStyle}"

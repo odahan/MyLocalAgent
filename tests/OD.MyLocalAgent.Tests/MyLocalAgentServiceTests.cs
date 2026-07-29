@@ -34,6 +34,7 @@ public sealed class MyLocalAgentServiceTests
         var service = new MyLocalAgentService(
             factory.Object,
             registry.Object,
+            [],
             reporter.Object,
             TimeProvider.System);
 
@@ -65,6 +66,7 @@ public sealed class MyLocalAgentServiceTests
         var service = new MyLocalAgentService(
             factory.Object,
             registry.Object,
+            [],
             reporter.Object,
             TimeProvider.System);
 
@@ -75,5 +77,36 @@ public sealed class MyLocalAgentServiceTests
 
         result.Text.Should().Be("Concise report.");
         result.ProviderName.Should().Be("Stub");
+    }
+
+    /// <summary>
+    /// Verifies built-in skills are exposed only for the interactive opt-in overload.
+    /// </summary>
+    [Fact]
+    public async Task InteractiveSkillOptInAddsSkillFunctionToAgent()
+    {
+        var provider = new StubLlmClientService("Concise report.");
+        var factory = new Mock<ILlmClientFactory>(MockBehavior.Strict);
+        factory.Setup(instance => instance.Create()).Returns(provider);
+        var registry = new Mock<IToolRegistry>(MockBehavior.Strict);
+        registry.Setup(instance => instance.GetAgentTools(It.IsAny<IEnumerable<string>>()))
+            .Returns([]);
+        var reporter = new Mock<IIncidentReporter>(MockBehavior.Strict);
+        var service = new MyLocalAgentService(
+            factory.Object,
+            registry.Object,
+            [new SummarizeTextSkill(factory.Object)],
+            reporter.Object,
+            TimeProvider.System);
+
+        _ = await service.RunPromptAsync(
+            "Summarize this content.",
+            [],
+            allowSkills: true,
+            CancellationToken.None);
+
+        provider.Client.LastOptions.Should().NotBeNull();
+        provider.Client.LastOptions!.Tools.Should().ContainSingle(
+            tool => tool.Name == "skill_summarize");
     }
 }

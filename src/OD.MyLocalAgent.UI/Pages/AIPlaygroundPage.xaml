@@ -17,7 +17,7 @@
                            Text="AI playground" />
                 <TextBlock Margin="0,5,0,0"
                            Foreground="{DynamicResource MutedTextBrush}"
-                           Text="Stream a raw completion from the active provider without agent tools." />
+                           Text="Experiment with the active provider, optionally enabling agent tools and built-in skills." />
             </StackPanel>
             <StackPanel HorizontalAlignment="Right">
                 <Border Padding="12,6"
@@ -46,11 +46,32 @@
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
                 <TextBlock Style="{StaticResource SectionTitleStyle}"
                            Text="Prompt" />
-                <TextBox Grid.Row="1"
+                <Grid Grid.Row="1"
+                      Margin="0,12,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <WrapPanel>
+                        <CheckBox Margin="0,0,24,0"
+                                  Content="Allow Tools"
+                                  IsChecked="{Binding AllowTools, Mode=TwoWay}"
+                                  ToolTip="Allows the agent to choose from every configured tool group. Safety settings still apply." />
+                        <CheckBox Content="Allow Skills"
+                                  IsChecked="{Binding AllowSkills, Mode=TwoWay}"
+                                  ToolTip="Allows the agent to invoke summarize, extract action items, and classify email skills." />
+                    </WrapPanel>
+                    <TextBlock Grid.Column="1"
+                               Margin="18,0,0,0"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="{Binding ExecutionModeDescription}" />
+                </Grid>
+                <TextBox Grid.Row="2"
                          Margin="0,12,0,0"
                          AcceptsReturn="True"
                          Text="{Binding Prompt, UpdateSourceTrigger=PropertyChanged}"
@@ -115,7 +136,7 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
                 <TextBlock Style="{StaticResource SectionTitleStyle}"
-                           Text="Streamed completion" />
+                           Text="Streamed response" />
                 <TextBox Grid.Row="1"
                          Margin="0,12,0,0"
                          AcceptsReturn="True"

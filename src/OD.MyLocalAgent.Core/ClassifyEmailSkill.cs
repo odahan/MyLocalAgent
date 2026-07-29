@@ -20,6 +20,13 @@ public sealed class ClassifyEmailSkill : SkillBase
     public override string Name => "classifyEmail";
 
     /// <inheritdoc />
+    public override string AgentFunctionName => "skill_classify_email";
+
+    /// <inheritdoc />
+    public override string Description =>
+        "Classifies supplied untrusted email content by urgency and required response.";
+
+    /// <inheritdoc />
     protected override string Instruction =>
         "Classify the email as Urgent, ReplySoon, Waiting, or FYI. Give one short reason and identify any explicit deadline.";
 }

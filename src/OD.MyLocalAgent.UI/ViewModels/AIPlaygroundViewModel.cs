@@ -18,6 +18,7 @@ public sealed partial class AIPlaygroundViewModel :
     IRecipient<ProviderConfigurationChangedMessage>
 {
     private readonly ILlmClientFactory _llmClientFactory;
+    private readonly IMyLocalAgentService _agentService;
     private readonly IOptionsMonitor<AIOptions> _aiOptions;
     private readonly IOptionsMonitor<OllamaOptions> _ollamaOptions;
     private readonly IOptionsMonitor<OpenAIOptions> _openAIOptions;
@@ -47,11 +48,20 @@ public sealed partial class AIPlaygroundViewModel :
     [ObservableProperty]
     private bool _isStreaming;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ExecutionModeDescription))]
+    private bool _allowTools;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ExecutionModeDescription))]
+    private bool _allowSkills;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="AIPlaygroundViewModel"/> class.
     /// </summary>
     public AIPlaygroundViewModel(
         ILlmClientFactory llmClientFactory,
+        IMyLocalAgentService agentService,
         IOptionsMonitor<AIOptions> aiOptions,
         IOptionsMonitor<OllamaOptions> ollamaOptions,
         IOptionsMonitor<OpenAIOptions> openAIOptions,
@@ -60,12 +70,24 @@ public sealed partial class AIPlaygroundViewModel :
         : base(messenger)
     {
         _llmClientFactory = llmClientFactory;
+        _agentService = agentService;
         _aiOptions = aiOptions;
         _ollamaOptions = ollamaOptions;
         _openAIOptions = openAIOptions;
         _incidentReporter = incidentReporter;
         IsActive = true;
     }
+
+    /// <summary>
+    /// Gets a concise description of the selected playground execution mode.
+    /// </summary>
+    public string ExecutionModeDescription => (AllowTools, AllowSkills) switch
+    {
+        (false, false) => "Raw provider completion · no tools or skills",
+        (true, false) => "Agent mode · all tool groups allowed",
+        (false, true) => "Agent mode · built-in skills allowed",
+        _ => "Agent mode · all tool groups and built-in skills allowed",
+    };
 
     /// <inheritdoc />
     public void Activate()
@@ -151,18 +173,36 @@ public sealed partial class AIPlaygroundViewModel :
         ChunkCount = 0;
         try
         {
-            var provider = _llmClientFactory.Create();
             ProviderBadge = BuildProviderBadge();
             HealthState = "Checking";
-            HealthText = $"Streaming raw completion from {provider.ProviderName}…";
-            await foreach (var chunk in provider
-                               .GenerateStreamingAsync(
-                                   Prompt,
-                                   cancellationToken)
-                               .ConfigureAwait(true))
+            HealthText = $"Streaming · {ExecutionModeDescription}…";
+            if (AllowTools || AllowSkills)
             {
-                Output += chunk;
-                ChunkCount++;
+                IEnumerable<string> enabledTools = AllowTools
+                    ? ToolGroups.All
+                    : [];
+                await foreach (var chunk in _agentService
+                                   .RunPromptStreamingAsync(
+                                       Prompt,
+                                       enabledTools,
+                                       AllowSkills,
+                                       cancellationToken)
+                                   .ConfigureAwait(true))
+                {
+                    AppendChunk(chunk);
+                }
+            }
+            else
+            {
+                var provider = _llmClientFactory.Create();
+                await foreach (var chunk in provider
+                                   .GenerateStreamingAsync(
+                                       Prompt,
+                                       cancellationToken)
+                                   .ConfigureAwait(true))
+                {
+                    AppendChunk(chunk);
+                }
             }
 
             HealthState = "Healthy";
@@ -188,6 +228,12 @@ public sealed partial class AIPlaygroundViewModel :
         {
             IsStreaming = false;
         }
+    }
+
+    private void AppendChunk(string chunk)
+    {
+        Output += chunk;
+        ChunkCount++;
     }
 
     private string BuildProviderBadge()

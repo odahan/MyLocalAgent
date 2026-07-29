@@ -46,6 +46,8 @@ public static class ServiceCollectionExtensions
         services.AddHttpClient(LlmHttpClientNames.OpenAI);
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<OllamaClientService>();
+        services.AddSingleton<IOllamaModelCatalog>(
+            static services => services.GetRequiredService<OllamaClientService>());
         services.AddSingleton<OpenAIClientService>();
         services.AddSingleton<ILlmClientFactory, LlmClientFactory>();
         return services;

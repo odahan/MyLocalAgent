@@ -18,6 +18,22 @@ public interface IMyLocalAgentService
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// Runs a prompt with an optional interactive skill catalog and returns the final report.
+    /// </summary>
+    /// <param name="prompt">The task prompt.</param>
+    /// <param name="enabledTools">The tool-group whitelist.</param>
+    /// <param name="allowSkills">
+    /// Whether the agent may invoke the built-in reusable skills.
+    /// </param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The agent result.</returns>
+    Task<AgentRunResult> RunPromptAsync(
+        string prompt,
+        IEnumerable<string> enabledTools,
+        bool allowSkills,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Runs a prompt and streams response text.
     /// </summary>
     /// <param name="prompt">The task prompt.</param>
@@ -27,5 +43,21 @@ public interface IMyLocalAgentService
     IAsyncEnumerable<string> RunPromptStreamingAsync(
         string prompt,
         IEnumerable<string> enabledTools,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Runs a prompt and streams text with an optional interactive skill catalog.
+    /// </summary>
+    /// <param name="prompt">The task prompt.</param>
+    /// <param name="enabledTools">The tool-group whitelist.</param>
+    /// <param name="allowSkills">
+    /// Whether the agent may invoke the built-in reusable skills.
+    /// </param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The streamed text chunks.</returns>
+    IAsyncEnumerable<string> RunPromptStreamingAsync(
+        string prompt,
+        IEnumerable<string> enabledTools,
+        bool allowSkills,
         CancellationToken cancellationToken);
 }

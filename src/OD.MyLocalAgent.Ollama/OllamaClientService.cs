@@ -10,7 +10,7 @@ namespace OD.MyLocalAgent.Ollama;
 /// <summary>
 /// Provides local language-model generation through Ollama.
 /// </summary>
-public sealed class OllamaClientService : ILlmClientService
+public sealed class OllamaClientService : ILlmClientService, IOllamaModelCatalog
 {
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IOptionsMonitor<OllamaOptions> _options;
@@ -147,6 +147,58 @@ public sealed class OllamaClientService : ILlmClientService
                 "Ollama health check failed after {LatencyMs} ms.",
                 latency);
             return new LlmHealthResult(false, false, latency, exception.Message);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<string>> ListInstalledModelsAsync(
+        string endpoint,
+        int timeoutSeconds,
+        CancellationToken cancellationToken)
+    {
+        var current = _options.CurrentValue;
+        var catalogOptions = current with
+        {
+            Endpoint = endpoint,
+            TimeoutSeconds = timeoutSeconds,
+        };
+        var validation = LlmOptionsValidation.ValidateOllama(catalogOptions);
+        if (validation is not null)
+        {
+            throw new LlmConfigurationException(validation);
+        }
+
+        using var timeoutSource =
+            CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutSource.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
+        try
+        {
+            var models = await ListLocalModelsAsync(
+                catalogOptions,
+                timeoutSource.Token).ConfigureAwait(false);
+            return models
+                .Select(static model => model.Name ?? model.ModelName)
+                .Where(static name => !string.IsNullOrWhiteSpace(name))
+                .Select(static name => name!)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (OperationCanceledException exception)
+        {
+            throw new OllamaUnavailableException(
+                $"Ollama did not respond within {timeoutSeconds} seconds.",
+                exception);
+        }
+        catch (HttpRequestException exception)
+        {
+            throw new OllamaUnavailableException(
+                $"Ollama is unavailable at '{endpoint}'.",
+                exception);
         }
     }
 

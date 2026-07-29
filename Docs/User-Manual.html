@@ -1,0 +1,2703 @@
+<!doctype html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <meta name="theme-color" content="#08111f">
+    <meta name="description" content="Manuel utilisateur complet de l’application Windows OD.MyLocalAgent.">
+    <title>Manuel utilisateur · OD.MyLocalAgent</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #08111f;
+            --bg-deep: #050b14;
+            --surface: #0e1a2b;
+            --surface-2: #132238;
+            --surface-3: #192c45;
+            --border: #263b58;
+            --border-strong: #365270;
+            --text: #edf6ff;
+            --muted: #9fb3c8;
+            --muted-2: #748ba3;
+            --primary: #52d7e8;
+            --primary-strong: #8cebf5;
+            --secondary: #a890ff;
+            --success: #55d99a;
+            --warning: #ffc86b;
+            --danger: #ff7887;
+            --code: #07101c;
+            --shadow: 0 22px 70px rgba(0, 0, 0, 0.28);
+            --sidebar: 300px;
+            --radius: 18px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+            scroll-padding-top: 28px;
+        }
+
+        body {
+            min-width: 320px;
+            margin: 0;
+            background:
+                radial-gradient(circle at 74% -8%, rgba(82, 215, 232, 0.12), transparent 31rem),
+                radial-gradient(circle at 18% 24%, rgba(168, 144, 255, 0.08), transparent 26rem),
+                var(--bg);
+            color: var(--text);
+            font-family: Inter, "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+            font-size: 16px;
+            line-height: 1.65;
+            text-rendering: optimizeLegibility;
+        }
+
+        body.menu-open {
+            overflow: hidden;
+        }
+
+        a {
+            color: var(--primary-strong);
+            text-decoration-thickness: 1px;
+            text-underline-offset: 3px;
+        }
+
+        a:hover {
+            color: #c9f8fc;
+        }
+
+        button,
+        input {
+            font: inherit;
+        }
+
+        button {
+            color: inherit;
+        }
+
+        ::selection {
+            background: rgba(82, 215, 232, 0.28);
+            color: #fff;
+        }
+
+        :focus-visible {
+            outline: 3px solid rgba(82, 215, 232, 0.72);
+            outline-offset: 3px;
+        }
+
+        .skip-link {
+            position: fixed;
+            z-index: 1000;
+            top: 12px;
+            left: 12px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            background: var(--primary);
+            color: #041017;
+            font-weight: 800;
+            transform: translateY(-160%);
+            transition: transform 160ms ease;
+        }
+
+        .skip-link:focus {
+            transform: translateY(0);
+        }
+
+        .reading-progress {
+            position: fixed;
+            z-index: 900;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .reading-progress > span {
+            display: block;
+            width: 0;
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            box-shadow: 0 0 18px rgba(82, 215, 232, 0.7);
+        }
+
+        .sidebar {
+            position: fixed;
+            z-index: 500;
+            inset: 0 auto 0 0;
+            width: var(--sidebar);
+            overflow-y: auto;
+            border-right: 1px solid var(--border);
+            background: rgba(6, 14, 25, 0.96);
+            box-shadow: 12px 0 42px rgba(0, 0, 0, 0.18);
+            scrollbar-width: thin;
+            scrollbar-color: var(--border-strong) transparent;
+        }
+
+        .sidebar-inner {
+            min-height: 100%;
+            padding: 26px 20px 32px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 13px;
+            margin-bottom: 22px;
+            color: var(--text);
+            text-decoration: none;
+        }
+
+        .brand-mark {
+            display: grid;
+            width: 44px;
+            height: 44px;
+            place-items: center;
+            border: 1px solid rgba(82, 215, 232, 0.38);
+            border-radius: 14px;
+            background:
+                linear-gradient(145deg, rgba(82, 215, 232, 0.24), rgba(168, 144, 255, 0.14)),
+                var(--surface);
+            box-shadow: 0 8px 28px rgba(82, 215, 232, 0.12);
+            color: var(--primary-strong);
+            font-size: 14px;
+            font-weight: 900;
+            letter-spacing: -0.04em;
+        }
+
+        .brand-copy {
+            min-width: 0;
+        }
+
+        .brand-copy strong,
+        .brand-copy span {
+            display: block;
+        }
+
+        .brand-copy strong {
+            font-size: 15px;
+            letter-spacing: -0.01em;
+        }
+
+        .brand-copy span {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .language-switch {
+            display: flex;
+            gap: 7px;
+            margin: 0 0 20px 57px;
+            font-size: 11px;
+            font-weight: 800;
+        }
+
+        .language-switch span,
+        .language-switch a {
+            padding: 3px 8px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            text-decoration: none;
+        }
+
+        .language-switch span {
+            border-color: rgba(82, 215, 232, 0.35);
+            background: rgba(82, 215, 232, 0.08);
+            color: var(--primary-strong);
+        }
+
+        .language-switch a {
+            color: var(--muted);
+        }
+
+        .search-wrap {
+            position: relative;
+            margin-bottom: 22px;
+        }
+
+        .search-wrap label {
+            display: block;
+            margin-bottom: 7px;
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        .search-input {
+            width: 100%;
+            min-height: 44px;
+            padding: 10px 42px 10px 13px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: var(--surface);
+            color: var(--text);
+        }
+
+        .search-input::placeholder {
+            color: var(--muted-2);
+        }
+
+        .search-shortcut {
+            position: absolute;
+            right: 10px;
+            bottom: 9px;
+            min-width: 25px;
+            padding: 2px 6px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--surface-2);
+            color: var(--muted);
+            font-size: 11px;
+            text-align: center;
+        }
+
+        .search-results {
+            position: absolute;
+            z-index: 20;
+            top: calc(100% + 8px);
+            right: 0;
+            left: 0;
+            overflow: hidden;
+            max-height: 320px;
+            border: 1px solid var(--border-strong);
+            border-radius: 12px;
+            background: #0a1525;
+            box-shadow: var(--shadow);
+        }
+
+        .search-results[hidden] {
+            display: none;
+        }
+
+        .search-result,
+        .search-empty {
+            display: block;
+            width: 100%;
+            padding: 11px 12px;
+            border: 0;
+            border-bottom: 1px solid var(--border);
+            background: transparent;
+            color: var(--text);
+            text-align: left;
+            text-decoration: none;
+        }
+
+        .search-result:hover,
+        .search-result:focus-visible {
+            background: var(--surface-2);
+        }
+
+        .search-result strong,
+        .search-result span {
+            display: block;
+        }
+
+        .search-result strong {
+            font-size: 13px;
+        }
+
+        .search-result span {
+            overflow: hidden;
+            color: var(--muted);
+            font-size: 11px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .search-empty {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .nav-group + .nav-group {
+            margin-top: 20px;
+        }
+
+        .nav-heading {
+            margin: 0 0 7px 10px;
+            color: var(--muted-2);
+            font-size: 10px;
+            font-weight: 900;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+        }
+
+        .nav-list {
+            display: grid;
+            gap: 3px;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .nav-list a {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-height: 38px;
+            padding: 7px 10px;
+            border: 1px solid transparent;
+            border-radius: 10px;
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 650;
+            text-decoration: none;
+            transition: 140ms ease;
+        }
+
+        .nav-list a::before {
+            width: 5px;
+            height: 5px;
+            border-radius: 99px;
+            background: var(--border-strong);
+            content: "";
+            transition: 140ms ease;
+        }
+
+        .nav-list a:hover {
+            background: rgba(255, 255, 255, 0.035);
+            color: var(--text);
+        }
+
+        .nav-list a.active {
+            border-color: rgba(82, 215, 232, 0.22);
+            background: rgba(82, 215, 232, 0.09);
+            color: var(--primary-strong);
+        }
+
+        .nav-list a.active::before {
+            background: var(--primary);
+            box-shadow: 0 0 10px rgba(82, 215, 232, 0.68);
+        }
+
+        .sidebar-foot {
+            margin-top: 24px;
+            padding: 13px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.025);
+            color: var(--muted);
+            font-size: 11px;
+        }
+
+        .sidebar-foot strong {
+            color: var(--text);
+        }
+
+        .mobile-bar,
+        .menu-overlay {
+            display: none;
+        }
+
+        .content {
+            margin-left: var(--sidebar);
+        }
+
+        .content-inner {
+            width: min(1160px, calc(100% - 64px));
+            margin: 0 auto;
+            padding: 48px 0 86px;
+        }
+
+        .hero {
+            position: relative;
+            overflow: hidden;
+            min-height: 480px;
+            padding: clamp(34px, 6vw, 78px);
+            border: 1px solid var(--border);
+            border-radius: 28px;
+            background:
+                linear-gradient(135deg, rgba(82, 215, 232, 0.11), transparent 46%),
+                linear-gradient(315deg, rgba(168, 144, 255, 0.12), transparent 44%),
+                var(--surface);
+            box-shadow: var(--shadow);
+        }
+
+        .hero::before,
+        .hero::after {
+            position: absolute;
+            border: 1px solid rgba(82, 215, 232, 0.12);
+            border-radius: 999px;
+            content: "";
+            pointer-events: none;
+        }
+
+        .hero::before {
+            top: -180px;
+            right: -110px;
+            width: 430px;
+            height: 430px;
+        }
+
+        .hero::after {
+            right: 110px;
+            bottom: -240px;
+            width: 520px;
+            height: 520px;
+            border-color: rgba(168, 144, 255, 0.1);
+        }
+
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 9px;
+            margin-bottom: 20px;
+            padding: 7px 11px;
+            border: 1px solid rgba(82, 215, 232, 0.28);
+            border-radius: 999px;
+            background: rgba(82, 215, 232, 0.07);
+            color: var(--primary-strong);
+            font-size: 12px;
+            font-weight: 850;
+            letter-spacing: 0.09em;
+            text-transform: uppercase;
+        }
+
+        .eyebrow::before {
+            width: 7px;
+            height: 7px;
+            border-radius: 99px;
+            background: var(--success);
+            box-shadow: 0 0 12px rgba(85, 217, 154, 0.65);
+            content: "";
+        }
+
+        h1,
+        h2,
+        h3,
+        h4 {
+            margin-top: 0;
+            color: var(--text);
+            line-height: 1.18;
+            letter-spacing: -0.035em;
+        }
+
+        h1 {
+            max-width: 760px;
+            margin-bottom: 22px;
+            font-size: clamp(44px, 7vw, 84px);
+        }
+
+        .gradient-text {
+            background: linear-gradient(90deg, var(--primary-strong), #b7a8ff 64%, #ffd590);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .hero-lead {
+            position: relative;
+            z-index: 1;
+            max-width: 780px;
+            margin: 0;
+            color: #bfd0e0;
+            font-size: clamp(18px, 2.2vw, 23px);
+            line-height: 1.55;
+        }
+
+        .hero-actions {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 34px;
+        }
+
+        .button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 46px;
+            padding: 10px 16px;
+            border: 1px solid var(--border-strong);
+            border-radius: 12px;
+            background: var(--surface-2);
+            color: var(--text);
+            font-weight: 800;
+            text-decoration: none;
+            transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+        }
+
+        .button:hover {
+            transform: translateY(-1px);
+            border-color: var(--primary);
+            color: var(--text);
+        }
+
+        .button.primary {
+            border-color: transparent;
+            background: linear-gradient(135deg, var(--primary), #7eebf4);
+            color: #041117;
+        }
+
+        .hero-meta {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 9px;
+            margin-top: 38px;
+        }
+
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 6px 10px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            background: rgba(5, 12, 22, 0.45);
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .chip::before {
+            width: 5px;
+            height: 5px;
+            border-radius: 99px;
+            background: var(--secondary);
+            content: "";
+        }
+
+        section {
+            margin-top: 92px;
+        }
+
+        .section-kicker {
+            margin-bottom: 9px;
+            color: var(--primary);
+            font-size: 12px;
+            font-weight: 900;
+            letter-spacing: 0.13em;
+            text-transform: uppercase;
+        }
+
+        h2 {
+            max-width: 860px;
+            margin-bottom: 18px;
+            font-size: clamp(31px, 4vw, 48px);
+        }
+
+        h3 {
+            margin-bottom: 12px;
+            font-size: 23px;
+        }
+
+        h4 {
+            margin-bottom: 8px;
+            font-size: 17px;
+            letter-spacing: -0.015em;
+        }
+
+        .section-intro {
+            max-width: 880px;
+            margin: 0 0 28px;
+            color: var(--muted);
+            font-size: 18px;
+        }
+
+        .grid {
+            display: grid;
+            gap: 18px;
+        }
+
+        .grid.two {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .grid.three {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .card {
+            padding: 23px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.025), transparent), var(--surface);
+            box-shadow: 0 16px 46px rgba(0, 0, 0, 0.12);
+        }
+
+        .card p:last-child,
+        .callout p:last-child {
+            margin-bottom: 0;
+        }
+
+        .card-index {
+            display: inline-grid;
+            width: 34px;
+            height: 34px;
+            margin-bottom: 17px;
+            place-items: center;
+            border: 1px solid rgba(82, 215, 232, 0.3);
+            border-radius: 11px;
+            background: rgba(82, 215, 232, 0.08);
+            color: var(--primary-strong);
+            font-size: 12px;
+            font-weight: 900;
+        }
+
+        .muted {
+            color: var(--muted);
+        }
+
+        .steps {
+            display: grid;
+            gap: 15px;
+            margin: 28px 0;
+            padding: 0;
+            counter-reset: step;
+            list-style: none;
+        }
+
+        .steps > li {
+            position: relative;
+            min-height: 72px;
+            padding: 20px 22px 20px 76px;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            background: rgba(14, 26, 43, 0.88);
+            counter-increment: step;
+        }
+
+        .steps.start-8 {
+            counter-reset: step 7;
+        }
+
+        .steps.start-4 {
+            counter-reset: step 3;
+        }
+
+        .steps > li::before {
+            position: absolute;
+            top: 18px;
+            left: 20px;
+            display: grid;
+            width: 38px;
+            height: 38px;
+            place-items: center;
+            border: 1px solid rgba(82, 215, 232, 0.35);
+            border-radius: 12px;
+            background: rgba(82, 215, 232, 0.08);
+            color: var(--primary-strong);
+            content: counter(step, decimal-leading-zero);
+            font-size: 12px;
+            font-weight: 900;
+        }
+
+        .steps strong {
+            color: #fff;
+        }
+
+        .steps p {
+            margin: 5px 0 0;
+            color: var(--muted);
+        }
+
+        .callout {
+            position: relative;
+            margin: 22px 0;
+            padding: 18px 20px 18px 52px;
+            border: 1px solid var(--border);
+            border-left: 4px solid var(--primary);
+            border-radius: 14px;
+            background: rgba(82, 215, 232, 0.055);
+        }
+
+        .callout::before {
+            position: absolute;
+            top: 17px;
+            left: 18px;
+            color: var(--primary);
+            content: "i";
+            font-family: Georgia, serif;
+            font-size: 22px;
+            font-style: italic;
+            font-weight: 800;
+        }
+
+        .callout.warning {
+            border-left-color: var(--warning);
+            background: rgba(255, 200, 107, 0.055);
+        }
+
+        .callout.warning::before {
+            color: var(--warning);
+            content: "!";
+            font-family: inherit;
+            font-style: normal;
+        }
+
+        .callout.danger {
+            border-left-color: var(--danger);
+            background: rgba(255, 120, 135, 0.055);
+        }
+
+        .callout.danger::before {
+            color: var(--danger);
+            content: "!";
+            font-family: inherit;
+            font-style: normal;
+        }
+
+        .callout.success {
+            border-left-color: var(--success);
+            background: rgba(85, 217, 154, 0.055);
+        }
+
+        .callout.success::before {
+            color: var(--success);
+            content: "✓";
+            font-family: inherit;
+            font-style: normal;
+        }
+
+        kbd,
+        .ui-label {
+            display: inline-block;
+            padding: 2px 7px;
+            border: 1px solid var(--border-strong);
+            border-bottom-width: 2px;
+            border-radius: 6px;
+            background: var(--surface-2);
+            color: #e9f8ff;
+            font-family: inherit;
+            font-size: 0.88em;
+            font-weight: 750;
+            line-height: 1.35;
+            white-space: nowrap;
+        }
+
+        code {
+            padding: 2px 6px;
+            border: 1px solid rgba(82, 215, 232, 0.12);
+            border-radius: 5px;
+            background: rgba(4, 12, 21, 0.74);
+            color: #b9f4fa;
+            font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+            font-size: 0.9em;
+        }
+
+        .code-block {
+            position: relative;
+            margin: 20px 0;
+        }
+
+        pre {
+            overflow: auto;
+            margin: 0;
+            padding: 20px;
+            border: 1px solid var(--border);
+            border-radius: 15px;
+            background: var(--code);
+            color: #c9d9e8;
+            font: 13px/1.65 "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+            tab-size: 2;
+            scrollbar-width: thin;
+            scrollbar-color: var(--border-strong) transparent;
+        }
+
+        pre code {
+            padding: 0;
+            border: 0;
+            background: transparent;
+            color: inherit;
+            font: inherit;
+        }
+
+        .copy-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 6px 9px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: rgba(19, 34, 56, 0.96);
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .copy-button:hover {
+            border-color: var(--primary);
+            color: var(--text);
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+            margin: 22px 0;
+            border: 1px solid var(--border);
+            border-radius: 15px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: rgba(14, 26, 43, 0.74);
+            font-size: 14px;
+        }
+
+        th,
+        td {
+            padding: 13px 15px;
+            border-bottom: 1px solid var(--border);
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            background: var(--surface-2);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 900;
+            letter-spacing: 0.07em;
+            text-transform: uppercase;
+        }
+
+        tr:last-child td {
+            border-bottom: 0;
+        }
+
+        tbody tr:hover {
+            background: rgba(82, 215, 232, 0.035);
+        }
+
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 3px 8px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
+        .status::before {
+            width: 6px;
+            height: 6px;
+            border-radius: 99px;
+            background: currentColor;
+            content: "";
+        }
+
+        .status.good {
+            color: var(--success);
+        }
+
+        .status.warn {
+            color: var(--warning);
+        }
+
+        .status.bad {
+            color: var(--danger);
+        }
+
+        .check-list {
+            display: grid;
+            gap: 10px;
+            margin: 18px 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .check-list li {
+            position: relative;
+            padding-left: 29px;
+        }
+
+        .check-list li::before {
+            position: absolute;
+            top: 1px;
+            left: 0;
+            display: grid;
+            width: 20px;
+            height: 20px;
+            place-items: center;
+            border: 1px solid rgba(85, 217, 154, 0.36);
+            border-radius: 7px;
+            background: rgba(85, 217, 154, 0.07);
+            color: var(--success);
+            content: "✓";
+            font-size: 11px;
+            font-weight: 900;
+        }
+
+        details {
+            margin: 12px 0;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            background: rgba(14, 26, 43, 0.72);
+        }
+
+        summary {
+            position: relative;
+            padding: 16px 48px 16px 18px;
+            color: var(--text);
+            font-weight: 800;
+            cursor: pointer;
+            list-style: none;
+        }
+
+        summary::-webkit-details-marker {
+            display: none;
+        }
+
+        summary::after {
+            position: absolute;
+            right: 18px;
+            color: var(--primary);
+            content: "+";
+            font-size: 21px;
+            font-weight: 500;
+        }
+
+        details[open] summary::after {
+            content: "−";
+        }
+
+        .details-body {
+            padding: 0 18px 18px;
+            color: var(--muted);
+        }
+
+        .details-body > :first-child {
+            margin-top: 0;
+        }
+
+        .page-map {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        .page-item {
+            padding: 18px;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            background: var(--surface);
+        }
+
+        .page-item strong {
+            display: block;
+            margin-bottom: 5px;
+            color: var(--primary-strong);
+        }
+
+        .page-item p {
+            margin: 0;
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        .footer {
+            margin-top: 96px;
+            padding-top: 30px;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .back-to-top {
+            position: fixed;
+            z-index: 200;
+            right: 22px;
+            bottom: 22px;
+            display: grid;
+            width: 45px;
+            height: 45px;
+            place-items: center;
+            border: 1px solid var(--border-strong);
+            border-radius: 14px;
+            background: rgba(14, 26, 43, 0.94);
+            color: var(--primary-strong);
+            box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
+            font-size: 20px;
+            text-decoration: none;
+            opacity: 0;
+            transform: translateY(12px);
+            pointer-events: none;
+            transition: 160ms ease;
+        }
+
+        .back-to-top.visible {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        .sr-only {
+            position: absolute;
+            overflow: hidden;
+            width: 1px;
+            height: 1px;
+            margin: -1px;
+            padding: 0;
+            border: 0;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+        }
+
+        @media (max-width: 1100px) {
+            .grid.three {
+                grid-template-columns: 1fr;
+            }
+
+            .hero {
+                min-height: 0;
+            }
+        }
+
+        @media (max-width: 860px) {
+            html {
+                scroll-padding-top: 80px;
+            }
+
+            .sidebar {
+                width: min(86vw, 320px);
+                transform: translateX(-105%);
+                transition: transform 190ms ease;
+            }
+
+            body.menu-open .sidebar {
+                transform: translateX(0);
+            }
+
+            .menu-overlay {
+                position: fixed;
+                z-index: 450;
+                inset: 0;
+                background: rgba(1, 6, 12, 0.72);
+                backdrop-filter: blur(3px);
+            }
+
+            body.menu-open .menu-overlay {
+                display: block;
+            }
+
+            .mobile-bar {
+                position: sticky;
+                z-index: 350;
+                top: 0;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                min-height: 62px;
+                padding: 10px 18px;
+                border-bottom: 1px solid var(--border);
+                background: rgba(6, 14, 25, 0.93);
+                backdrop-filter: blur(14px);
+            }
+
+            .mobile-bar strong {
+                font-size: 14px;
+            }
+
+            .menu-button {
+                display: grid;
+                width: 41px;
+                height: 41px;
+                place-items: center;
+                border: 1px solid var(--border);
+                border-radius: 11px;
+                background: var(--surface);
+                cursor: pointer;
+            }
+
+            .content {
+                margin-left: 0;
+            }
+
+            .content-inner {
+                width: min(100% - 32px, 760px);
+                padding-top: 22px;
+            }
+
+            .grid.two,
+            .page-map {
+                grid-template-columns: 1fr;
+            }
+
+            section {
+                margin-top: 72px;
+            }
+        }
+
+        @media (max-width: 560px) {
+            .hero {
+                padding: 30px 22px;
+                border-radius: 20px;
+            }
+
+            h1 {
+                font-size: 42px;
+            }
+
+            .hero-actions {
+                display: grid;
+            }
+
+            .button {
+                width: 100%;
+            }
+
+            .steps > li {
+                padding: 68px 17px 18px;
+            }
+
+            .steps > li::before {
+                top: 16px;
+                left: 17px;
+            }
+
+            .card {
+                padding: 19px;
+            }
+
+            th,
+            td {
+                padding: 11px 12px;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            html {
+                scroll-behavior: auto;
+            }
+
+            *,
+            *::before,
+            *::after {
+                scroll-behavior: auto !important;
+                transition-duration: 0.01ms !important;
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+            }
+        }
+
+        @media print {
+            :root {
+                --bg: #fff;
+                --surface: #fff;
+                --surface-2: #f2f5f7;
+                --border: #ccd4dc;
+                --text: #111827;
+                --muted: #3f4c5a;
+                --code: #f4f6f8;
+            }
+
+            body {
+                background: #fff;
+                color: #111827;
+            }
+
+            .sidebar,
+            .mobile-bar,
+            .reading-progress,
+            .back-to-top,
+            .copy-button,
+            .hero-actions {
+                display: none !important;
+            }
+
+            .content {
+                margin: 0;
+            }
+
+            .content-inner {
+                width: 100%;
+                padding: 0;
+            }
+
+            .hero,
+            .card,
+            .steps > li,
+            details {
+                box-shadow: none;
+                break-inside: avoid;
+            }
+
+            section {
+                margin-top: 48px;
+            }
+
+            details > .details-body {
+                display: block !important;
+            }
+
+            a {
+                color: inherit;
+            }
+        }
+    </style>
+</head>
+<body>
+    <a class="skip-link" href="#contenu">Aller au contenu</a>
+    <div class="reading-progress" aria-hidden="true"><span id="reading-progress"></span></div>
+
+    <div class="mobile-bar">
+        <strong>OD.MyLocalAgent · Manuel</strong>
+        <button class="menu-button" id="menu-button" type="button" aria-controls="manual-nav" aria-expanded="false">
+            <span aria-hidden="true">☰</span>
+            <span class="sr-only">Ouvrir le menu</span>
+        </button>
+    </div>
+    <button class="menu-overlay" id="menu-overlay" type="button" aria-label="Fermer le menu"></button>
+
+    <aside class="sidebar" id="manual-nav" aria-label="Navigation du manuel">
+        <div class="sidebar-inner">
+            <a class="brand" href="#accueil">
+                <span class="brand-mark" aria-hidden="true">OD</span>
+                <span class="brand-copy">
+                    <strong>OD.MyLocalAgent</strong>
+                    <span>Manuel utilisateur</span>
+                </span>
+            </a>
+            <div class="language-switch" aria-label="Langue">
+                <span>FR</span>
+                <a href="User-Manual.en.html" lang="en">EN</a>
+            </div>
+
+            <div class="search-wrap">
+                <label for="manual-search">Rechercher</label>
+                <input class="search-input" id="manual-search" type="search" autocomplete="off"
+                       placeholder="Ex. Ollama, cron, Gmail…" aria-controls="search-results">
+                <span class="search-shortcut" aria-hidden="true">/</span>
+                <div class="search-results" id="search-results" role="listbox" hidden></div>
+            </div>
+
+            <nav>
+                <div class="nav-group">
+                    <p class="nav-heading">Bien démarrer</p>
+                    <ul class="nav-list">
+                        <li><a href="#accueil">Vue d’ensemble</a></li>
+                        <li><a href="#vue-rapide">Parcours rapide</a></li>
+                        <li><a href="#installation">Installation</a></li>
+                        <li><a href="#premier-demarrage">Premier démarrage</a></li>
+                    </ul>
+                </div>
+                <div class="nav-group">
+                    <p class="nav-heading">Scénarios guidés</p>
+                    <ul class="nav-list">
+                        <li><a href="#scenario-ollama">Configurer Ollama</a></li>
+                        <li><a href="#scenario-tache-locale">Créer une première tâche</a></li>
+                        <li><a href="#scenario-prompt-run">Tester puis exécuter</a></li>
+                        <li><a href="#scenario-google">Connecter Google</a></li>
+                        <li><a href="#scenario-dropbox">Connecter Dropbox</a></li>
+                        <li><a href="#scenario-playground">Utiliser le playground</a></li>
+                        <li><a href="#scenario-outil">Tester un outil</a></li>
+                        <li><a href="#scenario-openai">Activer OpenAI-compatible</a></li>
+                    </ul>
+                </div>
+                <div class="nav-group">
+                    <p class="nav-heading">Référence</p>
+                    <ul class="nav-list">
+                        <li><a href="#navigation">Pages de l’application</a></li>
+                        <li><a href="#taches-workflows">Tâches et workflows</a></li>
+                        <li><a href="#planification">Planification et cron</a></li>
+                        <li><a href="#securite">Sécurité</a></li>
+                        <li><a href="#rapports-journaux">Rapports et journaux</a></li>
+                        <li><a href="#diagnostics">Diagnostics et incidents</a></li>
+                        <li><a href="#depannage">Dépannage</a></li>
+                        <li><a href="#reference">Emplacements et CLI</a></li>
+                    </ul>
+                </div>
+            </nav>
+
+            <div class="sidebar-foot">
+                <strong>Conseil</strong><br>
+                Les libellés anglais affichés dans l’application sont conservés dans ce manuel
+                sous forme de boutons, par exemple <span class="ui-label">Run now</span>.
+            </div>
+        </div>
+    </aside>
+
+    <main class="content" id="contenu">
+        <div class="content-inner">
+            <section class="hero" id="accueil" data-title="Vue d’ensemble">
+                <span class="eyebrow">Local-first · Windows · Ollama</span>
+                <h1>Votre agent local,<br><span class="gradient-text">de l’idée à l’exécution.</span></h1>
+                <p class="hero-lead">
+                    Ce manuel explique comment configurer OD.MyLocalAgent, créer des tâches
+                    planifiées, utiliser les outils et comprendre les rapports — avec des
+                    procédures pas à pas pour les scénarios les plus courants.
+                </p>
+                <div class="hero-actions">
+                    <a class="button primary" href="#premier-demarrage">Commencer la configuration</a>
+                    <a class="button" href="#scenario-tache-locale">Créer une première tâche</a>
+                </div>
+                <div class="hero-meta" aria-label="Caractéristiques">
+                    <span class="chip">IA locale par défaut</span>
+                    <span class="chip">Planification Windows</span>
+                    <span class="chip">Workflows déterministes</span>
+                    <span class="chip">Garde-fous de sécurité</span>
+                </div>
+            </section>
+
+            <section id="vue-rapide" data-title="Parcours rapide">
+                <p class="section-kicker">En trois temps</p>
+                <h2>Le parcours recommandé</h2>
+                <p class="section-intro">
+                    Pour une première prise en main fiable, validez d’abord le fournisseur d’IA,
+                    créez ensuite une tâche locale sans compte externe, puis ajoutez les
+                    connecteurs uniquement lorsque vous en avez besoin.
+                </p>
+                <div class="grid three">
+                    <article class="card">
+                        <span class="card-index">01</span>
+                        <h3>Configurer</h3>
+                        <p class="muted">
+                            Vérifiez Ollama, choisissez un modèle installé et définissez le
+                            dossier racine autorisé pour les fichiers.
+                        </p>
+                    </article>
+                    <article class="card">
+                        <span class="card-index">02</span>
+                        <h3>Valider en local</h3>
+                        <p class="muted">
+                            Créez une tâche utilisant seulement <strong>File system</strong>,
+                            lancez-la manuellement et contrôlez son rapport.
+                        </p>
+                    </article>
+                    <article class="card">
+                        <span class="card-index">03</span>
+                        <h3>Automatiser</h3>
+                        <p class="muted">
+                            Ajoutez Gmail, Calendar, Dropbox ou HTTP, puis activez les seuls
+                            droits nécessaires au workflow.
+                        </p>
+                    </article>
+                </div>
+            </section>
+
+            <section id="installation" data-title="Installation et prérequis">
+                <p class="section-kicker">Bien démarrer</p>
+                <h2>Installation et prérequis</h2>
+                <p class="section-intro">
+                    OD.MyLocalAgent s’exécute sur Windows 10 ou Windows 11 en 64 bits. La version
+                    publiée est autonome : elle n’exige pas l’installation séparée de .NET.
+                </p>
+
+                <div class="grid two">
+                    <article class="card">
+                        <h3>Prérequis essentiels</h3>
+                        <ul class="check-list">
+                            <li>Windows 10 ou Windows 11, compte utilisateur habituel.</li>
+                            <li>Ollama installé et son service démarré.</li>
+                            <li>Au moins un modèle local, par défaut <code>gemma4:12b</code>.</li>
+                            <li>Google et Dropbox uniquement si ces connecteurs sont utilisés.</li>
+                        </ul>
+                    </article>
+                    <article class="card">
+                        <h3>Organisation publiée</h3>
+                        <p>
+                            L’interface et le runner sont volontairement séparés. Le runner est
+                            l’exécutable sans interface utilisé par Windows Task Scheduler.
+                        </p>
+                        <div class="code-block">
+                            <pre><code>%LOCALAPPDATA%\Programs\OD.MyLocalAgent\
+├── UI\OD.MyLocalAgent.UI.exe
+└── Runner\OD.MyLocalAgent.Runner.exe</code></pre>
+                        </div>
+                    </article>
+                </div>
+
+                <h3>Préparer Ollama</h3>
+                <p>Dans PowerShell, vérifiez Ollama et installez le modèle recommandé :</p>
+                <div class="code-block">
+                    <pre><code>ollama --version
+ollama pull gemma4:12b
+ollama list</code></pre>
+                </div>
+                <div class="callout">
+                    La ligne retournée par <code>ollama list</code> doit contenir exactement le
+                    tag choisi dans l’application. <code>gemma4:12b</code> et
+                    <code>gemma4:latest</code> sont deux identifiants différents.
+                </div>
+
+                <h3>Publier depuis le dépôt</h3>
+                <p>
+                    Si vous disposez du code source, ouvrez PowerShell à la racine du dépôt et
+                    lancez :
+                </p>
+                <div class="code-block">
+                    <pre><code>.\scripts\publish.ps1</code></pre>
+                </div>
+                <p>
+                    Démarrez ensuite
+                    <code>%LOCALAPPDATA%\Programs\OD.MyLocalAgent\UI\OD.MyLocalAgent.UI.exe</code>.
+                </p>
+            </section>
+
+            <section id="premier-demarrage" data-title="Premier démarrage">
+                <p class="section-kicker">Bien démarrer</p>
+                <h2>Premier démarrage : la checklist</h2>
+                <p class="section-intro">
+                    Effectuez ces contrôles dans l’ordre. Ils isolent les problèmes de modèle,
+                    de runner et de droits avant la création de tâches plus complexes.
+                </p>
+                <ol class="steps">
+                    <li>
+                        <strong>Ouvrez <span class="ui-label">Settings</span>.</strong>
+                        <p>Conservez <span class="ui-label">Ollama (local, default)</span> pour le premier essai.</p>
+                    </li>
+                    <li>
+                        <strong>Contrôlez l’endpoint et le modèle.</strong>
+                        <p>L’endpoint local habituel est <code>http://localhost:11434</code>. Choisissez un modèle installé.</p>
+                    </li>
+                    <li>
+                        <strong>Définissez <span class="ui-label">File-system root path</span>.</strong>
+                        <p>Exemple : <code>C:\OD.MyLocalAgent</code>. Les outils fichiers seront confinés à ce dossier.</p>
+                    </li>
+                    <li>
+                        <strong>Laissez <span class="ui-label">Runner path</span> vide.</strong>
+                        <p>Dans l’installation standard, l’application trouve automatiquement le runner voisin.</p>
+                    </li>
+                    <li>
+                        <strong>Enregistrez avec <span class="ui-label">Save settings</span>.</strong>
+                        <p>Attendez le message confirmant la sauvegarde et le rechargement.</p>
+                    </li>
+                    <li>
+                        <strong>Lancez <span class="ui-label">Test connection</span>.</strong>
+                        <p>Le résultat doit indiquer que le fournisseur est sain et afficher une latence.</p>
+                    </li>
+                </ol>
+                <div class="callout warning">
+                    Les options <span class="ui-label">Allow sending email</span>,
+                    <span class="ui-label">Allow file deletion</span> et
+                    <span class="ui-label">Allow HTTP POST</span> sont désactivées par défaut.
+                    Ne les activez pas « au cas où » : attendez qu’un workflow précis en ait besoin.
+                </div>
+            </section>
+
+            <section id="scenario-ollama" data-title="Scénario : configurer Ollama">
+                <p class="section-kicker">Scénario guidé 01</p>
+                <h2>Configurer Ollama et choisir un modèle</h2>
+                <p class="section-intro">
+                    Ce scénario configure le fournisseur local par défaut et vérifie que le
+                    modèle sélectionné existe réellement dans Ollama.
+                </p>
+                <ol class="steps">
+                    <li>
+                        <strong>Ouvrez <span class="ui-label">Settings</span> → <span class="ui-label">AI provider</span>.</strong>
+                        <p>Sélectionnez <span class="ui-label">Ollama (local, default)</span>.</p>
+                    </li>
+                    <li>
+                        <strong>Saisissez l’endpoint.</strong>
+                        <p>Utilisez normalement <code>http://localhost:11434</code>. Pour un serveur Ollama distant autorisé, utilisez son URL HTTP ou HTTPS.</p>
+                    </li>
+                    <li>
+                        <strong>Cliquez sur <span class="ui-label">Refresh models</span>.</strong>
+                        <p>La liste est chargée depuis l’endpoint indiqué. Une indisponibilité est affichée sans basculer vers le cloud.</p>
+                    </li>
+                    <li>
+                        <strong>Choisissez le modèle dans la combobox.</strong>
+                        <p>La liste reste éditable, mais un tag saisi manuellement doit tout de même être installé côté Ollama.</p>
+                    </li>
+                    <li>
+                        <strong>Conservez un délai adapté.</strong>
+                        <p>La valeur par défaut de 300 secondes tient compte du premier token parfois lent d’un modèle local volumineux.</p>
+                    </li>
+                    <li>
+                        <strong>Enregistrez puis testez.</strong>
+                        <p>Cliquez sur <span class="ui-label">Save settings</span>, puis <span class="ui-label">Test connection</span>.</p>
+                    </li>
+                </ol>
+                <div class="callout success">
+                    Un état sain signifie deux choses : l’endpoint répond et le modèle configuré
+                    figure dans la liste des modèles installés.
+                </div>
+            </section>
+
+            <section id="scenario-tache-locale" data-title="Scénario : créer une première tâche locale">
+                <p class="section-kicker">Scénario guidé 02</p>
+                <h2>Créer une première tâche 100 % locale</h2>
+                <p class="section-intro">
+                    Cette tâche crée un dossier, écrit un fichier puis le relit. Elle ne demande
+                    aucun compte cloud et valide le stockage, le workflow, le runner et les rapports.
+                </p>
+                <ol class="steps">
+                    <li>
+                        <strong>Préparez le dossier autorisé.</strong>
+                        <p>Dans <span class="ui-label">Settings</span>, définissez <span class="ui-label">File-system root path</span>, par exemple <code>C:\OD.MyLocalAgent</code>, puis enregistrez.</p>
+                    </li>
+                    <li>
+                        <strong>Ouvrez <span class="ui-label">Tasks</span> et cliquez sur <span class="ui-label">New</span>.</strong>
+                        <p>L’éditeur de tâche s’ouvre.</p>
+                    </li>
+                    <li>
+                        <strong>Renseignez l’identité.</strong>
+                        <p>Id : <code>first-local-task</code> · Name : <code>First local task</code>. L’id accepte uniquement les lettres minuscules, chiffres et tirets.</p>
+                    </li>
+                    <li>
+                        <strong>Ajoutez un prompt descriptif.</strong>
+                        <p>Par exemple : « Verify the local filesystem workflow and report the result. »</p>
+                    </li>
+                    <li>
+                        <strong>Choisissez une planification.</strong>
+                        <p>Dans <span class="ui-label">Quick schedule</span>, sélectionnez <span class="ui-label">Every day at 09:00</span>. Vérifiez les trois prochaines occurrences.</p>
+                    </li>
+                    <li>
+                        <strong>Autorisez uniquement <span class="ui-label">File system</span>.</strong>
+                        <p>Dans <span class="ui-label">Tool whitelist</span>, laissez les autres outils décochés.</p>
+                    </li>
+                    <li>
+                        <strong>Collez le workflow ci-dessous dans <span class="ui-label">Workflow JSON</span>.</strong>
+                        <p>Le champ attend un tableau JSON de étapes, et non l’objet complet de la tâche.</p>
+                    </li>
+                </ol>
+                <div class="code-block">
+                    <pre><code>[
+  {
+    "step": "filesystem.createDirectory",
+    "id": "createWelcomeDirectory",
+    "args": {
+      "path": "welcome"
+    }
+  },
+  {
+    "step": "filesystem.write",
+    "id": "writeWelcomeFile",
+    "args": {
+      "path": "welcome/hello.txt",
+      "content": "OD.MyLocalAgent completed {{task.id}}."
+    }
+  },
+  {
+    "step": "filesystem.read",
+    "id": "readWelcomeFile",
+    "args": {
+      "path": "welcome/hello.txt"
+    }
+  }
+]</code></pre>
+                </div>
+                <ol class="steps start-8" start="8">
+                    <li>
+                        <strong>Laissez la tâche activée et enregistrez.</strong>
+                        <p>Cliquez sur <span class="ui-label">Save task</span>. La syntaxe, les alias, les arguments et la liste blanche sont validés.</p>
+                    </li>
+                    <li>
+                        <strong>Exécutez-la immédiatement.</strong>
+                        <p>Revenez à <span class="ui-label">Tasks</span>, sélectionnez la ligne et cliquez sur <span class="ui-label">Run now</span>.</p>
+                    </li>
+                    <li>
+                        <strong>Contrôlez le résultat.</strong>
+                        <p>Le panneau <span class="ui-label">Runner output</span> doit confirmer le succès. Le fichier <code>welcome\hello.txt</code> apparaît sous la racine configurée.</p>
+                    </li>
+                </ol>
+                <div class="callout">
+                    <strong>Pourquoi cette tâche est sûre :</strong> elle ne dispose que du groupe
+                    <code>filesystem</code>, les chemins restent relatifs à la racine autorisée et
+                    aucune suppression n’est demandée.
+                </div>
+            </section>
+
+            <section id="scenario-prompt-run" data-title="Scénario : tester un prompt puis exécuter une tâche">
+                <p class="section-kicker">Scénario guidé 03</p>
+                <h2>Tester un prompt, puis lancer la vraie tâche</h2>
+                <p class="section-intro">
+                    Le test de prompt permet d’itérer rapidement avec une réponse en streaming.
+                    <span class="ui-label">Run now</span> utilise ensuite le même runner que la planification Windows.
+                </p>
+                <ol class="steps">
+                    <li>
+                        <strong>Dans <span class="ui-label">Tasks</span>, sélectionnez une tâche.</strong>
+                        <p>Cliquez sur <span class="ui-label">Prompt</span>.</p>
+                    </li>
+                    <li>
+                        <strong>Modifiez le texte dans <span class="ui-label">Agent prompt</span>.</strong>
+                        <p>Précisez le résultat attendu, le format et les limites. Exemple : longueur maximale, langue, rubriques obligatoires.</p>
+                    </li>
+                    <li>
+                        <strong>Cliquez sur <span class="ui-label">Save prompt</span>.</strong>
+                        <p>Le texte est enregistré dans la définition de la tâche.</p>
+                    </li>
+                    <li>
+                        <strong>Lancez <span class="ui-label">Test the prompt</span>.</strong>
+                        <p>La réponse apparaît progressivement dans <span class="ui-label">Streamed agent output</span>. Le test utilise la liste blanche d’outils de la tâche.</p>
+                    </li>
+                    <li>
+                        <strong>Ajustez et recommencez si nécessaire.</strong>
+                        <p>Utilisez <span class="ui-label">Cancel</span> pour interrompre une génération trop longue.</p>
+                    </li>
+                    <li>
+                        <strong>Revenez à <span class="ui-label">Tasks</span> et cliquez sur <span class="ui-label">Run now</span>.</strong>
+                        <p>Si un workflow existe, il est prioritaire. Sans workflow, le runner exécute le prompt avec les outils autorisés.</p>
+                    </li>
+                </ol>
+                <div class="callout warning">
+                    <strong>Test de prompt ≠ test du workflow.</strong> Le bouton
+                    <span class="ui-label">Test the prompt</span> teste l’agent et la liste blanche.
+                    <span class="ui-label">Run now</span> exécute le chemin réel de la tâche et crée
+                    le rapport normal.
+                </div>
+            </section>
+
+            <section id="scenario-google" data-title="Scénario : connecter Gmail et Google Calendar">
+                <p class="section-kicker">Scénario guidé 04</p>
+                <h2>Connecter Gmail et Google Calendar</h2>
+                <p class="section-intro">
+                    L’autorisation Google est interactive et doit être réalisée dans l’interface
+                    sous le même compte Windows que celui qui exécutera les tâches planifiées.
+                </p>
+
+                <h3>Préparer Google Cloud</h3>
+                <ol class="steps">
+                    <li>
+                        <strong>Créez ou sélectionnez un projet Google Cloud.</strong>
+                        <p>Activez Gmail API et Google Calendar API.</p>
+                    </li>
+                    <li>
+                        <strong>Configurez l’écran de consentement OAuth.</strong>
+                        <p>Ajoutez votre compte comme utilisateur de test tant que l’application reste en mode test.</p>
+                    </li>
+                    <li>
+                        <strong>Créez un client OAuth de type Desktop app.</strong>
+                        <p>Copiez le Client ID et le Client Secret.</p>
+                    </li>
+                    <li>
+                        <strong>Fermez OD.MyLocalAgent et complétez <code>settings.json</code>.</strong>
+                        <p>Conservez les autres sections du fichier et ajoutez ou mettez à jour la section suivante.</p>
+                    </li>
+                </ol>
+                <div class="code-block">
+                    <pre><code>{
+  "Google": {
+    "ClientId": "YOUR_DESKTOP_CLIENT_ID",
+    "ClientSecret": "YOUR_DESKTOP_CLIENT_SECRET"
+  }
+}</code></pre>
+                </div>
+                <p>Le fichier se trouve dans <code>%LOCALAPPDATA%\OD.MyLocalAgent\settings.json</code>.</p>
+
+                <h3>Autoriser dans l’application</h3>
+                <ol class="steps">
+                    <li>
+                        <strong>Relancez l’application et ouvrez <span class="ui-label">Tools</span>.</strong>
+                        <p>La section Google Workspace doit indiquer que la configuration OAuth est disponible.</p>
+                    </li>
+                    <li>
+                        <strong>Cliquez sur <span class="ui-label">Connect</span>.</strong>
+                        <p>Terminez le consentement dans le navigateur avec le compte Google voulu.</p>
+                    </li>
+                    <li>
+                        <strong>Revenez dans l’application et actualisez le statut.</strong>
+                        <p>Utilisez <span class="ui-label">Refresh status</span> si nécessaire.</p>
+                    </li>
+                    <li>
+                        <strong>Testez Gmail et Calendar séparément.</strong>
+                        <p>Chaque bouton <span class="ui-label">Test connection</span> effectue une opération en lecture seule et affiche la latence.</p>
+                    </li>
+                    <li>
+                        <strong>Dans la tâche, cochez seulement Gmail et/ou Calendar.</strong>
+                        <p>L’autorisation OAuth ne remplace pas la liste blanche de chaque tâche.</p>
+                    </li>
+                </ol>
+                <div class="callout danger">
+                    Lire les messages et envoyer un message sont deux capacités différentes.
+                    <code>gmail.send</code> reste bloqué tant que
+                    <span class="ui-label">Allow sending email</span> n’est pas explicitement activé
+                    dans <span class="ui-label">Settings</span>.
+                </div>
+            </section>
+
+            <section id="scenario-dropbox" data-title="Scénario : connecter Dropbox">
+                <p class="section-kicker">Scénario guidé 05</p>
+                <h2>Connecter Dropbox</h2>
+                <p class="section-intro">
+                    Les valeurs Dropbox sont saisies en écriture seule puis protégées par DPAPI
+                    pour le compte Windows courant.
+                </p>
+                <ol class="steps">
+                    <li>
+                        <strong>Créez une application dans Dropbox App Console.</strong>
+                        <p>Choisissez l’accès le plus limité possible, idéalement un dossier d’application.</p>
+                    </li>
+                    <li>
+                        <strong>Activez uniquement les permissions nécessaires.</strong>
+                        <p>Lecture de métadonnées, lecture de contenu et écriture selon les alias utilisés.</p>
+                    </li>
+                    <li>
+                        <strong>Obtenez les identifiants.</strong>
+                        <p>Utilisez soit un access token, soit un refresh token accompagné de l’app key.</p>
+                    </li>
+                    <li>
+                        <strong>Ouvrez <span class="ui-label">Tools</span> → Dropbox.</strong>
+                        <p>Saisissez les nouvelles valeurs dans les champs prévus.</p>
+                    </li>
+                    <li>
+                        <strong>Cliquez sur <span class="ui-label">Save credentials</span>.</strong>
+                        <p>Les secrets sont chiffrés pour l’utilisateur Windows courant et ne sont pas écrits dans <code>settings.json</code>.</p>
+                    </li>
+                    <li>
+                        <strong>Lancez <span class="ui-label">Test connection</span>.</strong>
+                        <p>Le test effectue une opération de lecture seule.</p>
+                    </li>
+                    <li>
+                        <strong>Ajoutez Dropbox à la tâche concernée.</strong>
+                        <p>Cochez <span class="ui-label">Dropbox</span> dans <span class="ui-label">Tool whitelist</span> et utilisez un alias <code>dropbox.*</code> dans le workflow.</p>
+                    </li>
+                </ol>
+            </section>
+
+            <section id="scenario-playground" data-title="Scénario : utiliser l’AI playground">
+                <p class="section-kicker">Scénario guidé 06</p>
+                <h2>Explorer un prompt dans l’AI playground</h2>
+                <p class="section-intro">
+                    Le playground sert aux essais libres. Son mode par défaut appelle directement
+                    le fournisseur ; les outils et les skills demandent chacun une autorisation explicite.
+                </p>
+                <ol class="steps">
+                    <li>
+                        <strong>Ouvrez <span class="ui-label">AI playground</span>.</strong>
+                        <p>Le badge en haut indique le fournisseur et le modèle actifs.</p>
+                    </li>
+                    <li>
+                        <strong>Cliquez sur <span class="ui-label">Check health</span>.</strong>
+                        <p>Résolvez d’abord un endpoint ou un modèle indisponible.</p>
+                    </li>
+                    <li>
+                        <strong>Saisissez un prompt.</strong>
+                        <p>Sans case cochée, la réponse est une complétion brute, sans outil ni skill.</p>
+                    </li>
+                    <li>
+                        <strong>Choisissez les capacités nécessaires.</strong>
+                        <p>Cochez <span class="ui-label">Allow Tools</span> et/ou <span class="ui-label">Allow Skills</span> seulement si le test l’exige.</p>
+                    </li>
+                    <li>
+                        <strong>Cliquez sur <span class="ui-label">Generate</span>.</strong>
+                        <p>La réponse apparaît progressivement. <span class="ui-label">Cancel</span> interrompt la génération.</p>
+                    </li>
+                </ol>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Allow Tools</th>
+                                <th>Allow Skills</th>
+                                <th>Mode obtenu</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Non</td><td>Non</td><td>Complétion brute du fournisseur.</td></tr>
+                            <tr><td>Oui</td><td>Non</td><td>Agent avec les cinq groupes d’outils.</td></tr>
+                            <tr><td>Non</td><td>Oui</td><td>Agent avec summarize, extract action items et classify email.</td></tr>
+                            <tr><td>Oui</td><td>Oui</td><td>Agent avec outils et skills intégrés.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="callout warning">
+                    <span class="ui-label">Allow Tools</span> donne accès à tous les groupes dans
+                    ce test interactif, mais les garde-fous globaux restent actifs : sandbox
+                    fichiers, hôtes HTTP autorisés et options Safety.
+                </div>
+            </section>
+
+            <section id="scenario-outil" data-title="Scénario : tester un outil">
+                <p class="section-kicker">Scénario guidé 07</p>
+                <h2>Tester un outil isolément</h2>
+                <p class="section-intro">
+                    <span class="ui-label">Tool tester</span> exécute un alias précis avec des
+                    arguments JSON explicites. C’est le moyen le plus direct de vérifier une
+                    connexion ou un garde-fou.
+                </p>
+                <ol class="steps">
+                    <li>
+                        <strong>Ouvrez <span class="ui-label">Tool tester</span>.</strong>
+                        <p>Sélectionnez un alias dans la liste.</p>
+                    </li>
+                    <li>
+                        <strong>Lisez l’indication des arguments.</strong>
+                        <p>Le formulaire rappelle les noms attendus par l’alias.</p>
+                    </li>
+                    <li>
+                        <strong>Saisissez un objet JSON.</strong>
+                        <p>Pour lister la racine de la sandbox, choisissez <code>filesystem.list</code> et utilisez l’exemple ci-dessous.</p>
+                    </li>
+                </ol>
+                <div class="code-block">
+                    <pre><code>{
+  "path": "."
+}</code></pre>
+                </div>
+                <ol class="steps start-4" start="4">
+                    <li>
+                        <strong>Cliquez sur <span class="ui-label">Run tool</span>.</strong>
+                        <p>Le résultat formaté et la durée s’affichent à droite.</p>
+                    </li>
+                    <li>
+                        <strong>En cas de blocage, lisez le nom du réglage.</strong>
+                        <p>Une opération protégée indique précisément l’option Safety requise. N’activez cette option qu’après vérification.</p>
+                    </li>
+                </ol>
+                <div class="callout">
+                    Commencez par des alias sans effet de bord :
+                    <code>filesystem.list</code>, <code>filesystem.read</code>,
+                    <code>gmail.readUnread</code>, <code>calendar.today</code> ou
+                    <code>dropbox.list</code>.
+                </div>
+            </section>
+
+            <section id="scenario-openai" data-title="Scénario : activer OpenAI-compatible">
+                <p class="section-kicker">Scénario guidé 08</p>
+                <h2>Activer un fournisseur OpenAI-compatible</h2>
+                <p class="section-intro">
+                    Le cloud est un choix explicite. Dès qu’il est sélectionné, les prompts et
+                    le contexte utile sont envoyés à l’endpoint configuré.
+                </p>
+                <ol class="steps">
+                    <li>
+                        <strong>Ouvrez <span class="ui-label">Settings</span> → <span class="ui-label">AI provider</span>.</strong>
+                        <p>Sélectionnez <span class="ui-label">OpenAI-compatible (cloud, opt-in)</span>.</p>
+                    </li>
+                    <li>
+                        <strong>Vérifiez l’avertissement cloud.</strong>
+                        <p>Assurez-vous que la politique de confidentialité de l’endpoint convient aux données traitées.</p>
+                    </li>
+                    <li>
+                        <strong>Renseignez Endpoint, Model et Timeout.</strong>
+                        <p>Pour OpenAI, l’endpoint par défaut est <code>https://api.openai.com/v1</code>. Un serveur compatible peut utiliser une autre URL.</p>
+                    </li>
+                    <li>
+                        <strong>Saisissez la clé dans <span class="ui-label">Replace API key</span>.</strong>
+                        <p>Le champ reste vide après sauvegarde : la clé est écrite dans le magasin DPAPI, jamais réaffichée.</p>
+                    </li>
+                    <li>
+                        <strong>Cliquez sur <span class="ui-label">Save settings</span>.</strong>
+                        <p>Le fournisseur s’applique aux prochains tests et exécutions, sans redémarrage.</p>
+                    </li>
+                    <li>
+                        <strong>Lancez <span class="ui-label">Test connection</span>.</strong>
+                        <p>Une erreur de clé, d’endpoint ou de modèle est affichée comme telle ; aucun retour silencieux vers Ollama n’a lieu.</p>
+                    </li>
+                </ol>
+                <div class="callout danger">
+                    La clé API ne doit jamais être ajoutée manuellement à
+                    <code>appsettings.json</code> ou <code>settings.json</code>. Utilisez
+                    exclusivement le champ protégé de l’application.
+                </div>
+            </section>
+
+            <section id="navigation" data-title="Pages de l’application">
+                <p class="section-kicker">Référence quotidienne</p>
+                <h2>Comprendre chaque page</h2>
+                <p class="section-intro">
+                    Le rail gauche donne accès aux sept pages principales. L’éditeur de tâche et
+                    l’éditeur de prompt s’ouvrent depuis <span class="ui-label">Tasks</span>.
+                </p>
+                <div class="page-map">
+                    <article class="page-item">
+                        <strong>Dashboard</strong>
+                        <p>Nombre de tâches, état du fournisseur, prochaines exécutions, historique récent et actions rapides.</p>
+                    </article>
+                    <article class="page-item">
+                        <strong>Tasks</strong>
+                        <p>Liste des tâches, statut Enabled/Registered, création, édition, suppression, prompt, exécution immédiate et sortie du runner.</p>
+                    </article>
+                    <article class="page-item">
+                        <strong>Logs</strong>
+                        <p>Événements en direct, lecture seule, avec filtres par niveau, source et id de tâche.</p>
+                    </article>
+                    <article class="page-item">
+                        <strong>Tools</strong>
+                        <p>Consentement Google, secrets Dropbox et tests de connexion Gmail, Calendar et Dropbox.</p>
+                    </article>
+                    <article class="page-item">
+                        <strong>Tool tester</strong>
+                        <p>Exécution isolée d’un alias du Tool Map avec arguments JSON et mesure de durée.</p>
+                    </article>
+                    <article class="page-item">
+                        <strong>AI playground</strong>
+                        <p>Essais libres sur le fournisseur actif, avec accès optionnel aux outils et aux skills.</p>
+                    </article>
+                    <article class="page-item">
+                        <strong>Settings</strong>
+                        <p>Fournisseur IA, paramètres généraux, scheduler, sécurité, journaux et incidents.</p>
+                    </article>
+                    <article class="page-item">
+                        <strong>Task / Prompt editors</strong>
+                        <p>Définition complète d’une tâche, aide cron, workflow, liste blanche et test du prompt en streaming.</p>
+                    </article>
+                </div>
+            </section>
+
+            <section id="taches-workflows" data-title="Tâches et workflows">
+                <p class="section-kicker">Référence</p>
+                <h2>Tâches, prompts et workflows</h2>
+                <p class="section-intro">
+                    Une tâche associe une identité, une planification, un prompt, une liste
+                    blanche d’outils et éventuellement un workflow déterministe.
+                </p>
+
+                <div class="grid two">
+                    <article class="card">
+                        <h3>Prompt seul</h3>
+                        <p>
+                            L’agent interprète l’objectif et peut choisir parmi les outils autorisés.
+                            Ce mode est souple, mais le comportement de tool-calling dépend du modèle.
+                        </p>
+                    </article>
+                    <article class="card">
+                        <h3>Workflow</h3>
+                        <p>
+                            Les étapes sont exécutées dans l’ordre défini. C’est le mode recommandé
+                            pour les automatisations sans surveillance. Si prompt et workflow
+                            coexistent, le workflow est prioritaire.
+                        </p>
+                    </article>
+                </div>
+
+                <h3>Forme d’une tâche</h3>
+                <div class="code-block">
+                    <pre><code>{
+  "id": "daily-mail-summary",
+  "name": "Daily mail summary",
+  "schedule": "0 7 * * *",
+  "prompt": "Summarize today's important messages.",
+  "tools": ["gmail", "filesystem"],
+  "workflow": [
+    "gmail.readToday",
+    {
+      "step": "ai.summarize",
+      "id": "summary"
+    },
+    {
+      "step": "filesystem.write",
+      "args": {
+        "path": "reports/mail-summary.md",
+        "content": "{{summary.output}}"
+      }
+    }
+  ],
+  "enabled": true,
+  "errorPolicy": "StopOnError"
+}</code></pre>
+                </div>
+
+                <h3>Règles importantes</h3>
+                <ul class="check-list">
+                    <li>L’id suit le format <code>[a-z0-9-]+</code> et devient immuable après création.</li>
+                    <li>Le prompt peut être vide uniquement si le workflow contient au moins une étape.</li>
+                    <li>Un alias d’outil exige que son groupe soit coché dans <span class="ui-label">Tool whitelist</span>.</li>
+                    <li>Un skill <code>ai.*</code> est toujours autorisé dans un workflow.</li>
+                    <li>Les chemins fichiers sont relatifs à la racine configurée.</li>
+                </ul>
+
+                <h3>Étapes, sorties et placeholders</h3>
+                <p>
+                    Une étape sous forme de chaîne ne prend aucun argument. La forme objet accepte
+                    <code>step</code>, <code>id</code>, <code>args</code> et une politique d’erreur.
+                    Les placeholders sont remplacés juste avant l’exécution de l’étape.
+                </p>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th>Placeholder</th><th>Valeur</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><code>{{task.id}}</code></td><td>Id de la tâche.</td></tr>
+                            <tr><td><code>{{task.name}}</code></td><td>Nom de la tâche.</td></tr>
+                            <tr><td><code>{{task.prompt}}</code></td><td>Prompt enregistré.</td></tr>
+                            <tr><td><code>{{previous.output}}</code></td><td>Sortie de l’étape précédente.</td></tr>
+                            <tr><td><code>{{stepId.output}}</code></td><td>Sortie d’une étape désignée par son id.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3>Politiques d’erreur</h3>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th>Politique</th><th>Comportement</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><code>StopOnError</code></td><td>Arrête le workflow dès la première erreur.</td></tr>
+                            <tr><td><code>ContinueOnError</code></td><td>Enregistre l’échec et poursuit les étapes suivantes.</td></tr>
+                            <tr><td><code>Retry</code></td><td>Réessaie selon <code>retryCount</code> et un délai exponentiel basé sur <code>retryBackoffSeconds</code>.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3>Tool Map</h3>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th>Groupe</th><th>Alias disponibles</th><th>Protection spéciale</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Gmail</td>
+                                <td><code>gmail.readToday</code>, <code>gmail.readUnread</code>, <code>gmail.send</code></td>
+                                <td><code>gmail.send</code> exige AllowSendEmail.</td>
+                            </tr>
+                            <tr>
+                                <td>Calendar</td>
+                                <td><code>calendar.today</code>, <code>calendar.create</code></td>
+                                <td>Dates de création en ISO 8601.</td>
+                            </tr>
+                            <tr>
+                                <td>Dropbox</td>
+                                <td><code>dropbox.upload</code>, <code>dropbox.download</code>, <code>dropbox.list</code></td>
+                                <td>Secrets Dropbox protégés par DPAPI.</td>
+                            </tr>
+                            <tr>
+                                <td>File system</td>
+                                <td><code>filesystem.list</code>, <code>read</code>, <code>write</code>, <code>move</code>, <code>delete</code>, <code>createDirectory</code></td>
+                                <td>Sandbox ; <code>delete</code> exige AllowFileDelete.</td>
+                            </tr>
+                            <tr>
+                                <td>HTTP</td>
+                                <td><code>http.get</code>, <code>http.getText</code>, <code>http.post</code></td>
+                                <td>Liste d’hôtes ; <code>post</code> exige AllowHttpPost.</td>
+                            </tr>
+                            <tr>
+                                <td>AI</td>
+                                <td><code>ai.summarize</code>, <code>ai.extractActionItems</code>, <code>ai.classifyEmail</code>, <code>ai.prompt</code></td>
+                                <td>Les skills s’exécutent sans outil.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <details>
+                    <summary>Afficher la référence détaillée des alias et arguments</summary>
+                    <div class="details-body">
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                    <tr><th>Alias</th><th>Arguments JSON</th><th>Remarque</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td><code>gmail.readToday</code></td><td>Aucun</td><td>Messages reçus aujourd’hui.</td></tr>
+                                    <tr><td><code>gmail.readUnread</code></td><td>Aucun</td><td>Messages non lus.</td></tr>
+                                    <tr><td><code>gmail.send</code></td><td><code>to</code>, <code>subject</code>, <code>body</code></td><td>Exige AllowSendEmail.</td></tr>
+                                    <tr><td><code>calendar.today</code></td><td>Aucun</td><td>Événements du jour.</td></tr>
+                                    <tr><td><code>calendar.create</code></td><td><code>summary</code>, <code>start</code>, <code>end</code>, <code>description</code></td><td>Dates ISO 8601 explicites.</td></tr>
+                                    <tr><td><code>dropbox.upload</code></td><td><code>localPath</code>, <code>dropboxPath</code></td><td>Le chemin local reste dans la sandbox.</td></tr>
+                                    <tr><td><code>dropbox.download</code></td><td><code>dropboxPath</code>, <code>localPath</code></td><td>Écrit sous la racine autorisée.</td></tr>
+                                    <tr><td><code>dropbox.list</code></td><td><code>folderPath</code></td><td>Liste un dossier Dropbox.</td></tr>
+                                    <tr><td><code>filesystem.list</code></td><td><code>path</code></td><td>Liste un dossier relatif.</td></tr>
+                                    <tr><td><code>filesystem.read</code></td><td><code>path</code></td><td>Lecture texte avec limite de taille.</td></tr>
+                                    <tr><td><code>filesystem.write</code></td><td><code>path</code>, <code>content</code></td><td>Crée ou remplace le contenu.</td></tr>
+                                    <tr><td><code>filesystem.move</code></td><td><code>from</code>, <code>to</code></td><td>Les deux chemins restent dans la sandbox.</td></tr>
+                                    <tr><td><code>filesystem.delete</code></td><td><code>path</code></td><td>Exige AllowFileDelete.</td></tr>
+                                    <tr><td><code>filesystem.createDirectory</code></td><td><code>path</code></td><td>Crée un dossier relatif.</td></tr>
+                                    <tr><td><code>http.get</code></td><td><code>url</code></td><td>Retourne une réponse HTTP compacte.</td></tr>
+                                    <tr><td><code>http.getText</code></td><td><code>url</code></td><td>Extrait le texte d’une page HTML.</td></tr>
+                                    <tr><td><code>http.post</code></td><td><code>url</code>, <code>body</code>, <code>contentType</code></td><td>Exige AllowHttpPost.</td></tr>
+                                    <tr><td><code>ai.summarize</code></td><td><code>text</code> facultatif</td><td>Sans text, reçoit la sortie précédente.</td></tr>
+                                    <tr><td><code>ai.extractActionItems</code></td><td><code>text</code> facultatif</td><td>Extrait actions, responsables et échéances explicites.</td></tr>
+                                    <tr><td><code>ai.classifyEmail</code></td><td><code>text</code> facultatif</td><td>Classe l’urgence et la réponse attendue.</td></tr>
+                                    <tr><td><code>ai.prompt</code></td><td><code>prompt</code></td><td>Prompt libre pouvant contenir des placeholders.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </details>
+            </section>
+
+            <section id="planification" data-title="Planification et cron">
+                <p class="section-kicker">Référence</p>
+                <h2>Planification et format cron</h2>
+                <p class="section-intro">
+                    L’éditeur propose des horaires courants en langage clair. Pour un besoin avancé,
+                    le champ cron reste éditable et l’aperçu calcule les trois prochaines occurrences
+                    dans le fuseau local Windows.
+                </p>
+
+                <h3>Les cinq champs</h3>
+                <div class="code-block">
+                    <pre><code>minute   heure   jour-du-mois   mois   jour-de-semaine
+ 0-59     0-23       1-31       1-12        0-6</code></pre>
+                </div>
+                <p>
+                    <code>*</code> signifie « toutes les valeurs », <code>*/n</code> un intervalle,
+                    la virgule une liste et le tiret une plage. Le dimanche vaut 0.
+                </p>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th>Expression</th><th>Signification</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><code>*/5 * * * *</code></td><td>Toutes les 5 minutes.</td></tr>
+                            <tr><td><code>0 * * * *</code></td><td>Au début de chaque heure.</td></tr>
+                            <tr><td><code>0 7 * * *</code></td><td>Tous les jours à 07:00.</td></tr>
+                            <tr><td><code>0 9 * * 1-5</code></td><td>Du lundi au vendredi à 09:00.</td></tr>
+                            <tr><td><code>0 9 * * 1</code></td><td>Chaque lundi à 09:00.</td></tr>
+                            <tr><td><code>0 9 1 * *</code></td><td>Le premier jour de chaque mois à 09:00.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3>Enabled et Registered</h3>
+                <div class="grid two">
+                    <article class="card">
+                        <h3>Enabled</h3>
+                        <p>
+                            État enregistré dans la définition de la tâche. Une tâche Enabled doit
+                            être planifiée et sera réparée par une resynchronisation.
+                        </p>
+                    </article>
+                    <article class="card">
+                        <h3>Registered</h3>
+                        <p>
+                            Indique si le miroir existe actuellement dans Windows Task Scheduler.
+                            Le bouton Register/Unregister agit sur ce miroir.
+                        </p>
+                    </article>
+                </div>
+
+                <div class="callout">
+                    La définition JSON reste la source de vérité. Windows Task Scheduler ne contient
+                    que la prochaine occurrence. Après chaque exécution, le runner calcule et
+                    enregistre la suivante. Utilisez <span class="ui-label">Resync schedules</span>
+                    pour réparer des enregistrements supprimés ou obsolètes.
+                </div>
+
+                <h3>Exécution lorsque l’utilisateur est déconnecté</h3>
+                <p>
+                    Dans <span class="ui-label">Settings</span>, l’option
+                    <span class="ui-label">Run when the user is logged off (S4U)</span> permet une
+                    exécution sans session interactive. Elle doit rester associée au même compte
+                    Windows, car les secrets DPAPI, les tokens Google et <code>%LOCALAPPDATA%</code>
+                    dépendent de cet utilisateur.
+                </p>
+                <div class="callout warning">
+                    S4U ne peut pas afficher le consentement Google. Connectez Google depuis
+                    l’interface avant d’activer ce mode.
+                </div>
+            </section>
+
+            <section id="securite" data-title="Sécurité et garde-fous">
+                <p class="section-kicker">Référence</p>
+                <h2>Sécurité : autoriser le minimum nécessaire</h2>
+                <p class="section-intro">
+                    La sécurité repose sur plusieurs couches complémentaires. Une connexion valide
+                    ne suffit jamais à autoriser automatiquement une tâche.
+                </p>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th>Couche</th><th>Rôle</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Tool whitelist</td>
+                                <td>Limite les groupes d’outils visibles par une tâche ou un workflow.</td>
+                            </tr>
+                            <tr>
+                                <td>Safety gates</td>
+                                <td>Bloque par défaut l’envoi d’e-mail, la suppression de fichier et HTTP POST.</td>
+                            </tr>
+                            <tr>
+                                <td>File-system root path</td>
+                                <td>Confine toutes les opérations fichiers sous une racine absolue.</td>
+                            </tr>
+                            <tr>
+                                <td>HTTP Allowed Hosts</td>
+                                <td>Limite les destinations HTTP par nom d’hôte exact.</td>
+                            </tr>
+                            <tr>
+                                <td>DPAPI CurrentUser</td>
+                                <td>Protège les clés OpenAI et Dropbox pour le compte Windows courant.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3>Opérations désactivées par défaut</h3>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th>Alias</th><th>Option à activer</th><th>Avant d’activer</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><code>gmail.send</code></td><td>Allow sending email</td><td>Vérifier destinataire, contenu et source des données.</td></tr>
+                            <tr><td><code>filesystem.delete</code></td><td>Allow file deletion</td><td>Vérifier la racine, le chemin et la récupération possible.</td></tr>
+                            <tr><td><code>http.post</code></td><td>Allow HTTP POST</td><td>Définir une liste d’hôtes et examiner les données envoyées.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="callout danger">
+                    Les e-mails, pages web et fichiers lus par les outils sont des données non
+                    fiables. Ils peuvent contenir des instructions malveillantes destinées au
+                    modèle. Ne donnez pas à une tâche plus de droits que son workflow n’en exige.
+                </div>
+
+                <h3>Liste d’hôtes HTTP</h3>
+                <p>
+                    Dans <span class="ui-label">Allowed HTTP hosts</span>, saisissez les noms
+                    d’hôtes séparés par des virgules, sans protocole ni chemin. Une liste vide
+                    autorise tous les hôtes HTTP/HTTPS : c’est pratique pour un test, mais déconseillé
+                    pour une tâche sans surveillance.
+                </p>
+            </section>
+
+            <section id="rapports-journaux" data-title="Rapports, Dashboard et journaux">
+                <p class="section-kicker">Référence</p>
+                <h2>Suivre les exécutions et lire les rapports</h2>
+                <p class="section-intro">
+                    Chaque exécution réelle produit un rapport Markdown et une entrée dans
+                    l’historique. Les événements techniques apparaissent en parallèle dans les logs.
+                </p>
+
+                <div class="grid three">
+                    <article class="card">
+                        <h3>Dashboard</h3>
+                        <p class="muted">Affiche les cinq prochaines exécutions et les dix exécutions récentes avec statut et durée.</p>
+                    </article>
+                    <article class="card">
+                        <h3>Runner output</h3>
+                        <p class="muted">Montre en direct la sortie d’un <span class="ui-label">Run now</span> et permet son annulation.</p>
+                    </article>
+                    <article class="card">
+                        <h3>Reports</h3>
+                        <p class="muted">Conserve un fichier Markdown par exécution et un index JSONL commun.</p>
+                    </article>
+                </div>
+
+                <h3>Page Logs</h3>
+                <ul class="check-list">
+                    <li>Le flux est en lecture seule et suit automatiquement les nouvelles entrées.</li>
+                    <li>Le filtre Level isole Information, Warning, Error, etc.</li>
+                    <li>Source recherche un composant ou un contexte.</li>
+                    <li>Task id limite l’affichage à une tâche précise.</li>
+                </ul>
+
+                <div class="callout">
+                    Une tâche marquée <span class="status bad">Failure</span> doit être examinée dans
+                    cet ordre : sortie du runner, rapport de la tâche, page Logs, puis incident
+                    éventuel avec son correlation id.
+                </div>
+            </section>
+
+            <section id="diagnostics" data-title="Diagnostics et incidents">
+                <p class="section-kicker">Référence</p>
+                <h2>Diagnostics, exports et incidents</h2>
+                <p class="section-intro">
+                    La section Diagnostics se trouve en bas de <span class="ui-label">Settings</span>.
+                    Elle permet d’exporter les éléments utiles à une analyse sans arrêter l’application.
+                </p>
+
+                <h3>Journaux de l’application</h3>
+                <div class="grid two">
+                    <article class="card">
+                        <h3>Save to disk…</h3>
+                        <p>
+                            Exporte l’intégralité du tampon de logs actuellement visible vers un
+                            fichier <code>.log</code> choisi par l’utilisateur.
+                        </p>
+                    </article>
+                    <article class="card">
+                        <h3>Reset</h3>
+                        <p>
+                            Après confirmation, efface la vue, copie les journaux courants dans une
+                            archive horodatée et tronque les fichiers actifs.
+                        </p>
+                    </article>
+                </div>
+
+                <h3>Incidents</h3>
+                <p>
+                    Un incident contient l’heure UTC, la gravité, la source, le message, la pile
+                    d’appels et un <strong>correlation id</strong>. Ce dernier permet de relier la
+                    notification visible à l’enregistrement durable.
+                </p>
+                <ul class="check-list">
+                    <li><span class="ui-label">Copy details</span> copie toutes les informations d’un incident.</li>
+                    <li><span class="ui-label">Export…</span> sauvegarde la liste.</li>
+                    <li><span class="ui-label">Clear all</span> efface les incidents après confirmation.</li>
+                    <li><span class="ui-label">Trigger test incident</span> vérifie volontairement le pipeline d’erreur.</li>
+                </ul>
+                <div class="callout warning">
+                    Utilisez <span class="ui-label">Trigger test incident</span> uniquement pour un
+                    diagnostic volontaire. L’incident créé est réel et restera dans la liste tant
+                    qu’il n’est pas effacé.
+                </div>
+            </section>
+
+            <section id="depannage" data-title="Dépannage">
+                <p class="section-kicker">Assistance</p>
+                <h2>Résoudre les problèmes courants</h2>
+                <p class="section-intro">
+                    Ouvrez un sujet pour afficher les contrôles recommandés, dans l’ordre.
+                </p>
+
+                <details>
+                    <summary>Ollama ne répond pas</summary>
+                    <div class="details-body">
+                        <ol>
+                            <li>Lancez <code>ollama list</code> dans PowerShell.</li>
+                            <li>Vérifiez que l’endpoint est <code>http://localhost:11434</code> pour une installation locale standard.</li>
+                            <li>Dans Settings, cliquez sur <span class="ui-label">Refresh models</span>.</li>
+                            <li>Enregistrez, puis lancez <span class="ui-label">Test connection</span>.</li>
+                            <li>Consultez Logs si le service répond en ligne de commande mais pas dans l’application.</li>
+                        </ol>
+                    </div>
+                </details>
+
+                <details>
+                    <summary>Le modèle configuré est absent</summary>
+                    <div class="details-body">
+                        <p>Installez le tag manquant, puis actualisez la liste :</p>
+                        <div class="code-block">
+                            <pre><code>ollama pull gemma4:12b
+ollama list</code></pre>
+                        </div>
+                        <p>Choisissez exactement le même identifiant dans la combobox Ollama.</p>
+                    </div>
+                </details>
+
+                <details>
+                    <summary>Le runner est introuvable</summary>
+                    <div class="details-body">
+                        <ol>
+                            <li>Vérifiez que le dossier publié contient <code>Runner\OD.MyLocalAgent.Runner.exe</code>.</li>
+                            <li>Laissez Runner path vide pour la disposition standard UI/Runner.</li>
+                            <li>Sinon, saisissez le chemin absolu du runner publié.</li>
+                            <li>Enregistrez Settings et lancez <span class="ui-label">Resync schedules</span>.</li>
+                        </ol>
+                    </div>
+                </details>
+
+                <details>
+                    <summary>Une tâche n’est plus planifiée ou indique Registered = No</summary>
+                    <div class="details-body">
+                        <ol>
+                            <li>Vérifiez que la tâche est Enabled.</li>
+                            <li>Sélectionnez-la dans Tasks et utilisez Register si vous ne voulez réparer que cette tâche.</li>
+                            <li>Pour une réparation globale, utilisez Dashboard → <span class="ui-label">Resync schedules</span>.</li>
+                            <li>Actualisez Tasks et vérifiez la prochaine occurrence.</li>
+                        </ol>
+                    </div>
+                </details>
+
+                <details>
+                    <summary>Google demande sans cesse le consentement</summary>
+                    <div class="details-body">
+                        <ol>
+                            <li>Vérifiez que le client OAuth est de type Desktop app.</li>
+                            <li>Confirmez que le compte est autorisé comme utilisateur de test.</li>
+                            <li>Vérifiez que Gmail API et Calendar API sont activées.</li>
+                            <li>Effectuez le consentement depuis Tools dans une session Windows interactive.</li>
+                            <li>Utilisez le même compte Windows pour les tâches S4U.</li>
+                        </ol>
+                    </div>
+                </details>
+
+                <details>
+                    <summary>Une opération est bloquée par SafetyException</summary>
+                    <div class="details-body">
+                        <p>
+                            Lisez le nom exact du réglage demandé. Vérifiez le workflow, la liste
+                            blanche, la destination et les données d’entrée. Activez ensuite
+                            uniquement l’option nécessaire dans Settings → Safety gates.
+                        </p>
+                    </div>
+                </details>
+
+                <details>
+                    <summary>Un chemin fichier est refusé</summary>
+                    <div class="details-body">
+                        <p>
+                            Utilisez un chemin relatif comme <code>reports\summary.md</code>. Les
+                            chemins absolus et les remontées <code>..\</code> hors de la racine sont
+                            volontairement rejetés. Vérifiez aussi File-system root path.
+                        </p>
+                    </div>
+                </details>
+
+                <details>
+                    <summary>Une requête HTTP est refusée</summary>
+                    <div class="details-body">
+                        <ol>
+                            <li>Vérifiez le nom d’hôte dans Allowed HTTP hosts, sans protocole ni chemin.</li>
+                            <li>Pour POST, activez Allow HTTP POST après vérification du contenu.</li>
+                            <li>Pour GET, contrôlez l’URL et le certificat de l’endpoint.</li>
+                            <li>Utilisez Tool tester pour isoler l’appel.</li>
+                        </ol>
+                    </div>
+                </details>
+            </section>
+
+            <section id="reference" data-title="Emplacements de données et commandes CLI">
+                <p class="section-kicker">Référence technique utile</p>
+                <h2>Emplacements de données et commandes CLI</h2>
+                <p class="section-intro">
+                    Ces informations sont utiles pour sauvegarder les tâches, retrouver un rapport
+                    ou effectuer un diagnostic avancé.
+                </p>
+
+                <h3>Emplacements</h3>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th>Emplacement</th><th>Contenu</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\settings.json</code></td><td>Réglages utilisateur non secrets.</td></tr>
+                            <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\secrets.dat</code></td><td>Secrets OpenAI et Dropbox protégés par DPAPI.</td></tr>
+                            <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\Auth\Google\</code></td><td>Autorisation OAuth Google actualisable.</td></tr>
+                            <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\tasks\</code></td><td>Un fichier JSON validé par tâche.</td></tr>
+                            <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\reports\&lt;taskId&gt;\</code></td><td>Rapports Markdown de la tâche.</td></tr>
+                            <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\reports\index.jsonl</code></td><td>Index de toutes les exécutions.</td></tr>
+                            <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\logs\</code></td><td>Journaux applicatifs et incidents.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3>Runner CLI</h3>
+                <p>
+                    Ces commandes sont destinées au diagnostic avancé ou à l’exploitation sans
+                    interface. Exécutez-les depuis PowerShell.
+                </p>
+                <div class="code-block">
+                    <pre><code>$runner = Join-Path $env:LOCALAPPDATA `
+  'Programs\OD.MyLocalAgent\Runner\OD.MyLocalAgent.Runner.exe'
+
+& $runner list
+& $runner run --task first-local-task
+& $runner test-prompt --task first-local-task
+& $runner test-tool --alias filesystem.list --args '{ "path": "." }'
+& $runner resync-schedules</code></pre>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th>Commande</th><th>Usage</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><code>list</code></td><td>Liste les tâches, leur cron, leur état et leur prochaine exécution.</td></tr>
+                            <tr><td><code>run --task &lt;id&gt;</code></td><td>Exécute le workflow ou le prompt, écrit le rapport et replanifie.</td></tr>
+                            <tr><td><code>test-prompt --task &lt;id&gt;</code></td><td>Teste le chemin prompt sans planification.</td></tr>
+                            <tr><td><code>test-tool</code></td><td>Exécute un alias avec des arguments JSON explicites.</td></tr>
+                            <tr><td><code>resync-schedules</code></td><td>Répare les enregistrements Windows à partir du magasin de tâches.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3>Codes de sortie</h3>
+                <p>
+                    <span class="status good">0 succès</span>
+                    <span class="status bad">1 échec tâche ou outil</span>
+                    <span class="status warn">2 configuration</span>
+                    <span class="status warn">3 tâche absente</span>
+                </p>
+            </section>
+
+            <footer class="footer">
+                <strong>OD.MyLocalAgent · Manuel utilisateur</strong><br>
+                Document autonome HTML5. Les chemins, écrans et comportements décrits correspondent
+                à la version du projet du 29 juillet 2026.
+                <a href="User-Manual.en.html" lang="en">Read in English</a>.
+            </footer>
+        </div>
+    </main>
+
+    <a class="back-to-top" id="back-to-top" href="#accueil" aria-label="Revenir en haut">↑</a>
+
+    <script>
+        (() => {
+            "use strict";
+
+            const body = document.body;
+            const menuButton = document.getElementById("menu-button");
+            const menuOverlay = document.getElementById("menu-overlay");
+            const navLinks = [...document.querySelectorAll(".nav-list a")];
+            const sections = [...document.querySelectorAll("section[id]")];
+            const searchInput = document.getElementById("manual-search");
+            const searchResults = document.getElementById("search-results");
+            const progress = document.getElementById("reading-progress");
+            const backToTop = document.getElementById("back-to-top");
+
+            const closeMenu = () => {
+                body.classList.remove("menu-open");
+                menuButton.setAttribute("aria-expanded", "false");
+            };
+
+            const openMenu = () => {
+                body.classList.add("menu-open");
+                menuButton.setAttribute("aria-expanded", "true");
+            };
+
+            menuButton.addEventListener("click", () => {
+                body.classList.contains("menu-open") ? closeMenu() : openMenu();
+            });
+            menuOverlay.addEventListener("click", closeMenu);
+            navLinks.forEach(link => link.addEventListener("click", closeMenu));
+
+            const setActiveLink = id => {
+                navLinks.forEach(link => {
+                    const active = link.getAttribute("href") === `#${id}`;
+                    link.classList.toggle("active", active);
+                    if (active) {
+                        link.setAttribute("aria-current", "location");
+                    } else {
+                        link.removeAttribute("aria-current");
+                    }
+                });
+            };
+
+            const observer = new IntersectionObserver(entries => {
+                const visible = entries
+                    .filter(entry => entry.isIntersecting)
+                    .sort((left, right) => right.intersectionRatio - left.intersectionRatio)[0];
+                if (visible) {
+                    setActiveLink(visible.target.id);
+                }
+            }, {
+                rootMargin: "-12% 0px -68% 0px",
+                threshold: [0.05, 0.2, 0.5]
+            });
+            sections.forEach(section => observer.observe(section));
+
+            const updateScrollState = () => {
+                const scrollable = document.documentElement.scrollHeight - window.innerHeight;
+                const ratio = scrollable > 0 ? window.scrollY / scrollable : 0;
+                progress.style.width = `${Math.min(100, Math.max(0, ratio * 100))}%`;
+                backToTop.classList.toggle("visible", window.scrollY > 700);
+            };
+            window.addEventListener("scroll", updateScrollState, { passive: true });
+            window.addEventListener("resize", updateScrollState);
+            updateScrollState();
+
+            const searchIndex = sections.map(section => ({
+                id: section.id,
+                title: section.dataset.title || section.querySelector("h1, h2")?.textContent || section.id,
+                text: section.textContent.replace(/\s+/g, " ").trim()
+            }));
+
+            const closeResults = () => {
+                searchResults.hidden = true;
+                searchResults.replaceChildren();
+            };
+
+            const showResults = query => {
+                const normalized = query.trim().toLocaleLowerCase("fr");
+                if (normalized.length < 2) {
+                    closeResults();
+                    return;
+                }
+
+                const matches = searchIndex
+                    .map(item => {
+                        const title = item.title.toLocaleLowerCase("fr");
+                        const text = item.text.toLocaleLowerCase("fr");
+                        const titleIndex = title.indexOf(normalized);
+                        const textIndex = text.indexOf(normalized);
+                        return {
+                            ...item,
+                            score: titleIndex >= 0 ? titleIndex : textIndex >= 0 ? 1000 + textIndex : Number.MAX_SAFE_INTEGER,
+                            textIndex
+                        };
+                    })
+                    .filter(item => item.score < Number.MAX_SAFE_INTEGER)
+                    .sort((left, right) => left.score - right.score)
+                    .slice(0, 8);
+
+                searchResults.replaceChildren();
+                if (matches.length === 0) {
+                    const empty = document.createElement("div");
+                    empty.className = "search-empty";
+                    empty.textContent = "Aucun résultat dans le manuel.";
+                    searchResults.append(empty);
+                } else {
+                    matches.forEach(match => {
+                        const link = document.createElement("a");
+                        link.className = "search-result";
+                        link.href = `#${match.id}`;
+                        link.setAttribute("role", "option");
+
+                        const title = document.createElement("strong");
+                        title.textContent = match.title;
+                        const excerpt = document.createElement("span");
+                        const start = Math.max(0, match.textIndex - 45);
+                        excerpt.textContent = match.text.slice(start, start + 125);
+                        link.append(title, excerpt);
+                        link.addEventListener("click", () => {
+                            closeResults();
+                            closeMenu();
+                            searchInput.blur();
+                        });
+                        searchResults.append(link);
+                    });
+                }
+                searchResults.hidden = false;
+            };
+
+            searchInput.addEventListener("input", event => showResults(event.target.value));
+            searchInput.addEventListener("keydown", event => {
+                if (event.key === "Escape") {
+                    searchInput.value = "";
+                    closeResults();
+                    searchInput.blur();
+                }
+            });
+            document.addEventListener("click", event => {
+                if (!event.target.closest(".search-wrap")) {
+                    closeResults();
+                }
+            });
+            document.addEventListener("keydown", event => {
+                const isTyping = /input|textarea|select/i.test(document.activeElement?.tagName || "");
+                if (event.key === "/" && !isTyping) {
+                    event.preventDefault();
+                    searchInput.focus();
+                } else if (event.key === "Escape") {
+                    closeMenu();
+                    closeResults();
+                }
+            });
+
+            document.querySelectorAll(".code-block").forEach(block => {
+                const code = block.querySelector("code");
+                if (!code) {
+                    return;
+                }
+
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = "copy-button";
+                button.textContent = "Copier";
+                button.setAttribute("aria-label", "Copier cet exemple");
+                button.addEventListener("click", async () => {
+                    try {
+                        await navigator.clipboard.writeText(code.textContent);
+                        button.textContent = "Copié";
+                    } catch {
+                        const selection = window.getSelection();
+                        const range = document.createRange();
+                        range.selectNodeContents(code);
+                        selection.removeAllRanges();
+                        selection.addRange(range);
+                        button.textContent = "Sélectionné";
+                    }
+                    window.setTimeout(() => {
+                        button.textContent = "Copier";
+                    }, 1800);
+                });
+                block.append(button);
+            });
+
+            if (window.location.hash) {
+                setActiveLink(window.location.hash.slice(1));
+            } else {
+                setActiveLink("accueil");
+            }
+        })();
+    </script>
+</body>
+</html>

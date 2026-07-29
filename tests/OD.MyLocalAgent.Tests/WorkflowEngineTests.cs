@@ -462,6 +462,10 @@ public sealed class WorkflowEngineTests
 
         public string Name { get; }
 
+        public string AgentFunctionName => $"skill_{Name}";
+
+        public string Description => "Records supplied text for workflow tests.";
+
         public List<string> Inputs { get; } = [];
 
         public Task<string> ExecuteAsync(

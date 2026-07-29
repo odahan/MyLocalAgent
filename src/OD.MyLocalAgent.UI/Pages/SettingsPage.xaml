@@ -65,9 +65,28 @@
                             <TextBox Margin="0,0,0,12"
                                      Text="{Binding OllamaEndpoint, UpdateSourceTrigger=PropertyChanged}"
                                      materialDesign:HintAssist.Hint="Endpoint" />
-                            <TextBox Margin="0,0,0,12"
-                                     Text="{Binding OllamaModel, UpdateSourceTrigger=PropertyChanged}"
-                                     materialDesign:HintAssist.Hint="Model" />
+                            <ComboBox Margin="0,0,0,8"
+                                      IsEditable="True"
+                                      IsTextSearchEnabled="True"
+                                      ItemsSource="{Binding OllamaModels}"
+                                      StaysOpenOnEdit="True"
+                                      Text="{Binding OllamaModel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      materialDesign:HintAssist.Hint="Installed model" />
+                            <Grid Margin="0,0,0,12">
+                                <Button HorizontalAlignment="Left"
+                                        Command="{Binding RefreshOllamaModelsCommand}"
+                                        Content="Refresh models" />
+                                <ProgressBar Width="70"
+                                             Height="3"
+                                             HorizontalAlignment="Right"
+                                             VerticalAlignment="Center"
+                                             IsIndeterminate="True"
+                                             Visibility="{Binding IsLoadingOllamaModels, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            </Grid>
+                            <TextBlock Margin="0,0,0,12"
+                                       Style="{StaticResource CaptionTextStyle}"
+                                       Text="{Binding OllamaModelCatalogStatus}"
+                                       TextWrapping="Wrap" />
                             <TextBox Text="{Binding OllamaTimeoutSeconds, UpdateSourceTrigger=PropertyChanged}"
                                      materialDesign:HintAssist.Hint="Timeout (seconds)" />
                         </StackPanel>

@@ -8,11 +8,13 @@ internal sealed class StubLlmClientService : ILlmClientService
 {
     public StubLlmClientService(string response)
     {
-        ChatClient = new StubChatClient(response);
+        Client = new StubChatClient(response);
         Response = response;
     }
 
-    public IChatClient ChatClient { get; }
+    public StubChatClient Client { get; }
+
+    public IChatClient ChatClient => Client;
 
     public string ProviderName => "Stub";
 

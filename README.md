@@ -9,6 +9,10 @@ an explicit cloud opt-in. Published UI and runner executables are self-contained
 installed in sibling `UI` and `Runner` directories so scheduled actions never depend on a
 development `bin` directory.
 
+Standalone offline HTML5 user guides are available in
+[French](Docs/User-Manual.html) and [English](Docs/User-Manual.en.html). Each guide contains
+its own navigation, search, styles, and scripts in one file.
+
 ## Product status
 
 | Stage | Scope | Status |
@@ -79,7 +83,9 @@ Start:
 On first launch:
 
 1. Open **Settings** and confirm the Ollama endpoint, model, filesystem root, scheduler
-   options, and safety defaults.
+   options, and safety defaults. The Ollama model field is an editable list populated from
+   the models installed on the configured endpoint; use **Refresh models** after changing the
+   endpoint or installing a new model.
 2. Select **Test connection**. A healthy result requires both a reachable endpoint and the
    exact configured model tag.
 3. Open **Tools** to authorize Google or store Dropbox credentials when those integrations
@@ -216,6 +222,10 @@ next cron occurrence:
 This rolling-trigger design avoids relying on Task Scheduler's separate recurring-calendar
 semantics. Run `resync-schedules` after restoring a task store, changing the publish path, or
 repairing a deleted/stale registration.
+
+The task editor provides plain-language presets for common schedules, a five-field cron guide,
+live validation, and the next three local occurrences. Advanced cron expressions remain
+editable directly.
 
 With `Scheduler:RunWhenLoggedOff = false`, registrations use the current user's interactive
 token. With it set to `true`, they use S4U. S4U cannot perform interactive OAuth consent:
@@ -483,6 +493,11 @@ The Settings page can switch between:
 Save the new provider and select **Test connection**. The factory reads monitored options on
 every creation, so the next test or task uses the new provider without restarting the UI.
 Already-running executions are not interrupted.
+
+The AI playground uses raw completion by default. **Allow Tools** switches it to agent mode
+with all five tool groups, while **Allow Skills** exposes the built-in summarize, action-item,
+and email-classification skills. The filesystem sandbox, tool safety flags, connector
+configuration, and HTTP allowlist continue to apply in the playground.
 
 The OpenAI API key replacement field is write-only and saved only through DPAPI. Verify
 `%LOCALAPPDATA%\OD.MyLocalAgent\settings.json` after a provider test: it may contain provider,
