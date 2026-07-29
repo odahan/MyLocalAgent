@@ -1,0 +1,154 @@
+using System.Windows;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Messaging;
+using MahApps.Metro.IconPacks;
+using MaterialDesignThemes.Wpf;
+using Microsoft.Extensions.DependencyInjection;
+using OD.MyLocalAgent.UI.Messages;
+
+namespace OD.MyLocalAgent.UI.ViewModels;
+
+/// <summary>
+/// Coordinates shell navigation and non-blocking notifications.
+/// </summary>
+public sealed partial class MainWindowViewModel :
+    ObservableRecipient,
+    IRecipient<IncidentNotificationMessage>,
+    IRecipient<NavigateMessage>,
+    IRecipient<SnackbarNotificationMessage>
+{
+    private readonly IServiceProvider _serviceProvider;
+
+    [ObservableProperty]
+    private object? _currentPage;
+
+    [ObservableProperty]
+    private NavigationItemViewModel? _selectedNavigationItem;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MainWindowViewModel"/> class.
+    /// </summary>
+    public MainWindowViewModel(
+        IServiceProvider serviceProvider,
+        IMessenger messenger,
+        ISnackbarMessageQueue snackbarMessageQueue)
+        : base(messenger)
+    {
+        _serviceProvider = serviceProvider;
+        SnackbarMessageQueue = snackbarMessageQueue;
+        NavigationItems =
+        [
+            new(
+                "Dashboard",
+                PackIconMaterialKind.ViewDashboardOutline,
+                PageRoute.Dashboard),
+            new(
+                "Tasks",
+                PackIconMaterialKind.CalendarClock,
+                PageRoute.Tasks),
+            new(
+                "Logs",
+                PackIconMaterialKind.TextBoxSearchOutline,
+                PageRoute.Logs),
+            new(
+                "Tools",
+                PackIconMaterialKind.Tools,
+                PageRoute.Tools),
+            new(
+                "Tool tester",
+                PackIconMaterialKind.FlaskOutline,
+                PageRoute.ToolTester),
+            new(
+                "AI playground",
+                PackIconMaterialKind.RobotOutline,
+                PageRoute.AIPlayground),
+            new(
+                "Settings",
+                PackIconMaterialKind.CogOutline,
+                PageRoute.Settings),
+        ];
+        IsActive = true;
+        SelectedNavigationItem = NavigationItems[0];
+    }
+
+    /// <summary>
+    /// Gets the shell navigation destinations.
+    /// </summary>
+    public IReadOnlyList<NavigationItemViewModel> NavigationItems { get; }
+
+    /// <summary>
+    /// Gets the snackbar queue displayed by the shell.
+    /// </summary>
+    public ISnackbarMessageQueue SnackbarMessageQueue { get; }
+
+    /// <inheritdoc />
+    public void Receive(IncidentNotificationMessage message)
+    {
+        Enqueue(
+            $"An incident was recorded. Correlation id: {message.CorrelationId}");
+    }
+
+    /// <inheritdoc />
+    public void Receive(NavigateMessage message)
+    {
+        var item = NavigationItems.First(candidate => candidate.Route == message.Route);
+        if (!ReferenceEquals(item, SelectedNavigationItem))
+        {
+            SelectedNavigationItem = item;
+        }
+    }
+
+    /// <inheritdoc />
+    public void Receive(SnackbarNotificationMessage message)
+    {
+        Enqueue(message.Message);
+    }
+
+    partial void OnSelectedNavigationItemChanged(
+        NavigationItemViewModel? value)
+    {
+        if (value is null)
+        {
+            return;
+        }
+
+        CurrentPage = value.Route switch
+        {
+            PageRoute.Dashboard =>
+                _serviceProvider.GetRequiredService<DashboardViewModel>(),
+            PageRoute.Tasks =>
+                _serviceProvider.GetRequiredService<TasksViewModel>(),
+            PageRoute.Logs =>
+                _serviceProvider.GetRequiredService<LogsViewModel>(),
+            PageRoute.Tools =>
+                _serviceProvider.GetRequiredService<ToolsViewModel>(),
+            PageRoute.ToolTester =>
+                _serviceProvider.GetRequiredService<ToolTesterViewModel>(),
+            PageRoute.AIPlayground =>
+                _serviceProvider.GetRequiredService<AIPlaygroundViewModel>(),
+            PageRoute.Settings =>
+                _serviceProvider.GetRequiredService<SettingsViewModel>(),
+            _ => throw new InvalidOperationException(
+                $"Unsupported navigation route '{value.Route}'."),
+        };
+        if (CurrentPage is IActivatablePage activatablePage)
+        {
+            activatablePage.Activate();
+        }
+    }
+
+    private void Enqueue(string message)
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess())
+        {
+            SnackbarMessageQueue.Enqueue(message, neverConsiderToBeDuplicate: true);
+            return;
+        }
+
+        _ = dispatcher.BeginInvoke(
+            () => SnackbarMessageQueue.Enqueue(
+                message,
+                neverConsiderToBeDuplicate: true));
+    }
+}

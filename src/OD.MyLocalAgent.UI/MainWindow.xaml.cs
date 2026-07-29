@@ -3,7 +3,7 @@ using System.Windows;
 namespace OD.MyLocalAgent.UI;
 
 /// <summary>
-/// Hosts the Stage 0 application surface.
+/// Hosts the application navigation shell.
 /// </summary>
 public partial class MainWindow : Window
 {

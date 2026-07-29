@@ -554,3 +554,135 @@ folder.
 - Dashboard report history can read `reports\index.jsonl`; each `reportPath` is absolute.
 - UI startup and its schedule repair action must continue to call the existing
   `ITaskSchedulerService.ResyncAllAsync`. There are no open Stage 4 blockers.
+
+### Stage 4 — 2026-07-29
+
+#### Files created or changed
+
+- Replaced the Stage 0 window stub with the Generic Host composition root, DI-resolved shell,
+  navigation rail, Material icons, snackbar host, and graceful application lifecycle.
+- Added `Themes/DarkPalette.xaml` as the single color-role dictionary and
+  `Themes/ControlStyles.xaml` for palette-derived implicit and named styles. Added the running
+  control inventory in `Docs/theme-audit.md`.
+- Added one messenger record per file for navigation, general snackbar notifications, and
+  durable incident notifications.
+- Added the Dashboard, Logs, and Settings pages and ViewModels, plus real disabled-content
+  landing pages for Tasks, Tools, Tool tester, and AI playground.
+- Added UI services for desktop interaction, atomic per-user settings persistence, log
+  export/reset, incident-to-messenger bridging, and one-shot startup schedule repair.
+- Added a bindable `PasswordBox` behavior so the replacement API key remains compatible with
+  strict MVVM and page code-behind stays limited to initialization and Logs auto-scroll.
+
+#### DI graph and lifecycle
+
+The UI builds `Host.CreateApplicationBuilder` with `AppContext.BaseDirectory` as content root,
+then calls `AddODServices` and `AddWorkflowServices`. UI registrations add the singleton
+messenger and snackbar queue; desktop, settings, and log-management services; the incident
+bridge; `SchedulerStartupService`; the shell; every page; and every ViewModel.
+
+`App.OnStartup` builds the host, initializes `AppExceptionHandlers`, wires the process hooks
+and WPF dispatcher hook, starts the incident bridge, resolves the DI-backed shell, starts the
+host asynchronously, and displays the window. `SchedulerStartupService` calls
+`ITaskSchedulerService.ResyncAllAsync` once in the background. `App.OnExit` performs a bounded
+graceful host stop.
+
+Core continues to expose `IRunnerService` through the shared container for the Stage 5 Run now
+page; no duplicate execution path was introduced in UI.
+
+#### Pages and ViewModels
+
+- `MainWindow` / `MainWindowViewModel`
+- `DashboardPage` / `DashboardViewModel`
+- `TasksPage` / `TasksViewModel`
+- `LogsPage` / `LogsViewModel`
+- `ToolsPage` / `ToolsViewModel`
+- `ToolTesterPage` / `ToolTesterViewModel`
+- `AIPlaygroundPage` / `AIPlaygroundViewModel`
+- `SettingsPage` / `SettingsViewModel`
+
+Dashboard reads tasks through `ITaskStore`, computes the closest five runs through
+`ITaskSchedulerService.GetNextRunAsync`, reads the last ten valid report-index lines, checks
+the factory-selected provider asynchronously, and exposes New task, schedule resync, and logs
+folder actions.
+
+Logs projects the bounded Serilog sink into a dispatcher-marshalled, auto-scrolling,
+read-only `ListView`. Minimum level, source substring, and task-id substring are live
+collection-view filters.
+
+Settings covers all three required sections. The settings service validates and atomically
+writes only non-secret sections to the reloadable per-user JSON file. A replacement OpenAI key
+is written only through `ISecretStore`, copied into the winning in-memory configuration
+provider, and followed by `IConfigurationRoot.Reload`, so the next factory call observes both
+provider and key changes without restart. Diagnostics export/reset logs, display expandable
+incidents, copy/export/clear them, and deliberately throw the test incident through the
+generated command path.
+
+#### Incident flow
+
+`IIncidentReporter.IncidentReported` is bridged to `IncidentNotificationMessage`.
+`MainWindowViewModel` receives it and enqueues a non-blocking snackbar containing the
+correlation id; `SettingsViewModel` refreshes the durable incident list. Dispatcher exceptions
+are marked handled before reporting so the application remains usable. Bootstrap exceptions
+are also reported when the host has already been constructed, with a message-box fallback
+when durable incident storage is unavailable.
+
+#### Theme structure and package deviation
+
+`DarkPalette.xaml` defines background, surface, card, primary, secondary, error, warning,
+success, on-background, on-surface, muted text, and divider roles. All custom styles consume
+those roles; pages do not contain inline colors.
+
+The post-stage window-chrome refinement replaces the Windows-colored non-client frame with a
+theme-owned WPF title bar. It retains native move, resize, system-command, and DWM-shadow
+behavior while adding a one-pixel palette outline that becomes subtly brighter for the active
+window.
+
+The post-stage appearance refinement adds `LightPalette.xaml` with the same semantic keys as
+the dark palette. `ThemeService` synchronizes the Material base theme and replaces the
+application palette at runtime. Settings exposes an immediate Dark/Light selector; the
+validated value is stored as `Appearance:Theme` in the existing per-user settings file and is
+applied before the shell is created at the next startup. Missing or invalid values fall back
+to Dark.
+
+MaterialDesignThemes 5.3.2 no longer contains the normative
+`Themes/MaterialDesignTheme.Defaults.xaml` resource. Its stable v5 equivalent is
+`Themes/MaterialDesign2.Defaults.xaml`, which is merged once after the dark `BundledTheme`.
+Version 5.3.2 also has no named `MaterialDesignCard` or `MaterialDesignSnackbar` style;
+those custom controls retain their theme styles while the application applies palette
+setters without a nonexistent named `BasedOn` resource.
+
+#### Manual GUI verification
+
+- The Release executable opened a responsive `OD.MyLocalAgent` window and closed cleanly.
+  The shell, rail, cards, inputs, logs, scrollbars, and diagnostics surfaces rendered dark.
+- The theme-owned title bar and one-pixel outline rendered consistently in normal and
+  maximized states; maximize, restore, and close commands were exercised successfully.
+- Dark-to-Light and Light-to-Dark changes were exercised without restarting. A saved Light
+  selection survived a full application restart; the test preference was then restored to
+  Dark.
+- Dashboard reported local Ollama healthy with its measured latency.
+- Every rail entry was reached and displayed its registered page.
+- Settings saved a temporary switch to OpenAI-compatible. The next Test connection, without
+  restart, used OpenAI and rejected the absent DPAPI key with the expected configuration
+  message and correlation-id snackbar. Ollama was then restored and saved.
+- The resulting `%LOCALAPPDATA%\OD.MyLocalAgent\settings.json` selected `Ollama` and contained
+  no `ApiKey`, access token, refresh token, or app-key text.
+- Trigger test incident produced a `Critical` durable record sourced from
+  `Application.DispatcherUnhandledException`, and the application remained responsive.
+
+#### Verification
+
+- `dotnet build OD.MyLocalAgent.sln -m:1 --no-restore --configuration Release`: succeeded
+  with zero warnings and zero errors.
+- `dotnet test OD.MyLocalAgent.sln -m:1 --no-build --no-restore --configuration Release`:
+  56 tests passed, zero failed, and the one expected manual Ollama integration probe was
+  skipped.
+
+#### Stage 5 handoff
+
+- Replace the four disabled content areas with the task/editor, connector, tool-tester, and
+  AI-playground functionality while retaining their routes and DI registrations.
+- Resolve `IRunnerService` in the Tasks ViewModel for Run now and stream its callback output
+  into the existing in-memory/logs experience.
+- Extend `Docs/theme-audit.md` as Stage 5 introduces `DataGrid`, editor, pop-up, and streaming
+  controls; Stage 6 remains responsible for the exhaustive dark-state audit.

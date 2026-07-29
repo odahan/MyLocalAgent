@@ -1,14 +1,220 @@
 <Window x:Class="OD.MyLocalAgent.UI.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:commands="clr-namespace:OD.MyLocalAgent.UI.Commands"
+        xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="OD.MyLocalAgent"
-        Width="1200"
-        Height="760"
-        MinWidth="800"
-        MinHeight="520"
-        Background="{DynamicResource MaterialDesign.Brush.Background}"
+        Width="1360"
+        Height="860"
+        MinWidth="1040"
+        MinHeight="680"
+        Background="{DynamicResource AppBackgroundBrush}"
         FontFamily="{DynamicResource MaterialDesign.Font}"
         TextElement.FontSize="14"
-        TextElement.Foreground="{DynamicResource MaterialDesign.Brush.Foreground}">
-    <Grid />
+        TextElement.Foreground="{DynamicResource OnBackgroundBrush}"
+        ResizeMode="CanResize"
+        WindowStyle="None"
+        WindowStartupLocation="CenterScreen">
+    <Window.Resources>
+        <commands:WindowSystemCommand x:Key="MinimizeWindowCommand"
+                                      Action="Minimize" />
+        <commands:WindowSystemCommand x:Key="MaximizeWindowCommand"
+                                      Action="Maximize" />
+        <commands:WindowSystemCommand x:Key="RestoreWindowCommand"
+                                      Action="Restore" />
+        <commands:WindowSystemCommand x:Key="CloseWindowCommand"
+                                      Action="Close" />
+    </Window.Resources>
+
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="40"
+                            CornerRadius="8"
+                            GlassFrameThickness="0"
+                            ResizeBorderThickness="6"
+                            UseAeroCaptionButtons="False" />
+    </shell:WindowChrome.WindowChrome>
+
+    <Border Background="{DynamicResource AppBackgroundBrush}"
+            BorderThickness="1"
+            CornerRadius="7"
+            SnapsToDevicePixels="True">
+        <Border.Style>
+            <Style TargetType="{x:Type Border}">
+                <Setter Property="BorderBrush"
+                        Value="{DynamicResource WindowOutlineBrush}" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType={x:Type Window}}, Path=IsActive}"
+                                 Value="True">
+                        <Setter Property="BorderBrush"
+                                Value="{DynamicResource WindowOutlineActiveBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Border.Style>
+
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="40" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource DividerBrush}"
+                    BorderThickness="0,0,0,1">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Margin="16,0,0,0"
+                                VerticalAlignment="Center"
+                                IsHitTestVisible="False"
+                                Orientation="Horizontal">
+                        <iconPacks:PackIconMaterial Width="17"
+                                                   Height="17"
+                                                   Margin="0,0,9,0"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource PrimaryBrush}"
+                                                   Kind="RobotOutline" />
+                        <TextBlock VerticalAlignment="Center"
+                                   FontSize="13"
+                                   FontWeight="SemiBold"
+                                   Text="OD.MyLocalAgent" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1"
+                                shell:WindowChrome.IsHitTestVisibleInChrome="True"
+                                Orientation="Horizontal">
+                        <Button Command="{StaticResource MinimizeWindowCommand}"
+                                CommandParameter="{Binding RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
+                                Style="{StaticResource TitleBarButtonStyle}"
+                                ToolTip="Minimize">
+                            <iconPacks:PackIconMaterial Width="15"
+                                                       Height="15"
+                                                       Kind="WindowMinimize" />
+                        </Button>
+
+                        <Grid>
+                            <Button Command="{StaticResource MaximizeWindowCommand}"
+                                    CommandParameter="{Binding RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
+                                    ToolTip="Maximize">
+                                <Button.Style>
+                                    <Style TargetType="{x:Type Button}"
+                                           BasedOn="{StaticResource TitleBarButtonStyle}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType={x:Type Window}}, Path=WindowState}"
+                                                         Value="Maximized">
+                                                <Setter Property="Visibility"
+                                                        Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                                <iconPacks:PackIconMaterial Width="14"
+                                                           Height="14"
+                                                           Kind="WindowMaximize" />
+                            </Button>
+
+                            <Button Command="{StaticResource RestoreWindowCommand}"
+                                    CommandParameter="{Binding RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
+                                    ToolTip="Restore">
+                                <Button.Style>
+                                    <Style TargetType="{x:Type Button}"
+                                           BasedOn="{StaticResource TitleBarButtonStyle}">
+                                        <Setter Property="Visibility"
+                                                Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType={x:Type Window}}, Path=WindowState}"
+                                                         Value="Maximized">
+                                                <Setter Property="Visibility"
+                                                        Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                                <iconPacks:PackIconMaterial Width="14"
+                                                           Height="14"
+                                                           Kind="WindowRestore" />
+                            </Button>
+                        </Grid>
+
+                        <Button Command="{StaticResource CloseWindowCommand}"
+                                CommandParameter="{Binding RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
+                                Style="{StaticResource TitleBarCloseButtonStyle}"
+                                ToolTip="Close">
+                            <iconPacks:PackIconMaterial Width="17"
+                                                       Height="17"
+                                                       Kind="Close" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="248" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0"
+                        Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource DividerBrush}"
+                        BorderThickness="0,0,1,0">
+                    <DockPanel>
+                        <StackPanel Margin="24,28,20,22"
+                                    DockPanel.Dock="Top">
+                            <TextBlock FontSize="23"
+                                       FontWeight="SemiBold"
+                                       Text="OD.MyLocalAgent" />
+                            <TextBlock Margin="0,5,0,0"
+                                       Foreground="{DynamicResource MutedTextBrush}"
+                                       Text="Local automation console" />
+                        </StackPanel>
+
+                        <ListBox Margin="12,0,12,18"
+                                 HorizontalContentAlignment="Stretch"
+                                 ItemsSource="{Binding NavigationItems}"
+                                 SelectedItem="{Binding SelectedNavigationItem, Mode=TwoWay}"
+                                 Style="{StaticResource NavigationRailListBoxStyle}">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="4,1">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="42" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <iconPacks:PackIconMaterial Width="21"
+                                                                   Height="21"
+                                                                   HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=Foreground}"
+                                                                   Kind="{Binding Icon}" />
+                                        <TextBlock Grid.Column="1"
+                                                   VerticalAlignment="Center"
+                                                   FontWeight="Medium"
+                                                   Text="{Binding Title}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </DockPanel>
+                </Border>
+
+                <Grid Grid.Column="1"
+                      Background="{DynamicResource AppBackgroundBrush}">
+                    <ContentControl Margin="30,24,30,30"
+                                    Content="{Binding CurrentPage}" />
+                    <materialDesign:Snackbar Margin="24"
+                                             HorizontalAlignment="Right"
+                                             VerticalAlignment="Bottom"
+                                             MessageQueue="{Binding SnackbarMessageQueue}"
+                                             Style="{StaticResource AppSnackbarStyle}" />
+                </Grid>
+            </Grid>
+        </Grid>
+    </Border>
 </Window>

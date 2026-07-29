@@ -1,0 +1,406 @@
+<UserControl x:Class="OD.MyLocalAgent.UI.Pages.SettingsPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:behaviors="clr-namespace:OD.MyLocalAgent.UI.Behaviors"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Auto">
+        <StackPanel>
+            <Grid>
+                <StackPanel>
+                    <TextBlock Style="{StaticResource PageTitleStyle}"
+                               Text="Settings" />
+                    <TextBlock Margin="0,5,0,0"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="AI provider, local safety defaults, scheduling, logs, and incident diagnostics." />
+                </StackPanel>
+                <ProgressBar Width="180"
+                             Height="3"
+                             HorizontalAlignment="Right"
+                             VerticalAlignment="Top"
+                             IsIndeterminate="True"
+                             Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
+            </Grid>
+
+            <materialDesign:Card Margin="0,22,0,0">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionTitleStyle}"
+                               Text="AI provider" />
+                    <TextBlock Margin="0,4,0,16"
+                               Style="{StaticResource CaptionTextStyle}"
+                               Text="The local Ollama provider is the default. Cloud AI is used only when explicitly selected." />
+
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton Margin="0,0,24,0"
+                                     Content="Ollama (local, default)"
+                                     GroupName="AIProvider"
+                                     IsChecked="{Binding IsOllamaProvider, Mode=TwoWay}" />
+                        <RadioButton Content="OpenAI-compatible (cloud, opt-in)"
+                                     GroupName="AIProvider"
+                                     IsChecked="{Binding IsOpenAIProvider, Mode=TwoWay}" />
+                    </StackPanel>
+
+                    <Border Margin="0,14,0,0"
+                            Padding="12"
+                            Background="{DynamicResource SurfaceBrush}"
+                            BorderBrush="{DynamicResource WarningBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Visibility="{Binding IsOpenAIProvider, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Foreground="{DynamicResource WarningBrush}"
+                                   Text="Cloud warning: prompts and relevant context are sent to the configured OpenAI-compatible endpoint." />
+                    </Border>
+
+                    <Grid Margin="0,20,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="18" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel>
+                            <TextBlock Margin="0,0,0,10"
+                                       FontWeight="SemiBold"
+                                       Text="Ollama" />
+                            <TextBox Margin="0,0,0,12"
+                                     Text="{Binding OllamaEndpoint, UpdateSourceTrigger=PropertyChanged}"
+                                     materialDesign:HintAssist.Hint="Endpoint" />
+                            <TextBox Margin="0,0,0,12"
+                                     Text="{Binding OllamaModel, UpdateSourceTrigger=PropertyChanged}"
+                                     materialDesign:HintAssist.Hint="Model" />
+                            <TextBox Text="{Binding OllamaTimeoutSeconds, UpdateSourceTrigger=PropertyChanged}"
+                                     materialDesign:HintAssist.Hint="Timeout (seconds)" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Margin="0,0,0,10"
+                                       FontWeight="SemiBold"
+                                       Text="OpenAI-compatible" />
+                            <TextBox Margin="0,0,0,12"
+                                     Text="{Binding OpenAIEndpoint, UpdateSourceTrigger=PropertyChanged}"
+                                     materialDesign:HintAssist.Hint="Endpoint" />
+                            <TextBox Margin="0,0,0,12"
+                                     Text="{Binding OpenAIModel, UpdateSourceTrigger=PropertyChanged}"
+                                     materialDesign:HintAssist.Hint="Model" />
+                            <TextBox Margin="0,0,0,12"
+                                     Text="{Binding OpenAITimeoutSeconds, UpdateSourceTrigger=PropertyChanged}"
+                                     materialDesign:HintAssist.Hint="Timeout (seconds)" />
+                            <PasswordBox behaviors:PasswordBoxBinding.Attach="True"
+                                         behaviors:PasswordBoxBinding.Password="{Binding ApiKeyReplacement, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         materialDesign:HintAssist.Hint="Replace API key (stored with DPAPI)" />
+                            <TextBlock Margin="0,7,0,0"
+                                       Style="{StaticResource CaptionTextStyle}"
+                                       Text="{Binding IsApiKeyConfigured, StringFormat=API key configured: {0}}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Margin="0,20,0,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Button Command="{Binding TestConnectionCommand}"
+                                    Content="Test connection"
+                                    Style="{StaticResource PrimaryButtonStyle}" />
+                            <Ellipse Width="10"
+                                     Height="10"
+                                     Margin="4,0,9,0"
+                                     VerticalAlignment="Center">
+                                <Ellipse.Style>
+                                    <Style TargetType="{x:Type Ellipse}">
+                                        <Setter Property="Fill"
+                                                Value="{DynamicResource MutedTextBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ConnectionHealthState}"
+                                                         Value="Checking">
+                                                <Setter Property="Fill"
+                                                        Value="{DynamicResource WarningBrush}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding ConnectionHealthState}"
+                                                         Value="Healthy">
+                                                <Setter Property="Fill"
+                                                        Value="{DynamicResource SuccessBrush}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding ConnectionHealthState}"
+                                                         Value="Unhealthy">
+                                                <Setter Property="Fill"
+                                                        Value="{DynamicResource ErrorBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+                            <TextBlock VerticalAlignment="Center"
+                                       Text="{Binding ConnectionStatus}" />
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </materialDesign:Card>
+
+            <materialDesign:Card Margin="0,18,0,0">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionTitleStyle}"
+                               Text="General" />
+                    <TextBlock Margin="0,4,0,18"
+                               Style="{StaticResource CaptionTextStyle}"
+                               Text="Changes are validated and written to the per-user settings file." />
+
+                    <TextBlock FontWeight="SemiBold"
+                               Text="Appearance" />
+                    <ComboBox Width="260"
+                              Margin="0,12,0,0"
+                              HorizontalAlignment="Left"
+                              ItemsSource="{Binding ThemeNames}"
+                              SelectedItem="{Binding SelectedTheme, Mode=TwoWay}"
+                              materialDesign:HintAssist.Hint="Application theme" />
+                    <TextBlock Margin="0,6,0,0"
+                               Style="{StaticResource CaptionTextStyle}"
+                               Text="The theme changes immediately. Save settings to use it at the next startup." />
+
+                    <Separator Margin="0,22,0,20"
+                               Background="{DynamicResource DividerBrush}" />
+
+                    <TextBox Margin="0,0,0,16"
+                             Text="{Binding FileSystemRootPath, UpdateSourceTrigger=PropertyChanged}"
+                             materialDesign:HintAssist.Hint="File-system root path" />
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="170" />
+                            <ColumnDefinition Width="16" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox Text="{Binding HttpTimeoutSeconds, UpdateSourceTrigger=PropertyChanged}"
+                                 materialDesign:HintAssist.Hint="HTTP timeout (seconds)" />
+                        <TextBox Grid.Column="2"
+                                 Text="{Binding HttpUserAgent, UpdateSourceTrigger=PropertyChanged}"
+                                 materialDesign:HintAssist.Hint="HTTP user agent" />
+                    </Grid>
+                    <TextBox Margin="0,16,0,0"
+                             Text="{Binding AllowedHostsText, UpdateSourceTrigger=PropertyChanged}"
+                             materialDesign:HintAssist.Hint="Allowed HTTP hosts (comma-separated; empty allows all)" />
+                    <TextBlock Margin="0,6,0,0"
+                               Foreground="{DynamicResource WarningBrush}"
+                               Style="{StaticResource CaptionTextStyle}"
+                               Text="An empty host list allows requests to any host." />
+
+                    <Separator Margin="0,22,0,20"
+                               Background="{DynamicResource DividerBrush}" />
+
+                    <TextBlock FontWeight="SemiBold"
+                               Text="Scheduler" />
+                    <CheckBox Margin="0,12,0,0"
+                              Content="Run when the user is logged off (S4U)"
+                              IsChecked="{Binding RunWhenLoggedOff, Mode=TwoWay}" />
+                    <Border Margin="0,10,0,0"
+                            Padding="12"
+                            Background="{DynamicResource SurfaceBrush}"
+                            BorderBrush="{DynamicResource WarningBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Visibility="{Binding RunWhenLoggedOff, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Foreground="{DynamicResource WarningBrush}"
+                                   Text="S4U cannot show interactive OAuth consent. Connect providers in the UI first and keep the same Windows account." />
+                    </Border>
+                    <TextBox Margin="0,16,0,0"
+                             Text="{Binding RunnerPath, UpdateSourceTrigger=PropertyChanged}"
+                             materialDesign:HintAssist.Hint="Runner path (empty uses the sibling executable)" />
+                    <TextBlock Margin="0,6,0,0"
+                               Style="{StaticResource CaptionTextStyle}"
+                               Text="{Binding ResolvedRunnerPath, StringFormat=Resolved runner: {0}}" />
+
+                    <Separator Margin="0,22,0,20"
+                               Background="{DynamicResource DividerBrush}" />
+
+                    <TextBlock FontWeight="SemiBold"
+                               Text="Safety gates" />
+                    <CheckBox Margin="0,12,0,0"
+                              Content="Allow sending email"
+                              IsChecked="{Binding AllowSendEmail, Mode=TwoWay}" />
+                    <TextBlock Margin="24,2,0,0"
+                               Style="{StaticResource CaptionTextStyle}"
+                               Text="Permits gmail.send to transmit email from unattended tasks." />
+                    <CheckBox Margin="0,12,0,0"
+                              Content="Allow file deletion"
+                              IsChecked="{Binding AllowFileDelete, Mode=TwoWay}" />
+                    <TextBlock Margin="24,2,0,0"
+                               Style="{StaticResource CaptionTextStyle}"
+                               Text="Permits filesystem.delete inside the configured sandbox root." />
+                    <CheckBox Margin="0,12,0,0"
+                              Content="Allow HTTP POST"
+                              IsChecked="{Binding AllowHttpPost, Mode=TwoWay}" />
+                    <TextBlock Margin="24,2,0,0"
+                               Style="{StaticResource CaptionTextStyle}"
+                               Text="Permits http.post to send data to allowed hosts." />
+
+                    <ComboBox Width="260"
+                              Margin="0,20,0,0"
+                              HorizontalAlignment="Left"
+                              ItemsSource="{Binding LoggingLevels}"
+                              SelectedItem="{Binding LoggingMinimumLevel, Mode=TwoWay}"
+                              materialDesign:HintAssist.Hint="Serilog minimum level" />
+
+                    <Grid Margin="0,20,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource CaptionTextStyle}"
+                                       Text="TASKS FOLDER" />
+                            <TextBlock Margin="0,4,14,0"
+                                       Text="{Binding TasksFolder}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Style="{StaticResource CaptionTextStyle}"
+                                       Text="REPORTS FOLDER" />
+                            <TextBlock Margin="0,4,0,0"
+                                       Text="{Binding ReportsFolder}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Margin="0,22,0,0">
+                        <Button HorizontalAlignment="Left"
+                                Command="{Binding SaveCommand}"
+                                Content="Save settings"
+                                Style="{StaticResource PrimaryButtonStyle}" />
+                        <StackPanel HorizontalAlignment="Right"
+                                    Orientation="Horizontal">
+                            <Ellipse Width="9"
+                                     Height="9"
+                                     Margin="0,0,8,0"
+                                     VerticalAlignment="Center">
+                                <Ellipse.Style>
+                                    <Style TargetType="{x:Type Ellipse}">
+                                        <Setter Property="Fill"
+                                                Value="{DynamicResource SuccessBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsDirty}"
+                                                         Value="True">
+                                                <Setter Property="Fill"
+                                                        Value="{DynamicResource WarningBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+                            <TextBlock VerticalAlignment="Center"
+                                       Foreground="{DynamicResource MutedTextBrush}"
+                                       Text="{Binding SaveStatus}" />
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </materialDesign:Card>
+
+            <materialDesign:Card Margin="0,18,0,12">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionTitleStyle}"
+                               Text="Diagnostics" />
+                    <TextBlock Margin="0,4,0,16"
+                               Style="{StaticResource CaptionTextStyle}"
+                               Text="Export or reset the live log buffer and inspect durable incidents." />
+
+                    <TextBlock FontWeight="SemiBold"
+                               Text="Application logs" />
+                    <StackPanel Margin="0,12,0,0"
+                                Orientation="Horizontal">
+                        <Button Command="{Binding ExportLogsCommand}"
+                                Content="Save to disk…" />
+                        <Button Command="{Binding ResetLogsCommand}"
+                                Content="Reset"
+                                Style="{StaticResource DangerButtonStyle}" />
+                    </StackPanel>
+
+                    <Separator Margin="0,22,0,20"
+                               Background="{DynamicResource DividerBrush}" />
+
+                    <Grid>
+                        <TextBlock VerticalAlignment="Center"
+                                   FontWeight="SemiBold"
+                                   Text="Incidents" />
+                        <StackPanel HorizontalAlignment="Right"
+                                    Orientation="Horizontal">
+                            <Button Command="{Binding ExportIncidentsCommand}"
+                                    Content="Export…" />
+                            <Button Command="{Binding ClearIncidentsCommand}"
+                                    Content="Clear all"
+                                    Style="{StaticResource DangerButtonStyle}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Margin="0,14,0,0"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="No incidents have been recorded.">
+                        <TextBlock.Style>
+                            <Style TargetType="{x:Type TextBlock}">
+                                <Setter Property="Visibility"
+                                        Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasIncidents}"
+                                                 Value="False">
+                                        <Setter Property="Visibility"
+                                                Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <ItemsControl Margin="0,12,0,0"
+                                  ItemsSource="{Binding Incidents}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Expander Margin="0,0,0,9"
+                                          Background="{DynamicResource SurfaceBrush}"
+                                          BorderBrush="{DynamicResource DividerBrush}"
+                                          BorderThickness="1">
+                                    <Expander.Header>
+                                        <Grid Margin="8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="150" />
+                                                <ColumnDefinition Width="100" />
+                                                <ColumnDefinition Width="190" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding TimestampUtc, StringFormat={}{0:yyyy-MM-dd HH:mm:ss} UTC}" />
+                                            <TextBlock Grid.Column="1"
+                                                       FontWeight="SemiBold"
+                                                       Text="{Binding Severity}" />
+                                            <TextBlock Grid.Column="2"
+                                                       Width="180"
+                                                       Foreground="{DynamicResource MutedTextBrush}"
+                                                       Text="{Binding Source}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Grid.Column="3"
+                                                       MaxWidth="440"
+                                                       Text="{Binding Message}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </Grid>
+                                    </Expander.Header>
+                                    <StackPanel Margin="16,6,16,16">
+                                        <TextBlock Foreground="{DynamicResource SecondaryBrush}"
+                                                   Text="{Binding CorrelationId, StringFormat=Correlation id: {0}}" />
+                                        <TextBox MinHeight="120"
+                                                 Margin="0,10,0,10"
+                                                 IsReadOnly="True"
+                                                 Text="{Binding StackTrace}"
+                                                 TextWrapping="Wrap"
+                                                 VerticalScrollBarVisibility="Auto" />
+                                        <Button HorizontalAlignment="Left"
+                                                Command="{Binding DataContext.CopyIncidentDetailsCommand, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
+                                                CommandParameter="{Binding}"
+                                                Content="Copy details" />
+                                    </StackPanel>
+                                </Expander>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Button Margin="0,14,0,0"
+                            HorizontalAlignment="Left"
+                            Command="{Binding TriggerTestIncidentCommand}"
+                            Content="Trigger test incident"
+                            Style="{StaticResource DangerButtonStyle}"
+                            ToolTip="Throws deliberately through the normal command and incident pipeline" />
+                </StackPanel>
+            </materialDesign:Card>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
