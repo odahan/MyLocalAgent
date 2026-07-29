@@ -1,0 +1,78 @@
+namespace OD.MyLocalAgent.Ollama;
+
+internal static class LlmOptionsValidation
+{
+    public static string? ValidateAI(AIOptions options)
+    {
+        return string.IsNullOrWhiteSpace(options.Provider)
+            ? "AI:Provider is required. Use 'Ollama' or 'OpenAI'."
+            : null;
+    }
+
+    public static string? ValidateOllama(OllamaOptions options)
+    {
+        return ValidateProvider(
+            OllamaOptions.SectionName,
+            options.Endpoint,
+            options.Model,
+            options.TimeoutSeconds);
+    }
+
+    public static string? ValidateOpenAI(OpenAIOptions options, bool requireApiKey)
+    {
+        var validation = ValidateProvider(
+            OpenAIOptions.SectionName,
+            options.Endpoint,
+            options.Model,
+            options.TimeoutSeconds);
+
+        if (validation is not null)
+        {
+            return validation;
+        }
+
+        return requireApiKey && string.IsNullOrWhiteSpace(options.ApiKey)
+            ? "OpenAI:ApiKey is required when AI:Provider is 'OpenAI'. Configure it in the protected secret store."
+            : null;
+    }
+
+    public static Uri ParseEndpoint(string endpoint, string sectionName)
+    {
+        if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) ||
+            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            throw new LlmConfigurationException(
+                $"{sectionName}:Endpoint must be an absolute HTTP or HTTPS URI.");
+        }
+
+        var builder = new UriBuilder(uri);
+        if (!builder.Path.EndsWith('/'))
+        {
+            builder.Path += "/";
+        }
+
+        return builder.Uri;
+    }
+
+    private static string? ValidateProvider(
+        string sectionName,
+        string endpoint,
+        string model,
+        int timeoutSeconds)
+    {
+        if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) ||
+            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            return $"{sectionName}:Endpoint must be an absolute HTTP or HTTPS URI.";
+        }
+
+        if (string.IsNullOrWhiteSpace(model))
+        {
+            return $"{sectionName}:Model is required.";
+        }
+
+        return timeoutSeconds <= 0
+            ? $"{sectionName}:TimeoutSeconds must be greater than zero."
+            : null;
+    }
+}

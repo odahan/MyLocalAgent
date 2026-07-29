@@ -1,0 +1,53 @@
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+
+namespace OD.MyLocalAgent.Ollama;
+
+/// <summary>
+/// Adds language-model provider services to dependency injection.
+/// </summary>
+public static class ServiceCollectionExtensions
+{
+    /// <summary>
+    /// Registers reloadable provider options, managed HTTP clients, providers, and the provider factory.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configuration">The application configuration.</param>
+    /// <returns>The supplied service collection.</returns>
+    public static IServiceCollection AddLlmProviders(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        services
+            .AddOptions<AIOptions>()
+            .Bind(configuration.GetSection(AIOptions.SectionName))
+            .Validate(
+                static options => LlmOptionsValidation.ValidateAI(options) is null,
+                "AI:Provider is required.");
+        services
+            .AddOptions<OllamaOptions>()
+            .Bind(configuration.GetSection(OllamaOptions.SectionName))
+            .Validate(
+                static options => LlmOptionsValidation.ValidateOllama(options) is null,
+                "Ollama configuration is invalid.");
+        services
+            .AddOptions<OpenAIOptions>()
+            .Bind(configuration.GetSection(OpenAIOptions.SectionName))
+            .Validate(
+                static options => LlmOptionsValidation.ValidateOpenAI(options, requireApiKey: false) is null,
+                "OpenAI configuration is invalid.");
+
+        services.AddLogging();
+        services.AddHttpClient(LlmHttpClientNames.Ollama);
+        services.AddHttpClient(LlmHttpClientNames.OpenAI);
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddSingleton<OllamaClientService>();
+        services.AddSingleton<OpenAIClientService>();
+        services.AddSingleton<ILlmClientFactory, LlmClientFactory>();
+        return services;
+    }
+}

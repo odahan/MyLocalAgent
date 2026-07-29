@@ -1,0 +1,32 @@
+{
+  "id": "message-123",
+  "threadId": "thread-456",
+  "labelIds": ["INBOX", "UNREAD"],
+  "snippet": "Hello from fixture. Second line.",
+  "internalDate": 1785312900000,
+  "payload": {
+    "mimeType": "multipart/alternative",
+    "headers": [
+      { "name": "From", "value": "Ada Lovelace <ada@example.com>" },
+      { "name": "To", "value": "Agent <agent@example.com>" },
+      { "name": "Subject", "value": "Representative message" }
+    ],
+    "parts": [
+      {
+        "mimeType": "text/html",
+        "body": { "data": "PHA-SGVsbG88L3A-" }
+      },
+      {
+        "mimeType": "multipart/mixed",
+        "parts": [
+          {
+            "mimeType": "text/plain",
+            "body": {
+              "data": "SGVsbG8gZnJvbSBmaXh0dXJlLgpTZWNvbmQgbGluZS4"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
