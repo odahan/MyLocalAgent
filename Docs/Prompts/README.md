@@ -14,6 +14,10 @@ Ce dossier contient la version révisée du « Master Prompt » v1, corrigée pu
 | `05-Stage4-UI-Foundation.md` | UI WPF : shell, thème sombre global, DI/host, gestion d'incidents, Dashboard, Settings, Logs. |
 | `06-Stage5-UI-Pages.md` | Pages restantes : Tasks, éditeur de tâche, éditeur de prompt, config outils, tool tester, AI playground, Diagnostics. |
 | `07-Stage6-Hardening-Docs.md` | Audit thème sombre, « exception drill », README complet, script de publication, checklist d'acceptation exécutée. |
+| `08-Stage7-Guardrails-PromptInjectionFilter.md` | **Extension post-v1** — filtre anti prompt-injection : nouveau projet `Guardrails` (screener LLM sans outils, score de confiance 0–100, contenu clair ou Base64), câblage GmailTool + HttpTool, panneau de test UI, docs. À exécuter après acceptation complète de l'étape 6. |
+| `09-Stage8-WebSearch.md` | **Extension post-v1** — recherche web : outil `web.search` via l'API Ollama Web Search (clé gratuite, stockée en DPAPI), filtrage Guardrails obligatoire des résultats, groupe d'outils `web`, bloc de configuration UI, tâche d'exemple. Requiert les étapes 0–7. |
+| `10-Stage9-WorkflowGraphEngine-Library.md` | **Extension post-v1 (backend)** — workflows en **graphe conditionnel** : nœuds + transitions à tests (prédicats déterministes + bloc `ai.judge` à verdict borné, fallback obligatoire), DAG sans cycles, **bibliothèque de workflows** réutilisables, paramètres `{{param.*}}`, commande `test-workflow`. Syntaxe chaîne rétrocompatible. Requiert les étapes 0–8. |
+| `11-Stage10-WorkflowsPage.md` | **Extension post-v1 (UI)** — page « Workflows » : éditeur structuré en tables (pas de canvas), aperçu JSON live, validation live, tests depuis la page, liaison depuis l'éditeur de tâches + bouton « créer une tâche planifiée ». Requiert l'étape 9. |
 
 ## Mode d'emploi
 
