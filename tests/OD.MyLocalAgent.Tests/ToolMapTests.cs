@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using Moq;
 using OD.MyLocalAgent.Connectors;
 using OD.MyLocalAgent.Core;
+using OD.MyLocalAgent.Guardrails;
 using OD.MyLocalAgent.Tests.TestDoubles;
 using Xunit;
 using Xunit.Abstractions;
@@ -133,6 +134,9 @@ public sealed class ToolMapTests : IDisposable
             new GmailTool(
                 Mock.Of<IGmailConnector>(),
                 safetyOptions,
+                new MutableOptionsMonitor<GuardrailsOptions>(new GuardrailsOptions()),
+                new StubContentTrustService(),
+                new StubIncidentReporter(),
                 NullLogger<GmailTool>.Instance,
                 TimeProvider.System),
             new CalendarTool(
@@ -154,6 +158,9 @@ public sealed class ToolMapTests : IDisposable
                 new StubHttpClientFactory(handler),
                 Options.Create(new HttpOptions()),
                 safetyOptions,
+                new MutableOptionsMonitor<GuardrailsOptions>(new GuardrailsOptions()),
+                new StubContentTrustService(),
+                new StubIncidentReporter(),
                 NullLogger<HttpTool>.Instance,
                 TimeProvider.System));
     }

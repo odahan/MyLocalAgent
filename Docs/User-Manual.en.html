@@ -1005,6 +1005,7 @@
                         <li><a href="#navigation">Application pages</a></li>
                         <li><a href="#tasks-workflows">Tasks and workflows</a></li>
                         <li><a href="#scheduling">Scheduling and cron</a></li>
+                        <li><a href="#guardrails">Trust filter</a></li>
                         <li><a href="#security">Safety and security</a></li>
                         <li><a href="#reports-logs">Reports and logs</a></li>
                         <li><a href="#diagnostics">Diagnostics and incidents</a></li>
@@ -1561,7 +1562,7 @@ ollama list</code></pre>
                 <p class="section-kicker">Daily reference</p>
                 <h2>Understand every application page</h2>
                 <p class="section-intro">
-                    The left rail exposes seven main pages. Task and prompt editors open from
+                    The left rail exposes eight main pages. Task and prompt editors open from
                     <span class="ui-label">Tasks</span>.
                 </p>
                 <div class="page-map">
@@ -1590,8 +1591,12 @@ ollama list</code></pre>
                         <p>Free-form experiments with optional tool and built-in skill access.</p>
                     </article>
                     <article class="page-item">
+                        <strong>Trust filter</strong>
+                        <p>Human-facing external-text classification with score, processing status, validated indicators, and protected preview.</p>
+                    </article>
+                    <article class="page-item">
                         <strong>Settings</strong>
-                        <p>AI provider, general settings, scheduler, safety, logs, and incidents.</p>
+                        <p>AI provider, general settings, Guardrails, scheduler, safety, logs, and incidents.</p>
                     </article>
                     <article class="page-item">
                         <strong>Task / Prompt editors</strong>
@@ -1792,6 +1797,80 @@ ollama list</code></pre>
                 <div class="callout warning">
                     S4U cannot display Google consent. Connect Google in the UI before enabling this option.
                 </div>
+            </section>
+
+            <section id="guardrails" data-title="Trust filter and external content">
+                <p class="section-kicker">Prompt-injection risk reduction</p>
+                <h2>Understand the content trust filter</h2>
+                <p class="section-intro">
+                    Gmail reads and <code>http.get</code> / <code>http.getText</code>
+                    responses are classified through a direct LLM call with no tools, skills,
+                    or agent loop. This probabilistic control does not replace Safety gates,
+                    tool whitelists, the filesystem sandbox, or the HTTP host allowlist.
+                </p>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Score/status</th><th>Model delivery</th></tr></thead>
+                        <tbody>
+                            <tr><td>Clean, 80–100 by default</td><td>Marked plaintext inside <code>UNTRUSTED-EXTERNAL-DATA</code> delimiters.</td></tr>
+                            <tr><td>Caution, 50–79</td><td>Marked UTF-8 Base64 inside <code>UNTRUSTED-EXTERNAL-DATA-BASE64</code> delimiters.</td></tr>
+                            <tr><td>Low, 0–49</td><td>Content is withheld and replaced by a score marker.</td></tr>
+                            <tr><td>ScreeningDisabled / Failed</td><td>Marked Base64 for normal-size content.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="callout warning">
+                    Base64 is neither encryption nor a security boundary. A model can decode
+                    it and must still treat the decoded text only as data, never instructions.
+                </div>
+
+                <h3>Oversized content</h3>
+                <p>
+                    Above <code>MaxContentChars</code>, deterministic ordered chunks cover
+                    every source character through sequential tool-less calls. The effective
+                    score is the minimum observed across the source and exact delivered summary
+                    block. A summary that exceeds its maximum is capped in C# with an explicit
+                    marker and forced to Base64. Content above
+                    <code>MaxSummarizationSourceChars</code> is never partially summarized.
+                </p>
+                <ul>
+                    <li>Gmail preserves exact From, To, Subject, and Snippet values in one protected canonical block and replaces only Body with a summary or Gmail-review notice.</li>
+                    <li>HTTP preserves URL, status, and content type, then returns a <code>Skipped…</code> notice without the page or a partial summary.</li>
+                    <li>A positive Gmail limit processes only the first N messages with explicit counts and a warning; <code>0</code> is unlimited.</li>
+                </ul>
+
+                <h3>Trust filter page</h3>
+                <p>
+                    Paste external text, optionally select
+                    <span class="ui-label">Return Base64</span>, then select
+                    <span class="ui-label">Screen</span>. The page separates trust status from
+                    processing status and shows score, provider, latency, lengths, protected
+                    preview, and validated verbatim indicators. Indicator text stays on this
+                    human page; Gmail/HTTP tool output exposes only the count.
+                </p>
+
+                <h3>Settings, privacy, and limitations</h3>
+                <p>
+                    <span class="ui-label">Settings → General → Guardrails</span> controls
+                    thresholds, size limits, reduction, timeout, the 24-hour in-memory cache,
+                    and Gmail limit. Turning off
+                    <span class="ui-label">Use LLM guardrails processing</span> does not turn
+                    off protection: normal content uses Base64 and oversized sources use the
+                    Gmail/HTTP notices.
+                </p>
+                <div class="callout danger">
+                    With OpenAI-compatible selected, screened Gmail/HTTP content leaves the
+                    machine. An oversized source may be sent completely through several
+                    sequential chunks. Do not use real private mail in a cloud test without
+                    explicit authorization.
+                </div>
+                <p>
+                    False positives and false negatives remain possible, especially for
+                    encoded or obfuscated attacks. Dropbox, local files, Calendar, Gmail
+                    attachments, outbound content, and HTTP POST responses are out of scope.
+                </p>
             </section>
 
             <section id="security" data-title="Safety and security">

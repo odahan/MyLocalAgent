@@ -41,6 +41,9 @@
             <DataTemplate DataType="{x:Type viewModels:AIPlaygroundViewModel}">
                 <pages:AIPlaygroundPage />
             </DataTemplate>
+            <DataTemplate DataType="{x:Type viewModels:TrustFilterViewModel}">
+                <pages:TrustFilterPage />
+            </DataTemplate>
             <DataTemplate DataType="{x:Type viewModels:SettingsViewModel}">
                 <pages:SettingsPage />
             </DataTemplate>

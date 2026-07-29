@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using OD.MyLocalAgent.Connectors;
+using OD.MyLocalAgent.Guardrails;
 using OD.MyLocalAgent.Ollama;
 using Serilog;
 using Serilog.Events;
@@ -56,6 +57,7 @@ public static class HostApplicationBuilderExtensions
         builder.Services.TryAddSingleton(TimeProvider.System);
         builder.Services.AddSingleton<ISecretStore>(secretStore);
         builder.Services.AddLlmProviders(builder.Configuration);
+        builder.Services.AddGuardrails(builder.Configuration);
         builder.Services.AddConnectors(builder.Configuration);
         builder.Services.AddHttpClient(HttpTool.HttpClientName);
 

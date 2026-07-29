@@ -8,6 +8,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\OD.MyLocalAgent.Connectors\OD.MyLocalAgent.Connectors.csproj" />
     <ProjectReference Include="..\..\src\OD.MyLocalAgent.Core\OD.MyLocalAgent.Core.csproj" />
+    <ProjectReference Include="..\..\src\OD.MyLocalAgent.Guardrails\OD.MyLocalAgent.Guardrails.csproj" />
     <ProjectReference Include="..\..\src\OD.MyLocalAgent.Ollama\OD.MyLocalAgent.Ollama.csproj" />
     <ProjectReference Include="..\..\src\OD.MyLocalAgent.Runner\OD.MyLocalAgent.Runner.csproj" />
     <ProjectReference Include="..\..\src\OD.MyLocalAgent.UI\OD.MyLocalAgent.UI.csproj" />
@@ -31,5 +32,6 @@
 
   <ItemGroup>
     <None Include="Fixtures\gmail-message.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Fixtures\injection-samples.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

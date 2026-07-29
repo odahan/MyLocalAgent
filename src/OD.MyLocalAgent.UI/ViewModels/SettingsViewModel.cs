@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Options;
 using OD.MyLocalAgent.Core;
+using OD.MyLocalAgent.Guardrails;
 using OD.MyLocalAgent.Ollama;
 using OD.MyLocalAgent.UI.Messages;
 using OD.MyLocalAgent.UI.Services;
@@ -45,6 +46,16 @@ public sealed partial class SettingsViewModel :
         nameof(AllowSendEmail),
         nameof(AllowFileDelete),
         nameof(AllowHttpPost),
+        nameof(GuardrailsScreeningEnabled),
+        nameof(GuardrailsCleanThreshold),
+        nameof(GuardrailsCautionThreshold),
+        nameof(GuardrailsMaxContentChars),
+        nameof(GuardrailsSummarizeOversizedContent),
+        nameof(GuardrailsMaxSummaryChars),
+        nameof(GuardrailsMaxSummarizationSourceChars),
+        nameof(GuardrailsTimeoutSeconds),
+        nameof(GuardrailsCacheResults),
+        nameof(GuardrailsMaxGmailMessagesPerOperation),
         nameof(LoggingMinimumLevel),
         nameof(SelectedTheme),
     ];
@@ -56,6 +67,7 @@ public sealed partial class SettingsViewModel :
     private readonly IOptionsMonitor<HttpOptions> _httpOptions;
     private readonly IOptionsMonitor<SchedulerOptions> _schedulerOptions;
     private readonly IOptionsMonitor<SafetyOptions> _safetyOptions;
+    private readonly IOptionsMonitor<GuardrailsOptions> _guardrailsOptions;
     private readonly IOptionsMonitor<LoggingOptions> _loggingOptions;
     private readonly ILlmClientFactory _llmClientFactory;
     private readonly IOllamaModelCatalog _ollamaModelCatalog;
@@ -140,6 +152,36 @@ public sealed partial class SettingsViewModel :
     private bool _allowHttpPost;
 
     [ObservableProperty]
+    private bool _guardrailsScreeningEnabled = true;
+
+    [ObservableProperty]
+    private int _guardrailsCleanThreshold = 80;
+
+    [ObservableProperty]
+    private int _guardrailsCautionThreshold = 50;
+
+    [ObservableProperty]
+    private int _guardrailsMaxContentChars = 8_000;
+
+    [ObservableProperty]
+    private bool _guardrailsSummarizeOversizedContent = true;
+
+    [ObservableProperty]
+    private int _guardrailsMaxSummaryChars = 4_000;
+
+    [ObservableProperty]
+    private int _guardrailsMaxSummarizationSourceChars = 100_000;
+
+    [ObservableProperty]
+    private int _guardrailsTimeoutSeconds = 60;
+
+    [ObservableProperty]
+    private bool _guardrailsCacheResults = true;
+
+    [ObservableProperty]
+    private int _guardrailsMaxGmailMessagesPerOperation;
+
+    [ObservableProperty]
     private string _loggingMinimumLevel = nameof(LogEventLevel.Information);
 
     [ObservableProperty]
@@ -174,6 +216,7 @@ public sealed partial class SettingsViewModel :
         IOptionsMonitor<HttpOptions> httpOptions,
         IOptionsMonitor<SchedulerOptions> schedulerOptions,
         IOptionsMonitor<SafetyOptions> safetyOptions,
+        IOptionsMonitor<GuardrailsOptions> guardrailsOptions,
         IOptionsMonitor<LoggingOptions> loggingOptions,
         ILlmClientFactory llmClientFactory,
         IOllamaModelCatalog ollamaModelCatalog,
@@ -196,6 +239,7 @@ public sealed partial class SettingsViewModel :
         _httpOptions = httpOptions;
         _schedulerOptions = schedulerOptions;
         _safetyOptions = safetyOptions;
+        _guardrailsOptions = guardrailsOptions;
         _loggingOptions = loggingOptions;
         _llmClientFactory = llmClientFactory;
         _ollamaModelCatalog = ollamaModelCatalog;
@@ -324,6 +368,7 @@ public sealed partial class SettingsViewModel :
             var http = _httpOptions.CurrentValue;
             var scheduler = _schedulerOptions.CurrentValue;
             var safety = _safetyOptions.CurrentValue;
+            var guardrails = _guardrailsOptions.CurrentValue;
             var logging = _loggingOptions.CurrentValue;
 
             IsOllamaProvider = string.Equals(
@@ -354,6 +399,19 @@ public sealed partial class SettingsViewModel :
             AllowSendEmail = safety.AllowSendEmail;
             AllowFileDelete = safety.AllowFileDelete;
             AllowHttpPost = safety.AllowHttpPost;
+            GuardrailsScreeningEnabled = guardrails.ScreeningEnabled;
+            GuardrailsCleanThreshold = guardrails.CleanThreshold;
+            GuardrailsCautionThreshold = guardrails.CautionThreshold;
+            GuardrailsMaxContentChars = guardrails.MaxContentChars;
+            GuardrailsSummarizeOversizedContent =
+                guardrails.SummarizeOversizedContent;
+            GuardrailsMaxSummaryChars = guardrails.MaxSummaryChars;
+            GuardrailsMaxSummarizationSourceChars =
+                guardrails.MaxSummarizationSourceChars;
+            GuardrailsTimeoutSeconds = guardrails.TimeoutSeconds;
+            GuardrailsCacheResults = guardrails.CacheResults;
+            GuardrailsMaxGmailMessagesPerOperation =
+                guardrails.MaxGmailMessagesPerOperation;
             LoggingMinimumLevel = logging.MinimumLevel;
             SelectedTheme = AppThemeCatalog.GetName(_themeService.CurrentTheme);
             await RefreshIncidentsAsync(cancellationToken).ConfigureAwait(true);
@@ -406,6 +464,16 @@ public sealed partial class SettingsViewModel :
                 AllowSendEmail,
                 AllowFileDelete,
                 AllowHttpPost,
+                GuardrailsScreeningEnabled,
+                GuardrailsCleanThreshold,
+                GuardrailsCautionThreshold,
+                GuardrailsMaxContentChars,
+                GuardrailsSummarizeOversizedContent,
+                GuardrailsMaxSummaryChars,
+                GuardrailsMaxSummarizationSourceChars,
+                GuardrailsTimeoutSeconds,
+                GuardrailsCacheResults,
+                GuardrailsMaxGmailMessagesPerOperation,
                 LoggingMinimumLevel,
                 SelectedTheme);
             await _userSettingsService

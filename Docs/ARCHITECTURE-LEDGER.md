@@ -962,3 +962,124 @@ Runner working directory, and `StartWhenAvailable=true`.
   9 expandable reference/troubleshooting topics, 10 copyable code examples, no duplicate id,
   no missing anchor, balanced structural tags, zero external resources, valid inline
   JavaScript syntax, and a clean `git diff --check` for both editions.
+
+### Stage 7 V2 — prompt-injection content trust filter — 2026-07-29
+
+#### Project and dependency graph
+
+- Added `OD.MyLocalAgent.Guardrails` as the eighth solution project. It references only
+  `OD.MyLocalAgent.Ollama` and uses the already-pinned Microsoft Extensions packages.
+- Core, UI, and Tests add direct Guardrails project references. No central package version or
+  inline package version changed.
+- The resulting graph is `Guardrails -> Ollama`,
+  `Core -> Guardrails, Ollama, Connectors`,
+  `UI -> Guardrails, Core, Workflows, Ollama`, and `Tests -> all projects`; no cycle was
+  introduced.
+- Core composition calls `AddGuardrails(configuration)` immediately after
+  `AddLlmProviders(configuration)`. `IContentTrustService` is an explicit singleton with
+  instance-owned in-memory caches and monitored options.
+
+#### Public Guardrails API
+
+- `GuardrailsOptions`.
+- `ContentTrustStatus`, `ContentSummaryStatus`, and `TrustDisposition`.
+- `ContentTrustResult` and `ContentSummaryResult`.
+- `IContentTrustService.ScreenAsync` and `SummarizeAsync`.
+- `ContentTrustPolicy.Decide`.
+- `ContentTrustEnvelope.WrapPlaintext` and `WrapBase64`.
+- `GuardrailScreeningException` and `GuardrailSummarizationException`.
+- `ContentScreenerPrompt` version `2` and `ContentSummarizerPrompt` version `1`.
+- `ServiceCollectionExtensions.AddGuardrails`.
+
+The complete reloadable keys are `Guardrails:ScreeningEnabled`, `CleanThreshold`,
+`CautionThreshold`, `MaxContentChars`, `SummarizeOversizedContent`, `MaxSummaryChars`,
+`MaxSummarizationSourceChars`, `TimeoutSeconds`, `CacheResults`, and
+`MaxGmailMessagesPerOperation`.
+
+#### Screening, reduction, and caching decisions
+
+- Screening uses one system and one nonce-delimited user message, temperature zero, no tools,
+  no skills, and no agent wrapper. Verdict parsing clamps JSON integer scores, validates
+  verbatim indicators with ordinal matching, de-duplicates them, and retains at most 20.
+- The envelope type is the sole owner of warning text, UTF-8 Base64 conversion, delivery
+  nonces, and delimiters. Clean delivery is still explicitly marked. Caution, disabled,
+  failed, and summary-truncated paths fail closed to marked Base64; low scores are withheld.
+- Oversized reduction splits the complete source without dropping or normalizing characters,
+  processes chunks sequentially, classifies every source/intermediate input, and aggregates
+  the minimum score. The exact final source-specific delivery block is screened again by
+  Core. Provider/model changes abort multi-call reduction.
+- Verdict and summary caches are instance-owned, memory-only, keyed by content hashes plus
+  provider/model/prompt versions and requested maximum, and expire after 24 hours through
+  `TimeProvider`. Original content, wrappers, nonces, exceptions, and incidents are not
+  cached.
+- Caller cancellation is propagated. Technical screening/reduction failures retain the
+  original inner exception in a content-free typed exception. Core and Trust filter report
+  each caught typed exception once.
+
+#### Core output integration and intentional deviation
+
+- `gmail.readToday` and `gmail.readUnread` now return a root object with message/count/limit
+  metadata instead of the Stage-6 bare DTO array. This intentional V2 security deviation
+  prevents duplicating raw From, To, Subject, Snippet, and Body values beside the single
+  protected canonical message block.
+- Gmail body reduction preserves exact connector headers and snippet, substitutes only a
+  labeled complete-body summary, and screens the final canonical block. Unavailable reduction
+  substitutes the exact Gmail-review marker and sets human-review/trust-scope metadata.
+- HTTP GET and GET Text protect the entire capped body or extracted text. Successful
+  reduction returns only the protected summary; unavailable reduction preserves safe request
+  metadata and returns the exact source-specific skip marker without failing the workflow.
+  HTTP POST remains unchanged and is a recorded residual risk.
+- Agent-facing Gmail/HTTP JSON contains only suspicious-indicator counts. Verbatim spans are
+  reserved for the human Trust filter page and deterministic tests.
+- The `MyLocalAgentAI` instruction explicitly applies the untrusted-data rule to plaintext and
+  decoded Base64 envelopes.
+
+#### UI, settings, documentation, and earlier-stage files
+
+- Added Trust filter as the eighth permanent rail destination after AI playground and before
+  Settings. Its MVVM Toolkit ViewModel supports normal and oversized paths, cancellation,
+  score bands, distinct trust/processing statuses, human-only indicators, provider latency,
+  and protected preview.
+- Settings persists and reloads the complete Guardrails section. It states that disabling LLM
+  processing does not disable protection and warns that OpenAI-compatible screening and
+  full-source chunk reduction send Gmail/HTTP content to the cloud endpoint.
+- Updated the shared specification with ADR H and the V2 addendum, README, both offline
+  manuals, theme audit, acceptance report, and Stage-7 final report.
+- Both offline manuals validate with matching 21-section structures, 29 unique ids, no
+  missing target, duplicate id, or external resource, and valid embedded JavaScript.
+- Touched earlier-stage Core Gmail/HTTP tools, shared composition, agent instruction, UI
+  composition/navigation/settings, test doubles, project files, solution, and appsettings only
+  where Stage-7 integration required it. Tool Map aliases, method signatures, connector DTOs,
+  Safety gates, HTTP allowlisting, and POST behavior remain unchanged.
+
+#### Deterministic tests and manual evidence
+
+- Added service tests for wrappers, exact Base64 round-trip, policy boundaries, disabled
+  processing, safe typed failure, verdict caching, tool-less requests, complete-source
+  chunking, minimum-score aggregation, summary capping, source limits, and cancellation.
+- Added Gmail tests for the canonical block, caution Base64, human-only indicator handling,
+  user limit, body-marker fallback, and exactly-once failure reporting.
+- Added HTTP tests for protected GET/Text behavior, too-large skip, summarization-failure skip,
+  exactly-once reporting, and unchanged allowlist/POST gates.
+- Added manual-only injection fixtures with five classic attacks, three benign examples, a
+  post-first-boundary attack descriptor, and an above-limit source descriptor.
+- Release build/test evidence and explicit runner/UI follow-ups are recorded in
+  `Docs/stage7-v2-final-report.md`. The sandbox rejected the local loopback runner probe and
+  denied the per-user incident path; deterministic transport/provider stubs therefore remain
+  the executed automated runner-path evidence in this environment.
+- Final dependency hygiene removed both cached copies of `Dropbox.Api 7.2.0`, including the
+  incomplete temporary extraction, before a forced online restore with NuGet audit enabled.
+  The restored package matches the NuGet.org SHA-256, has a valid repository signature, and
+  the obsolete temporary copy remains absent.
+
+#### Residual risks
+
+- Trust scores can produce false positives and false negatives. Encoded, obfuscated, novel,
+  or model-specific attacks may evade classification.
+- Base64 is not encryption or isolation, and a model may decode it.
+- A selected OpenAI-compatible provider receives screened external content and every
+  full-source reduction chunk.
+- Dropbox, local filesystem, Calendar, Gmail attachments, outbound content, and HTTP POST
+  responses are not protected by Stage 7.
+- R9 Safety gates, tool whitelists, filesystem sandboxing, and HTTP allowlisting remain the
+  hard boundaries.

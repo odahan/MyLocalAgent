@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\OD.MyLocalAgent.Core\OD.MyLocalAgent.Core.csproj" />
+    <ProjectReference Include="..\OD.MyLocalAgent.Guardrails\OD.MyLocalAgent.Guardrails.csproj" />
     <ProjectReference Include="..\OD.MyLocalAgent.Ollama\OD.MyLocalAgent.Ollama.csproj" />
     <ProjectReference Include="..\OD.MyLocalAgent.Workflows\OD.MyLocalAgent.Workflows.csproj" />
   </ItemGroup>

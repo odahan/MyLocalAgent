@@ -2,6 +2,7 @@ using System.IO;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using OD.MyLocalAgent.Core;
+using OD.MyLocalAgent.Guardrails;
 using OD.MyLocalAgent.Ollama;
 using Serilog.Events;
 
@@ -146,6 +147,22 @@ internal sealed class UserSettingsService : IUserSettingsService
                 ["AllowFileDelete"] = settings.AllowFileDelete,
                 ["AllowHttpPost"] = settings.AllowHttpPost,
             },
+            ["Guardrails"] = new Dictionary<string, object>
+            {
+                ["ScreeningEnabled"] = settings.GuardrailsScreeningEnabled,
+                ["CleanThreshold"] = settings.GuardrailsCleanThreshold,
+                ["CautionThreshold"] = settings.GuardrailsCautionThreshold,
+                ["MaxContentChars"] = settings.GuardrailsMaxContentChars,
+                ["SummarizeOversizedContent"] =
+                    settings.GuardrailsSummarizeOversizedContent,
+                ["MaxSummaryChars"] = settings.GuardrailsMaxSummaryChars,
+                ["MaxSummarizationSourceChars"] =
+                    settings.GuardrailsMaxSummarizationSourceChars,
+                ["TimeoutSeconds"] = settings.GuardrailsTimeoutSeconds,
+                ["CacheResults"] = settings.GuardrailsCacheResults,
+                ["MaxGmailMessagesPerOperation"] =
+                    settings.GuardrailsMaxGmailMessagesPerOperation,
+            },
             ["Logging"] = new Dictionary<string, object>
             {
                 ["MinimumLevel"] = settings.LoggingMinimumLevel,
@@ -203,6 +220,21 @@ internal sealed class UserSettingsService : IUserSettingsService
         {
             throw new InvalidOperationException(
                 "The Task Scheduler folder is required.");
+        }
+
+        if (settings.GuardrailsCautionThreshold < 0 ||
+            settings.GuardrailsCautionThreshold >= settings.GuardrailsCleanThreshold ||
+            settings.GuardrailsCleanThreshold > 100 ||
+            settings.GuardrailsMaxContentChars <= 0 ||
+            settings.GuardrailsMaxSummaryChars < 256 ||
+            settings.GuardrailsMaxSummaryChars > settings.GuardrailsMaxContentChars ||
+            settings.GuardrailsMaxSummarizationSourceChars <=
+            settings.GuardrailsMaxContentChars ||
+            settings.GuardrailsTimeoutSeconds <= 0 ||
+            settings.GuardrailsMaxGmailMessagesPerOperation < 0)
+        {
+            throw new InvalidOperationException(
+                "Guardrails thresholds, content limits, timeout, or Gmail limit are invalid.");
         }
 
         if (!Enum.TryParse<LogEventLevel>(

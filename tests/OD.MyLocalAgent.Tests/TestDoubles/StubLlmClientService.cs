@@ -6,24 +6,34 @@ namespace OD.MyLocalAgent.Tests.TestDoubles;
 
 internal sealed class StubLlmClientService : ILlmClientService
 {
+    private readonly string _providerName;
+
     public StubLlmClientService(string response)
+        : this(new StubChatClient(response), "Stub")
     {
-        Client = new StubChatClient(response);
-        Response = response;
+    }
+
+    public StubLlmClientService(StubChatClient client, string providerName)
+    {
+        Client = client;
+        _providerName = providerName;
     }
 
     public StubChatClient Client { get; }
 
     public IChatClient ChatClient => Client;
 
-    public string ProviderName => "Stub";
+    public string ProviderName => _providerName;
 
-    private string Response { get; }
-
-    public Task<string> GenerateAsync(
+    public async Task<string> GenerateAsync(
         string prompt,
-        CancellationToken cancellationToken) =>
-        Task.FromResult(Response);
+        CancellationToken cancellationToken)
+    {
+        var response = await Client.GetResponseAsync(
+            prompt,
+            cancellationToken: cancellationToken);
+        return response.Text;
+    }
 
     public async IAsyncEnumerable<string> GenerateStreamingAsync(
         string prompt,
@@ -31,7 +41,10 @@ internal sealed class StubLlmClientService : ILlmClientService
     {
         cancellationToken.ThrowIfCancellationRequested();
         await Task.Yield();
-        yield return Response;
+        var response = await Client.GetResponseAsync(
+            prompt,
+            cancellationToken: cancellationToken);
+        yield return response.Text;
     }
 
     public Task<LlmHealthResult> CheckHealthAsync(

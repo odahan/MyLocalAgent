@@ -66,6 +66,10 @@ public sealed partial class MainWindowViewModel :
                 PackIconMaterialKind.RobotOutline,
                 PageRoute.AIPlayground),
             new(
+                "Trust filter",
+                PackIconMaterialKind.ShieldCheckOutline,
+                PageRoute.TrustFilter),
+            new(
                 "Settings",
                 PackIconMaterialKind.CogOutline,
                 PageRoute.Settings),
@@ -175,6 +179,8 @@ public sealed partial class MainWindowViewModel :
                 _serviceProvider.GetRequiredService<ToolTesterViewModel>(),
             PageRoute.AIPlayground =>
                 _serviceProvider.GetRequiredService<AIPlaygroundViewModel>(),
+            PageRoute.TrustFilter =>
+                _serviceProvider.GetRequiredService<TrustFilterViewModel>(),
             PageRoute.Settings =>
                 _serviceProvider.GetRequiredService<SettingsViewModel>(),
             _ => throw new InvalidOperationException(

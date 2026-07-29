@@ -18,6 +18,16 @@ Settings routes. Dark was exercised throughout. Light was selected live in Setti
 visually inspected on the provider and General surfaces, and then changed back to the saved
 Dark default.
 
+## Stage 7 Trust filter coverage
+
+The Trust filter route reuses already-audited `TextBox`, multiline read-only editor,
+`CheckBox`, `Button`, `ProgressBar`, Material `Card`, `Border` badge, `ListBox`, and
+`ScrollViewer` treatments. Settings Guardrails fields reuse the same text, checkbox,
+separator, warning, and card styles. No new stock control type or custom template was
+introduced. A Dark/Light visual pass of the new route, threshold badge states, long Base64
+preview, indicator list, busy/cancel state, and expanded Settings card remains a Stage-7
+human follow-up.
+
 ## Control inventory
 
 | Control or surface | Palette/template treatment | Final evidence |

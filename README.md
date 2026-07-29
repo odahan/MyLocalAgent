@@ -24,6 +24,7 @@ its own navigation, search, styles, and scripts in one file.
 | 4 | WPF shell, diagnostics, and settings | Complete |
 | 5 | Task, prompt, connector, tester, and playground pages | Complete |
 | 6 | Hardening, self-contained packaging, documentation, acceptance | Complete with documented human checks |
+| 7 | Prompt-injection trust filter for Gmail and HTTP GET content | Complete with documented manual UI/provider checks |
 
 See [Docs/acceptance-report.md](Docs/acceptance-report.md) for the executed acceptance
 evidence and any remaining environment-dependent checks.
@@ -206,6 +207,93 @@ contain prompt-injection text that asks the model to ignore policy, reveal secre
 a dangerous tool. The agent system prompt explicitly tells the model never to treat tool
 results as instructions. Safety flags, tool whitelists, the filesystem sandbox, and the HTTP
 allowlist remain the enforceable boundaries even when model output is manipulated.
+
+## Prompt-injection guardrails
+
+Gmail reads and HTTP GET/GET Text responses pass through the active provider's dedicated
+single-turn classifier before they are returned to an agent. The classifier and oversized
+reducer call `IChatClient` directly with temperature zero, no tools, no skills, no agent
+loop, and no authority to act. This is probabilistic spotlighting and risk reduction, not a
+security boundary.
+
+Every delivered external-content block is marked. A clean result uses a plaintext warning
+and nonce-bound `UNTRUSTED-EXTERNAL-DATA` delimiters. A caution result, disabled LLM
+processing, or a screening failure uses a marked UTF-8 Base64 payload inside
+`UNTRUSTED-EXTERNAL-DATA-BASE64` delimiters. A score below the caution threshold withholds
+the content.
+
+| Result | Default threshold | Delivery |
+|---|---:|---|
+| Clean | `score >= 80` | Marked plaintext |
+| Caution | `50 <= score < 80` | Marked Base64 |
+| Low trust | `score < 50` | Withheld marker |
+| Screening disabled or failed | no score | Marked Base64 for normal-size content |
+
+Turning **Use LLM guardrails processing** off does not disable protection and never enables
+raw pass-through. Normal-size Gmail/HTTP content uses marked Base64 without an LLM call.
+Oversized Gmail bodies are replaced by an explicit Gmail-review marker while their canonical
+From, To, Subject, and Snippet values remain protected. Oversized HTTP pages are skipped with
+an explicit processing marker, and the workflow continues.
+
+Gmail protects one canonical labeled block containing From, To, Subject, Snippet, and Body.
+Those raw component fields are not duplicated in tool JSON. `MaxGmailMessagesPerOperation=0`
+processes every fetched message sequentially. A positive user-selected limit processes only
+the first N messages and returns explicit processed/skipped counts and a warning; skipped
+message content is not returned. This root object is an intentional security-driven change
+from the earlier bare Gmail array.
+
+Content above `MaxContentChars` is reduced only when it is no larger than
+`MaxSummarizationSourceChars`. Deterministic ordered chunks cover every source character.
+Every source chunk and every intermediate reduction input is classified, summaries are
+generated without tools, and the effective delivered score is the minimum source/final
+score. A summary is capped in C# at `MaxSummaryChars`; truncation includes an explicit marker
+and forces Base64. Results are cached in memory for 24 hours by prompt version, provider,
+model, requested maximum, and content hash. Original external content, wrappers, nonces,
+exceptions, and incidents are never cached.
+
+HTTP fallbacks report `SkippedTooLarge`, `SkippedLlmProcessingDisabled`,
+`SkippedSummarizationDisabled`, or `SkippedSummarizationFailed` with URL/status metadata but
+without the page or a partial summary. Gmail uses `TooLargeForSafeProcessing`,
+`LlmProcessingDisabled`, `SummarizationDisabled`, or `SummarizationFailed` while preserving
+the protected canonical headers and replacing only the body.
+
+The **Trust filter** page, placed after **AI playground**, displays trust and processing
+statuses separately, the effective score, provider latency, protected preview, and validated
+verbatim indicators. Indicator text is human-only; Gmail and HTTP tool JSON exposes only
+`suspiciousIndicatorCount`.
+
+When OpenAI-compatible is selected, all screened Gmail/HTTP content leaves the machine for
+the configured cloud endpoint. Complete-source reduction can send every oversized-source
+chunk through several sequential cloud calls. Do not use real private email in a cloud test
+without explicit authorization.
+
+Limitations are deliberate and important:
+
+- False positives can encode or withhold benign text; false negatives can pass malicious
+  text, especially novel, encoded, or obfuscated attacks.
+- Base64 is not encryption or isolation. A model can decode it and must still treat the
+  decoded text only as data.
+- Dropbox content, local filesystem content, Calendar content, Gmail attachments, outbound
+  request/message content, and HTTP POST responses are outside Stage 7 protection.
+- Safety gates, tool whitelists, the filesystem sandbox, and the HTTP allowlist remain the
+  hard controls.
+
+The complete reloadable configuration is:
+
+```json
+"Guardrails": {
+  "ScreeningEnabled": true,
+  "CleanThreshold": 80,
+  "CautionThreshold": 50,
+  "MaxContentChars": 8000,
+  "SummarizeOversizedContent": true,
+  "MaxSummaryChars": 4000,
+  "MaxSummarizationSourceChars": 100000,
+  "TimeoutSeconds": 60,
+  "CacheResults": true,
+  "MaxGmailMessagesPerOperation": 0
+}
+```
 
 ## Windows Task Scheduler
 
@@ -458,6 +546,8 @@ flowchart LR
     Runner --> Store
     Runner --> Workflows["Workflow engine"]
     Workflows --> Core["Core agent, Tool Map, safety, incidents"]
+    Core --> Guardrails["Tool-less content trust filter"]
+    Guardrails --> Llm
     Core --> Llm["LLM provider layer"]
     Llm --> Ollama["Local Ollama"]
     Llm -. explicit cloud opt-in .-> OpenAI["OpenAI-compatible endpoint"]
@@ -473,10 +563,11 @@ Project dependencies are acyclic:
 ```text
 Ollama      -> none
 Connectors  -> none
-Core        -> Ollama, Connectors
+Guardrails  -> Ollama
+Core        -> Ollama, Connectors, Guardrails
 Workflows   -> Core
 Runner      -> Workflows, Core
-UI          -> Workflows, Core, Ollama
+UI          -> Workflows, Core, Ollama, Guardrails
 Tests       -> all projects
 ```
 

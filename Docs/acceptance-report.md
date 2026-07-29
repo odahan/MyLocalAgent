@@ -66,3 +66,42 @@ $runner = Join-Path $env:LOCALAPPDATA `
 Temporary invalid and safety-drill task files were removed immediately after their runs.
 The two documented sample tasks remain in the per-user task store for the Gmail human check
 and deterministic reproduction.
+
+## Stage 7 V2 acceptance addendum
+
+Date: 2026-07-29
+
+| Checklist item | Status | Executed evidence |
+|---|---:|---|
+| Guardrails project builds; solution contains eight projects and no dependency cycle. | ✅ | Release solution build reports all eight projects, 0 warnings, and 0 errors. Guardrails references only Ollama; Core, UI, and Tests reference Guardrails directly. |
+| Public contracts and statuses match the Stage-7 V2 specification. | ✅ | Warning-clean compilation plus deterministic contract/policy tests cover the public records, enums, service, policy, envelopes, and typed exceptions. |
+| Screening requests are single-turn and provably tool-less. | ✅ | Captured stub requests contain exactly one system and one user message, temperature 0, and null/empty tools. Summarization call options are checked the same way. |
+| Clean external content is always enclosed in the plaintext untrusted-data wrapper. | ✅ | `CleanVerdictUsesToollessPlaintextEnvelope` and protected HTTP/Gmail tests verify the mandatory warning and nonce delimiters. |
+| Caution, failed, summary-truncated, and normal-size disabled paths deliver marked Base64; oversized disabled paths use source fallbacks. | ✅ | Policy, exact Base64 round-trip, typed-failure, Gmail, HTTP, and summary-cap tests are green. |
+| Low-score content is withheld. | ✅ | Boundary tests cover scores 49 and 0 against the exact `Withhold` disposition. |
+| Oversized reduction covers every source character, uses no tools/skills, aggregates the minimum source/final score, and returns only the protected summary. | ✅ | Ordered chunk request capture proves `abcde` then `fgh`, intermediate reclassification, six sequential calls, and minimum score 40. Core returns only final canonical summaries. |
+| Summary truncation includes its marker within `MaxSummaryChars` and forces Base64. | ✅ | The deterministic 300→100 character cap includes the removed-character marker; Core/UI force at least Base64 for `SummaryTruncated`. |
+| Content above `MaxSummarizationSourceChars` produces zero LLM calls and the correct source-specific fallback. | ✅ | Service factory receives zero calls; Gmail preserves headers/body marker and HTTP returns `SkippedTooLarge` without source text. |
+| Provider/parsing/timeout failure is incident-reported once with the original inner exception, then safely continues with fallback content. | ✅ | Malformed verdict and Gmail typed-failure tests verify a content-free outer exception, original inner exception, one report, and complete marked-Base64 fallback. |
+| Summarization failure is incident-reported once; Gmail preserves its canonical header block and HTTP continues with its skip marker. | ✅ | HTTP technical-reduction test records one incident and returns `SkippedSummarizationFailed`; the same shared Gmail fallback path preserves exact headers and replaces only Body. |
+| Caller cancellation is not incident-reported. | ✅ | A pre-canceled screening token propagates `OperationCanceledException`; Core/UI cancellation filters rethrow before incident handling. |
+| Gmail protects one canonical From/To/Subject/Snippet/Body block and never duplicates raw fields. | ✅ | JSON assertions reject raw component properties and decode one exact canonical Base64 payload. |
+| Gmail reduction preserves exact From/To/Subject/Snippet values and substitutes only the body summary. | ✅ | Core builds the delivered block from unchanged connector values and the raw reduction result; deterministic fallback tests exercise the same header-preserving path. |
+| Gmail unavailable-reduction fallback sets the review marker, human-review flag, and accurate trust scope. | ✅ | `GmailSourceTooLargePreservesHeadersAndUsesBodyReviewMarker` verifies the marker, omission of the large body, `requiresHumanReview=true`, and `HeadersAndSnippetOnly`. |
+| Gmail default limit is unlimited; a positive limit returns explicit counts/warning without skipped content. | ✅ | Default integration code processes the entire connector list sequentially; the positive-limit test verifies 2 fetched, 1 processed, 1 skipped, warning text, and no skipped body. |
+| HTTP GET and GET Text protect all body/text; unreducible pages return an explicit skip notice and do not fail the workflow. | ✅ | GET/Text, source-limit, and summarization-failure tests verify protected values, safe metadata, exact markers, and successful tool JSON. POST tests remain unchanged. |
+| Agent-facing tool output contains indicator count but no verbatim indicator. | ✅ | Gmail caution JSON contains count 1, no raw indicator property/text, and only an encoded canonical payload. HTTP uses the same metadata projection. |
+| Trust filter shows human-only indicators and distinguishes trust status from content processing status. | ✅ | ViewModel/XAML bind separate fields, indicator list, score band, provider latency, lengths, and protected preview. Interactive visual evidence remains below. |
+| Settings contain no insecure Disable Guardrails action. | ✅ | The only control is **Use LLM guardrails processing** and its adjacent text states that protection remains active with conservative fallbacks. |
+| README and both manuals explain privacy, Base64 limitations, summarization, source limits, fallbacks, scope exclusions, and the R9 boundary. | ✅ | README Guardrails section and both offline manual Trust filter sections cover all listed topics; shared specification includes ADR H and the V2 addendum. |
+
+### Stage 7 environment-dependent follow-ups
+
+- ⏳ Exercise the Trust filter benign, injection, Return Base64, Cancel, disabled, oversized,
+  truncated, source-too-large, and technical-failure states in both Dark and Light.
+- ⏳ Confirm the OpenAI-compatible cloud warning visually. Do not use real private mail unless
+  the user explicitly authorizes that cloud test.
+- ⏳ Repeat the four real Runner HTTP probes in an environment that permits a loopback/public
+  HTTP listener and writable `%LOCALAPPDATA%`. This sandbox rejected the loopback connection
+  and denied the per-user incident file. Deterministic tool/provider tests cover all four
+  output paths without network or private data.

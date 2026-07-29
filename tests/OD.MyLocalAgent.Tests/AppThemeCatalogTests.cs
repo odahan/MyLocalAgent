@@ -1,5 +1,6 @@
 using FluentAssertions;
 using OD.MyLocalAgent.UI.Services;
+using OD.MyLocalAgent.UI.ViewModels;
 using Xunit;
 
 namespace OD.MyLocalAgent.Tests;
@@ -48,5 +49,19 @@ public sealed class AppThemeCatalogTests
     public void NamesExposeDarkThenLight()
     {
         AppThemeCatalog.Names.Should().Equal("Dark", "Light");
+    }
+
+    /// <summary>
+    /// Verifies Trust filter is ordered between AI playground and Settings.
+    /// </summary>
+    [Fact]
+    public void TrustFilterRoutePrecedesSettingsAfterPlayground()
+    {
+        var routes = Enum.GetValues<PageRoute>();
+
+        routes.Should().ContainInOrder(
+            PageRoute.AIPlayground,
+            PageRoute.TrustFilter,
+            PageRoute.Settings);
     }
 }

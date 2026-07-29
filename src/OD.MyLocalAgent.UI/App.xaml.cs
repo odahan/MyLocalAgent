@@ -140,6 +140,7 @@ public partial class App : Application
         services.AddSingleton<ToolsViewModel>();
         services.AddSingleton<ToolTesterViewModel>();
         services.AddSingleton<AIPlaygroundViewModel>();
+        services.AddSingleton<TrustFilterViewModel>();
         services.AddSingleton<SettingsViewModel>();
 
         services.AddTransient<DashboardPage>();
@@ -150,6 +151,7 @@ public partial class App : Application
         services.AddTransient<ToolsPage>();
         services.AddTransient<ToolTesterPage>();
         services.AddTransient<AIPlaygroundPage>();
+        services.AddTransient<TrustFilterPage>();
         services.AddTransient<SettingsPage>();
         services.AddSingleton(
             serviceProvider =>

@@ -46,6 +46,11 @@ public enum PageRoute
     AIPlayground,
 
     /// <summary>
+    /// Human-facing prompt-injection trust screening.
+    /// </summary>
+    TrustFilter,
+
+    /// <summary>
     /// Application settings and diagnostics.
     /// </summary>
     Settings,

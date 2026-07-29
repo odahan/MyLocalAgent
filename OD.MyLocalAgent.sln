@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OD.MyLocalAgent.Ollama", "s
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OD.MyLocalAgent.Connectors", "src\OD.MyLocalAgent.Connectors\OD.MyLocalAgent.Connectors.csproj", "{5A422426-BB09-4784-BB77-551C92D5DD81}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OD.MyLocalAgent.Guardrails", "src\OD.MyLocalAgent.Guardrails\OD.MyLocalAgent.Guardrails.csproj", "{6B9A15CC-50B0-4FF5-9035-C061C52C9AE1}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OD.MyLocalAgent.Core", "src\OD.MyLocalAgent.Core\OD.MyLocalAgent.Core.csproj", "{D8090F41-51B7-437D-B81D-0A6A94A107C4}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OD.MyLocalAgent.Workflows", "src\OD.MyLocalAgent.Workflows\OD.MyLocalAgent.Workflows.csproj", "{FA436015-7D56-4A75-BB4F-3CB90FB25E5B}"
@@ -30,6 +32,10 @@ Global
 		{5A422426-BB09-4784-BB77-551C92D5DD81}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5A422426-BB09-4784-BB77-551C92D5DD81}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5A422426-BB09-4784-BB77-551C92D5DD81}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6B9A15CC-50B0-4FF5-9035-C061C52C9AE1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6B9A15CC-50B0-4FF5-9035-C061C52C9AE1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6B9A15CC-50B0-4FF5-9035-C061C52C9AE1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6B9A15CC-50B0-4FF5-9035-C061C52C9AE1}.Release|Any CPU.Build.0 = Release|Any CPU
 		{D8090F41-51B7-437D-B81D-0A6A94A107C4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{D8090F41-51B7-437D-B81D-0A6A94A107C4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D8090F41-51B7-437D-B81D-0A6A94A107C4}.Release|Any CPU.ActiveCfg = Release|Any CPU

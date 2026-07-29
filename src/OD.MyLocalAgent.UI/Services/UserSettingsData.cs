@@ -20,6 +20,16 @@ namespace OD.MyLocalAgent.UI.Services;
 /// <param name="AllowSendEmail">Whether email sending is enabled.</param>
 /// <param name="AllowFileDelete">Whether file deletion is enabled.</param>
 /// <param name="AllowHttpPost">Whether HTTP POST is enabled.</param>
+/// <param name="GuardrailsScreeningEnabled">Whether LLM guardrails processing is enabled.</param>
+/// <param name="GuardrailsCleanThreshold">The clean-delivery threshold.</param>
+/// <param name="GuardrailsCautionThreshold">The caution-delivery threshold.</param>
+/// <param name="GuardrailsMaxContentChars">The single-call content maximum.</param>
+/// <param name="GuardrailsSummarizeOversizedContent">Whether oversized reduction is enabled.</param>
+/// <param name="GuardrailsMaxSummaryChars">The generated-summary maximum.</param>
+/// <param name="GuardrailsMaxSummarizationSourceChars">The complete-source reduction maximum.</param>
+/// <param name="GuardrailsTimeoutSeconds">The per-call guardrail timeout.</param>
+/// <param name="GuardrailsCacheResults">Whether in-memory guardrail caching is enabled.</param>
+/// <param name="GuardrailsMaxGmailMessagesPerOperation">The Gmail processing limit.</param>
 /// <param name="LoggingMinimumLevel">The Serilog minimum level.</param>
 /// <param name="Theme">The application color theme.</param>
 public sealed record UserSettingsData(
@@ -40,5 +50,15 @@ public sealed record UserSettingsData(
     bool AllowSendEmail,
     bool AllowFileDelete,
     bool AllowHttpPost,
+    bool GuardrailsScreeningEnabled,
+    int GuardrailsCleanThreshold,
+    int GuardrailsCautionThreshold,
+    int GuardrailsMaxContentChars,
+    bool GuardrailsSummarizeOversizedContent,
+    int GuardrailsMaxSummaryChars,
+    int GuardrailsMaxSummarizationSourceChars,
+    int GuardrailsTimeoutSeconds,
+    bool GuardrailsCacheResults,
+    int GuardrailsMaxGmailMessagesPerOperation,
     string LoggingMinimumLevel,
     string Theme);

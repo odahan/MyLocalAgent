@@ -48,7 +48,7 @@
                             CornerRadius="6"
                             Visibility="{Binding IsOpenAIProvider, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <TextBlock Foreground="{DynamicResource WarningBrush}"
-                                   Text="Cloud warning: prompts and relevant context are sent to the configured OpenAI-compatible endpoint." />
+                                   Text="Cloud warning: prompts and relevant context are sent to the configured OpenAI-compatible endpoint. Guardrail screening and complete-source summarization also send Gmail and HTTP content, including every oversized-source chunk." />
                     </Border>
 
                     <Grid Margin="0,20,0,0">
@@ -248,6 +248,80 @@
                     <TextBlock Margin="24,2,0,0"
                                Style="{StaticResource CaptionTextStyle}"
                                Text="Permits http.post to send data to allowed hosts." />
+
+                    <Separator Margin="0,22,0,20"
+                               Background="{DynamicResource DividerBrush}" />
+
+                    <TextBlock FontWeight="SemiBold"
+                               Text="Guardrails" />
+                    <CheckBox Margin="0,12,0,0"
+                              Content="Use LLM guardrails processing"
+                              IsChecked="{Binding GuardrailsScreeningEnabled, Mode=TwoWay}" />
+                    <TextBlock Margin="24,2,0,0"
+                               Style="{StaticResource CaptionTextStyle}"
+                               Text="Turning this off does not disable protection. Normal-size Gmail and HTTP content uses marked Base64; oversized Gmail bodies are replaced with a review notice and oversized HTTP pages are skipped."
+                               TextWrapping="Wrap" />
+
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="16" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox Text="{Binding GuardrailsCleanThreshold, UpdateSourceTrigger=PropertyChanged}"
+                                 materialDesign:HintAssist.Hint="Clean threshold (0–100)" />
+                        <TextBox Grid.Column="2"
+                                 Text="{Binding GuardrailsCautionThreshold, UpdateSourceTrigger=PropertyChanged}"
+                                 materialDesign:HintAssist.Hint="Caution threshold (0–99)" />
+                    </Grid>
+
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="16" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox Text="{Binding GuardrailsMaxContentChars, UpdateSourceTrigger=PropertyChanged}"
+                                 materialDesign:HintAssist.Hint="Maximum content characters" />
+                        <TextBox Grid.Column="2"
+                                 Text="{Binding GuardrailsTimeoutSeconds, UpdateSourceTrigger=PropertyChanged}"
+                                 materialDesign:HintAssist.Hint="Per-call timeout (seconds)" />
+                    </Grid>
+
+                    <CheckBox Margin="0,16,0,0"
+                              Content="Summarize oversized content"
+                              IsChecked="{Binding GuardrailsSummarizeOversizedContent, Mode=TwoWay}" />
+                    <TextBlock Margin="24,2,0,0"
+                               Style="{StaticResource CaptionTextStyle}"
+                               Text="Reduction covers every source character through sequential calls and can materially increase latency. Sources above the safe maximum are never partially summarized."
+                               TextWrapping="Wrap" />
+
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="16" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox Text="{Binding GuardrailsMaxSummaryChars, UpdateSourceTrigger=PropertyChanged}"
+                                 materialDesign:HintAssist.Hint="Maximum summary characters" />
+                        <TextBox Grid.Column="2"
+                                 Text="{Binding GuardrailsMaxSummarizationSourceChars, UpdateSourceTrigger=PropertyChanged}"
+                                 materialDesign:HintAssist.Hint="Maximum source characters" />
+                    </Grid>
+
+                    <CheckBox Margin="0,16,0,0"
+                              Content="Cache guardrail verdicts and summaries for 24 hours"
+                              IsChecked="{Binding GuardrailsCacheResults, Mode=TwoWay}" />
+                    <TextBox Width="340"
+                             Margin="0,16,0,0"
+                             HorizontalAlignment="Left"
+                             Text="{Binding GuardrailsMaxGmailMessagesPerOperation, UpdateSourceTrigger=PropertyChanged}"
+                             materialDesign:HintAssist.Hint="Maximum Gmail messages per operation (0 = unlimited)" />
+                    <TextBlock Margin="0,6,0,0"
+                               Foreground="{DynamicResource WarningBrush}"
+                               Style="{StaticResource CaptionTextStyle}"
+                               Text="A positive Gmail limit omits later messages from that operation. This is a user-owned completeness tradeoff; 0 is the safe default."
+                               TextWrapping="Wrap" />
 
                     <ComboBox Width="260"
                               Margin="0,20,0,0"

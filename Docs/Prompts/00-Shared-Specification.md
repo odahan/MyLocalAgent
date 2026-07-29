@@ -563,6 +563,13 @@ endpoints), `IOptions<T>` elsewhere. Nothing ever reads `Environment.CurrentDire
 - **G. Workflows are the reliable path.** On a 12B local model, free-form agent tool-calling is
   best-effort; workflows (`workflow` array) are the deterministic path and the README steers
   users to them.
+- **H. Probabilistic guardrail and fail-closed external-content delivery.** Trust scoring and
+  Base64 spotlighting reduce prompt-injection risk but are not security boundaries. Raw
+  external Gmail/HTTP content is never delivered without an explicit untrusted-data wrapper.
+  Disabling LLM processing and screening failures fail closed. Oversized content is reduced
+  only through tool-less, full-source chunk processing. When reduction is unavailable, HTTP
+  returns a skip notice while Gmail preserves its protected canonical headers and replaces
+  only the body with a Gmail-review marker. R9 remains the hard boundary.
 
 ## 10. CODING STANDARDS
 
@@ -600,3 +607,116 @@ plus the stage-specific checks. Stage 6 executes the **final acceptance checklis
   `http.post` fail with `SafetyException` (runner `test-tool` is the quickest probe).
 - [ ] `resync-schedules` repairs a stale registration (delete the task from Task Scheduler,
   run the command, verify it is recreated with the correct next occurrence).
+
+## 12. GUARDRAILS ADDENDUM V2
+
+This addendum supersedes the pre-Stage-7 solution count, Gmail read-output shape, navigation
+count, and external Gmail/HTTP delivery behavior where they conflict with earlier sections.
+
+### 12.1 Locked product decisions
+
+- **D1:** Add `OD.MyLocalAgent.Guardrails`, referencing only
+  `OD.MyLocalAgent.Ollama`. Core, UI, and Tests reference Guardrails directly. The solution
+  contains eight projects.
+- **D2:** Every screening operation resolves `ILlmClientFactory.Create()` so provider/model
+  changes apply without restart. OpenAI-compatible screening and reduction send the protected
+  Gmail/HTTP source, including every oversized chunk, to the configured cloud endpoint.
+- **D3:** There is no raw pass-through or insecure off switch. `ScreeningEnabled=false`
+  disables Guardrails LLM calls, not protection.
+- **D4:** Screening failures throw `GuardrailScreeningException` with the original inner
+  exception and a complete marked-Base64 fallback. Reduction failures throw
+  `GuardrailSummarizationException` with the original inner exception and no source content.
+  Gmail, HTTP, and Trust filter report each caught exception exactly once.
+- **D5:** Sources above `MaxContentChars` and at or below
+  `MaxSummarizationSourceChars` are reduced through sequential, deterministic, tool-less
+  chunks covering every source character. Source and intermediate inputs are classified.
+- **D6:** A generated summary longer than the requested maximum is capped in C#, includes an
+  explicit removed-character marker, and cannot be delivered as plaintext.
+- **D7:** Gmail protects one canonical From/To/Subject/Snippet/Body block. Successful
+  reduction preserves exact headers and replaces only Body with a labeled AI summary.
+- **D8:** Verbatim indicators are human-only Trust filter data. Agent-facing Gmail/HTTP JSON
+  contains only `suspiciousIndicatorCount`.
+- **D9:** Gmail messages are processed sequentially. A zero limit is unlimited; a positive
+  limit processes the first N messages and returns explicit processed/skipped counts and a
+  warning without skipped content.
+- **D10:** Unreducible HTTP GET content is replaced by a source-specific skip marker while the
+  workflow continues. Unreducible Gmail bodies are replaced by the Gmail-review marker while
+  exact canonical headers remain protected.
+- **D11:** Dropbox content, local filesystem content, Calendar content, Gmail attachments,
+  outbound request/message content, and HTTP POST responses remain outside this stage.
+- **D12:** Trust filter is the tenth functional page and eighth permanent rail entry, after AI
+  playground and before Settings.
+
+### 12.2 Configuration and contracts
+
+The reloadable `Guardrails` section defaults to:
+
+```json
+{
+  "ScreeningEnabled": true,
+  "CleanThreshold": 80,
+  "CautionThreshold": 50,
+  "MaxContentChars": 8000,
+  "SummarizeOversizedContent": true,
+  "MaxSummaryChars": 4000,
+  "MaxSummarizationSourceChars": 100000,
+  "TimeoutSeconds": 60,
+  "CacheResults": true,
+  "MaxGmailMessagesPerOperation": 0
+}
+```
+
+Validation requires `0 <= CautionThreshold < CleanThreshold <= 100`,
+`MaxContentChars > 0`, `256 <= MaxSummaryChars <= MaxContentChars`,
+`MaxSummarizationSourceChars > MaxContentChars`, `TimeoutSeconds > 0`, and a non-negative
+Gmail limit.
+
+`IContentTrustService.ScreenAsync` returns `ContentTrustResult` with
+`ContentTrustStatus.Screened`, `ScreeningDisabled`, or `Failed`.
+`IContentTrustService.SummarizeAsync` returns `ContentSummaryResult` with
+`ContentSummaryStatus.Summarized`, `SummaryTruncated`, `LlmProcessingDisabled`,
+`SummarizationDisabled`, or `SourceTooLarge`. Successful reductions require a source trust
+score. The final effective score is the minimum of the source-wide score and the exact
+delivered-block score.
+
+### 12.3 Mandatory delivery and policy
+
+Every non-withheld block starts with a non-negotiable English warning and uses a fresh,
+unpredictable nonce in matching delimiters:
+
+- plaintext: `UNTRUSTED-EXTERNAL-DATA`;
+- UTF-8 Base64: `UNTRUSTED-EXTERNAL-DATA-BASE64`.
+
+The payload round-trips exactly after UTF-8 decoding. Delimiters and warnings are never sent
+to the screener and never enter cache keys. Default policy is clean (`>=80`) → marked
+plaintext, caution (`>=50`) → marked Base64, lower → exact withheld marker. Disabled or
+failed screening always uses marked Base64 for normal-size content. Base64 is spotlighting,
+not encryption, and a model may decode it.
+
+### 12.4 Oversized reduction, failures, and cache
+
+Screening and reduction are direct `IChatClient` calls with temperature zero, one system and
+one user message, and no tools, skills, agent, or side effects. Ordered chunks prefer a line
+break, then whitespace, then a hard boundary without dropping, normalizing, reordering, or
+duplicating characters. Intermediate summaries remain untrusted and are reclassified before
+further reduction. Provider/model changes abort a multi-call reduction. Caller cancellation
+propagates without fallback or incident reporting.
+
+Verdict and summary caches are in-memory only with a 24-hour `TimeProvider`-measured TTL.
+Keys include the content hash, provider, model, prompt versions, and requested summary maximum
+where applicable. Original content, wrappers, nonces, exceptions, and incidents are never
+cached.
+
+### 12.5 Gmail and HTTP agent-facing behavior
+
+Gmail read aliases return a root object containing `messages`, `totalFetched`, `processed`,
+`skippedBecauseOfLimit`, `limitApplied`, and `warning`. Each message contains provider id,
+receipt metadata, one protected canonical `content` value, trust metadata, body-processing
+metadata, and trust scope. It never duplicates raw From, To, Subject, Snippet, or Body fields.
+This is an intentional security deviation from the earlier bare array.
+
+HTTP GET and GET Text preserve URL, status, and media-type metadata while placing all response
+body/text only in the protected content property. Successful summaries return only the final
+protected summary. Too-large, disabled, or failed reductions return exact application-authored
+skip markers with `requiresHumanReview=true`; the workflow continues. HTTP POST behavior is
+unchanged and remains a documented residual risk.
