@@ -794,3 +794,100 @@ setters without a nonexistent named `BasedOn` resource.
 - Complete the remaining populated-grid, keyboard, disabled, high-DPI, long-text, internal
   `DataGrid`/scrollbar/pop-up, and native-dialog theme checks listed in
   `Docs/theme-audit.md`.
+
+### Stage 6 — 2026-07-29
+
+#### Product closeout
+
+- Completed the application-owned control inventory and replaced the pending theme audit
+  with final Dark and Light evidence. Dark remains the default. Light remains an intentional
+  supported appearance and was explicitly retained during closeout.
+- Added palette-derived validation, selection, disabled, row, header, item, and scrollbar
+  states to the shared control dictionary. The interactive pass exposed two nonexistent
+  Material resource keys; `ComboBoxItem` now uses the application palette directly and
+  `ListViewItem` derives from the available compatible Material list-box item style.
+- Replaced the custom `ICommand` title-bar implementation with MVVM Toolkit-generated commands
+  that invoke WPF `SystemCommands`. Every ViewModel continues to use source generators, and no
+  manual property-change or command class remains.
+- Replaced the README skeleton with the complete packaging, configuration, OAuth, Dropbox,
+  safety, prompt-injection, scheduler, CLI, workflow, Tool Map, architecture, provider,
+  diagnostics, troubleshooting, and extension documentation.
+- Added the deterministic OAuth-free `Docs/samples/acceptance-filesystem.json` workflow and
+  the executed `Docs/acceptance-report.md` plus final stage report.
+
+#### Self-contained publish and runner resolution
+
+Both application projects declare `RuntimeIdentifier=win-x64` and `SelfContained=true`.
+`scripts/publish.ps1` performs Release self-contained publishes into a temporary staging
+directory, validates the expected hosts and runtime payload, and promotes the staged tree to
+the stable destination with rollback protection.
+
+The stable default layout is deliberately split:
+
+```text
+%LOCALAPPDATA%\Programs\OD.MyLocalAgent\
+├── UI\OD.MyLocalAgent.UI.exe
+└── Runner\OD.MyLocalAgent.Runner.exe
+```
+
+A merged self-contained directory is not safe because UI and Runner publish framework files
+with different payloads; merging in either order caused either WPF `WindowsBase` or Runner
+`hostpolicy` failure. `RunnerPathResolver` preserves the existing adjacent-executable
+contract, then checks the standard sibling `UI`/`Runner` layout when the setting is empty.
+Task Scheduler verification confirmed the stable Runner path, `run --task <id>` arguments,
+Runner working directory, and `StartWhenAvailable=true`.
+
+#### Acceptance-surfaced fixes and deviations
+
+- `TaskExecutionMutex` keeps its established type and global per-task gate contract but uses
+  a named `Semaphore` instead of a named `Mutex`. A CLR mutex is thread-affine and cannot be
+  safely released after awaited workflow execution resumes on another thread. The semaphore
+  preserves cross-process exclusion without that invalid release constraint; a regression
+  test releases from a different task and proves reacquisition.
+- `UserSettingsService` now preserves the `Google` client id and secret while rewriting the
+  per-user document. This prevents an unrelated Settings save from removing OAuth client
+  configuration.
+- Dormant Dropbox configuration is now valid at the options-binding layer. Strict credential
+  validation remains in `DropboxConnector` immediately before use, so an unconfigured
+  optional connector no longer breaks an unrelated configuration reload while connector
+  calls still produce the required typed error.
+- The title-bar uses MVVM Toolkit-generated commands that invoke WPF `SystemCommands`, closing
+  the final MVVM acceptance item without changing window behavior.
+- No direct package version changed. The final NuGet check reported only
+  `FluentAssertions 7.2.2 -> 8.10.0` as a top-level update. Version 7.2.2 remains deliberately
+  pinned as the last project-approved permissively licensed line; reported transitive
+  updates are controlled by their direct packages.
+
+#### Executed acceptance evidence
+
+- The self-contained filesystem task completed with exit code 0, created its sandboxed file,
+  wrote `reports\acceptance-filesystem\20260729-054933.md`, appended one
+  `reports\index.jsonl` line, and registered the next occurrence.
+- The three direct `test-tool` probes were rejected before side effects and named
+  `Safety:AllowFileDelete`, `Safety:AllowSendEmail`, and `Safety:AllowHttpPost`.
+- The deliberate Settings incident was recorded with correlation id
+  `4bc5be1fe6f643d78a5986c084ba0108`; the application remained responsive. A fresh invalid
+  workflow task produced Runner incident `61f24aaef4a3408ba3e2911c11ec4d50`.
+- OpenAI-compatible was saved without a key and returned the real protected-key failure
+  without restart. Ollama was then saved, returned healthy with measured latency, and the
+  resulting `settings.json` contained no API key.
+- The acceptance scheduler registration was deleted, its absence observed, and
+  `resync-schedules` recreated it from the task store with the published split-layout Runner.
+- The final control pass covered all nine routes plus task and prompt editors, populated
+  grids, grouped and ordinary combo popups, Logs, incidents, Dark, and Light. No incident was
+  added after the two invalid style references were corrected and republished.
+
+#### Verification and known human follow-ups
+
+- `dotnet build OD.MyLocalAgent.sln -m:1 --no-restore --configuration Release`: succeeded
+  with zero warnings and zero errors.
+- `dotnet test OD.MyLocalAgent.sln -m:1 --no-build --no-restore --configuration Release`:
+  66 tests passed, zero failed, and the one environment-dependent Ollama integration test was
+  skipped.
+- Seven project files contain 40 centrally managed package references, with zero missing
+  `Directory.Packages.props` entries and zero inline versions.
+- The Gmail leg of `daily-mail-summary` still requires interactive Google consent on the
+  target Windows account.
+- Diagnostics Save to disk and Reset remain an explicit human acceptance action because
+  Reset archives and truncates the user's current rolling logs. Native-dialog high-contrast
+  and non-100% DPI checks are also carried as deployment-environment follow-ups.

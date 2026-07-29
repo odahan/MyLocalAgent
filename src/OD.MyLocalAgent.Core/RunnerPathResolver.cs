@@ -21,8 +21,21 @@ public static class RunnerPathResolver
         bool requireExists = true)
     {
         ArgumentNullException.ThrowIfNull(options);
+        var siblingPath = Path.Combine(
+            AppContext.BaseDirectory,
+            RunnerFileName);
+        var splitPublishPath = Path.GetFullPath(
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "..",
+                "Runner",
+                RunnerFileName));
         var path = string.IsNullOrWhiteSpace(options.RunnerPath)
-            ? Path.Combine(AppContext.BaseDirectory, RunnerFileName)
+            ? File.Exists(siblingPath)
+                ? siblingPath
+                : File.Exists(splitPublishPath)
+                    ? splitPublishPath
+                    : siblingPath
             : Path.IsPathRooted(options.RunnerPath)
                 ? Path.GetFullPath(options.RunnerPath)
                 : Path.GetFullPath(options.RunnerPath, AppContext.BaseDirectory);
@@ -30,7 +43,7 @@ public static class RunnerPathResolver
         if (requireExists && !File.Exists(path))
         {
             throw new FileNotFoundException(
-                $"The runner executable was not found at '{path}'. Publish the runner beside the app or set Scheduler:RunnerPath.",
+                $"The runner executable was not found at '{path}'. Publish the runner beside the app, use the standard UI/Runner layout, or set Scheduler:RunnerPath.",
                 path);
         }
 

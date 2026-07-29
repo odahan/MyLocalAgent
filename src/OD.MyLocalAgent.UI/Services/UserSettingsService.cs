@@ -34,7 +34,10 @@ internal sealed class UserSettingsService : IUserSettingsService
         ArgumentNullException.ThrowIfNull(settings);
         Validate(settings);
 
-        var document = CreateDocument(settings);
+        var document = CreateDocument(
+            settings,
+            _configuration["Google:ClientId"] ?? string.Empty,
+            _configuration["Google:ClientSecret"] ?? string.Empty);
         var directory = Path.GetDirectoryName(LocalAppPaths.UserSettingsPath)!;
         Directory.CreateDirectory(directory);
         var temporaryPath = Path.Combine(
@@ -91,7 +94,9 @@ internal sealed class UserSettingsService : IUserSettingsService
     }
 
     private static Dictionary<string, object> CreateDocument(
-        UserSettingsData settings) =>
+        UserSettingsData settings,
+        string googleClientId,
+        string googleClientSecret) =>
         new(StringComparer.Ordinal)
         {
             ["Appearance"] = new Dictionary<string, object>
@@ -113,6 +118,11 @@ internal sealed class UserSettingsService : IUserSettingsService
                 ["Endpoint"] = settings.OpenAIEndpoint,
                 ["Model"] = settings.OpenAIModel,
                 ["TimeoutSeconds"] = settings.OpenAITimeoutSeconds,
+            },
+            ["Google"] = new Dictionary<string, object>
+            {
+                ["ClientId"] = googleClientId,
+                ["ClientSecret"] = googleClientSecret,
             },
             ["FileSystem"] = new Dictionary<string, object>
             {

@@ -1,5 +1,6 @@
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using MahApps.Metro.IconPacks;
 using MaterialDesignThemes.Wpf;
@@ -122,6 +123,30 @@ public sealed partial class MainWindowViewModel :
     public void Receive(SnackbarNotificationMessage message)
     {
         Enqueue(message.Message);
+    }
+
+    [RelayCommand]
+    private void MinimizeWindow(Window window)
+    {
+        SystemCommands.MinimizeWindow(window);
+    }
+
+    [RelayCommand]
+    private void MaximizeWindow(Window window)
+    {
+        SystemCommands.MaximizeWindow(window);
+    }
+
+    [RelayCommand]
+    private void RestoreWindow(Window window)
+    {
+        SystemCommands.RestoreWindow(window);
+    }
+
+    [RelayCommand]
+    private void CloseWindow(Window window)
+    {
+        SystemCommands.CloseWindow(window);
     }
 
     partial void OnSelectedNavigationItemChanged(

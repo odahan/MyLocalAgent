@@ -30,10 +30,7 @@ public static class ServiceCollectionExtensions
                 "Google OAuth configuration is invalid.");
         services
             .AddOptions<DropboxOptions>()
-            .Bind(configuration.GetSection(DropboxOptions.SectionName))
-            .Validate(
-                static options => ConnectorOptionsValidation.ValidateDropbox(options) is null,
-                "Dropbox credential configuration is invalid.");
+            .Bind(configuration.GetSection(DropboxOptions.SectionName));
 
         services.AddHttpClient(ConnectorHttpClientNames.Google);
         services.AddHttpClient(ConnectorHttpClientNames.Dropbox);

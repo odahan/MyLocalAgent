@@ -1,0 +1,33 @@
+{
+  "id": "acceptance-filesystem",
+  "name": "Filesystem acceptance",
+  "schedule": "15 6 * * *",
+  "prompt": "Verify the local workflow and report pipeline without cloud credentials.",
+  "tools": ["filesystem"],
+  "workflow": [
+    {
+      "step": "filesystem.createDirectory",
+      "id": "createAcceptanceDirectory",
+      "args": {
+        "path": "acceptance"
+      }
+    },
+    {
+      "step": "filesystem.write",
+      "id": "writeAcceptanceFile",
+      "args": {
+        "path": "acceptance/stage6.txt",
+        "content": "OD.MyLocalAgent Stage 6 acceptance completed for {{task.id}}."
+      }
+    },
+    {
+      "step": "filesystem.read",
+      "id": "readAcceptanceFile",
+      "args": {
+        "path": "acceptance/stage6.txt"
+      }
+    }
+  ],
+  "enabled": true,
+  "errorPolicy": "StopOnError"
+}

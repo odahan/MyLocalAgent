@@ -2,39 +2,32 @@ namespace OD.MyLocalAgent.Runner;
 
 internal sealed class TaskExecutionMutex : IDisposable
 {
-    private readonly Mutex _mutex;
-    private bool _ownsMutex;
+    private readonly Semaphore _semaphore;
+    private bool _ownsSemaphore;
 
     public TaskExecutionMutex(string taskId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(taskId);
-        _mutex = new Mutex(
-            initiallyOwned: false,
+        _semaphore = new Semaphore(
+            initialCount: 1,
+            maximumCount: 1,
             $"Global\\OD.MyLocalAgent.{taskId}");
     }
 
     public bool TryAcquire()
     {
-        try
-        {
-            _ownsMutex = _mutex.WaitOne(TimeSpan.Zero);
-        }
-        catch (AbandonedMutexException)
-        {
-            _ownsMutex = true;
-        }
-
-        return _ownsMutex;
+        _ownsSemaphore = _semaphore.WaitOne(TimeSpan.Zero);
+        return _ownsSemaphore;
     }
 
     public void Dispose()
     {
-        if (_ownsMutex)
+        if (_ownsSemaphore)
         {
-            _mutex.ReleaseMutex();
-            _ownsMutex = false;
+            _ = _semaphore.Release();
+            _ownsSemaphore = false;
         }
 
-        _mutex.Dispose();
+        _semaphore.Dispose();
     }
 }

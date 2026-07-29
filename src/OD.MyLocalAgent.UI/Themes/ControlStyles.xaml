@@ -47,6 +47,22 @@
                 Value="{DynamicResource DividerBrush}" />
         <Setter Property="SelectionBrush"
                 Value="{DynamicResource PrimaryActionBrush}" />
+        <Style.Triggers>
+            <Trigger Property="Validation.HasError"
+                     Value="True">
+                <Setter Property="BorderBrush"
+                        Value="{DynamicResource ErrorBrush}" />
+            </Trigger>
+            <Trigger Property="IsEnabled"
+                     Value="False">
+                <Setter Property="Background"
+                        Value="{DynamicResource CardBrush}" />
+                <Setter Property="Foreground"
+                        Value="{DynamicResource MutedTextBrush}" />
+                <Setter Property="Opacity"
+                        Value="0.7" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style TargetType="{x:Type PasswordBox}"
@@ -59,6 +75,22 @@
                 Value="{DynamicResource OnSurfaceBrush}" />
         <Setter Property="BorderBrush"
                 Value="{DynamicResource DividerBrush}" />
+        <Style.Triggers>
+            <Trigger Property="Validation.HasError"
+                     Value="True">
+                <Setter Property="BorderBrush"
+                        Value="{DynamicResource ErrorBrush}" />
+            </Trigger>
+            <Trigger Property="IsEnabled"
+                     Value="False">
+                <Setter Property="Background"
+                        Value="{DynamicResource CardBrush}" />
+                <Setter Property="Foreground"
+                        Value="{DynamicResource MutedTextBrush}" />
+                <Setter Property="Opacity"
+                        Value="0.7" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style TargetType="{x:Type ComboBox}"
@@ -69,6 +101,22 @@
                 Value="{DynamicResource OnSurfaceBrush}" />
         <Setter Property="BorderBrush"
                 Value="{DynamicResource DividerBrush}" />
+        <Style.Triggers>
+            <Trigger Property="Validation.HasError"
+                     Value="True">
+                <Setter Property="BorderBrush"
+                        Value="{DynamicResource ErrorBrush}" />
+            </Trigger>
+            <Trigger Property="IsEnabled"
+                     Value="False">
+                <Setter Property="Background"
+                        Value="{DynamicResource CardBrush}" />
+                <Setter Property="Foreground"
+                        Value="{DynamicResource MutedTextBrush}" />
+                <Setter Property="Opacity"
+                        Value="0.7" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style TargetType="{x:Type ComboBoxItem}">
@@ -93,10 +141,20 @@
                 <Setter Property="Foreground"
                         Value="{DynamicResource OnPrimaryActionBrush}" />
             </Trigger>
+            <Trigger Property="IsEnabled"
+                     Value="False">
+                <Setter Property="Background"
+                        Value="{DynamicResource SurfaceBrush}" />
+                <Setter Property="Foreground"
+                        Value="{DynamicResource MutedTextBrush}" />
+                <Setter Property="Opacity"
+                        Value="0.7" />
+            </Trigger>
         </Style.Triggers>
     </Style>
 
-    <Style TargetType="{x:Type DataGrid}">
+    <Style TargetType="{x:Type DataGrid}"
+           BasedOn="{StaticResource MaterialDesignDataGrid}">
         <Setter Property="Background"
                 Value="{DynamicResource CardBrush}" />
         <Setter Property="Foreground"
@@ -119,9 +177,12 @@
                 Value="0" />
         <Setter Property="SelectionUnit"
                 Value="FullRow" />
+        <Setter Property="SelectionMode"
+                Value="Single" />
     </Style>
 
-    <Style TargetType="{x:Type DataGridColumnHeader}">
+    <Style TargetType="{x:Type DataGridColumnHeader}"
+           BasedOn="{StaticResource MaterialDesignDataGridColumnHeader}">
         <Setter Property="Background"
                 Value="{DynamicResource SurfaceBrush}" />
         <Setter Property="Foreground"
@@ -134,9 +195,19 @@
                 Value="SemiBold" />
         <Setter Property="Padding"
                 Value="12,10" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver"
+                     Value="True">
+                <Setter Property="Background"
+                        Value="{DynamicResource CardBrush}" />
+                <Setter Property="Foreground"
+                        Value="{DynamicResource OnSurfaceBrush}" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
-    <Style TargetType="{x:Type DataGridRow}">
+    <Style TargetType="{x:Type DataGridRow}"
+           BasedOn="{StaticResource MaterialDesignDataGridRow}">
         <Setter Property="Foreground"
                 Value="{DynamicResource OnSurfaceBrush}" />
         <Setter Property="BorderBrush"
@@ -156,10 +227,18 @@
                 <Setter Property="BorderBrush"
                         Value="{DynamicResource PrimaryBrush}" />
             </Trigger>
+            <Trigger Property="IsEnabled"
+                     Value="False">
+                <Setter Property="Foreground"
+                        Value="{DynamicResource MutedTextBrush}" />
+                <Setter Property="Opacity"
+                        Value="0.7" />
+            </Trigger>
         </Style.Triggers>
     </Style>
 
-    <Style TargetType="{x:Type DataGridCell}">
+    <Style TargetType="{x:Type DataGridCell}"
+           BasedOn="{StaticResource MaterialDesignDataGridCell}">
         <Setter Property="Background"
                 Value="Transparent" />
         <Setter Property="BorderThickness"
@@ -175,6 +254,140 @@
                         Value="{DynamicResource PrimaryBrush}" />
                 <Setter Property="BorderThickness"
                         Value="1" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style TargetType="{x:Type CheckBox}"
+           BasedOn="{StaticResource MaterialDesignCheckBox}">
+        <Setter Property="Foreground"
+                Value="{DynamicResource OnSurfaceBrush}" />
+        <Setter Property="BorderBrush"
+                Value="{DynamicResource DividerBrush}" />
+        <Style.Triggers>
+            <Trigger Property="IsEnabled"
+                     Value="False">
+                <Setter Property="Foreground"
+                        Value="{DynamicResource MutedTextBrush}" />
+                <Setter Property="Opacity"
+                        Value="0.7" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style TargetType="{x:Type RadioButton}"
+           BasedOn="{StaticResource MaterialDesignRadioButton}">
+        <Setter Property="Foreground"
+                Value="{DynamicResource OnSurfaceBrush}" />
+        <Setter Property="BorderBrush"
+                Value="{DynamicResource DividerBrush}" />
+        <Style.Triggers>
+            <Trigger Property="IsEnabled"
+                     Value="False">
+                <Setter Property="Foreground"
+                        Value="{DynamicResource MutedTextBrush}" />
+                <Setter Property="Opacity"
+                        Value="0.7" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style TargetType="{x:Type ListBox}"
+           BasedOn="{StaticResource MaterialDesignListBox}">
+        <Setter Property="Background"
+                Value="{DynamicResource CardBrush}" />
+        <Setter Property="Foreground"
+                Value="{DynamicResource OnSurfaceBrush}" />
+        <Setter Property="BorderBrush"
+                Value="{DynamicResource DividerBrush}" />
+    </Style>
+
+    <Style TargetType="{x:Type ListBoxItem}"
+           BasedOn="{StaticResource MaterialDesignListBoxItem}">
+        <Setter Property="Background"
+                Value="{DynamicResource CardBrush}" />
+        <Setter Property="Foreground"
+                Value="{DynamicResource OnSurfaceBrush}" />
+        <Style.Triggers>
+            <Trigger Property="IsSelected"
+                     Value="True">
+                <Setter Property="Background"
+                        Value="{DynamicResource PrimaryActionBrush}" />
+                <Setter Property="Foreground"
+                        Value="{DynamicResource OnPrimaryActionBrush}" />
+            </Trigger>
+            <Trigger Property="IsEnabled"
+                     Value="False">
+                <Setter Property="Foreground"
+                        Value="{DynamicResource MutedTextBrush}" />
+                <Setter Property="Opacity"
+                        Value="0.7" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style TargetType="{x:Type ListView}"
+           BasedOn="{StaticResource MaterialDesignListView}">
+        <Setter Property="Background"
+                Value="{DynamicResource CardBrush}" />
+        <Setter Property="Foreground"
+                Value="{DynamicResource OnSurfaceBrush}" />
+        <Setter Property="BorderBrush"
+                Value="{DynamicResource DividerBrush}" />
+    </Style>
+
+    <Style TargetType="{x:Type ListViewItem}"
+           BasedOn="{StaticResource MaterialDesignListBoxItem}">
+        <Setter Property="Background"
+                Value="{DynamicResource CardBrush}" />
+        <Setter Property="Foreground"
+                Value="{DynamicResource OnSurfaceBrush}" />
+        <Style.Triggers>
+            <Trigger Property="IsSelected"
+                     Value="True">
+                <Setter Property="Background"
+                        Value="{DynamicResource PrimaryActionBrush}" />
+                <Setter Property="Foreground"
+                        Value="{DynamicResource OnPrimaryActionBrush}" />
+            </Trigger>
+            <Trigger Property="IsEnabled"
+                     Value="False">
+                <Setter Property="Foreground"
+                        Value="{DynamicResource MutedTextBrush}" />
+                <Setter Property="Opacity"
+                        Value="0.7" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style TargetType="{x:Type Expander}"
+           BasedOn="{StaticResource MaterialDesignExpander}">
+        <Setter Property="Background"
+                Value="{DynamicResource CardBrush}" />
+        <Setter Property="Foreground"
+                Value="{DynamicResource OnSurfaceBrush}" />
+        <Setter Property="BorderBrush"
+                Value="{DynamicResource DividerBrush}" />
+    </Style>
+
+    <Style TargetType="{x:Type ScrollBar}"
+           BasedOn="{StaticResource MaterialDesignScrollBar}">
+        <Setter Property="Background"
+                Value="{DynamicResource SurfaceBrush}" />
+        <Setter Property="Foreground"
+                Value="{DynamicResource MutedTextBrush}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver"
+                     Value="True">
+                <Setter Property="Foreground"
+                        Value="{DynamicResource PrimaryBrush}" />
+            </Trigger>
+            <Trigger Property="IsEnabled"
+                     Value="False">
+                <Setter Property="Foreground"
+                        Value="{DynamicResource DividerBrush}" />
+                <Setter Property="Opacity"
+                        Value="0.55" />
             </Trigger>
         </Style.Triggers>
     </Style>
