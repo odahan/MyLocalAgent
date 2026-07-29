@@ -45,6 +45,8 @@
                 Value="{DynamicResource OnSurfaceBrush}" />
         <Setter Property="BorderBrush"
                 Value="{DynamicResource DividerBrush}" />
+        <Setter Property="SelectionBrush"
+                Value="{DynamicResource PrimaryActionBrush}" />
     </Style>
 
     <Style TargetType="{x:Type PasswordBox}"
@@ -67,6 +69,121 @@
                 Value="{DynamicResource OnSurfaceBrush}" />
         <Setter Property="BorderBrush"
                 Value="{DynamicResource DividerBrush}" />
+    </Style>
+
+    <Style TargetType="{x:Type ComboBoxItem}">
+        <Setter Property="Background"
+                Value="{DynamicResource CardBrush}" />
+        <Setter Property="Foreground"
+                Value="{DynamicResource OnSurfaceBrush}" />
+        <Setter Property="Padding"
+                Value="10,7" />
+        <Style.Triggers>
+            <Trigger Property="IsHighlighted"
+                     Value="True">
+                <Setter Property="Background"
+                        Value="{DynamicResource PrimaryActionBrush}" />
+                <Setter Property="Foreground"
+                        Value="{DynamicResource OnPrimaryActionBrush}" />
+            </Trigger>
+            <Trigger Property="IsSelected"
+                     Value="True">
+                <Setter Property="Background"
+                        Value="{DynamicResource PrimaryActionBrush}" />
+                <Setter Property="Foreground"
+                        Value="{DynamicResource OnPrimaryActionBrush}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style TargetType="{x:Type DataGrid}">
+        <Setter Property="Background"
+                Value="{DynamicResource CardBrush}" />
+        <Setter Property="Foreground"
+                Value="{DynamicResource OnSurfaceBrush}" />
+        <Setter Property="BorderBrush"
+                Value="{DynamicResource DividerBrush}" />
+        <Setter Property="GridLinesVisibility"
+                Value="Horizontal" />
+        <Setter Property="HorizontalGridLinesBrush"
+                Value="{DynamicResource DividerBrush}" />
+        <Setter Property="VerticalGridLinesBrush"
+                Value="{DynamicResource DividerBrush}" />
+        <Setter Property="RowBackground"
+                Value="{DynamicResource CardBrush}" />
+        <Setter Property="AlternatingRowBackground"
+                Value="{DynamicResource SurfaceBrush}" />
+        <Setter Property="HeadersVisibility"
+                Value="Column" />
+        <Setter Property="RowHeaderWidth"
+                Value="0" />
+        <Setter Property="SelectionUnit"
+                Value="FullRow" />
+    </Style>
+
+    <Style TargetType="{x:Type DataGridColumnHeader}">
+        <Setter Property="Background"
+                Value="{DynamicResource SurfaceBrush}" />
+        <Setter Property="Foreground"
+                Value="{DynamicResource MutedTextBrush}" />
+        <Setter Property="BorderBrush"
+                Value="{DynamicResource DividerBrush}" />
+        <Setter Property="BorderThickness"
+                Value="0,0,1,1" />
+        <Setter Property="FontWeight"
+                Value="SemiBold" />
+        <Setter Property="Padding"
+                Value="12,10" />
+    </Style>
+
+    <Style TargetType="{x:Type DataGridRow}">
+        <Setter Property="Foreground"
+                Value="{DynamicResource OnSurfaceBrush}" />
+        <Setter Property="BorderBrush"
+                Value="{DynamicResource DividerBrush}" />
+        <Setter Property="BorderThickness"
+                Value="0,0,0,1" />
+        <Style.Triggers>
+            <Trigger Property="IsSelected"
+                     Value="True">
+                <Setter Property="Background"
+                        Value="{DynamicResource PrimaryActionBrush}" />
+                <Setter Property="Foreground"
+                        Value="{DynamicResource OnPrimaryActionBrush}" />
+            </Trigger>
+            <Trigger Property="IsMouseOver"
+                     Value="True">
+                <Setter Property="BorderBrush"
+                        Value="{DynamicResource PrimaryBrush}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style TargetType="{x:Type DataGridCell}">
+        <Setter Property="Background"
+                Value="Transparent" />
+        <Setter Property="BorderThickness"
+                Value="0" />
+        <Setter Property="Padding"
+                Value="12,9" />
+        <Setter Property="VerticalContentAlignment"
+                Value="Center" />
+        <Style.Triggers>
+            <Trigger Property="IsKeyboardFocusWithin"
+                     Value="True">
+                <Setter Property="BorderBrush"
+                        Value="{DynamicResource PrimaryBrush}" />
+                <Setter Property="BorderThickness"
+                        Value="1" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style TargetType="{x:Type Separator}">
+        <Setter Property="Background"
+                Value="{DynamicResource DividerBrush}" />
+        <Setter Property="Height"
+                Value="1" />
     </Style>
 
     <Style TargetType="{x:Type ProgressBar}"

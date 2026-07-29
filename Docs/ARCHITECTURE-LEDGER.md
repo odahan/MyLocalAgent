@@ -686,3 +686,111 @@ setters without a nonexistent named `BasedOn` resource.
   into the existing in-memory/logs experience.
 - Extend `Docs/theme-audit.md` as Stage 5 introduces `DataGrid`, editor, pop-up, and streaming
   controls; Stage 6 remains responsible for the exhaustive dark-state audit.
+
+### Stage 5 — 2026-07-29
+
+#### Files created or changed
+
+- Replaced the Tasks, Tools, Tool tester, and AI playground landing pages and ViewModels with
+  their complete Stage 5 implementations.
+- Added the task editor and prompt editor pages, ViewModels, navigation messages, DataTemplates,
+  and dependency-injection registrations.
+- Added task-list and Tool Map picker projection records plus task-saved,
+  execution-completed, edit-task, edit-prompt, and provider-configuration messages.
+- Extended shared control styles for `DataGrid`, headers, rows, cells, grouped
+  `ComboBoxItem` states, text selection, and separators. Extended `Docs/theme-audit.md` with
+  the Stage 5 control inventory and remaining default-template audit candidates.
+- Removed the Stage 4 `StageFivePageViewModel` placeholder base. No package or central package
+  version changed.
+
+#### Pages and behavior
+
+- Tasks reads next occurrences and the latest per-task `reports/index.jsonl` entry, displays
+  scheduler registration state, persists enabled toggles, confirms delete and unregisters
+  first, synchronizes explicit Register/Unregister, and executes Run now exclusively through
+  the cancellable `IRunnerService` child-process path. Stdout and stderr stream into the
+  docked runner pane. Completion publishes `TaskExecutionCompletedMessage`.
+- Task editor enforces immutable ids after creation, produces live three-occurrence cron
+  previews and direct common-pattern labels, exposes all five tool-group checkboxes, validates
+  workflow JSON through `ScheduledTaskValidator`, supplies a bounded Levenshtein
+  did-you-mean hint for unknown aliases, and synchronizes persistence and scheduling on save.
+- Prompt editor persists the selected task prompt and streams
+  `IMyLocalAgentService.RunPromptStreamingAsync` with exactly that task's tool whitelist. It
+  reports chunk count and exposes cancellation.
+- Tools configuration reports Google client configuration, credential-folder presence, and
+  requested scopes; starts interactive Google authorization from the UI command; clears both
+  the provider cache and FileDataStore directory after confirmation; writes Dropbox
+  access/refresh/app-key replacements only through DPAPI; updates the winning in-memory
+  configuration layer; and tests Gmail, Calendar, and Dropbox with latency and typed errors.
+- Tool tester projects invocable aliases directly from `IToolRegistry.Definitions`, groups
+  them by Tool Map group, derives argument hints/templates, pretty-prints results, measures
+  duration, and resolves nested `SafetyException` instances into an exact Settings → General
+  flag instruction.
+- AI playground uses the current factory-selected raw provider, not the agent, and streams
+  `GenerateStreamingAsync`. The provider/model badge comes from monitored options; health is
+  checked on activation and after `ProviderConfigurationChangedMessage`.
+
+#### Cross-layer integration changes
+
+- `CronSchedule.NextOccurrences` and `CronSchedule.DescribeCommonPattern` provide the pure
+  occurrence sequence and direct minutely/hourly/daily/weekdays/weekly/monthly labels required
+  by the editor. Unit tests cover all six mappings and the three-occurrence sequence.
+- `IGoogleCredentialProvider.DisconnectAsync` clears the in-memory credential and persisted
+  FileDataStore state. `GoogleCredentialProvider.CredentialStorePath` and
+  `RequiredScopes` expose the provider-owned status facts to the UI.
+- `DropboxConnector` now consumes `IOptionsMonitor<DropboxOptions>` so a DPAPI credential
+  replacement and configuration reload is visible to the next connection test without
+  restarting the application.
+
+#### Decisions and deviations
+
+- The normative §8.1 task contract has no task-level retry-count or backoff properties.
+  Consequently, the UI persists only task-level `errorPolicy` and explains that
+  `retryCount`/`retryBackoffSeconds` belong on workflow-step objects. No non-normative JSON
+  properties were introduced.
+- The current `IMyLocalAgentService.RunPromptStreamingAsync` contract yields text chunks only.
+  The prompt editor therefore displays that token usage is not reported by the current
+  streaming contract while maintaining an exact chunk count. Provider token usage can be
+  added only after a future Core streaming contract exposes it.
+- Task and prompt editors are contextual destinations under the selected Tasks rail item,
+  reached through dedicated messages instead of adding two permanent rail entries.
+- The Google interactive command is initiated and awaited on the WPF dispatcher context;
+  the connector retains ownership of `GoogleWebAuthorizationBroker`.
+
+#### Manual GUI verification
+
+- The Release UI executable opened and closed cleanly without a XAML resource or startup
+  incident.
+- Dashboard selected Ollama and reported `gemma4:12b` healthy.
+- Tasks rendered the explicit dark `DataGrid`, empty state, action commands, and docked runner
+  output. New opened the task editor; its default daily cron rendered the next three local
+  occurrences and the `Daily at 07:00` label.
+- Tools rendered Google scope/status, three write-only Dropbox fields, and connector rows.
+  The Gmail test with placeholder Google configuration returned the visible typed
+  `ConnectorConfigurationException` and measured latency.
+- Tool tester rendered all 17 invocable aliases in a dark grouped pop-up and updated the
+  selected alias argument template.
+- AI playground reported Ollama healthy, sent the local prompt `Reply exactly OK.`, streamed
+  `OK`, counted one chunk, restored its Generate state, and exposed Cancel while active.
+- A persistent task was deliberately not created during this automated pass, so the contextual
+  prompt editor and Run now/index append were not exercised through the GUI. The Debug/Release
+  build output also does not publish the runner beside the UI; Stage 6 must verify these two
+  paths with a published sibling runner or an explicit `Scheduler:RunnerPath`, then remove its
+  acceptance task.
+
+#### Verification
+
+- `dotnet build OD.MyLocalAgent.sln -m:1 --no-restore --configuration Release`: succeeded
+  with zero warnings and zero errors.
+- `dotnet test OD.MyLocalAgent.sln -m:1 --no-build --no-restore --configuration Release
+  --logger "console;verbosity=normal"`: 63 tests passed, zero failed, and the one expected
+  manual Ollama integration probe was skipped.
+
+#### Stage 6 handoff
+
+- Publish or configure the runner, create a disposable task through the UI, verify prompt
+  editing, Run now cancellation/completion, report-index append, dashboard refresh, and
+  scheduler rolling registration, then remove the acceptance task.
+- Complete the remaining populated-grid, keyboard, disabled, high-DPI, long-text, internal
+  `DataGrid`/scrollbar/pop-up, and native-dialog theme checks listed in
+  `Docs/theme-audit.md`.

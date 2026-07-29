@@ -9,7 +9,7 @@ namespace OD.MyLocalAgent.Connectors;
 /// </summary>
 public sealed class DropboxConnector : IDropboxConnector
 {
-    private readonly IOptions<DropboxOptions> _options;
+    private readonly IOptionsMonitor<DropboxOptions> _options;
     private readonly IHttpClientFactory _httpClientFactory;
 
     /// <summary>
@@ -18,7 +18,7 @@ public sealed class DropboxConnector : IDropboxConnector
     /// <param name="options">The Dropbox credential configuration.</param>
     /// <param name="httpClientFactory">The managed HTTP client factory.</param>
     public DropboxConnector(
-        IOptions<DropboxOptions> options,
+        IOptionsMonitor<DropboxOptions> options,
         IHttpClientFactory httpClientFactory)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -156,7 +156,7 @@ public sealed class DropboxConnector : IDropboxConnector
         DropboxOptions options;
         try
         {
-            options = _options.Value;
+            options = _options.CurrentValue;
         }
         catch (OptionsValidationException exception)
         {

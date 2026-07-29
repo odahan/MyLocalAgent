@@ -16,6 +16,16 @@ public enum PageRoute
     Tasks,
 
     /// <summary>
+    /// Task definition editing.
+    /// </summary>
+    TaskEditor,
+
+    /// <summary>
+    /// Task prompt editing and testing.
+    /// </summary>
+    PromptEditor,
+
+    /// <summary>
     /// Live application logs.
     /// </summary>
     Logs,

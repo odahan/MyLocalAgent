@@ -2,19 +2,117 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
-    <StackPanel>
-        <TextBlock Style="{StaticResource PageTitleStyle}"
-                   Text="{Binding Title}" />
-        <TextBlock Margin="0,5,0,22"
-                   Foreground="{DynamicResource MutedTextBrush}"
-                   Text="{Binding Description}" />
-        <materialDesign:Card IsEnabled="False">
+    <UserControl.Resources>
+        <CollectionViewSource x:Key="GroupedAliases"
+                              Source="{Binding Aliases}">
+            <CollectionViewSource.GroupDescriptions>
+                <PropertyGroupDescription PropertyName="Group" />
+            </CollectionViewSource.GroupDescriptions>
+        </CollectionViewSource>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid>
             <StackPanel>
-                <TextBlock Style="{StaticResource SectionTitleStyle}"
-                           Text="Direct invocation workspace" />
-                <TextBlock Margin="0,10,0,0"
-                           Text="{Binding NextStageSummary}" />
+                <TextBlock Style="{StaticResource PageTitleStyle}"
+                           Text="Tool tester" />
+                <TextBlock Margin="0,5,0,0"
+                           Foreground="{DynamicResource MutedTextBrush}"
+                           Text="Invoke one Core Tool Map alias with explicit JSON arguments." />
             </StackPanel>
+            <ProgressBar Width="180"
+                         Height="3"
+                         HorizontalAlignment="Right"
+                         VerticalAlignment="Top"
+                         IsIndeterminate="True"
+                         Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
+        </Grid>
+
+        <materialDesign:Card Grid.Row="1"
+                             Margin="0,20,0,16">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="1.1*" />
+                    <ColumnDefinition Width="20" />
+                    <ColumnDefinition Width="1.5*" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionTitleStyle}"
+                               Text="Alias" />
+                    <ComboBox Margin="0,14,0,0"
+                              DisplayMemberPath="Alias"
+                              ItemsSource="{Binding Source={StaticResource GroupedAliases}}"
+                              SelectedItem="{Binding SelectedAlias}">
+                        <ComboBox.GroupStyle>
+                            <GroupStyle>
+                                <GroupStyle.HeaderTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Margin="8,8,8,4"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource PrimaryBrush}"
+                                                   Text="{Binding Name}" />
+                                    </DataTemplate>
+                                </GroupStyle.HeaderTemplate>
+                            </GroupStyle>
+                        </ComboBox.GroupStyle>
+                    </ComboBox>
+                    <TextBlock Margin="0,10,0,0"
+                               Style="{StaticResource CaptionTextStyle}"
+                               Text="{Binding ArgumentHint}" />
+                    <Button Margin="0,18,0,0"
+                            HorizontalAlignment="Left"
+                            Command="{Binding RunCommand}"
+                            Content="Run tool"
+                            Style="{StaticResource PrimaryButtonStyle}" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2">
+                    <TextBlock Style="{StaticResource SectionTitleStyle}"
+                               Text="JSON arguments" />
+                    <TextBox Height="145"
+                             Margin="0,14,0,0"
+                             AcceptsReturn="True"
+                             AcceptsTab="True"
+                             FontFamily="Consolas"
+                             Text="{Binding ArgumentsJson, UpdateSourceTrigger=PropertyChanged}"
+                             TextWrapping="NoWrap"
+                             HorizontalScrollBarVisibility="Auto"
+                             VerticalScrollBarVisibility="Auto" />
+                </StackPanel>
+            </Grid>
         </materialDesign:Card>
-    </StackPanel>
+
+        <materialDesign:Card Grid.Row="2">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <Grid>
+                    <TextBlock Style="{StaticResource SectionTitleStyle}"
+                               Text="Result" />
+                    <TextBlock HorizontalAlignment="Right"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="{Binding DurationText}" />
+                </Grid>
+                <TextBox Grid.Row="1"
+                         Margin="0,12,0,0"
+                         AcceptsReturn="True"
+                         FontFamily="Consolas"
+                         IsReadOnly="True"
+                         Text="{Binding ResultText}"
+                         TextWrapping="Wrap"
+                         HorizontalScrollBarVisibility="Auto"
+                         VerticalScrollBarVisibility="Auto" />
+            </Grid>
+        </materialDesign:Card>
+    </Grid>
 </UserControl>

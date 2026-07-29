@@ -412,6 +412,7 @@ public sealed partial class SettingsViewModel :
             _messenger.Send(
                 new SnackbarNotificationMessage(
                     "Settings saved and reloaded."));
+            _messenger.Send(new ProviderConfigurationChangedMessage());
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

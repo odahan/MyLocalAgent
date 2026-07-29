@@ -20,4 +20,11 @@ public interface IGoogleCredentialProvider
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>The cached credential, or <see langword="null"/> when consent is required.</returns>
     Task<UserCredential?> GetCredentialSilentAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Clears the cached credential and persisted Google authorization data.
+    /// </summary>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    Task DisconnectAsync(CancellationToken cancellationToken);
 }

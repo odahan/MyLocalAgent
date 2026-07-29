@@ -13,6 +13,8 @@ namespace OD.MyLocalAgent.UI.ViewModels;
 /// </summary>
 public sealed partial class MainWindowViewModel :
     ObservableRecipient,
+    IRecipient<EditPromptMessage>,
+    IRecipient<EditTaskMessage>,
     IRecipient<IncidentNotificationMessage>,
     IRecipient<NavigateMessage>,
     IRecipient<SnackbarNotificationMessage>
@@ -89,6 +91,24 @@ public sealed partial class MainWindowViewModel :
     }
 
     /// <inheritdoc />
+    public void Receive(EditTaskMessage message)
+    {
+        SelectTasksNavigationItem();
+        var viewModel = _serviceProvider.GetRequiredService<TaskEditorViewModel>();
+        viewModel.Open(message.TaskId);
+        CurrentPage = viewModel;
+    }
+
+    /// <inheritdoc />
+    public void Receive(EditPromptMessage message)
+    {
+        SelectTasksNavigationItem();
+        var viewModel = _serviceProvider.GetRequiredService<PromptEditorViewModel>();
+        viewModel.Open(message.TaskId);
+        CurrentPage = viewModel;
+    }
+
+    /// <inheritdoc />
     public void Receive(NavigateMessage message)
     {
         var item = NavigationItems.First(candidate => candidate.Route == message.Route);
@@ -118,6 +138,10 @@ public sealed partial class MainWindowViewModel :
                 _serviceProvider.GetRequiredService<DashboardViewModel>(),
             PageRoute.Tasks =>
                 _serviceProvider.GetRequiredService<TasksViewModel>(),
+            PageRoute.TaskEditor =>
+                _serviceProvider.GetRequiredService<TaskEditorViewModel>(),
+            PageRoute.PromptEditor =>
+                _serviceProvider.GetRequiredService<PromptEditorViewModel>(),
             PageRoute.Logs =>
                 _serviceProvider.GetRequiredService<LogsViewModel>(),
             PageRoute.Tools =>
@@ -150,5 +174,15 @@ public sealed partial class MainWindowViewModel :
             () => SnackbarMessageQueue.Enqueue(
                 message,
                 neverConsiderToBeDuplicate: true));
+    }
+
+    private void SelectTasksNavigationItem()
+    {
+        var tasksItem = NavigationItems.First(
+            static candidate => candidate.Route == PageRoute.Tasks);
+        if (!ReferenceEquals(tasksItem, SelectedNavigationItem))
+        {
+            SelectedNavigationItem = tasksItem;
+        }
     }
 }

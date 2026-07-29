@@ -20,11 +20,28 @@ public sealed class GoogleCredentialProvider : IGoogleCredentialProvider
         GmailService.Scope.GmailSend,
         CalendarService.Scope.Calendar,
     ];
+    private static readonly IReadOnlyList<string> ReadOnlyScopes =
+        Array.AsReadOnly(Scopes);
 
     private readonly IOptions<GoogleOptions> _options;
     private readonly GoogleHttpClientFactoryAdapter _googleHttpClientFactory;
     private readonly SemaphoreSlim _credentialLock = new(1, 1);
     private UserCredential? _cachedCredential;
+
+    /// <summary>
+    /// Gets the directory containing the current user's persisted Google authorization data.
+    /// </summary>
+    public static string CredentialStorePath =>
+        Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "OD.MyLocalAgent",
+            "Auth",
+            "Google");
+
+    /// <summary>
+    /// Gets the OAuth scopes requested by the application.
+    /// </summary>
+    public static IReadOnlyList<string> RequiredScopes => ReadOnlyScopes;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="GoogleCredentialProvider"/> class.
@@ -101,6 +118,24 @@ public sealed class GoogleCredentialProvider : IGoogleCredentialProvider
         }
     }
 
+    /// <inheritdoc />
+    public async Task DisconnectAsync(CancellationToken cancellationToken)
+    {
+        await _credentialLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            _cachedCredential = null;
+            if (Directory.Exists(CredentialStorePath))
+            {
+                Directory.Delete(CredentialStorePath, recursive: true);
+            }
+        }
+        finally
+        {
+            _credentialLock.Release();
+        }
+    }
+
     private GoogleOptions GetValidatedOptions()
     {
         GoogleOptions options;
@@ -138,11 +173,6 @@ public sealed class GoogleCredentialProvider : IGoogleCredentialProvider
         };
     }
 
-    private static FileDataStore CreateDataStore()
-    {
-        var localApplicationData = Environment.GetFolderPath(
-            Environment.SpecialFolder.LocalApplicationData);
-        var path = Path.Combine(localApplicationData, "OD.MyLocalAgent", "Auth", "Google");
-        return new FileDataStore(path, fullPath: true);
-    }
+    private static FileDataStore CreateDataStore() =>
+        new(CredentialStorePath, fullPath: true);
 }

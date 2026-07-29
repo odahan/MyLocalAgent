@@ -17,7 +17,9 @@ namespace OD.MyLocalAgent.UI.ViewModels;
 /// Presents task, schedule, execution, and provider-health summaries.
 /// </summary>
 public sealed partial class DashboardViewModel :
-    ObservableObject,
+    ObservableRecipient,
+    IRecipient<TaskExecutionCompletedMessage>,
+    IRecipient<TaskSavedMessage>,
     IActivatablePage
 {
     private static readonly JsonSerializerOptions ReportJsonOptions =
@@ -61,6 +63,7 @@ public sealed partial class DashboardViewModel :
         IIncidentReporter incidentReporter,
         IDesktopInteractionService desktopInteraction,
         IMessenger messenger)
+        : base(messenger)
     {
         _taskStore = taskStore;
         _scheduler = scheduler;
@@ -69,6 +72,7 @@ public sealed partial class DashboardViewModel :
         _desktopInteraction = desktopInteraction;
         _messenger = messenger;
         _taskStore.TasksChanged += OnTasksChanged;
+        IsActive = true;
     }
 
     /// <summary>
@@ -89,6 +93,14 @@ public sealed partial class DashboardViewModel :
             RefreshCommand.Execute(null);
         }
     }
+
+    /// <inheritdoc />
+    public void Receive(TaskExecutionCompletedMessage message) =>
+        QueueRefresh();
+
+    /// <inheritdoc />
+    public void Receive(TaskSavedMessage message) =>
+        QueueRefresh();
 
     [RelayCommand]
     private async Task RefreshAsync(CancellationToken cancellationToken)
@@ -164,7 +176,7 @@ public sealed partial class DashboardViewModel :
     [RelayCommand]
     private void NewTask()
     {
-        _messenger.Send(new NavigateMessage(PageRoute.Tasks));
+        _messenger.Send(new EditTaskMessage(null));
     }
 
     [RelayCommand]
@@ -200,7 +212,7 @@ public sealed partial class DashboardViewModel :
                     item.Task.Name,
                     item.When.ToLocalTime().ToString(
                         "ddd, dd MMM yyyy HH:mm",
-                        CultureInfo.CurrentCulture)));
+                        CultureInfo.InvariantCulture)));
         }
     }
 
@@ -262,7 +274,7 @@ public sealed partial class DashboardViewModel :
                     entry.TaskId,
                     entry.StartedUtc.ToLocalTime().ToString(
                         "g",
-                        CultureInfo.CurrentCulture),
+                        CultureInfo.InvariantCulture),
                     TimeSpan.FromMilliseconds(entry.DurationMs).ToString(
                         @"hh\:mm\:ss",
                         CultureInfo.InvariantCulture),
@@ -291,6 +303,11 @@ public sealed partial class DashboardViewModel :
     private void OnTasksChanged(
         object? sender,
         TaskStoreChangedEventArgs e)
+    {
+        QueueRefresh();
+    }
+
+    private void QueueRefresh()
     {
         var dispatcher = Application.Current?.Dispatcher;
         if (dispatcher is null)

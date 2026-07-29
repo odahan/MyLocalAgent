@@ -3,7 +3,7 @@ using System.Windows.Controls;
 namespace OD.MyLocalAgent.UI.Pages;
 
 /// <summary>
-/// Displays the AI-playground landing page.
+/// Displays raw provider health and streaming generation.
 /// </summary>
 public partial class AIPlaygroundPage : UserControl
 {

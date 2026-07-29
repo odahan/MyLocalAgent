@@ -3,7 +3,7 @@ using System.Windows.Controls;
 namespace OD.MyLocalAgent.UI.Pages;
 
 /// <summary>
-/// Displays the connector and tool configuration landing page.
+/// Displays connector authorization, credentials, and connection tests.
 /// </summary>
 public partial class ToolsPage : UserControl
 {

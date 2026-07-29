@@ -2,19 +2,128 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
-    <StackPanel>
-        <TextBlock Style="{StaticResource PageTitleStyle}"
-                   Text="{Binding Title}" />
-        <TextBlock Margin="0,5,0,22"
-                   Foreground="{DynamicResource MutedTextBrush}"
-                   Text="{Binding Description}" />
-        <materialDesign:Card IsEnabled="False">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="0.8*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="1.2*" />
+        </Grid.RowDefinitions>
+
+        <Grid>
             <StackPanel>
-                <TextBlock Style="{StaticResource SectionTitleStyle}"
-                           Text="Provider playground" />
-                <TextBlock Margin="0,10,0,0"
-                           Text="{Binding NextStageSummary}" />
+                <TextBlock Style="{StaticResource PageTitleStyle}"
+                           Text="AI playground" />
+                <TextBlock Margin="0,5,0,0"
+                           Foreground="{DynamicResource MutedTextBrush}"
+                           Text="Stream a raw completion from the active provider without agent tools." />
             </StackPanel>
+            <StackPanel HorizontalAlignment="Right">
+                <Border Padding="12,6"
+                        Background="{DynamicResource CardBrush}"
+                        BorderBrush="{DynamicResource DividerBrush}"
+                        BorderThickness="1"
+                        CornerRadius="14">
+                    <TextBlock FontWeight="SemiBold"
+                               Text="{Binding ProviderBadge}" />
+                </Border>
+                <Button Margin="0,8,0,0"
+                        HorizontalAlignment="Right"
+                        Command="{Binding RefreshProviderCommand}"
+                        Content="Check health" />
+            </StackPanel>
+        </Grid>
+
+        <ProgressBar Grid.Row="1"
+                     Height="3"
+                     Margin="0,16,0,0"
+                     IsIndeterminate="True"
+                     Visibility="{Binding IsStreaming, Converter={StaticResource BooleanToVisibilityConverter}}" />
+
+        <materialDesign:Card Grid.Row="2"
+                             Margin="0,18,0,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <TextBlock Style="{StaticResource SectionTitleStyle}"
+                           Text="Prompt" />
+                <TextBox Grid.Row="1"
+                         Margin="0,12,0,0"
+                         AcceptsReturn="True"
+                         Text="{Binding Prompt, UpdateSourceTrigger=PropertyChanged}"
+                         TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto" />
+            </Grid>
         </materialDesign:Card>
-    </StackPanel>
+
+        <Grid Grid.Row="3"
+              Margin="0,14,0,14">
+            <StackPanel Orientation="Horizontal">
+                <Button Command="{Binding GenerateCommand}"
+                        Content="Generate"
+                        Style="{StaticResource PrimaryButtonStyle}" />
+                <Button Command="{Binding GenerateCancelCommand}"
+                        Content="Cancel"
+                        Style="{StaticResource DangerButtonStyle}"
+                        Visibility="{Binding IsStreaming, Converter={StaticResource BooleanToVisibilityConverter}}" />
+            </StackPanel>
+            <StackPanel HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        Orientation="Horizontal">
+                <Ellipse Width="10"
+                         Height="10"
+                         Margin="0,2,9,0">
+                    <Ellipse.Style>
+                        <Style TargetType="{x:Type Ellipse}">
+                            <Setter Property="Fill"
+                                    Value="{DynamicResource MutedTextBrush}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HealthState}"
+                                             Value="Checking">
+                                    <Setter Property="Fill"
+                                            Value="{DynamicResource WarningBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding HealthState}"
+                                             Value="Healthy">
+                                    <Setter Property="Fill"
+                                            Value="{DynamicResource SuccessBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding HealthState}"
+                                             Value="Unhealthy">
+                                    <Setter Property="Fill"
+                                            Value="{DynamicResource ErrorBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Ellipse.Style>
+                </Ellipse>
+                <TextBlock MaxWidth="520"
+                           Text="{Binding HealthText}" />
+                <TextBlock Margin="18,0,0,0"
+                           Foreground="{DynamicResource MutedTextBrush}"
+                           Text="{Binding ChunkCount, StringFormat=Chunks: {0}}" />
+            </StackPanel>
+        </Grid>
+
+        <materialDesign:Card Grid.Row="4">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <TextBlock Style="{StaticResource SectionTitleStyle}"
+                           Text="Streamed completion" />
+                <TextBox Grid.Row="1"
+                         Margin="0,12,0,0"
+                         AcceptsReturn="True"
+                         IsReadOnly="True"
+                         Text="{Binding Output}"
+                         TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto" />
+            </Grid>
+        </materialDesign:Card>
+    </Grid>
 </UserControl>

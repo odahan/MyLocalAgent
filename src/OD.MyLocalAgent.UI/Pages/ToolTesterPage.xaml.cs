@@ -3,7 +3,7 @@ using System.Windows.Controls;
 namespace OD.MyLocalAgent.UI.Pages;
 
 /// <summary>
-/// Displays the direct tool-testing landing page.
+/// Displays direct Tool Map invocation.
 /// </summary>
 public partial class ToolTesterPage : UserControl
 {

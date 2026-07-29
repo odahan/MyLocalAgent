@@ -34,7 +34,7 @@ public sealed class ConnectorConfigurationTests
     public async Task DropboxConnectorRejectsMissingTokens()
     {
         var connector = new DropboxConnector(
-            Options.Create(new DropboxOptions()),
+            new MutableOptionsMonitor<DropboxOptions>(new DropboxOptions()),
             CreateHttpClientFactory());
 
         var action = () => connector.ListAsync(string.Empty, CancellationToken.None);

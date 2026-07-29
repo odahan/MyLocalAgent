@@ -3,7 +3,7 @@ using System.Windows.Controls;
 namespace OD.MyLocalAgent.UI.Pages;
 
 /// <summary>
-/// Displays the task-management landing page.
+/// Displays task management and child-runner output.
 /// </summary>
 public partial class TasksPage : UserControl
 {

@@ -1,0 +1,94 @@
+<UserControl x:Class="OD.MyLocalAgent.UI.Pages.PromptEditorPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="0.9*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="1.1*" />
+        </Grid.RowDefinitions>
+
+        <Grid>
+            <StackPanel>
+                <TextBlock Style="{StaticResource PageTitleStyle}"
+                           Text="{Binding TaskName, StringFormat=Prompt · {0}}" />
+                <TextBlock Margin="0,5,0,0"
+                           Foreground="{DynamicResource MutedTextBrush}"
+                           Text="{Binding TaskId, StringFormat=Task id: {0}}" />
+            </StackPanel>
+            <StackPanel HorizontalAlignment="Right"
+                        VerticalAlignment="Top"
+                        Orientation="Horizontal">
+                <Button Command="{Binding BackToTasksCommand}"
+                        Content="Back" />
+                <Button Command="{Binding SaveCommand}"
+                        Content="Save prompt" />
+                <Button Command="{Binding TestPromptCommand}"
+                        Content="Test the prompt"
+                        Style="{StaticResource PrimaryButtonStyle}" />
+                <Button Command="{Binding TestPromptCancelCommand}"
+                        Content="Cancel"
+                        Style="{StaticResource DangerButtonStyle}"
+                        Visibility="{Binding IsStreaming, Converter={StaticResource BooleanToVisibilityConverter}}" />
+            </StackPanel>
+        </Grid>
+
+        <ProgressBar Grid.Row="1"
+                     Height="3"
+                     Margin="0,16,0,0"
+                     IsIndeterminate="True"
+                     Visibility="{Binding IsStreaming, Converter={StaticResource BooleanToVisibilityConverter}}" />
+
+        <materialDesign:Card Grid.Row="2"
+                             Margin="0,18,0,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <TextBlock Style="{StaticResource SectionTitleStyle}"
+                           Text="Agent prompt" />
+                <TextBox Grid.Row="1"
+                         Margin="0,12,0,0"
+                         AcceptsReturn="True"
+                         Text="{Binding Prompt, UpdateSourceTrigger=PropertyChanged}"
+                         TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto" />
+            </Grid>
+        </materialDesign:Card>
+
+        <Grid Grid.Row="3"
+              Margin="0,14,0,14">
+            <TextBlock Text="{Binding StatusText}" />
+            <StackPanel HorizontalAlignment="Right"
+                        Orientation="Horizontal">
+                <TextBlock Margin="0,0,18,0"
+                           Foreground="{DynamicResource MutedTextBrush}"
+                           Text="{Binding ChunkCount, StringFormat=Chunks: {0}}" />
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                           Text="{Binding TokenUsageText}" />
+            </StackPanel>
+        </Grid>
+
+        <materialDesign:Card Grid.Row="4">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <TextBlock Style="{StaticResource SectionTitleStyle}"
+                           Text="Streamed agent output" />
+                <TextBox Grid.Row="1"
+                         Margin="0,12,0,0"
+                         AcceptsReturn="True"
+                         IsReadOnly="True"
+                         Text="{Binding Output}"
+                         TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto" />
+            </Grid>
+        </materialDesign:Card>
+    </Grid>
+</UserControl>

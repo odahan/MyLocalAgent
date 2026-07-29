@@ -23,6 +23,12 @@
             <DataTemplate DataType="{x:Type viewModels:TasksViewModel}">
                 <pages:TasksPage />
             </DataTemplate>
+            <DataTemplate DataType="{x:Type viewModels:TaskEditorViewModel}">
+                <pages:TaskEditorPage />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type viewModels:PromptEditorViewModel}">
+                <pages:PromptEditorPage />
+            </DataTemplate>
             <DataTemplate DataType="{x:Type viewModels:LogsViewModel}">
                 <pages:LogsPage />
             </DataTemplate>
