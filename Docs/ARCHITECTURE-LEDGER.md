@@ -233,3 +233,183 @@ The versions in the [Package versions](#package-versions) table were verified ag
   to use the silent path through the connectors.
 - The in-memory secrets layer must populate `OpenAI:ApiKey` and `Dropbox:*` before resolving
   Stage 1 options. No Stage 1 type reads or writes DPAPI data.
+
+### Stage 2 — 2026-07-29
+
+#### Files created or changed
+
+- Replaced the metadata-only Core project with scheduled-task and workflow contracts,
+  validation and serialization, typed safety/validation exceptions, options, application data
+  paths, and the absolute-path sandbox.
+- Added the JSONL incident pipeline, directly testable static exception adapter, DPAPI
+  CurrentUser secret store, layered host composition, rolling-file Serilog configuration, and
+  the bounded observable in-memory log sink.
+- Added the watched one-file-per-task JSON store, pure cron calculator, Windows Task Scheduler
+  mirror and resynchronization service, shared runner-path resolution, and cancellable
+  child-process runner service.
+- Added the normative static Tool Map, all five tool implementations, the whitelisting and
+  direct-invocation registry, all three plain-completion skills, and `MyLocalAgentAI`.
+- Added Stage 2 Core unit tests and reusable stub chat clients. Updated `README.md` with safety,
+  scheduler, S4U, configuration, and workflow-form documentation and examples.
+- No package reference or central package version changed.
+
+#### Public API surface added
+
+Foundations and configuration:
+
+- `ScheduledTask`, `WorkflowStepDefinition`, `WorkflowErrorPolicy`,
+  `ScheduledTaskSerializer`, and `ScheduledTaskValidator.Validate`.
+- `SafetyOptions`, `FileSystemOptions`, `HttpOptions`, `SchedulerOptions`, and
+  `LoggingOptions`.
+- `SafetyException`, `PathSandboxException`, `TaskValidationException`, and
+  `WorkflowValidationException`.
+- `LocalAppPaths`, `ToolGroups`, `IPathSandbox` / `PathSandbox`.
+- `HostApplicationBuilderExtensions.AddODServices(IHostApplicationBuilder,
+  Action<LoggerConfiguration>?)`.
+
+Incidents, secrets, and logging:
+
+- `IncidentRecord`, `IncidentSeverity`, `IncidentReportedEventArgs`.
+- `IIncidentLogService` / `JsonlIncidentLogService`: `AppendAsync`, `ReadAsync`,
+  `ExportAsync`, and `ClearAsync`.
+- `IIncidentReporter` / `IncidentReporter`: error-default and explicit-severity
+  `ReportAsync` overloads plus `IncidentReported`.
+- `AppExceptionHandlers.Initialize`, `Handle`, `HandleAsync`,
+  `HandleDispatcherException`, and `WireProcessEvents`.
+- `ISecretStore` / `DpapiSecretStore`: `GetAsync`, `SetAsync`, `RemoveAsync`, and
+  `ExistsAsync`; `SecretKeys`.
+- `IInMemoryLogSink` / `InMemoryLogSink`.
+
+Task persistence, scheduling, and runner process:
+
+- `ITaskStore` / `JsonTaskStore`: `GetAsync`, `GetAllAsync`, `SaveAsync`, `DeleteAsync`,
+  and `TasksChanged`; `TaskStoreChangedEventArgs` and `TaskStoreChangeKind`.
+- `CronSchedule.NextOccurrence(string, DateTimeOffset, TimeZoneInfo)`.
+- `ITaskSchedulerService` / `WindowsTaskSchedulerService`: `RegisterAsync`,
+  `UnregisterAsync`, `IsRegistered`, `GetNextRunAsync`, and `ResyncAllAsync`;
+  `SchedulerResyncResult`.
+- `RunnerPathResolver.Resolve`, `IRunnerService` / `RunnerService.RunTaskAsync`.
+
+Tools, skills, and agent:
+
+- `IFileSystemTool` / `FileSystemTool`, `IGmailTool` / `GmailTool`,
+  `ICalendarTool` / `CalendarTool`, `IDropboxTool` / `DropboxTool`, and
+  `IHttpTool` / `HttpTool`.
+- `ToolDefinition`, static `ToolMap.Definitions` / `ToolMap.Find`.
+- `IToolRegistry` / `ToolRegistry`: `Definitions`,
+  `GetAgentTools(IEnumerable<string>)`, `TryGetDefinition`, and
+  `InvokeAsync(string, JsonElement, IEnumerable<string>, CancellationToken)`.
+- `ISkill`, `SkillBase`, `SummarizeTextSkill`, `ExtractActionItemsSkill`, and
+  `ClassifyEmailSkill`.
+- `IMyLocalAgentService` / `MyLocalAgentService`: `RunPromptAsync` and
+  `RunPromptStreamingAsync`; `AgentRunResult`, `AgentExecutionException`.
+
+#### Tool Map implemented
+
+| Alias | Agent function | Method | Arguments | Safety gate |
+|---|---|---|---|---|
+| `gmail.readToday` | `gmail_read_today` | `GmailTool.ReadTodayAsync` | — | — |
+| `gmail.readUnread` | `gmail_read_unread` | `GmailTool.ReadUnreadAsync` | — | — |
+| `gmail.send` | `gmail_send` | `GmailTool.SendAsync` | `to`, `subject`, `body` | `Safety:AllowSendEmail` |
+| `calendar.today` | `calendar_today` | `CalendarTool.TodayAsync` | — | — |
+| `calendar.create` | `calendar_create` | `CalendarTool.CreateAsync` | `summary`, `start`, `end`, `description` | — |
+| `dropbox.upload` | `dropbox_upload` | `DropboxTool.UploadAsync` | `localPath`, `dropboxPath` | — |
+| `dropbox.download` | `dropbox_download` | `DropboxTool.DownloadAsync` | `dropboxPath`, `localPath` | — |
+| `dropbox.list` | `dropbox_list` | `DropboxTool.ListAsync` | `folderPath` | — |
+| `filesystem.list` | `filesystem_list` | `FileSystemTool.ListAsync` | `path` | — |
+| `filesystem.read` | `filesystem_read` | `FileSystemTool.ReadAsync` | `path` | — |
+| `filesystem.write` | `filesystem_write` | `FileSystemTool.WriteAsync` | `path`, `content` | — |
+| `filesystem.move` | `filesystem_move` | `FileSystemTool.MoveAsync` | `from`, `to` | — |
+| `filesystem.delete` | `filesystem_delete` | `FileSystemTool.DeleteAsync` | `path` | `Safety:AllowFileDelete` |
+| `filesystem.createDirectory` | `filesystem_create_directory` | `FileSystemTool.CreateDirectoryAsync` | `path` | — |
+| `http.get` | `http_get` | `HttpTool.GetAsync` | `url` | — |
+| `http.post` | `http_post` | `HttpTool.PostAsync` | `url`, `body`, `contentType` | `Safety:AllowHttpPost` |
+| `http.getText` | `http_get_text` | `HttpTool.GetTextAsync` | `url` | — |
+| `ai.summarize` | — | `SummarizeTextSkill` | optional `text` | — |
+| `ai.extractActionItems` | — | `ExtractActionItemsSkill` | optional `text` | — |
+| `ai.classifyEmail` | — | `ClassifyEmailSkill` | optional `text` | — |
+| `ai.prompt` | — | workflow prompt step | `prompt` | — |
+
+#### Dependency injection registrations
+
+`AddODServices` registers the five Core options, Stage 1 `AddLlmProviders` and
+`AddConnectors`, the named HTTP client, `TimeProvider.System`, the DPAPI secret store, path
+sandbox, all five concrete tools and interfaces, `IToolRegistry`, the three concrete skills
+and `IEnumerable<ISkill>`, incident log and reporter, task store, scheduler, agent service,
+runner service, and both the concrete and interface views of the in-memory Serilog sink.
+
+The configuration source order is executable-adjacent `appsettings.json`, reloadable
+per-user `settings.json`, then the in-memory secret dictionary. The optional additional
+Serilog configurator is the runner's console-sink hook.
+
+#### Decisions and SDK deviations
+
+- Microsoft.Agents.AI 1.15.0 returns `AgentResponse`, not the specification's named
+  `AgentRunResult`. Core converts it to its own stable `AgentRunResult(Text, ProviderName)`
+  contract while retaining `.AsAIAgent`, `RunAsync`, and `RunStreamingAsync`.
+- Core targets `net10.0` and therefore does not reference WPF dispatcher types.
+  `HandleDispatcherException` is the direct, testable adapter; Stage 4 must wire the WPF
+  `DispatcherUnhandledException` event to it. AppDomain and unobserved-task hooks are wired
+  directly by `WireProcessEvents`.
+- The .NET 10 reference framework does not include the `ProtectedData` type and no
+  `System.Security.Cryptography.ProtectedData` package was pinned in Stage 0. To avoid an
+  unplanned dependency, `DpapiSecretStore` calls Windows `CryptProtectData` /
+  `CryptUnprotectData` directly with the default CurrentUser scope and UI disabled. The
+  encrypted store remains interoperable with DPAPI semantics required by the specification.
+- TaskScheduler 2.12.2 was compiled against the implemented APIs:
+  `TaskService.NewTask`, `TimeTrigger(DateTime)`, `ExecAction`,
+  `TaskFolder.RegisterTaskDefinition` with `InteractiveToken` or `S4U`, and
+  `TaskSettings.StartWhenAvailable`.
+- Dropbox upload and download local paths also pass through `IPathSandbox`; this applies the
+  Stage 2 restatement that file paths remain under `FileSystem:RootPath`.
+- Connector-backed tools serialize returned DTOs or DTO lists directly as compact camel-case
+  JSON. `ToolRegistry.InvokeAsync` unwraps the `AIFunctionFactory` JSON-string envelope so
+  Stage 3 receives that exact tool result.
+
+#### Tests added
+
+- File-system operations, absolute and parent-traversal rejection, and delete gate.
+- Gmail, Calendar, and Dropbox connector mapping, compact DTO JSON, and email-send gate.
+- HTTP allowlist, HTML-to-text extraction, request mapping, and POST gate.
+- Task-store CRUD, validation-on-load, and mixed workflow forms.
+- Pure cron calculation with a fixed time zone.
+- Tool Registry filtering and reflection consistency for all 21 aliases and 17 invocable
+  functions.
+- Direct incident handlers, notification, JSONL reopen/export/clear, and correlation ids.
+- DPAPI persistence, reopen, encrypted-at-rest assertion, and removal.
+- Agent factory failure to incident/friendly error and happy path through a stub
+  `IChatClient`.
+
+#### Verification
+
+- `dotnet restore OD.MyLocalAgent.sln -m:1 --ignore-failed-sources
+  -p:NuGetAudit=false` with `NUGET_PACKAGES` set to the healthy user cache: succeeded for all
+  seven projects. The sandbox blocks the NuGet service and its temporary cache contains an
+  unrelated incomplete package, so the same cache-isolation approach recorded in Stage 1 was
+  used. No dependency changed.
+- `dotnet build OD.MyLocalAgent.sln -m:1 --no-restore`: succeeded with zero warnings and zero
+  errors.
+- `dotnet test OD.MyLocalAgent.sln -m:1 --no-build --no-restore --logger
+  "console;verbosity=detailed"`: 34 tests passed, zero failed, and the one expected manual
+  Ollama integration probe was skipped.
+- The detailed test output printed:
+  `Tool Map consistency: 21 aliases, 17 invocable tools, all methods/names/arguments matched.`
+
+#### Stage 3 handoff
+
+- Parse tasks only through `ScheduledTaskSerializer` or call
+  `ScheduledTaskValidator.Validate`; `WorkflowStepDefinition` already normalizes string and
+  object forms and exposes `EffectiveId`, `Args`, step policy, and retry settings.
+- For a tool step, call
+  `IToolRegistry.InvokeAsync(alias, resolvedArgsJsonElement, task.Tools, cancellationToken)`.
+  It performs alias resolution, whitelist enforcement, required-argument validation,
+  System.Text.Json binding through `AIFunctionFactory`, cancellation propagation, and compact
+  result unwrapping.
+- For validation and dispatch decisions, use `IToolRegistry.TryGetDefinition` or the static
+  `ToolMap.Find`; do not duplicate aliases, group names, agent names, or argument names.
+- Resolve skills by `ISkill.Name` from `IEnumerable<ISkill>`. The registered names are
+  `summarize`, `extractActionItems`, and `classifyEmail`; skill execution is a no-tools plain
+  completion.
+- The runner command and UI startup must share
+  `ITaskSchedulerService.ResyncAllAsync`. After each execution, call `RegisterAsync` for the
+  task to roll its next occurrence.

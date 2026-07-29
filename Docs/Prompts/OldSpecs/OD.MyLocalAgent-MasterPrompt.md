@@ -1,5 +1,8 @@
 # MASTER PROMPT — Generate the "OD.MyLocalAgent" Application (WPF / .NET 10 / Microsoft Agent Framework / OllamaSharp)
 
+> **Historical reference:** This original all-in-one specification is preserved for context.
+> The staged specifications in the parent `Prompts` directory are authoritative for the current implementation.
+
 > **How to use:** copy everything below the horizontal line and paste it as a single prompt into your code-generation agent (Codex, Copilot Workspace, etc.).
 
 ---

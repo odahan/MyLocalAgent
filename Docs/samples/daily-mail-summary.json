@@ -2,7 +2,7 @@
   "id": "daily-mail-summary",
   "name": "Daily mail summary",
   "schedule": "0 7 * * *",
-  "prompt": "Summarize today's emails in French, 10 bullet points max.",
+  "prompt": "Summarize today's emails in French, 10 bullet points max. Sort emails by category: REPLY IMMEDIATELY, TO READ, NOISE",
   "tools": ["gmail", "filesystem"],
   "workflow": [
     "gmail.readToday",

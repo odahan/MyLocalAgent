@@ -1,0 +1,53 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace OD.MyLocalAgent.Core;
+
+/// <summary>
+/// Represents the normalized internal form of a workflow step.
+/// </summary>
+[JsonConverter(typeof(WorkflowStepDefinitionJsonConverter))]
+public sealed record WorkflowStepDefinition
+{
+    /// <summary>
+    /// Gets the Tool Map alias.
+    /// </summary>
+    public required string Step { get; init; }
+
+    /// <summary>
+    /// Gets the output identifier, or the alias when no explicit identifier was supplied.
+    /// </summary>
+    public string? Id { get; init; }
+
+    /// <summary>
+    /// Gets the step arguments.
+    /// </summary>
+    public JsonElement Args { get; init; }
+
+    /// <summary>
+    /// Gets the optional step-specific error policy.
+    /// </summary>
+    public WorkflowErrorPolicy? OnError { get; init; }
+
+    /// <summary>
+    /// Gets the optional retry count.
+    /// </summary>
+    public int? RetryCount { get; init; }
+
+    /// <summary>
+    /// Gets the optional initial retry backoff in seconds.
+    /// </summary>
+    public int? RetryBackoffSeconds { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether the step was read from string form.
+    /// </summary>
+    [JsonIgnore]
+    public bool IsStringForm { get; init; }
+
+    /// <summary>
+    /// Gets the effective output identifier.
+    /// </summary>
+    [JsonIgnore]
+    public string EffectiveId => string.IsNullOrWhiteSpace(Id) ? Step : Id;
+}
