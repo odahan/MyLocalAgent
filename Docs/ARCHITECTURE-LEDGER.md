@@ -413,3 +413,144 @@ Serilog configurator is the runner's console-sink hook.
 - The runner command and UI startup must share
   `ITaskSchedulerService.ResyncAllAsync`. After each execution, call `RegisterAsync` for the
   task to roll its next occurrence.
+
+### Stage 3 — 2026-07-29
+
+#### Files created or changed
+
+- Replaced the metadata-only Workflows project with executable `ToolStep`, `SkillStep`, and
+  `PromptStep` models, the ordered workflow context, placeholder resolver, typed placeholder
+  failure, sequential engine, result contracts, Markdown report writer, and workflow DI
+  registration.
+- Replaced the runner version stub with the complete System.CommandLine 2.0.10 command
+  surface, lazy parser/test composition, shared Core host startup, console Serilog sink,
+  top-level incident handling, per-task global mutex, command handlers, exit-code
+  classification, JSON formatting, and schedule rolling.
+- Added engine, report-writer, and parser-level runner tests. Updated the README with the
+  deterministic-workflow recommendation, runner commands, exit codes, reports, and completed
+  Stage 3 status.
+- Extended Core's internal `ToolJson.Options` with an explicit
+  `DefaultJsonTypeInfoResolver`. The real cold-start runner probe exposed that
+  `AIFunctionFactory` makes these options read-only before the first serialization; without an
+  explicit resolver, .NET 10 rejected this initialization order. No Core public API changed.
+- No package reference or central package version changed.
+
+#### Public workflow API added
+
+- `WorkflowStep` with `ToolStep`, `SkillStep`, and `PromptStep`;
+  `WorkflowStepFactory.Create`.
+- `WorkflowContext`, `WorkflowPlaceholderException`, and `WorkflowStepStatus`.
+- `WorkflowStepResult` and `WorkflowResult`.
+- `IWorkflowEngine` / `SequentialWorkflowEngine.ExecuteAsync`.
+- `IReportWriter` / `MarkdownReportWriter.WriteAsync` and `ReportWriteResult`.
+- `ServiceCollectionExtensions.AddWorkflowServices`.
+
+The normalized persistence model remains Core's `WorkflowStepDefinition`; the workflow layer
+does not define a second JSON contract or alias table. `WorkflowStepFactory` classifies steps
+through `IToolRegistry`, and tool execution always returns through
+`IToolRegistry.InvokeAsync`.
+
+#### Engine semantics
+
+- Steps execute sequentially and record successful outputs in a case-insensitive,
+  insertion-ordered `WorkflowContext`. `previous.output` addresses the most recently
+  successful output.
+- Placeholders are substituted recursively in JSON string values immediately before each
+  attempt. Task, named-output, previous-output, tool argument, and prompt-template forms are
+  covered by tests. Unknown placeholders become failed steps through
+  `WorkflowPlaceholderException`.
+- Effective error policy is the step policy followed by the task policy. Retry means the
+  initial attempt plus exactly `retryCount` retries; the default is three retries. Backoff is
+  `retryBackoffSeconds * 2^(retry-1)` through `Task.Delay(TimeSpan, TimeProvider, ct)`.
+  Because the normative specification does not state a missing `retryBackoffSeconds` default,
+  the engine uses one second.
+- Skill steps without `args.text` use the previous output, or the task prompt when first.
+  Skill output is compact `{"text":"..."}` JSON; prompt-step output remains raw text.
+- `WorkflowResult.Success` is false when any step fails, including a continued failure. Its
+  final text is the last executed step's output, or empty when that step failed.
+
+#### Reports
+
+`MarkdownReportWriter` writes
+`%LOCALAPPDATA%\OD.MyLocalAgent\reports\<taskId>\<yyyyMMdd-HHmmss>.md` with the task id and
+name, UTC start and end, provider, status, step table, error, and final output. It appends
+`taskId`, `startedUtc`, `durationMs`, `status`, and the absolute `reportPath` to
+`reports\index.jsonl`. Exclusive file access with injected-time retry protects index appends
+from concurrent runner processes.
+
+#### Runner command surface and exit codes
+
+- `run --task <id>`: acquires `Global\OD.MyLocalAgent.<id>`, loads the validated task, rejects
+  disabled tasks, executes workflow-over-prompt, writes the report/index, and calls
+  `ITaskSchedulerService.RegisterAsync` for the next occurrence.
+- `list`: prints id, name, schedule, enabled state, and the store-derived next run.
+- `test-prompt --task <id>`: executes only the prompt path, writes a report, prints its full
+  Markdown, and does not schedule.
+- `test-tool --alias <alias> --args <json>`: validates the Core Tool Map alias and JSON object
+  at parser level, invokes through `IToolRegistry`, pretty-prints and times the result, and
+  names the required safety flag when blocked.
+- `resync-schedules`: calls `ITaskSchedulerService.ResyncAllAsync` and prints per-task and
+  aggregate results.
+- Exit codes are `0` success, `1` task/tool/safety failure, `2` configuration failure
+  (including nested `LlmConfigurationException`), and `3` task not found. Parser errors also
+  return `1`.
+
+System.CommandLine's installed stable 2.0.10 API is used directly: `Option.Required`,
+option validators, `Command.SetAction`, `ParseResult.GetRequiredValue`, and
+`InvocationConfiguration.EnableDefaultExceptionHandler = false`. Disabling the library's
+default exception handler ensures the runner top-level catch routes unhandled command
+exceptions through `AppExceptionHandlers`.
+
+#### Tests added
+
+- Workflow order; task, named-output, previous-output, and prompt-template placeholders;
+  unknown placeholder failure; string/object equivalence; stop, continue, and exact retry
+  behavior; fake-time backoff; workflow precedence; whitelist failure; implicit skill input;
+  and prompt-step output.
+- Markdown report path/header/content and append-only JSON Lines indexing in an isolated
+  directory.
+- Parser-only required `run --task` and unknown `test-tool` alias exit behavior without
+  constructing the application host.
+
+#### Stage 6 manual end-to-end procedure
+
+Run these commands from the repository root after completing Google consent in the UI,
+confirming Ollama has `gemma4:12b`, and setting `FileSystem:RootPath` to an existing absolute
+directory:
+
+```powershell
+$taskDirectory = Join-Path $env:LOCALAPPDATA 'OD.MyLocalAgent\tasks'
+New-Item -ItemType Directory -Force -Path $taskDirectory
+Copy-Item -LiteralPath '.\Docs\samples\daily-mail-summary.json' -Destination (Join-Path $taskDirectory 'daily-mail-summary.json') -Force
+dotnet run --project .\src\OD.MyLocalAgent.Runner\OD.MyLocalAgent.Runner.csproj -- run --task daily-mail-summary
+dotnet run --project .\src\OD.MyLocalAgent.Runner\OD.MyLocalAgent.Runner.csproj -- list
+Get-Content -Tail 1 -LiteralPath (Join-Path $env:LOCALAPPDATA 'OD.MyLocalAgent\reports\index.jsonl')
+```
+
+Verify that the command exits `0`, the displayed Markdown report exists, the final index line
+has status `Success`, and `list` shows the next cron occurrence. The execution should also
+leave `OD.MyLocalAgent.daily-mail-summary` registered in the configured Task Scheduler
+folder.
+
+#### Verification
+
+- `dotnet build OD.MyLocalAgent.sln -m:1 --no-restore --configuration Release`: succeeded
+  with zero warnings and zero errors.
+- `dotnet test OD.MyLocalAgent.sln -m:1 --no-build --no-restore --configuration Release`:
+  48 tests passed, zero failed, and the one expected manual Ollama probe was skipped.
+- `dotnet run --project src/OD.MyLocalAgent.Runner/OD.MyLocalAgent.Runner.csproj --no-build
+  --no-restore --configuration Release -- list`: started the real host and printed the empty
+  task table.
+- With a temporary existing `FileSystem:RootPath`,
+  `test-tool --alias filesystem.list --args '{ "path": "." }'` returned formatted JSON and
+  exit `0`.
+- With safe defaults, `test-tool --alias filesystem.delete --args
+  '{ "path": "blocked.txt" }'` returned exit `1` and named
+  `Safety:AllowFileDelete`.
+
+#### Stage 4 handoff
+
+- The UI composition root must call `AddODServices` followed by `AddWorkflowServices`.
+- Dashboard report history can read `reports\index.jsonl`; each `reportPath` is absolute.
+- UI startup and its schedule repair action must continue to call the existing
+  `ITaskSchedulerService.ResyncAllAsync`. There are no open Stage 4 blockers.

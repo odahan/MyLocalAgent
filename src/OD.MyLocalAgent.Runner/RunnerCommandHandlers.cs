@@ -1,0 +1,369 @@
+using System.Globalization;
+using System.Text.Json;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using OD.MyLocalAgent.Core;
+using OD.MyLocalAgent.Workflows;
+
+namespace OD.MyLocalAgent.Runner;
+
+internal static class RunnerCommandHandlers
+{
+    private static readonly JsonSerializerOptions IndentedJsonOptions =
+        new(JsonSerializerDefaults.Web)
+    {
+        WriteIndented = true,
+    };
+
+    public static async Task<int> RunAsync(
+        IServiceProvider services,
+        string taskId,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        using var executionMutex = new TaskExecutionMutex(taskId);
+        if (!executionMutex.TryAcquire())
+        {
+            output.WriteLine(
+                $"Task '{taskId}' is already running in another process.");
+            return RunnerExitCodes.TaskFailure;
+        }
+
+        var taskStore = services.GetRequiredService<ITaskStore>();
+        var task = await taskStore.GetAsync(
+            taskId,
+            cancellationToken).ConfigureAwait(false);
+        if (task is null)
+        {
+            error.WriteLine($"Task '{taskId}' was not found.");
+            return RunnerExitCodes.TaskNotFound;
+        }
+
+        if (!task.Enabled)
+        {
+            error.WriteLine($"Task '{taskId}' is disabled.");
+            return RunnerExitCodes.TaskFailure;
+        }
+
+        var outcome = await ExecuteAndWriteReportAsync(
+            services,
+            task,
+            executeWorkflow: task.Workflow.Count > 0,
+            cancellationToken).ConfigureAwait(false);
+        output.WriteLine(
+            $"Task '{task.Id}' finished with status " +
+            $"{(outcome.Result.Success ? "Success" : "Failure")}.");
+        output.WriteLine($"Report: {outcome.Report.ReportPath}");
+
+        var scheduler = services.GetRequiredService<ITaskSchedulerService>();
+        await scheduler.RegisterAsync(task, cancellationToken).ConfigureAwait(false);
+        output.WriteLine("Next occurrence registered.");
+
+        return outcome.Result.Success
+            ? RunnerExitCodes.Success
+            : await ReportFailureAsync(
+                task,
+                outcome.Error,
+                error,
+                cancellationToken).ConfigureAwait(false);
+    }
+
+    public static async Task<int> ListAsync(
+        IServiceProvider services,
+        TextWriter output,
+        CancellationToken cancellationToken)
+    {
+        var taskStore = services.GetRequiredService<ITaskStore>();
+        var scheduler = services.GetRequiredService<ITaskSchedulerService>();
+        var tasks = await taskStore.GetAllAsync(
+            cancellationToken).ConfigureAwait(false);
+        var rows = new List<string[]>(tasks.Count);
+        foreach (var task in tasks)
+        {
+            var nextRun = await scheduler.GetNextRunAsync(
+                task.Id,
+                cancellationToken).ConfigureAwait(false);
+            rows.Add(
+            [
+                task.Id,
+                task.Name,
+                task.Schedule,
+                task.Enabled ? "Yes" : "No",
+                nextRun?.ToString("yyyy-MM-dd HH:mm:ss zzz", CultureInfo.InvariantCulture)
+                    ?? "-",
+            ]);
+        }
+
+        WriteTable(
+            output,
+            ["Id", "Name", "Schedule", "Enabled", "Next run"],
+            rows);
+        if (rows.Count == 0)
+        {
+            output.WriteLine("(no tasks)");
+        }
+
+        return RunnerExitCodes.Success;
+    }
+
+    public static async Task<int> TestPromptAsync(
+        IServiceProvider services,
+        string taskId,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var taskStore = services.GetRequiredService<ITaskStore>();
+        var task = await taskStore.GetAsync(
+            taskId,
+            cancellationToken).ConfigureAwait(false);
+        if (task is null)
+        {
+            error.WriteLine($"Task '{taskId}' was not found.");
+            return RunnerExitCodes.TaskNotFound;
+        }
+
+        if (string.IsNullOrWhiteSpace(task.Prompt))
+        {
+            error.WriteLine($"Task '{taskId}' does not define a prompt.");
+            return RunnerExitCodes.TaskFailure;
+        }
+
+        var outcome = await ExecuteAndWriteReportAsync(
+            services,
+            task,
+            executeWorkflow: false,
+            cancellationToken).ConfigureAwait(false);
+        output.Write(outcome.Report.Markdown);
+        return outcome.Result.Success
+            ? RunnerExitCodes.Success
+            : await ReportFailureAsync(
+                task,
+                outcome.Error,
+                error,
+                cancellationToken).ConfigureAwait(false);
+    }
+
+    public static async Task<int> TestToolAsync(
+        IServiceProvider services,
+        string alias,
+        string argumentsJson,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var registry = services.GetRequiredService<IToolRegistry>();
+        if (!registry.TryGetDefinition(alias, out var definition) ||
+            definition is null ||
+            !definition.IsAgentTool)
+        {
+            error.WriteLine($"Unknown directly invocable Tool Map alias '{alias}'.");
+            return RunnerExitCodes.TaskFailure;
+        }
+
+        using var document = JsonDocument.Parse(argumentsJson);
+        var arguments = document.RootElement.Clone();
+        var timeProvider = services.GetRequiredService<TimeProvider>();
+        var startedTimestamp = timeProvider.GetTimestamp();
+        try
+        {
+            var result = await registry.InvokeAsync(
+                alias,
+                arguments,
+                [definition.ToolGroup],
+                cancellationToken).ConfigureAwait(false);
+            output.WriteLine(PrettyPrintJson(result));
+            output.WriteLine(
+                $"Duration: {timeProvider.GetElapsedTime(startedTimestamp).TotalMilliseconds:F0} ms");
+            return RunnerExitCodes.Success;
+        }
+        catch (Exception exception) when (
+            exception is not OperationCanceledException &&
+            RunnerExceptionClassifier.Find<SafetyException>(exception) is { } safetyException)
+        {
+            error.WriteLine(safetyException.Message);
+            error.WriteLine(
+                $"Blocked by safety configuration. Enable '{safetyException.RequiredFlag}' to allow this operation.");
+            return RunnerExitCodes.TaskFailure;
+        }
+    }
+
+    public static async Task<int> ResyncSchedulesAsync(
+        IServiceProvider services,
+        TextWriter output,
+        CancellationToken cancellationToken)
+    {
+        var taskStore = services.GetRequiredService<ITaskStore>();
+        var scheduler = services.GetRequiredService<ITaskSchedulerService>();
+        var tasks = await taskStore.GetAllAsync(
+            cancellationToken).ConfigureAwait(false);
+        var result = await scheduler.ResyncAllAsync(
+            cancellationToken).ConfigureAwait(false);
+        var failures = new HashSet<string>(
+            result.Failures,
+            StringComparer.OrdinalIgnoreCase);
+
+        foreach (var task in tasks)
+        {
+            var status = failures.Contains(task.Id)
+                ? "Failed"
+                : task.Enabled
+                    ? "Registered/refreshed"
+                    : "Unregistered";
+            output.WriteLine($"{task.Id}: {status}");
+        }
+
+        foreach (var failure in result.Failures.Where(
+                     static id => id.StartsWith('<') && id.EndsWith('>')))
+        {
+            output.WriteLine($"{failure}: Failed");
+        }
+
+        output.WriteLine(
+            $"Summary: {result.Registered} registered/refreshed, " +
+            $"{result.Unregistered} unregistered, " +
+            $"{result.Failures.Count} failure(s).");
+        return result.Failures.Count == 0
+            ? RunnerExitCodes.Success
+            : RunnerExitCodes.TaskFailure;
+    }
+
+    private static async Task<ExecutionOutcome> ExecuteAndWriteReportAsync(
+        IServiceProvider services,
+        ScheduledTask task,
+        bool executeWorkflow,
+        CancellationToken cancellationToken)
+    {
+        var timeProvider = services.GetRequiredService<TimeProvider>();
+        var reportWriter = services.GetRequiredService<IReportWriter>();
+        var configuration = services.GetRequiredService<IConfiguration>();
+        var providerName = configuration["AI:Provider"] ?? "Unknown";
+        WorkflowResult result;
+        Exception? error = null;
+
+        if (executeWorkflow)
+        {
+            var engine = services.GetRequiredService<IWorkflowEngine>();
+            result = await engine.ExecuteAsync(
+                task,
+                cancellationToken).ConfigureAwait(false);
+            error = result.Steps
+                .LastOrDefault(
+                    static step => step.Status == WorkflowStepStatus.Failure)
+                ?.Error;
+        }
+        else
+        {
+            var startedUtc = timeProvider.GetUtcNow();
+            try
+            {
+                var agent = services.GetRequiredService<IMyLocalAgentService>();
+                var agentResult = await agent.RunPromptAsync(
+                    task.Prompt,
+                    task.Tools,
+                    cancellationToken).ConfigureAwait(false);
+                providerName = agentResult.ProviderName;
+                result = new WorkflowResult(
+                    true,
+                    [],
+                    agentResult.Text,
+                    startedUtc,
+                    timeProvider.GetUtcNow());
+            }
+            catch (Exception exception) when (
+                exception is not OperationCanceledException)
+            {
+                error = exception;
+                result = new WorkflowResult(
+                    false,
+                    [],
+                    string.Empty,
+                    startedUtc,
+                    timeProvider.GetUtcNow(),
+                    exception.Message);
+            }
+        }
+
+        var report = await reportWriter.WriteAsync(
+            task,
+            result,
+            providerName,
+            cancellationToken).ConfigureAwait(false);
+        return new ExecutionOutcome(result, report, error);
+    }
+
+    private static async Task<int> ReportFailureAsync(
+        ScheduledTask task,
+        Exception? exception,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        exception ??= new InvalidOperationException(
+            $"Task '{task.Id}' failed without an exception detail.");
+        var existingAgentIncident =
+            RunnerExceptionClassifier.Find<AgentExecutionException>(exception);
+        var correlationId = existingAgentIncident?.CorrelationId ??
+            await AppExceptionHandlers.HandleAsync(
+                exception,
+                task.Id,
+                cancellationToken).ConfigureAwait(false);
+        error.WriteLine(
+            $"Task '{task.Id}' failed: {exception.Message} Incident: {correlationId}.");
+        return RunnerExceptionClassifier.GetExitCode(exception);
+    }
+
+    private static string PrettyPrintJson(string value)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(value);
+            return JsonSerializer.Serialize(
+                document.RootElement,
+                IndentedJsonOptions);
+        }
+        catch (JsonException)
+        {
+            return value;
+        }
+    }
+
+    private static void WriteTable(
+        TextWriter output,
+        IReadOnlyList<string> headers,
+        IReadOnlyList<string[]> rows)
+    {
+        var widths = headers.Select(static header => header.Length).ToArray();
+        foreach (var row in rows)
+        {
+            for (var index = 0; index < widths.Length; index++)
+            {
+                widths[index] = Math.Max(widths[index], row[index].Length);
+            }
+        }
+
+        output.WriteLine(FormatRow(headers, widths));
+        output.WriteLine(
+            string.Join(
+                "-+-",
+                widths.Select(static width => new string('-', width))));
+        foreach (var row in rows)
+        {
+            output.WriteLine(FormatRow(row, widths));
+        }
+    }
+
+    private static string FormatRow(
+        IReadOnlyList<string> values,
+        IReadOnlyList<int> widths) =>
+        string.Join(
+            " | ",
+            values.Select(
+                (value, index) =>
+                    value.PadRight(widths[index], ' ')));
+
+    private sealed record ExecutionOutcome(
+        WorkflowResult Result,
+        ReportWriteResult Report,
+        Exception? Error);
+}

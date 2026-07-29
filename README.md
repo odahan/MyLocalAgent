@@ -9,7 +9,7 @@ OD.MyLocalAgent is a native Windows application for defining and running schedul
 | Stage 0 | Solution foundation and toolchain pinning | ✅ |
 | Stage 1 | LLM providers and connectors | ✅ |
 | Stage 2 | Core services | ✅ |
-| Stage 3 | Workflows and runner | ⬜ |
+| Stage 3 | Workflows and runner | ✅ |
 | Stage 4 | UI foundation | ⬜ |
 | Stage 5 | UI pages | ⬜ |
 | Stage 6 | Hardening and documentation | ⬜ |
@@ -71,6 +71,10 @@ Object form supplies arguments, an optional output id, and an optional error pol
 String-form AI skills receive the preceding step's output automatically. Placeholders include
 `{{previous.output}}`, `{{stepId.output}}`, `{{task.id}}`, `{{task.name}}`, and
 `{{task.prompt}}`.
+
+Workflows are the recommended unattended execution path because their tool and skill order is
+deterministic. A task that declares both `prompt` and `workflow` executes the workflow; the
+prompt remains available as `{{task.prompt}}`.
 
 Mail summary to a local report:
 
@@ -139,3 +143,26 @@ Unread mail to a calendar event and Dropbox backup:
   "errorPolicy": "StopOnError"
 }
 ```
+
+## Headless runner
+
+The runner uses the same configuration and dependency-injection composition as the desktop
+application. Configuration is rooted beside the executable, so Windows Task Scheduler may
+assign any working directory without changing behavior.
+
+```powershell
+dotnet run --project src/OD.MyLocalAgent.Runner -- list
+dotnet run --project src/OD.MyLocalAgent.Runner -- run --task daily-mail-summary
+dotnet run --project src/OD.MyLocalAgent.Runner -- test-prompt --task daily-mail-summary
+dotnet run --project src/OD.MyLocalAgent.Runner -- test-tool --alias filesystem.list --args '{ "path": "." }'
+dotnet run --project src/OD.MyLocalAgent.Runner -- resync-schedules
+```
+
+Exit codes are `0` for success, `1` for a task or tool failure, `2` for configuration errors,
+and `3` when the requested task does not exist. Concurrent `run` commands for the same task
+are rejected through a global named mutex.
+
+Every task execution writes a Markdown report under
+`%LOCALAPPDATA%\OD.MyLocalAgent\reports\<taskId>` and appends a compact entry to
+`%LOCALAPPDATA%\OD.MyLocalAgent\reports\index.jsonl`. After a scheduled or manual `run`, the
+runner registers the task's next cron occurrence.
