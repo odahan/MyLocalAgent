@@ -29,6 +29,14 @@ public static class ToolMap
         Tool("http.get", "http_get", ToolGroups.Http, typeof(HttpTool), nameof(HttpTool.GetAsync), ["url"]),
         Tool("http.post", "http_post", ToolGroups.Http, typeof(HttpTool), nameof(HttpTool.PostAsync), ["url", "body", "contentType"], "Safety:AllowHttpPost"),
         Tool("http.getText", "http_get_text", ToolGroups.Http, typeof(HttpTool), nameof(HttpTool.GetTextAsync), ["url"]),
+        Tool(
+            "web.search",
+            "web_search",
+            ToolGroups.Web,
+            typeof(WebSearchTool),
+            nameof(WebSearchTool.SearchAsync),
+            ["query", "maxResults"],
+            optionalArguments: ["maxResults"]),
         Ai("ai.summarize", typeof(SummarizeTextSkill), ["text"]),
         Ai("ai.extractActionItems", typeof(ExtractActionItemsSkill), ["text"]),
         Ai("ai.classifyEmail", typeof(ClassifyEmailSkill), ["text"]),
@@ -59,8 +67,9 @@ public static class ToolMap
         Type type,
         string method,
         IReadOnlyList<string>? arguments = null,
-        string? safetyFlag = null) =>
-        new(
+        string? safetyFlag = null,
+        IReadOnlyList<string>? optionalArguments = null) =>
+        new ToolDefinition(
             alias,
             agentName,
             group,
@@ -68,7 +77,10 @@ public static class ToolMap
             method,
             arguments ?? [],
             safetyFlag,
-            IsAiStep: false);
+            IsAiStep: false)
+        {
+            OptionalArguments = optionalArguments ?? [],
+        };
 
     private static ToolDefinition Ai(
         string alias,

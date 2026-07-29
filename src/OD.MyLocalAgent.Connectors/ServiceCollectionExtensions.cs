@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace OD.MyLocalAgent.Connectors;
 
@@ -31,14 +32,32 @@ public static class ServiceCollectionExtensions
         services
             .AddOptions<DropboxOptions>()
             .Bind(configuration.GetSection(DropboxOptions.SectionName));
+        services
+            .AddOptions<WebSearchOptions>()
+            .Bind(configuration.GetSection(WebSearchOptions.SectionName))
+            .Validate(
+                static options =>
+                    ConnectorOptionsValidation.ValidateWebSearch(options) is null,
+                "Web search configuration is invalid.");
 
         services.AddHttpClient(ConnectorHttpClientNames.Google);
         services.AddHttpClient(ConnectorHttpClientNames.Dropbox);
+        services.AddHttpClient(
+            ConnectorHttpClientNames.WebSearch,
+            static (serviceProvider, client) =>
+            {
+                var options = serviceProvider
+                    .GetRequiredService<IOptionsMonitor<WebSearchOptions>>()
+                    .CurrentValue;
+                client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
+            });
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<IGoogleCredentialProvider, GoogleCredentialProvider>();
         services.AddSingleton<IGmailConnector, GmailConnector>();
         services.AddSingleton<ICalendarConnector, CalendarConnector>();
         services.AddSingleton<IDropboxConnector, DropboxConnector>();
+        services.AddSingleton<IWebSearchProvider, OllamaWebSearchConnector>();
+        services.AddSingleton<IWebSearchConnector, WebSearchConnector>();
         return services;
     }
 }

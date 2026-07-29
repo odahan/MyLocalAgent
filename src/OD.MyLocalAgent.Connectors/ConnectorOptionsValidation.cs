@@ -27,6 +27,35 @@ internal static class ConnectorOptionsValidation
             : null;
     }
 
+    public static string? ValidateWebSearch(WebSearchOptions options)
+    {
+        if (options.Provider is not ("" or WebSearchOptions.OllamaProvider))
+        {
+            return $"WebSearch:Provider '{options.Provider}' is not supported.";
+        }
+
+        if (options.MaxResultsCap < 1 ||
+            options.DefaultMaxResults < 1 ||
+            options.DefaultMaxResults > options.MaxResultsCap)
+        {
+            return "WebSearch result limits are invalid.";
+        }
+
+        if (options.TimeoutSeconds <= 0)
+        {
+            return "WebSearch:TimeoutSeconds must be positive.";
+        }
+
+        if (!string.IsNullOrWhiteSpace(options.Provider) &&
+            (!Uri.TryCreate(options.Endpoint, UriKind.Absolute, out var endpoint) ||
+             endpoint.Scheme is not ("http" or "https")))
+        {
+            return "WebSearch:Endpoint must be an absolute HTTP or HTTPS URL.";
+        }
+
+        return null;
+    }
+
     private static bool IsMissingOrPlaceholder(string value)
     {
         return string.IsNullOrWhiteSpace(value) ||

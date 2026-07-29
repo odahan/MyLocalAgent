@@ -171,6 +171,9 @@
                         <CheckBox Margin="0,0,24,10"
                                   Content="HTTP"
                                   IsChecked="{Binding UseHttp}" />
+                        <CheckBox Margin="0,0,24,10"
+                                  Content="Web search (web) (cloud)"
+                                  IsChecked="{Binding UseWeb}" />
                     </WrapPanel>
                 </StackPanel>
             </materialDesign:Card>

@@ -12,7 +12,7 @@
                                Text="Tools" />
                     <TextBlock Margin="0,5,0,0"
                                Foreground="{DynamicResource MutedTextBrush}"
-                               Text="Authorize Google, protect Dropbox credentials, and verify connector access." />
+                               Text="Authorize Google, protect cloud credentials, and verify connector access." />
                 </StackPanel>
                 <Button HorizontalAlignment="Right"
                         VerticalAlignment="Top"
@@ -122,6 +122,51 @@
                                 Content="Clear credentials"
                                 Style="{StaticResource DangerButtonStyle}" />
                     </StackPanel>
+                </StackPanel>
+            </materialDesign:Card>
+
+            <materialDesign:Card Margin="0,16,0,0">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource SectionTitleStyle}"
+                                   Text="Web search (Ollama)" />
+                        <TextBlock Margin="10,3,0,0"
+                                   Foreground="{DynamicResource WarningBrush}"
+                                   FontWeight="SemiBold"
+                                   Text="cloud — queries leave this machine" />
+                    </StackPanel>
+                    <TextBlock Margin="0,5,0,14"
+                               Style="{StaticResource CaptionTextStyle}"
+                               Text="Disabled by default. The API key is write-only here and stored exclusively with Windows DPAPI." />
+
+                    <CheckBox Content="Enable Ollama Web Search"
+                              IsChecked="{Binding IsWebSearchEnabled}" />
+
+                    <TextBox Margin="0,14,0,0"
+                             Text="{Binding WebSearchEndpoint, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             materialDesign:HintAssist.Hint="Provider endpoint" />
+                    <TextBlock Margin="0,6,0,0"
+                               Foreground="{DynamicResource WarningBrush}"
+                               FontSize="12"
+                               Text="A custom endpoint receives both the API key and every search query." />
+
+                    <PasswordBox Margin="0,14,0,0"
+                                 behaviors:PasswordBoxBinding.Attach="True"
+                                 behaviors:PasswordBoxBinding.Password="{Binding WebSearchApiKeyReplacement, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 materialDesign:HintAssist.Hint="Replace Ollama Web Search API key" />
+                    <TextBlock Margin="0,8,0,0"
+                               Text="{Binding WebSearchMaskedStatus}" />
+
+                    <StackPanel Margin="0,16,0,0"
+                                Orientation="Horizontal">
+                        <Button Command="{Binding SaveWebSearchCommand}"
+                                Content="Save Web Search"
+                                Style="{StaticResource PrimaryButtonStyle}" />
+                        <Button Command="{Binding TestWebSearchCommand}"
+                                Content="Test connection" />
+                    </StackPanel>
+                    <TextBlock Margin="0,12,0,0"
+                               Text="{Binding WebSearchTestStatus}" />
                 </StackPanel>
             </materialDesign:Card>
 

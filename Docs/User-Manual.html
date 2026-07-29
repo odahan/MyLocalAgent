@@ -1293,6 +1293,7 @@
                         <li><a href="#scenario-prompt-run">Tester puis exécuter</a></li>
                         <li><a href="#scenario-google">Connecter Google</a></li>
                         <li><a href="#scenario-dropbox">Connecter Dropbox</a></li>
+                        <li><a href="#scenario-web-search">Activer Web Search</a></li>
                         <li><a href="#scenario-playground">Utiliser le playground</a></li>
                         <li><a href="#scenario-outil">Tester un outil</a></li>
                         <li><a href="#scenario-openai">Activer OpenAI-compatible</a></li>
@@ -1751,8 +1752,47 @@ ollama list</code></pre>
                 </ol>
             </section>
 
+            <section id="scenario-web-search" data-title="Scénario : activer Web Search">
+                <p class="section-kicker">Scénario guidé 06 · Activation cloud</p>
+                <h2>Activer la recherche web Ollama protégée</h2>
+                <p class="section-intro">
+                    Web Search est désactivé sur une installation neuve. Les requêtes et les
+                    extraits reçus quittent l’ordinateur vers l’endpoint cloud Ollama configuré.
+                </p>
+                <ol class="steps">
+                    <li>
+                        <strong>Créez un compte ollama.com et obtenez une clé Web Search.</strong>
+                        <p>L’offre individuelle gratuite peut être limitée, surtout lors de rafales de requêtes.</p>
+                    </li>
+                    <li>
+                        <strong>Ouvrez <span class="ui-label">Tools</span> → <span class="ui-label">Web search (cloud)</span>.</strong>
+                        <p>Activez la recherche et conservez normalement <code>https://ollama.com/api/web_search</code>.</p>
+                    </li>
+                    <li>
+                        <strong>Collez la clé en écriture seule puis sélectionnez <span class="ui-label">Save</span>.</strong>
+                        <p>DPAPI protège la clé, qui n’est jamais écrite dans <code>settings.json</code>. Un endpoint personnalisé reçoit la clé et les requêtes.</p>
+                    </li>
+                    <li>
+                        <strong>Sélectionnez <span class="ui-label">Test connection</span>.</strong>
+                        <p>Le test à requête fixe affiche seulement la durée et le nombre de résultats, jamais les extraits.</p>
+                    </li>
+                    <li>
+                        <strong>Activez <span class="ui-label">Web search (web) (cloud)</span> dans la tâche.</strong>
+                        <p>Utilisez <code>web.search</code> avec <code>query</code> obligatoire et <code>maxResults</code> facultatif (5 par défaut, 10 maximum).</p>
+                    </li>
+                </ol>
+                <div class="callout warning">
+                    Les résultats sont des données externes non fiables. Titres et extraits
+                    sont bornés, contrôlés exactement une fois et renvoyés dans une seule
+                    enveloppe <code>protectedResults</code>. Le dépassement est explicitement
+                    tronqué ou omis. Index et URL sont des métadonnées supprimées si Guardrails
+                    masque le contenu. Un contrôle désactivé ou en échec reste en Base64
+                    marqué, jamais en texte brut.
+                </div>
+            </section>
+
             <section id="scenario-playground" data-title="Scénario : utiliser l’AI playground">
-                <p class="section-kicker">Scénario guidé 06</p>
+                <p class="section-kicker">Scénario guidé 07</p>
                 <h2>Explorer un prompt dans l’AI playground</h2>
                 <p class="section-intro">
                     Le playground sert aux essais libres. Son mode par défaut appelle directement
@@ -1792,7 +1832,7 @@ ollama list</code></pre>
                         </thead>
                         <tbody>
                             <tr><td>Non</td><td>Non</td><td>Complétion brute du fournisseur.</td></tr>
-                            <tr><td>Oui</td><td>Non</td><td>Agent avec les cinq groupes d’outils.</td></tr>
+                            <tr><td>Oui</td><td>Non</td><td>Agent avec les six groupes d’outils.</td></tr>
                             <tr><td>Non</td><td>Oui</td><td>Agent avec summarize, extract action items et classify email.</td></tr>
                             <tr><td>Oui</td><td>Oui</td><td>Agent avec outils et skills intégrés.</td></tr>
                         </tbody>
@@ -1912,7 +1952,7 @@ ollama list</code></pre>
                     </article>
                     <article class="page-item">
                         <strong>Tools</strong>
-                        <p>Consentement Google, secrets Dropbox et tests de connexion Gmail, Calendar et Dropbox.</p>
+                        <p>Consentement Google, secrets Dropbox, configuration Web Search cloud protégée et tests des connecteurs.</p>
                     </article>
                     <article class="page-item">
                         <strong>Tool tester</strong>
@@ -2067,6 +2107,11 @@ ollama list</code></pre>
                                 <td>Liste d’hôtes ; <code>post</code> exige AllowHttpPost.</td>
                             </tr>
                             <tr>
+                                <td>Web</td>
+                                <td><code>web.search</code></td>
+                                <td>Activation cloud Ollama explicite ; enveloppe Guardrails obligatoire.</td>
+                            </tr>
+                            <tr>
                                 <td>AI</td>
                                 <td><code>ai.summarize</code>, <code>ai.extractActionItems</code>, <code>ai.classifyEmail</code>, <code>ai.prompt</code></td>
                                 <td>Les skills s’exécutent sans outil.</td>
@@ -2101,6 +2146,7 @@ ollama list</code></pre>
                                     <tr><td><code>http.get</code></td><td><code>url</code></td><td>Retourne une réponse HTTP compacte.</td></tr>
                                     <tr><td><code>http.getText</code></td><td><code>url</code></td><td>Extrait le texte d’une page HTML.</td></tr>
                                     <tr><td><code>http.post</code></td><td><code>url</code>, <code>body</code>, <code>contentType</code></td><td>Exige AllowHttpPost.</td></tr>
+                                    <tr><td><code>web.search</code></td><td><code>query</code>, <code>maxResults</code> facultatif</td><td>Un ensemble compact protégé par Guardrails.</td></tr>
                                     <tr><td><code>ai.summarize</code></td><td><code>text</code> facultatif</td><td>Sans text, reçoit la sortie précédente.</td></tr>
                                     <tr><td><code>ai.extractActionItems</code></td><td><code>text</code> facultatif</td><td>Extrait actions, responsables et échéances explicites.</td></tr>
                                     <tr><td><code>ai.classifyEmail</code></td><td><code>text</code> facultatif</td><td>Classe l’urgence et la réponse attendue.</td></tr>
@@ -2237,7 +2283,7 @@ ollama list</code></pre>
                     <span class="ui-label">Screen</span>. La page distingue le statut de
                     confiance du statut de traitement, montre score, fournisseur, latence,
                     longueurs, aperçu protégé et indicateurs verbatim. Ces indicateurs restent
-                    réservés à cette page ; les sorties Gmail/HTTP n’exposent que leur nombre.
+                    réservés à cette page ; les sorties Gmail/HTTP/Web Search n’exposent que leur nombre.
                 </p>
 
                 <h3>Réglages, confidentialité et limites</h3>
@@ -2249,7 +2295,7 @@ ollama list</code></pre>
                     sources volumineuses appliquent les avis Gmail/HTTP.
                 </p>
                 <div class="callout danger">
-                    Avec OpenAI-compatible, le contenu Gmail/HTTP classé quitte la machine.
+                    Avec OpenAI-compatible, le contenu Gmail/HTTP/Web Search classé quitte la machine.
                     Une source volumineuse peut être envoyée intégralement par plusieurs
                     morceaux successifs. N’utilisez pas de véritable courrier privé pendant
                     un test cloud sans autorisation explicite.
@@ -2292,7 +2338,7 @@ ollama list</code></pre>
                             </tr>
                             <tr>
                                 <td>DPAPI CurrentUser</td>
-                                <td>Protège les clés OpenAI et Dropbox pour le compte Windows courant.</td>
+                                <td>Protège les clés OpenAI, Dropbox et Web Search pour le compte Windows courant.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -2530,7 +2576,7 @@ ollama list</code></pre>
                         </thead>
                         <tbody>
                             <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\settings.json</code></td><td>Réglages utilisateur non secrets.</td></tr>
-                            <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\secrets.dat</code></td><td>Secrets OpenAI et Dropbox protégés par DPAPI.</td></tr>
+                            <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\secrets.dat</code></td><td>Secrets OpenAI, Dropbox et Web Search protégés par DPAPI.</td></tr>
                             <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\Auth\Google\</code></td><td>Autorisation OAuth Google actualisable.</td></tr>
                             <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\tasks\</code></td><td>Un fichier JSON validé par tâche.</td></tr>
                             <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\reports\&lt;taskId&gt;\</code></td><td>Rapports Markdown de la tâche.</td></tr>

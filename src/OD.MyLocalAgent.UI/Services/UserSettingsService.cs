@@ -1,6 +1,8 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Configuration;
+using OD.MyLocalAgent.Connectors;
 using OD.MyLocalAgent.Core;
 using OD.MyLocalAgent.Guardrails;
 using OD.MyLocalAgent.Ollama;
@@ -18,13 +20,27 @@ internal sealed class UserSettingsService : IUserSettingsService
 
     private readonly IConfiguration _configuration;
     private readonly ISecretStore _secretStore;
+    private readonly string _settingsPath;
+    private readonly SemaphoreSlim _saveLock = new(1, 1);
 
     public UserSettingsService(
         IConfiguration configuration,
         ISecretStore secretStore)
+        : this(configuration, secretStore, LocalAppPaths.UserSettingsPath)
     {
+    }
+
+    internal UserSettingsService(
+        IConfiguration configuration,
+        ISecretStore secretStore,
+        string settingsPath)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(secretStore);
+        ArgumentException.ThrowIfNullOrWhiteSpace(settingsPath);
         _configuration = configuration;
         _secretStore = secretStore;
+        _settingsPath = settingsPath;
     }
 
     public async Task SaveAsync(
@@ -35,11 +51,117 @@ internal sealed class UserSettingsService : IUserSettingsService
         ArgumentNullException.ThrowIfNull(settings);
         Validate(settings);
 
-        var document = CreateDocument(
-            settings,
-            _configuration["Google:ClientId"] ?? string.Empty,
-            _configuration["Google:ClientSecret"] ?? string.Empty);
-        var directory = Path.GetDirectoryName(LocalAppPaths.UserSettingsPath)!;
+        await _saveLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var document = await ReadDocumentAsync(cancellationToken)
+                .ConfigureAwait(false);
+            foreach (var section in CreateDocument(
+                         settings,
+                         _configuration["Google:ClientId"] ?? string.Empty,
+                         _configuration["Google:ClientSecret"] ?? string.Empty))
+            {
+                document[section.Key] = JsonSerializer.SerializeToNode(
+                    section.Value,
+                    SerializerOptions);
+            }
+
+            await WriteDocumentAsync(document, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (!string.IsNullOrWhiteSpace(replacementApiKey))
+            {
+                var apiKey = replacementApiKey.Trim();
+                await _secretStore
+                    .SetAsync(
+                        SecretKeys.OpenAIApiKey,
+                        apiKey,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                _configuration[SecretKeys.OpenAIApiKey] = apiKey;
+            }
+
+            ReloadConfiguration();
+        }
+        finally
+        {
+            _saveLock.Release();
+        }
+    }
+
+    public async Task SaveWebSearchAsync(
+        string provider,
+        string endpoint,
+        string? replacementApiKey,
+        CancellationToken cancellationToken)
+    {
+        ValidateWebSearch(provider, endpoint);
+        await _saveLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var document = await ReadDocumentAsync(cancellationToken)
+                .ConfigureAwait(false);
+            var webSearch = document[WebSearchOptions.SectionName] as JsonObject
+                ?? new JsonObject();
+            webSearch[nameof(WebSearchOptions.Provider)] = provider;
+            webSearch[nameof(WebSearchOptions.Endpoint)] = endpoint.Trim();
+            document[WebSearchOptions.SectionName] = webSearch;
+            await WriteDocumentAsync(document, cancellationToken)
+                .ConfigureAwait(false);
+
+            _configuration[$"{WebSearchOptions.SectionName}:Provider"] = provider;
+            _configuration[$"{WebSearchOptions.SectionName}:Endpoint"] =
+                endpoint.Trim();
+            if (!string.IsNullOrWhiteSpace(replacementApiKey))
+            {
+                var apiKey = replacementApiKey.Trim();
+                await _secretStore
+                    .SetAsync(
+                        SecretKeys.WebSearchApiKey,
+                        apiKey,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                _configuration[SecretKeys.WebSearchApiKey] = apiKey;
+            }
+
+            ReloadConfiguration();
+        }
+        finally
+        {
+            _saveLock.Release();
+        }
+    }
+
+    private async Task<JsonObject> ReadDocumentAsync(
+        CancellationToken cancellationToken)
+    {
+        if (!File.Exists(_settingsPath))
+        {
+            return new JsonObject();
+        }
+
+        await using var stream = new FileStream(
+            _settingsPath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            81920,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+        var node = await JsonNode
+            .ParseAsync(stream, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        return node as JsonObject
+            ?? throw new InvalidOperationException(
+                "The user settings file must contain a JSON object.");
+    }
+
+    private async Task WriteDocumentAsync(
+        JsonObject document,
+        CancellationToken cancellationToken)
+    {
+        var directory = Path.GetDirectoryName(_settingsPath)
+            ?? throw new InvalidOperationException(
+                "The user settings path has no parent directory.");
         Directory.CreateDirectory(directory);
         var temporaryPath = Path.Combine(
             directory,
@@ -64,10 +186,7 @@ internal sealed class UserSettingsService : IUserSettingsService
                 await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
             }
 
-            File.Move(
-                temporaryPath,
-                LocalAppPaths.UserSettingsPath,
-                overwrite: true);
+            File.Move(temporaryPath, _settingsPath, overwrite: true);
         }
         finally
         {
@@ -76,18 +195,10 @@ internal sealed class UserSettingsService : IUserSettingsService
                 File.Delete(temporaryPath);
             }
         }
+    }
 
-        if (!string.IsNullOrWhiteSpace(replacementApiKey))
-        {
-            await _secretStore
-                .SetAsync(
-                    SecretKeys.OpenAIApiKey,
-                    replacementApiKey.Trim(),
-                    cancellationToken)
-                .ConfigureAwait(false);
-            _configuration[SecretKeys.OpenAIApiKey] = replacementApiKey.Trim();
-        }
-
+    private void ReloadConfiguration()
+    {
         if (_configuration is IConfigurationRoot configurationRoot)
         {
             configurationRoot.Reload();
@@ -264,6 +375,24 @@ internal sealed class UserSettingsService : IUserSettingsService
         {
             throw new InvalidOperationException(
                 $"{provider} model is required and timeout must be positive.");
+        }
+    }
+
+    private static void ValidateWebSearch(
+        string provider,
+        string endpoint)
+    {
+        if (provider is not ("" or WebSearchOptions.OllamaProvider))
+        {
+            throw new InvalidOperationException(
+                "Select a supported Web Search provider.");
+        }
+
+        if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var endpointUri) ||
+            endpointUri.Scheme is not ("http" or "https"))
+        {
+            throw new InvalidOperationException(
+                "Web Search endpoint must be an absolute HTTP or HTTPS URL.");
         }
     }
 }

@@ -26,6 +26,11 @@ public static class SecretKeys
     public const string DropboxAppKey = "Dropbox:AppKey";
 
     /// <summary>
+    /// Gets the Web Search API-key configuration key.
+    /// </summary>
+    public const string WebSearchApiKey = "WebSearch:ApiKey";
+
+    /// <summary>
     /// Gets all secret configuration keys loaded at bootstrap.
     /// </summary>
     public static IReadOnlyList<string> All { get; } =
@@ -34,5 +39,6 @@ public static class SecretKeys
         DropboxAccessToken,
         DropboxRefreshToken,
         DropboxAppKey,
+        WebSearchApiKey,
     ];
 }

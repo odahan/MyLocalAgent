@@ -93,6 +93,62 @@ public sealed class JsonTaskStoreTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies the Web Search group and alias are valid in persisted tasks.
+    /// </summary>
+    [Fact]
+    public void WebSearchTaskPassesValidation()
+    {
+        var task = ScheduledTaskSerializer.Deserialize(
+            """
+            {
+              "id": "web-search-task",
+              "name": "Web search task",
+              "schedule": "0 8 * * *",
+              "prompt": "Find current information.",
+              "tools": ["web"],
+              "workflow": [
+                {
+                  "step": "web.search",
+                  "args": {
+                    "query": "current Ollama documentation"
+                  }
+                }
+              ],
+              "enabled": true,
+              "errorPolicy": "StopOnError"
+            }
+            """);
+
+        task.Tools.Should().Equal(ToolGroups.Web);
+        task.Workflow.Should().ContainSingle();
+        task.Workflow[0].Step.Should().Be("web.search");
+    }
+
+    /// <summary>
+    /// Verifies adding Web Search does not relax rejection of unknown groups.
+    /// </summary>
+    [Fact]
+    public void UnknownToolGroupStillFailsValidation()
+    {
+        var action = () => ScheduledTaskSerializer.Deserialize(
+            """
+            {
+              "id": "unknown-group-task",
+              "name": "Unknown group task",
+              "schedule": "0 8 * * *",
+              "prompt": "Test validation.",
+              "tools": ["future"],
+              "workflow": [],
+              "enabled": true,
+              "errorPolicy": "StopOnError"
+            }
+            """);
+
+        action.Should().Throw<TaskValidationException>()
+            .WithMessage("*tool group*future*unknown*");
+    }
+
+    /// <summary>
     /// Deletes the isolated test directory.
     /// </summary>
     public void Dispose()

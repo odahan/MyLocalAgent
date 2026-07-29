@@ -1083,3 +1083,81 @@ The complete reloadable keys are `Guardrails:ScreeningEnabled`, `CleanThreshold`
   responses are not protected by Stage 7.
 - R9 Safety gates, tool whitelists, filesystem sandboxing, and HTTP allowlisting remain the
   hard boundaries.
+
+### Stage 8 — Ollama Web Search — 2026-07-30
+
+#### Contracts, provider boundary, and configuration
+
+- Added reloadable `WebSearchOptions` with disabled-by-default provider selection, Ollama
+  endpoint, DPAPI-populated API key, default/cap result limits, and timeout.
+- Added the stable `IWebSearchConnector` facade, normalized `WebSearchResult` and
+  `WebSearchResultItem` records, and the internal provider-selection boundary
+  `IWebSearchProvider`. Stage 8 registers only `OllamaWebSearchConnector`; another provider
+  can be added without changing Core or workflow contracts.
+- The Ollama provider uses the documented
+  `POST https://ollama.com/api/web_search` contract with Bearer authentication and JSON
+  `query`/`max_results`. It tolerates missing/unknown response fields, caps parsed results,
+  distinguishes caller cancellation from timeout, and throws typed, actionable
+  configuration/API failures.
+- `WebSearch:Provider` defaults to empty. Valid enabled configuration requires `Ollama`, an
+  absolute HTTP(S) endpoint, positive timeout and limits, and a default not greater than the
+  cap. The named managed HTTP client reads its timeout from monitored options.
+
+#### Tool Map, Guardrails envelope, and secrets
+
+- Added the sixth `web` tool group and `web.search` / `web_search` Tool Map entry mapped to
+  `WebSearchTool.SearchAsync(query, maxResults?)`. Tool definitions now explicitly identify
+  optional arguments; registry validation and Tool tester hints/templates use that metadata.
+- `WebSearchTool` clamps result requests to 1–10, logs only query length and result count, and
+  protects one compact result set. It builds an ordered canonical JSON array containing only
+  index/title/content, deterministically retains complete earlier results, truncates the first
+  overflowing result with an explicit marker when possible, and omits the remainder.
+- The exact bounded canonical string—including `[]`—is sent to
+  `IContentTrustService.ScreenAsync` exactly once. Pass-through, Base64, and withholding use
+  the shared Guardrails policy/envelope. Disabled and failed screening use marked Base64 with
+  no raw fallback; a caught typed failure is reported once; caller cancellation is propagated.
+- Agent-facing output exposes only aggregate trust metadata. Title/snippet text exists solely
+  inside `protectedResults`; source index/URL is the deliberate metadata whitelist and is
+  removed on withholding. Verbatim suspicious indicators never enter tool output.
+- Added `WebSearch:ApiKey` to the DPAPI bootstrap whitelist. The Tools page field is
+  write-only, and merged settings persistence never writes the key to JSON.
+
+#### UI and persistence
+
+- Added the Web Search cloud card immediately after Dropbox with explicit enablement,
+  endpoint, custom-endpoint privacy warning, masked configuration status, Save, and a fixed
+  read-only connection test that displays only latency/count or a typed error.
+- Added `Web search (web) (cloud)` to the task whitelist editor. Tool tester renders
+  `maxResults` as optional and generates required-only JSON.
+- General Settings and Tools Web Search saves now share a locked atomic JSON-object merge.
+  Known Settings sections are updated without deleting Web Search or unrelated future
+  sections; Web Search saves patch only Provider/Endpoint and preserve its other limits.
+  Configuration reload remains immediate.
+
+#### Earlier-stage files and documentation
+
+- Touched existing connector composition/options validation, Core composition/secrets/tool
+  map/registry, Runner configuration classification, Tools/Task editor/Tool tester UI, user
+  settings service, appsettings, and related tests only where Stage-8 integration required it.
+- Updated the Stage-8 prompt with product-owner decisions, shared specification with ADR I
+  and §13, README, both offline manuals, theme audit, acceptance report, and the new
+  `web-daily-brief` sample.
+- The actual Ollama request and response shape matched the assumed Stage-8 contract; no
+  payload deviation was required.
+
+#### Deterministic verification and residual risks
+
+- Provider tests capture authentication/body/URL, partial and malformed JSON, missing key,
+  HTTP authentication error, timeout, cancellation, disabled provider, and unknown provider.
+- Tool tests cover exact single-call canonical delivery, all three trust dispositions,
+  disabled/failed Base64 fallback, exactly-once incident reporting, cancellation, empty
+  result, clamping, URL exclusion, and pre-screen budget truncation/omission.
+- Persistence tests read JSON from disk to prove secret exclusion and bidirectional section
+  preservation. Tool Map and task validation tests cover the new whitelist and optional
+  argument.
+- Residual risks are explicit: provider rate limits are not a stable documented contract;
+  trust screening remains probabilistic and Base64 is not isolation; whitelisted source URLs
+  are not screened; deterministic truncation/omission can lose relevant information; search
+  queries and snippets leave the machine for the configured cloud endpoint.
+- Safety gates, per-task tool whitelists, filesystem sandboxing, and HTTP allowlisting remain
+  the enforceable boundaries.

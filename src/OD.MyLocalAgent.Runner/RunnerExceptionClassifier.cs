@@ -10,7 +10,8 @@ internal static class RunnerExceptionClassifier
     public static int GetExitCode(Exception exception) =>
         Contains<OptionsValidationException>(exception) ||
         Contains<LlmConfigurationException>(exception) ||
-        Contains<ConnectorConfigurationException>(exception)
+        Contains<ConnectorConfigurationException>(exception) ||
+        Contains<WebSearchNotConfiguredException>(exception)
             ? RunnerExitCodes.ConfigurationError
             : RunnerExitCodes.TaskFailure;
 

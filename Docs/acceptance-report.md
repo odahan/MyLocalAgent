@@ -105,3 +105,26 @@ Date: 2026-07-29
   HTTP listener and writable `%LOCALAPPDATA%`. This sandbox rejected the loopback connection
   and denied the per-user incident file. Deterministic tool/provider tests cover all four
   output paths without network or private data.
+
+## Stage 8 acceptance addendum
+
+Date: 2026-07-30
+
+| Checklist item | Status | Executed evidence |
+|---|---:|---|
+| Contracts §5.1 exact; connector request-shape test proves auth + body fields. | ✅ | Public options/results/facade contracts compile warning-clean. `OllamaProviderMapsDocumentedRequestAndResponse` captures POST URL, Bearer authentication, `query`, `max_results`, and normalized response values. |
+| Guardrails screening provably in the search path: the 3 dispositions verified (stubbed) and `screened:true` visible in a real probe; disabled/failed screening is marked Base64; no raw fallback exists. | ⏳ | Deterministic tests pass for PassThrough, EncodeBase64, Withhold, disabled, failed, exact one-call payload, and cancellation. One failure produces one incident. A real probe requires a user-supplied Ollama Web Search key and remains human-verifiable. |
+| Budget regression proves every delivered title/snippet character was in the one screened canonical payload; overflow is explicitly truncated/omitted and counted. | ✅ | `SearchBudgetsCanonicalPayloadBeforeScreening` verifies the exact screened/delivered string, maximum length, truncation marker, retained count, and omission count. The source URL is absent from canonical content. |
+| API key in DPAPI only (checked by reading `settings.json`, not by trust). | ✅ | `SaveOperationsMergeSectionsAndKeepWebSearchKeySecret` reads the resulting JSON, finds no `ApiKey`, verifies the `WebSearch:ApiKey` secret-store call, and proves Web Search/general settings preserve each other and unrelated sections. |
+| Fresh-install default: tool disabled with an actionable error; enabling + key + test in the UI under 5 minutes. | ⏳ | `Provider` defaults to empty and `FacadeRejectsDisabledWebSearch` verifies the actionable Tools-page message. The complete UI flow is implemented; timing and live-key success remain a human check. |
+| README "Web search (Ollama)" section + sample task committed; Tool Map table updated. | ⏳ | README documents setup, cloud/privacy, limits, DPAPI, budget behavior, provider extensibility, and `web.search`. `Docs/samples/web-daily-brief.json` is the third workflow example. Both are complete in the working tree; no Git commit was requested or created. |
+
+### Stage 8 environment-dependent follow-ups
+
+- ⏳ Supply an Ollama Web Search API key in **Tools**, enable the provider, and confirm the
+  fixed connection test reports latency and result count without displaying result content.
+- ⏳ Run `test-tool --alias web.search --args '{"query":"ollama web search"}'` and verify a
+  real `screened:true` compact result with `protectedResults`, Guardrails, and budget fields.
+- ⏳ Copy `Docs/samples/web-daily-brief.json` into the task store, run it through the Runner,
+  and verify the workflow report and guarded search output.
+- ⏳ Inspect the Tools card and sixth task whitelist checkbox in Dark and Light.

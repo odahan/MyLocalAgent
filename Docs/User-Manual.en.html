@@ -994,6 +994,7 @@
                         <li><a href="#scenario-prompt-run">Test, then run</a></li>
                         <li><a href="#scenario-google">Connect Google</a></li>
                         <li><a href="#scenario-dropbox">Connect Dropbox</a></li>
+                        <li><a href="#scenario-web-search">Enable Web Search</a></li>
                         <li><a href="#scenario-playground">Use the playground</a></li>
                         <li><a href="#scenario-tool">Test a tool</a></li>
                         <li><a href="#scenario-openai">Enable OpenAI-compatible</a></li>
@@ -1428,8 +1429,46 @@ ollama list</code></pre>
                 </ol>
             </section>
 
+            <section id="scenario-web-search" data-title="Scenario: enable Web Search">
+                <p class="section-kicker">Guided scenario 06 · Cloud opt-in</p>
+                <h2>Enable guarded Ollama Web Search</h2>
+                <p class="section-intro">
+                    Web Search is disabled on a fresh install. Queries and returned snippets
+                    leave the computer for the configured Ollama cloud endpoint.
+                </p>
+                <ol class="steps">
+                    <li>
+                        <strong>Create an ollama.com account and obtain a Web Search API key.</strong>
+                        <p>The free individual tier may be rate-limited, especially during bursts.</p>
+                    </li>
+                    <li>
+                        <strong>Open <span class="ui-label">Tools</span> → <span class="ui-label">Web search (cloud)</span>.</strong>
+                        <p>Enable Web search and normally keep <code>https://ollama.com/api/web_search</code>.</p>
+                    </li>
+                    <li>
+                        <strong>Paste the write-only key and select <span class="ui-label">Save</span>.</strong>
+                        <p>The key is protected by DPAPI and never stored in <code>settings.json</code>. A custom endpoint receives both the key and queries.</p>
+                    </li>
+                    <li>
+                        <strong>Select <span class="ui-label">Test connection</span>.</strong>
+                        <p>The fixed-query test displays only duration and result count, never snippets.</p>
+                    </li>
+                    <li>
+                        <strong>Enable <span class="ui-label">Web search (web) (cloud)</span> on the task.</strong>
+                        <p>Use <code>web.search</code> with required <code>query</code> and optional <code>maxResults</code> (default 5, cap 10).</p>
+                    </li>
+                </ol>
+                <div class="callout warning">
+                    Results are untrusted external data. Titles and snippets are bounded,
+                    screened exactly once, and returned in one <code>protectedResults</code>
+                    envelope. Overflow is explicitly truncated or omitted. Source indexes and
+                    URLs are metadata; they disappear when Guardrails withholds the content.
+                    Disabled or failed screening still uses marked Base64—never raw text.
+                </div>
+            </section>
+
             <section id="scenario-playground" data-title="Scenario: use the AI playground">
-                <p class="section-kicker">Guided scenario 06</p>
+                <p class="section-kicker">Guided scenario 07</p>
                 <h2>Explore a prompt in the AI playground</h2>
                 <p class="section-intro">
                     The playground is designed for free-form experiments. Its default mode calls the
@@ -1464,7 +1503,7 @@ ollama list</code></pre>
                         </thead>
                         <tbody>
                             <tr><td>No</td><td>No</td><td>Raw provider completion.</td></tr>
-                            <tr><td>Yes</td><td>No</td><td>Agent with all five tool groups.</td></tr>
+                            <tr><td>Yes</td><td>No</td><td>Agent with all six tool groups.</td></tr>
                             <tr><td>No</td><td>Yes</td><td>Agent with summarize, extract action items, and classify email.</td></tr>
                             <tr><td>Yes</td><td>Yes</td><td>Agent with both tools and built-in skills.</td></tr>
                         </tbody>
@@ -1580,7 +1619,7 @@ ollama list</code></pre>
                     </article>
                     <article class="page-item">
                         <strong>Tools</strong>
-                        <p>Google consent, Dropbox secrets, and Gmail, Calendar, and Dropbox connection tests.</p>
+                        <p>Google consent, Dropbox secrets, guarded cloud Web Search configuration, and connector tests.</p>
                     </article>
                     <article class="page-item">
                         <strong>Tool tester</strong>
@@ -1700,6 +1739,7 @@ ollama list</code></pre>
                             <tr><td>Dropbox</td><td><code>dropbox.upload</code>, <code>dropbox.download</code>, <code>dropbox.list</code></td><td>Dropbox secrets use DPAPI.</td></tr>
                             <tr><td>File system</td><td><code>filesystem.list</code>, <code>read</code>, <code>write</code>, <code>move</code>, <code>delete</code>, <code>createDirectory</code></td><td>Sandbox; delete needs AllowFileDelete.</td></tr>
                             <tr><td>HTTP</td><td><code>http.get</code>, <code>http.getText</code>, <code>http.post</code></td><td>Host allowlist; post needs AllowHttpPost.</td></tr>
+                            <tr><td>Web</td><td><code>web.search</code></td><td>Explicit Ollama cloud opt-in; mandatory Guardrails envelope.</td></tr>
                             <tr><td>AI</td><td><code>ai.summarize</code>, <code>ai.extractActionItems</code>, <code>ai.classifyEmail</code>, <code>ai.prompt</code></td><td>Skills execute without tools.</td></tr>
                         </tbody>
                     </table>
@@ -1729,6 +1769,7 @@ ollama list</code></pre>
                                     <tr><td><code>http.get</code></td><td><code>url</code></td><td>Returns a compact HTTP result.</td></tr>
                                     <tr><td><code>http.getText</code></td><td><code>url</code></td><td>Extracts text from HTML.</td></tr>
                                     <tr><td><code>http.post</code></td><td><code>url</code>, <code>body</code>, <code>contentType</code></td><td>Requires AllowHttpPost.</td></tr>
+                                    <tr><td><code>web.search</code></td><td><code>query</code>, optional <code>maxResults</code></td><td>One compact Guardrails-protected result set.</td></tr>
                                     <tr><td><code>ai.summarize</code></td><td>Optional <code>text</code></td><td>Without text, receives previous output.</td></tr>
                                     <tr><td><code>ai.extractActionItems</code></td><td>Optional <code>text</code></td><td>Extracts explicit actions, owners, and dates.</td></tr>
                                     <tr><td><code>ai.classifyEmail</code></td><td>Optional <code>text</code></td><td>Classifies urgency and expected response.</td></tr>
@@ -1848,7 +1889,7 @@ ollama list</code></pre>
                     <span class="ui-label">Screen</span>. The page separates trust status from
                     processing status and shows score, provider, latency, lengths, protected
                     preview, and validated verbatim indicators. Indicator text stays on this
-                    human page; Gmail/HTTP tool output exposes only the count.
+                    human page; Gmail/HTTP/Web Search tool output exposes only the count.
                 </p>
 
                 <h3>Settings, privacy, and limitations</h3>
@@ -1861,7 +1902,7 @@ ollama list</code></pre>
                     Gmail/HTTP notices.
                 </p>
                 <div class="callout danger">
-                    With OpenAI-compatible selected, screened Gmail/HTTP content leaves the
+                    With OpenAI-compatible selected, screened Gmail/HTTP/Web Search content leaves the
                     machine. An oversized source may be sent completely through several
                     sequential chunks. Do not use real private mail in a cloud test without
                     explicit authorization.
@@ -1888,7 +1929,7 @@ ollama list</code></pre>
                             <tr><td>Safety gates</td><td>Blocks email sending, file deletion, and HTTP POST by default.</td></tr>
                             <tr><td>File-system root path</td><td>Confines file operations below an absolute root.</td></tr>
                             <tr><td>HTTP Allowed Hosts</td><td>Restricts HTTP destinations by exact host name.</td></tr>
-                            <tr><td>DPAPI CurrentUser</td><td>Protects OpenAI and Dropbox secrets for the current Windows user.</td></tr>
+                            <tr><td>DPAPI CurrentUser</td><td>Protects OpenAI, Dropbox, and Web Search secrets for the current Windows user.</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -2094,7 +2135,7 @@ ollama list</code></pre></div>
                         <thead><tr><th>Location</th><th>Contents</th></tr></thead>
                         <tbody>
                             <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\settings.json</code></td><td>Non-secret user settings.</td></tr>
-                            <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\secrets.dat</code></td><td>DPAPI-protected OpenAI and Dropbox secrets.</td></tr>
+                            <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\secrets.dat</code></td><td>DPAPI-protected OpenAI, Dropbox, and Web Search secrets.</td></tr>
                             <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\Auth\Google\</code></td><td>Refreshable Google OAuth data.</td></tr>
                             <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\tasks\</code></td><td>One validated JSON file per task.</td></tr>
                             <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\reports\&lt;taskId&gt;\</code></td><td>Per-task Markdown reports.</td></tr>

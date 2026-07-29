@@ -570,6 +570,13 @@ endpoints), `IOptions<T>` elsewhere. Nothing ever reads `Environment.CurrentDire
   only through tool-less, full-source chunk processing. When reduction is unavailable, HTTP
   returns a skip notice while Gmail preserves its protected canonical headers and replaces
   only the body with a Gmail-review marker. R9 remains the hard boundary.
+- **I. Web search is an explicit cloud opt-in behind a provider boundary.** Stage 8 uses the
+  Ollama cloud API and stores `WebSearch:ApiKey` only through DPAPI. Result titles and snippets
+  are untrusted external content: one exact, deterministically bounded canonical result array
+  is screened once and delivered only through the Guardrails envelope. Disabled or failed
+  screening remains marked Base64. Source URLs are metadata outside the screened payload.
+  A later local provider such as SearXNG fits behind `IWebSearchProvider` without changing
+  workflows.
 
 ## 10. CODING STANDARDS
 
@@ -720,3 +727,88 @@ body/text only in the protected content property. Successful summaries return on
 protected summary. Too-large, disabled, or failed reductions return exact application-authored
 skip markers with `requiresHumanReview=true`; the workflow continues. HTTP POST behavior is
 unchanged and remains a documented residual risk.
+
+## 13. WEB SEARCH ADDENDUM
+
+This addendum supersedes the five-tool-group count, secret list, and Stage-7 external-content
+scope where they conflict with earlier sections.
+
+### 13.1 Locked product decisions
+
+- **D1:** `IWebSearchConnector` is the stable Core-facing facade. Providers implement
+  `IWebSearchProvider`; Stage 8 registers only `OllamaWebSearchConnector`.
+- **D2:** Guardrails protection is mandatory and wins over conflicting delivery behavior.
+  Every result set, including canonical `[]`, is screened exactly once. Disabled or failed
+  screening delivers marked UTF-8 Base64 with no raw fallback; a caught screening failure is
+  incident-reported exactly once.
+- **D3:** The exact delivered canonical payload is bounded before screening. Deterministic
+  truncation and omission are allowed at `Guardrails:MaxContentChars` and are explicitly
+  reported.
+- **D4:** Only source `index` and `url` may appear outside `protectedResults`. Provider title
+  and snippet text appear only inside the protected payload. Withholding removes sources.
+- **D5:** `WebSearch:ApiKey` is a write-only DPAPI CurrentUser secret and must never be stored
+  in `settings.json`.
+- **D6:** The result shape is one compact protected block with aggregate Guardrails metadata
+  and no agent-facing verbatim suspicious indicators.
+
+### 13.2 Contracts and configuration
+
+`IWebSearchConnector.SearchAsync(string query, int maxResults, CancellationToken ct)` returns
+`WebSearchResult(IReadOnlyList<WebSearchResultItem> Items, string Provider)`;
+`WebSearchResultItem` contains `Title`, `Url`, and `Content`.
+
+The reloadable configuration defaults to:
+
+```json
+{
+  "WebSearch": {
+    "Provider": "",
+    "Endpoint": "https://ollama.com/api/web_search",
+    "DefaultMaxResults": 5,
+    "MaxResultsCap": 10,
+    "TimeoutSeconds": 30
+  }
+}
+```
+
+An empty provider disables the tool. `Ollama` is the only Stage-8 provider. The endpoint must
+be absolute HTTP(S), limits must be positive with the default no greater than the cap, and
+timeout must be positive. The Ollama provider sends
+`POST https://ollama.com/api/web_search`, Bearer authentication, and compact JSON fields
+`query` and `max_results`. The tolerant response parser reads `results[].title`,
+`results[].url`, and `results[].content`.
+
+### 13.3 Tool Map, whitelist, and output
+
+The sixth tool group is `web`. The Tool Map adds:
+
+| Workflow alias | Agent function name | C# implementation | Args (camelCase) |
+|---|---|---|---|
+| `web.search` | `web_search` | `WebSearchTool.SearchAsync` | `query`, `maxResults` (optional) |
+
+The compact tool result contains `provider`, `query`, `providerCount`, delivered `count`,
+`omittedBecauseOfBudget`, `truncated`, whitelisted `sources`, one `protectedResults` string,
+and aggregate `guardrails` fields: `screened`, `trustStatus`, `trustScore`,
+`suspiciousIndicatorCount`, `disposition`, and `contentEncoding`. `withheld` is present only
+for withheld content.
+
+The screened canonical payload is a compact ordered JSON array containing only
+`index`, `title`, and `content`. It is built and bounded before the single screening call.
+Complete earlier results are retained first; the first overflowing result may be shortened
+with the explicit `[truncated by OD.MyLocalAgent]` marker; all remaining results are omitted.
+The final canonical string never exceeds `Guardrails:MaxContentChars`. Source metadata uses
+only the retained result indexes and URLs. Because the canonical empty array is `[]`, Web
+Search rejects `MaxContentChars < 2` before sending a cloud query.
+
+### 13.4 UI, privacy, and residual risk
+
+The Tools page exposes the disabled/enabled Ollama selection, endpoint, write-only key,
+configuration state, Save, and a fixed-query connection test. Web Search is visibly labeled
+cloud. A custom endpoint warning states that it receives the key and queries. The task editor
+adds the `web` checkbox.
+
+Queries and snippets leave the machine for Ollama cloud. Rate limits are not a stable
+documented contract and bursts may be throttled. Trust scoring remains probabilistic; Base64
+is not isolation. URLs are deliberate metadata excluded from screening. Budget truncation or
+omission can lose information. These risks do not weaken Safety gates, tool whitelists,
+filesystem sandboxing, or HTTP allowlisting.

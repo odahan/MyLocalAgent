@@ -61,6 +61,7 @@ public sealed partial class ToolTesterViewModel :
                     definition.Alias,
                     definition.ToolGroup,
                     definition.Arguments,
+                    definition.OptionalArguments,
                     definition.SafetyFlag))
             .ToArray();
     }
@@ -87,8 +88,12 @@ public sealed partial class ToolTesterViewModel :
 
         ArgumentHint = value.Arguments.Count == 0
             ? "This alias accepts no arguments."
-            : $"Expected JSON properties: {string.Join(", ", value.Arguments)}";
-        var template = value.Arguments.ToDictionary(
+            : $"JSON properties: {string.Join(", ", value.Arguments.Select(argument => value.OptionalArguments.Contains(argument, StringComparer.OrdinalIgnoreCase) ? $"{argument} (optional)" : $"{argument} (required)"))}";
+        var template = value.Arguments
+            .Where(argument => !value.OptionalArguments.Contains(
+                argument,
+                StringComparer.OrdinalIgnoreCase))
+            .ToDictionary(
             static argument => argument,
             static _ => string.Empty,
             StringComparer.Ordinal);

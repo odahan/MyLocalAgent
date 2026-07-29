@@ -1,0 +1,14 @@
+{
+  "results": [
+    {
+      "title": "Ollama Web Search",
+      "url": "https://docs.ollama.com/capabilities/web-search",
+      "content": "Ollama provides a web search REST API for current information."
+    },
+    {
+      "title": "Ollama",
+      "url": "https://ollama.com/",
+      "content": "Run and build with open models."
+    }
+  ]
+}

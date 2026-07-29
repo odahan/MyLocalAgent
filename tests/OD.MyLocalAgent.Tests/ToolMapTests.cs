@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text;
+using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -108,6 +109,48 @@ public sealed class ToolMapTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies Web Search is unavailable unless its cloud group is selected.
+    /// </summary>
+    [Fact]
+    public async Task RegistryRejectsWebSearchOutsideWhitelist()
+    {
+        Directory.CreateDirectory(_rootPath);
+        var registry = CreateRegistry();
+        using var arguments = JsonDocument.Parse("""{"query":"test"}""");
+        var action = () => registry.InvokeAsync(
+            "web.search",
+            arguments.RootElement,
+            [ToolGroups.Http],
+            CancellationToken.None);
+
+        await action.Should().ThrowAsync<WorkflowValidationException>()
+            .WithMessage("*whitelisted tool group 'web'*");
+    }
+
+    /// <summary>
+    /// Verifies the optional Web Search result limit may be omitted.
+    /// </summary>
+    [Fact]
+    public async Task RegistryInvokesWebSearchWithoutOptionalLimit()
+    {
+        Directory.CreateDirectory(_rootPath);
+        var registry = CreateRegistry();
+        using var arguments = JsonDocument.Parse("""{"query":"test"}""");
+
+        var output = await registry.InvokeAsync(
+            "web.search",
+            arguments.RootElement,
+            [ToolGroups.Web],
+            CancellationToken.None);
+
+        JsonDocument.Parse(output).RootElement
+            .GetProperty("providerCount")
+            .GetInt32()
+            .Should()
+            .Be(0);
+    }
+
+    /// <summary>
     /// Deletes the isolated test directory.
     /// </summary>
     public void Dispose()
@@ -130,6 +173,18 @@ public sealed class ToolMapTests : IDisposable
                 {
                     Content = new StringContent("{}", Encoding.UTF8, "application/json"),
                 }));
+        var webSearchConnector = new Mock<IWebSearchConnector>(
+            MockBehavior.Strict);
+        webSearchConnector
+            .Setup(
+                instance => instance.SearchAsync(
+                    It.IsAny<string>(),
+                    It.IsAny<int>(),
+                    It.IsAny<CancellationToken>()))
+            .ReturnsAsync(
+                new WebSearchResult(
+                    [],
+                    WebSearchOptions.OllamaProvider));
         return new ToolRegistry(
             new GmailTool(
                 Mock.Of<IGmailConnector>(),
@@ -162,6 +217,16 @@ public sealed class ToolMapTests : IDisposable
                 new StubContentTrustService(),
                 new StubIncidentReporter(),
                 NullLogger<HttpTool>.Instance,
+                TimeProvider.System),
+            new WebSearchTool(
+                webSearchConnector.Object,
+                new MutableOptionsMonitor<WebSearchOptions>(
+                    new WebSearchOptions()),
+                new MutableOptionsMonitor<GuardrailsOptions>(
+                    new GuardrailsOptions()),
+                new StubContentTrustService(),
+                new StubIncidentReporter(),
+                NullLogger<WebSearchTool>.Instance,
                 TimeProvider.System));
     }
 }

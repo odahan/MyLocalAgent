@@ -1,7 +1,7 @@
 namespace OD.MyLocalAgent.Core;
 
 /// <summary>
-/// Defines the five task tool-group names.
+/// Defines the six task tool-group names.
 /// </summary>
 public static class ToolGroups
 {
@@ -31,9 +31,14 @@ public static class ToolGroups
     public const string Http = "http";
 
     /// <summary>
+    /// Gets the web-search tool-group name.
+    /// </summary>
+    public const string Web = "web";
+
+    /// <summary>
     /// Gets all supported tool-group names.
     /// </summary>
     public static IReadOnlySet<string> All { get; } = new HashSet<string>(
-        [Gmail, Calendar, Dropbox, FileSystem, Http],
+        [Gmail, Calendar, Dropbox, FileSystem, Http, Web],
         StringComparer.OrdinalIgnoreCase);
 }

@@ -1,9 +1,9 @@
-using System.Diagnostics;
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using OD.MyLocalAgent.Connectors;
 using OD.MyLocalAgent.Core;
 using OD.MyLocalAgent.UI.Messages;
@@ -12,7 +12,7 @@ using OD.MyLocalAgent.UI.Services;
 namespace OD.MyLocalAgent.UI.ViewModels;
 
 /// <summary>
-/// Manages Google authorization, Dropbox secrets, and connector health checks.
+/// Manages Google authorization, Dropbox and Web Search secrets, and connector health checks.
 /// </summary>
 public sealed partial class ToolsViewModel :
     ObservableObject,
@@ -22,11 +22,15 @@ public sealed partial class ToolsViewModel :
     private readonly IGmailConnector _gmailConnector;
     private readonly ICalendarConnector _calendarConnector;
     private readonly IDropboxConnector _dropboxConnector;
+    private readonly IWebSearchConnector _webSearchConnector;
+    private readonly IOptionsMonitor<WebSearchOptions> _webSearchOptions;
     private readonly ISecretStore _secretStore;
+    private readonly IUserSettingsService _userSettingsService;
     private readonly IConfiguration _configuration;
     private readonly IIncidentReporter _incidentReporter;
     private readonly IDesktopInteractionService _desktopInteraction;
     private readonly IMessenger _messenger;
+    private readonly TimeProvider _timeProvider;
 
     [ObservableProperty]
     private bool _isBusy;
@@ -76,6 +80,28 @@ public sealed partial class ToolsViewModel :
     [ObservableProperty]
     private string _dropboxTestState = "Unknown";
 
+    [ObservableProperty]
+    private bool _isWebSearchEnabled;
+
+    [ObservableProperty]
+    private string _webSearchEndpoint =
+        "https://ollama.com/api/web_search";
+
+    [ObservableProperty]
+    private string _webSearchApiKeyReplacement = string.Empty;
+
+    [ObservableProperty]
+    private bool _isWebSearchConfigured;
+
+    [ObservableProperty]
+    private string _webSearchMaskedStatus = "Not configured";
+
+    [ObservableProperty]
+    private string _webSearchTestStatus = "Not tested";
+
+    [ObservableProperty]
+    private string _webSearchTestState = "Unknown";
+
     /// <summary>
     /// Initializes a new instance of the <see cref="ToolsViewModel"/> class.
     /// </summary>
@@ -84,21 +110,29 @@ public sealed partial class ToolsViewModel :
         IGmailConnector gmailConnector,
         ICalendarConnector calendarConnector,
         IDropboxConnector dropboxConnector,
+        IWebSearchConnector webSearchConnector,
+        IOptionsMonitor<WebSearchOptions> webSearchOptions,
         ISecretStore secretStore,
+        IUserSettingsService userSettingsService,
         IConfiguration configuration,
         IIncidentReporter incidentReporter,
         IDesktopInteractionService desktopInteraction,
-        IMessenger messenger)
+        IMessenger messenger,
+        TimeProvider timeProvider)
     {
         _googleCredentialProvider = googleCredentialProvider;
         _gmailConnector = gmailConnector;
         _calendarConnector = calendarConnector;
         _dropboxConnector = dropboxConnector;
+        _webSearchConnector = webSearchConnector;
+        _webSearchOptions = webSearchOptions;
         _secretStore = secretStore;
+        _userSettingsService = userSettingsService;
         _configuration = configuration;
         _incidentReporter = incidentReporter;
         _desktopInteraction = desktopInteraction;
         _messenger = messenger;
+        _timeProvider = timeProvider;
         GoogleScopesText = string.Join(
             Environment.NewLine,
             GoogleCredentialProvider.RequiredScopes.Select(
@@ -158,6 +192,21 @@ public sealed partial class ToolsViewModel :
             DropboxMaskedStatus = IsDropboxConfigured
                 ? "•••••••• · stored with Windows DPAPI"
                 : "Not configured · enter an access token, or refresh token and app key.";
+
+            var webSearch = _webSearchOptions.CurrentValue;
+            IsWebSearchEnabled = string.Equals(
+                webSearch.Provider,
+                WebSearchOptions.OllamaProvider,
+                StringComparison.OrdinalIgnoreCase);
+            WebSearchEndpoint = webSearch.Endpoint;
+            IsWebSearchConfigured = await _secretStore
+                .ExistsAsync(
+                    SecretKeys.WebSearchApiKey,
+                    cancellationToken)
+                .ConfigureAwait(true);
+            WebSearchMaskedStatus = IsWebSearchConfigured
+                ? "Configured: yes · •••••••• · stored with Windows DPAPI"
+                : "Configured: no · add an Ollama Web Search API key.";
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -357,20 +406,90 @@ public sealed partial class ToolsViewModel :
     }
 
     [RelayCommand]
+    private async Task SaveWebSearchAsync(CancellationToken cancellationToken)
+    {
+        IsBusy = true;
+        try
+        {
+            var provider = IsWebSearchEnabled
+                ? WebSearchOptions.OllamaProvider
+                : string.Empty;
+            await _userSettingsService
+                .SaveWebSearchAsync(
+                    provider,
+                    WebSearchEndpoint,
+                    WebSearchApiKeyReplacement,
+                    cancellationToken)
+                .ConfigureAwait(true);
+            WebSearchApiKeyReplacement = string.Empty;
+            WebSearchTestState = "Unknown";
+            WebSearchTestStatus = "Not tested";
+            await RefreshAsync(cancellationToken).ConfigureAwait(true);
+            _messenger.Send(
+                new SnackbarNotificationMessage(
+                    "Web Search configuration saved."));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            WebSearchMaskedStatus = FormatTypedError(exception);
+            await ReportAsync(exception, "Web Search configuration save")
+                .ConfigureAwait(true);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task TestWebSearchAsync(CancellationToken cancellationToken)
+    {
+        WebSearchTestState = "Checking";
+        WebSearchTestStatus = "Testing Ollama Web Search cloud access…";
+        var started = _timeProvider.GetTimestamp();
+        try
+        {
+            var options = _webSearchOptions.CurrentValue;
+            var result = await _webSearchConnector
+                .SearchAsync(
+                    "ollama web search",
+                    options.DefaultMaxResults,
+                    cancellationToken)
+                .ConfigureAwait(true);
+            WebSearchTestState = "Healthy";
+            WebSearchTestStatus =
+                $"Connected · {ElapsedMilliseconds(started):F0} ms · {result.Items.Count} result(s).";
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            WebSearchTestState = "Unknown";
+            WebSearchTestStatus = "Test canceled.";
+        }
+        catch (Exception exception)
+        {
+            WebSearchTestState = "Unhealthy";
+            WebSearchTestStatus =
+                $"{FormatTypedError(exception)} · {ElapsedMilliseconds(started):F0} ms";
+        }
+    }
+
+    [RelayCommand]
     private async Task TestGmailAsync(CancellationToken cancellationToken)
     {
         GmailTestState = "Checking";
         GmailTestStatus = "Testing Gmail read access…";
-        var stopwatch = Stopwatch.StartNew();
+        var started = _timeProvider.GetTimestamp();
         try
         {
             var messages = await _gmailConnector
                 .GetUnreadMessagesAsync(cancellationToken)
                 .ConfigureAwait(true);
-            stopwatch.Stop();
             GmailTestState = "Healthy";
             GmailTestStatus =
-                $"Connected · {stopwatch.ElapsedMilliseconds} ms · {messages.Count} unread message(s).";
+                $"Connected · {ElapsedMilliseconds(started):F0} ms · {messages.Count} unread message(s).";
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -379,10 +498,9 @@ public sealed partial class ToolsViewModel :
         }
         catch (Exception exception)
         {
-            stopwatch.Stop();
             GmailTestState = "Unhealthy";
             GmailTestStatus =
-                $"{FormatTypedError(exception)} · {stopwatch.ElapsedMilliseconds} ms";
+                $"{FormatTypedError(exception)} · {ElapsedMilliseconds(started):F0} ms";
         }
     }
 
@@ -391,16 +509,15 @@ public sealed partial class ToolsViewModel :
     {
         CalendarTestState = "Checking";
         CalendarTestStatus = "Testing Calendar read access…";
-        var stopwatch = Stopwatch.StartNew();
+        var started = _timeProvider.GetTimestamp();
         try
         {
             var events = await _calendarConnector
                 .GetTodaysEventsAsync(cancellationToken)
                 .ConfigureAwait(true);
-            stopwatch.Stop();
             CalendarTestState = "Healthy";
             CalendarTestStatus =
-                $"Connected · {stopwatch.ElapsedMilliseconds} ms · {events.Count} event(s) today.";
+                $"Connected · {ElapsedMilliseconds(started):F0} ms · {events.Count} event(s) today.";
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -409,10 +526,9 @@ public sealed partial class ToolsViewModel :
         }
         catch (Exception exception)
         {
-            stopwatch.Stop();
             CalendarTestState = "Unhealthy";
             CalendarTestStatus =
-                $"{FormatTypedError(exception)} · {stopwatch.ElapsedMilliseconds} ms";
+                $"{FormatTypedError(exception)} · {ElapsedMilliseconds(started):F0} ms";
         }
     }
 
@@ -421,16 +537,15 @@ public sealed partial class ToolsViewModel :
     {
         DropboxTestState = "Checking";
         DropboxTestStatus = "Testing Dropbox root access…";
-        var stopwatch = Stopwatch.StartNew();
+        var started = _timeProvider.GetTimestamp();
         try
         {
             var items = await _dropboxConnector
                 .ListAsync(string.Empty, cancellationToken)
                 .ConfigureAwait(true);
-            stopwatch.Stop();
             DropboxTestState = "Healthy";
             DropboxTestStatus =
-                $"Connected · {stopwatch.ElapsedMilliseconds} ms · {items.Count} root item(s).";
+                $"Connected · {ElapsedMilliseconds(started):F0} ms · {items.Count} root item(s).";
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -439,10 +554,9 @@ public sealed partial class ToolsViewModel :
         }
         catch (Exception exception)
         {
-            stopwatch.Stop();
             DropboxTestState = "Unhealthy";
             DropboxTestStatus =
-                $"{FormatTypedError(exception)} · {stopwatch.ElapsedMilliseconds} ms";
+                $"{FormatTypedError(exception)} · {ElapsedMilliseconds(started):F0} ms";
         }
     }
 
@@ -478,6 +592,9 @@ public sealed partial class ToolsViewModel :
 
     private static string FormatTypedError(Exception exception) =>
         $"{exception.GetType().Name}: {exception.Message}";
+
+    private double ElapsedMilliseconds(long startedTimestamp) =>
+        _timeProvider.GetElapsedTime(startedTimestamp).TotalMilliseconds;
 
     private async Task ReportAsync(Exception exception, string source)
     {

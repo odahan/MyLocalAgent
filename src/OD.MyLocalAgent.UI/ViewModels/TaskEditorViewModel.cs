@@ -59,6 +59,9 @@ public sealed partial class TaskEditorViewModel : ObservableObject
     private bool _useHttp;
 
     [ObservableProperty]
+    private bool _useWeb;
+
+    [ObservableProperty]
     private string _workflowText = "[]";
 
     [ObservableProperty]
@@ -190,6 +193,9 @@ public sealed partial class TaskEditorViewModel : ObservableObject
                 StringComparer.OrdinalIgnoreCase) == true;
             UseHttp = task?.Tools.Contains(
                 ToolGroups.Http,
+                StringComparer.OrdinalIgnoreCase) == true;
+            UseWeb = task?.Tools.Contains(
+                ToolGroups.Web,
                 StringComparer.OrdinalIgnoreCase) == true;
             WorkflowText = task is null
                 ? "[]"
@@ -348,7 +354,7 @@ public sealed partial class TaskEditorViewModel : ObservableObject
 
     private IReadOnlyList<string> GetSelectedToolGroups()
     {
-        var groups = new List<string>(5);
+        var groups = new List<string>(6);
         if (UseGmail)
         {
             groups.Add(ToolGroups.Gmail);
@@ -372,6 +378,11 @@ public sealed partial class TaskEditorViewModel : ObservableObject
         if (UseHttp)
         {
             groups.Add(ToolGroups.Http);
+        }
+
+        if (UseWeb)
+        {
+            groups.Add(ToolGroups.Web);
         }
 
         return groups;

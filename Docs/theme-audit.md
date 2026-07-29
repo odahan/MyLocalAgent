@@ -28,6 +28,20 @@ introduced. A Dark/Light visual pass of the new route, threshold badge states, l
 preview, indicator list, busy/cancel state, and expanded Settings card remains a Stage-7
 human follow-up.
 
+## Stage 8 Web Search coverage
+
+The Tools page Web Search card is placed immediately after Dropbox and reuses the audited
+Material `Card`, `CheckBox`, `TextBox`, `PasswordBox`, `Button`, caption, warning, and status
+text styles. The task editor adds one standard whitelist `CheckBox`; Tool tester reuses its
+existing alias list, argument editor, and output viewer. No new control type, custom template,
+or inline color was introduced.
+
+The cloud label and custom-endpoint warning use the semantic `WarningBrush`; configured,
+testing, healthy, and unhealthy states use existing status treatments. A Dark/Light visual
+pass remains human-verifiable for long endpoints, an empty/replacement key, disabled/enabled
+state, typed connection errors, busy state, the sixth task checkbox, and the optional
+`maxResults` Tool tester hint.
+
 ## Control inventory
 
 | Control or surface | Palette/template treatment | Final evidence |
@@ -38,7 +52,7 @@ human follow-up.
 | `Button` | Material outlined/raised/flat bases with palette primary, danger, hover, and text roles | Primary, secondary, danger, title-bar, and disabled contexts inspected |
 | Material `Card` and `Snackbar` | Card/on-surface roles and semantic status text | Dashboard cards, Settings cards, save and incident snackbars inspected |
 | `TextBox` and multiline editors | Material outlined base; surface, text, caret, divider, selection, validation-error, and disabled roles | Settings, Logs filters, task editor, prompt editor, tool tester, and playground inspected |
-| `PasswordBox` | Outlined surface with palette caret, border, error, and disabled roles | OpenAI and Dropbox write-only credential fields inspected |
+| `PasswordBox` | Outlined surface with palette caret, border, error, and disabled roles | OpenAI, Dropbox, and Web Search write-only credential fields; pre-Stage-8 fields inspected |
 | `ComboBox` and `ComboBoxItem` | Outlined control plus explicit palette item surface, highlight, selection, and disabled states | Tool Map groups, logging levels, and appearance list inspected in Dark and Light |
 | `DataGrid`, headers, rows, cells | Material base; explicit card/surface alternation, divider lines, full-row selection, focus border, and disabled roles | Populated Tasks grid, selected row, headers, checkbox columns, and empty-ready state inspected |
 | `CheckBox` and `RadioButton` | Material bases with palette text, border, and disabled states | Tool whitelist, safety gates, S4U, and provider selection inspected |

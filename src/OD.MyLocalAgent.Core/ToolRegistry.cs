@@ -20,13 +20,15 @@ public sealed class ToolRegistry : IToolRegistry
         CalendarTool calendarTool,
         DropboxTool dropboxTool,
         FileSystemTool fileSystemTool,
-        HttpTool httpTool)
+        HttpTool httpTool,
+        WebSearchTool webSearchTool)
     {
         ArgumentNullException.ThrowIfNull(gmailTool);
         ArgumentNullException.ThrowIfNull(calendarTool);
         ArgumentNullException.ThrowIfNull(dropboxTool);
         ArgumentNullException.ThrowIfNull(fileSystemTool);
         ArgumentNullException.ThrowIfNull(httpTool);
+        ArgumentNullException.ThrowIfNull(webSearchTool);
 
         var targets = new Dictionary<Type, object>
         {
@@ -35,6 +37,7 @@ public sealed class ToolRegistry : IToolRegistry
             [typeof(DropboxTool)] = dropboxTool,
             [typeof(FileSystemTool)] = fileSystemTool,
             [typeof(HttpTool)] = httpTool,
+            [typeof(WebSearchTool)] = webSearchTool,
         };
 
         var functions = new Dictionary<string, AIFunction>(StringComparer.OrdinalIgnoreCase);
@@ -130,7 +133,11 @@ public sealed class ToolRegistry : IToolRegistry
         }
 
         var missing = definition.Arguments
-            .Where(argument => !suppliedArguments.ContainsKey(argument))
+            .Where(argument =>
+                !definition.OptionalArguments.Contains(
+                    argument,
+                    StringComparer.OrdinalIgnoreCase) &&
+                !suppliedArguments.ContainsKey(argument))
             .ToArray();
         if (missing.Length > 0)
         {
@@ -176,5 +183,12 @@ public sealed class ToolRegistry : IToolRegistry
     private static string FormatExpected(ToolDefinition definition) =>
         definition.Arguments.Count == 0
             ? "(none)"
-            : string.Join(", ", definition.Arguments);
+            : string.Join(
+                ", ",
+                definition.Arguments.Select(
+                    argument => definition.OptionalArguments.Contains(
+                        argument,
+                        StringComparer.OrdinalIgnoreCase)
+                        ? $"{argument} (optional)"
+                        : argument));
 }

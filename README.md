@@ -25,6 +25,7 @@ its own navigation, search, styles, and scripts in one file.
 | 5 | Task, prompt, connector, tester, and playground pages | Complete |
 | 6 | Hardening, self-contained packaging, documentation, acceptance | Complete with documented human checks |
 | 7 | Prompt-injection trust filter for Gmail and HTTP GET content | Complete with documented manual UI/provider checks |
+| 8 | Ollama cloud Web Search with mandatory Guardrails protection | Complete with documented live-key/UI checks |
 
 See [Docs/acceptance-report.md](Docs/acceptance-report.md) for the executed acceptance
 evidence and any remaining environment-dependent checks.
@@ -48,8 +49,8 @@ ollama list
 `ollama list` must contain `gemma4:12b`. A similar name or a different tag does not satisfy
 the health check.
 
-Google Cloud and Dropbox accounts are optional. They are required only for workflows that
-enable those tool groups.
+Google Cloud, Dropbox, and ollama.com accounts are optional. They are required only for
+workflows that enable those cloud tool groups.
 
 ## Quick start
 
@@ -89,8 +90,8 @@ On first launch:
    endpoint or installing a new model.
 2. Select **Test connection**. A healthy result requires both a reachable endpoint and the
    exact configured model tag.
-3. Open **Tools** to authorize Google or store Dropbox credentials when those integrations
-   are needed.
+3. Open **Tools** to authorize Google, store Dropbox credentials, or explicitly enable the
+   Ollama cloud Web Search provider when those integrations are needed.
 4. Create a task. Prefer an explicit workflow for unattended execution.
 
 The default `Settings -> Scheduler:RunnerPath` value is empty. This is intentional:
@@ -156,6 +157,36 @@ silent refresh, authorize again from the UI.
 Dropbox values are write-only in the UI. They are persisted in the DPAPI CurrentUser secret
 store, never in `settings.json`.
 
+## Web search (Ollama)
+
+Web search is disabled on a fresh install because it sends the query to the Ollama cloud API.
+To enable it:
+
+1. Create an ollama.com account and obtain a Web Search API key.
+2. Open **Tools -> Web search (cloud)**.
+3. Enable Web search, keep
+   `https://ollama.com/api/web_search` unless you intentionally use an approved compatible
+   endpoint, paste the write-only API key, and select **Save**.
+4. Select **Test connection**. The UI reports only latency and result count; it does not show
+   the fixed test query or returned snippets.
+5. Enable the **Web search (web) (cloud)** checkbox only on tasks that need it.
+
+The API key is protected through Windows DPAPI and never written to `settings.json`. Search
+queries and result snippets leave the computer. A custom endpoint receives both the key and
+the queries, so configure one only when you trust its operator. Ollama describes a free tier
+for individuals, but does not publish stable request limits; burst traffic may be throttled.
+
+`web.search` accepts `query` and optional `maxResults` (default 5, capped at 10). It returns
+one compact `protectedResults` block. Titles and snippets are serialized into one canonical
+JSON array, deterministically bounded to `Guardrails:MaxContentChars`, and screened exactly
+once before delivery. Overflow is explicitly truncated or omitted and counted. Source index
+and URL are metadata outside the screened block; they are removed when content is withheld.
+Clean content is marked plaintext, caution content is marked Base64, and low-trust content is
+withheld. Disabled or failed screening still uses marked Base64—there is no raw fallback.
+
+Stage 8 implements Ollama only, behind a provider-neutral connector boundary so a later local
+provider such as SearXNG can be added without changing the Tool Map or workflow contract.
+
 ## Configuration and data locations
 
 Configuration is loaded in this order, with later layers winning:
@@ -171,7 +202,7 @@ The process working directory is never used to locate configuration.
 | `%LOCALAPPDATA%\Programs\OD.MyLocalAgent\UI\` | Default self-contained WPF application directory |
 | `%LOCALAPPDATA%\Programs\OD.MyLocalAgent\Runner\` | Default self-contained headless runner directory |
 | `%LOCALAPPDATA%\OD.MyLocalAgent\settings.json` | Non-secret user overrides |
-| `%LOCALAPPDATA%\OD.MyLocalAgent\secrets.dat` | DPAPI CurrentUser-protected OpenAI and Dropbox secrets |
+| `%LOCALAPPDATA%\OD.MyLocalAgent\secrets.dat` | DPAPI CurrentUser-protected OpenAI, Dropbox, and Web Search secrets |
 | `%LOCALAPPDATA%\OD.MyLocalAgent\Auth\Google\` | Google OAuth token data |
 | `%LOCALAPPDATA%\OD.MyLocalAgent\tasks\<id>.json` | One validated definition per task |
 | `%LOCALAPPDATA%\OD.MyLocalAgent\reports\<taskId>\*.md` | Per-run Markdown reports |
@@ -180,8 +211,9 @@ The process working directory is never used to locate configuration.
 | `%LOCALAPPDATA%\OD.MyLocalAgent\logs\incidents.jsonl` | Durable incidents with correlation ids |
 | `%LOCALAPPDATA%\OD.MyLocalAgent\logs\archive\<timestamp>\` | Log copies created by Diagnostics Reset |
 
-The DPAPI keys are `OpenAI:ApiKey`, `Dropbox:AccessToken`, `Dropbox:RefreshToken`, and
-`Dropbox:AppKey`. They must not be added to either JSON configuration file.
+The DPAPI keys are `OpenAI:ApiKey`, `Dropbox:AccessToken`, `Dropbox:RefreshToken`,
+`Dropbox:AppKey`, and `WebSearch:ApiKey`. They must not be added to either JSON configuration
+file.
 
 ## Safety defaults
 
@@ -210,8 +242,9 @@ allowlist remain the enforceable boundaries even when model output is manipulate
 
 ## Prompt-injection guardrails
 
-Gmail reads and HTTP GET/GET Text responses pass through the active provider's dedicated
-single-turn classifier before they are returned to an agent. The classifier and oversized
+Gmail reads, HTTP GET/GET Text responses, and Web Search result sets pass through the active
+provider's dedicated single-turn classifier before they are returned to an agent. The
+classifier and oversized
 reducer call `IChatClient` directly with temperature zero, no tools, no skills, no agent
 loop, and no authority to act. This is probabilistic spotlighting and risk reduction, not a
 security boundary.
@@ -230,7 +263,8 @@ the content.
 | Screening disabled or failed | no score | Marked Base64 for normal-size content |
 
 Turning **Use LLM guardrails processing** off does not disable protection and never enables
-raw pass-through. Normal-size Gmail/HTTP content uses marked Base64 without an LLM call.
+raw pass-through. Normal-size Gmail/HTTP content and bounded Web Search results use marked
+Base64 without an LLM call.
 Oversized Gmail bodies are replaced by an explicit Gmail-review marker while their canonical
 From, To, Subject, and Snippet values remain protected. Oversized HTTP pages are skipped with
 an explicit processing marker, and the workflow continues.
@@ -262,8 +296,8 @@ statuses separately, the effective score, provider latency, protected preview, a
 verbatim indicators. Indicator text is human-only; Gmail and HTTP tool JSON exposes only
 `suspiciousIndicatorCount`.
 
-When OpenAI-compatible is selected, all screened Gmail/HTTP content leaves the machine for
-the configured cloud endpoint. Complete-source reduction can send every oversized-source
+When OpenAI-compatible is selected, all screened Gmail/HTTP/Web Search content leaves the
+machine for the configured cloud endpoint. Complete-source reduction can send every oversized-source
 chunk through several sequential cloud calls. Do not use real private email in a cloud test
 without explicit authorization.
 
@@ -274,7 +308,7 @@ Limitations are deliberate and important:
 - Base64 is not encryption or isolation. A model can decode it and must still treat the
   decoded text only as data.
 - Dropbox content, local filesystem content, Calendar content, Gmail attachments, outbound
-  request/message content, and HTTP POST responses are outside Stage 7 protection.
+  request/message content, and HTTP POST responses are outside Guardrails protection.
 - Safety gates, tool whitelists, the filesystem sandbox, and the HTTP allowlist remain the
   hard controls.
 
@@ -371,7 +405,7 @@ A task is stored as one JSON object:
 ```
 
 Task ids match `[a-z0-9-]+`. Cron is interpreted in the Windows local time zone. Tool groups
-are `gmail`, `calendar`, `dropbox`, `filesystem`, and `http`.
+are `gmail`, `calendar`, `dropbox`, `filesystem`, `http`, and `web`.
 
 String form is for steps without explicit arguments:
 
@@ -431,6 +465,7 @@ workflow wins and the prompt remains available through `{{task.prompt}}`.
 | `http.get` | `http_get` | `HttpTool.GetAsync` | `url` | — |
 | `http.post` | `http_post` | `HttpTool.PostAsync` | `url`, `body`, `contentType` | `Safety:AllowHttpPost` |
 | `http.getText` | `http_get_text` | `HttpTool.GetTextAsync` | `url` | — |
+| `web.search` | `web_search` | `WebSearchTool.SearchAsync` | `query`, optional `maxResults` | cloud opt-in |
 | `ai.summarize` | — | `SummarizeTextSkill` | optional `text` | — |
 | `ai.extractActionItems` | — | `ExtractActionItemsSkill` | optional `text` | — |
 | `ai.classifyEmail` | — | `ClassifyEmailSkill` | optional `text` | — |
@@ -517,6 +552,47 @@ inside the filesystem sandbox, and backs it up to Dropbox:
 `calendar.create` expects explicit ISO 8601 timestamps. Generate task-specific dates before
 unattended use rather than copying the example dates unchanged.
 
+### Example: guarded web daily brief
+
+The third sample searches the web, summarizes the protected compact result set, and writes
+the brief inside the filesystem sandbox:
+
+```json
+{
+  "id": "web-daily-brief",
+  "name": "Web daily brief",
+  "schedule": "0 8 * * 1-5",
+  "prompt": "Create a concise daily brief from current web search results.",
+  "tools": ["web", "filesystem"],
+  "workflow": [
+    {
+      "step": "web.search",
+      "id": "search",
+      "args": {
+        "query": "latest developments in local AI assistants",
+        "maxResults": 5
+      }
+    },
+    {
+      "step": "ai.summarize",
+      "id": "summary"
+    },
+    {
+      "step": "filesystem.write",
+      "args": {
+        "path": "reports/web-daily-brief.md",
+        "content": "{{summary.output}}"
+      }
+    }
+  ],
+  "enabled": true,
+  "errorPolicy": "StopOnError"
+}
+```
+
+The ready-to-copy file is
+[`Docs/samples/web-daily-brief.json`](Docs/samples/web-daily-brief.json).
+
 ### OAuth-free acceptance sample
 
 When Google consent is unavailable, copy
@@ -551,7 +627,7 @@ flowchart LR
     Core --> Llm["LLM provider layer"]
     Llm --> Ollama["Local Ollama"]
     Llm -. explicit cloud opt-in .-> OpenAI["OpenAI-compatible endpoint"]
-    Core --> Connectors["Gmail, Calendar, Dropbox connectors"]
+    Core --> Connectors["Gmail, Calendar, Dropbox, Web Search connectors"]
     Core --> Files["Sandboxed filesystem and HTTP"]
     Runner --> Reports["Markdown reports and index.jsonl"]
     Core --> Logs["Rolling logs and incidents.jsonl"]
@@ -586,7 +662,7 @@ every creation, so the next test or task uses the new provider without restartin
 Already-running executions are not interrupted.
 
 The AI playground uses raw completion by default. **Allow Tools** switches it to agent mode
-with all five tool groups, while **Allow Skills** exposes the built-in summarize, action-item,
+with all six tool groups, while **Allow Skills** exposes the built-in summarize, action-item,
 and email-classification skills. The filesystem sandbox, tool safety flags, connector
 configuration, and HTTP allowlist continue to apply in the playground.
 

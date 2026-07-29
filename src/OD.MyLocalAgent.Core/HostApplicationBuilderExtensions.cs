@@ -77,6 +77,9 @@ public static class HostApplicationBuilderExtensions
         builder.Services.AddSingleton<HttpTool>();
         builder.Services.AddSingleton<IHttpTool>(
             static services => services.GetRequiredService<HttpTool>());
+        builder.Services.AddSingleton<WebSearchTool>();
+        builder.Services.AddSingleton<IWebSearchTool>(
+            static services => services.GetRequiredService<WebSearchTool>());
         builder.Services.AddSingleton<IToolRegistry, ToolRegistry>();
 
         builder.Services.AddSingleton<SummarizeTextSkill>();

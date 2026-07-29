@@ -43,6 +43,48 @@ public sealed class ConnectorConfigurationTests
             .WithMessage("*Dropbox:AccessToken*");
     }
 
+    /// <summary>
+    /// Verifies invalid Web Search provider, limits, timeout, and endpoint are rejected.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(InvalidWebSearchOptions))]
+    public void WebSearchOptionsRejectInvalidConfiguration(
+        WebSearchOptions options,
+        string expectedMessage)
+    {
+        ConnectorOptionsValidation.ValidateWebSearch(options)
+            .Should().Contain(expectedMessage);
+    }
+
+    /// <summary>
+    /// Gets invalid Web Search option cases.
+    /// </summary>
+    public static TheoryData<WebSearchOptions, string>
+        InvalidWebSearchOptions =>
+        new()
+        {
+            {
+                new WebSearchOptions { Provider = "Unknown" },
+                "Provider"
+            },
+            {
+                new WebSearchOptions { DefaultMaxResults = 11 },
+                "limits"
+            },
+            {
+                new WebSearchOptions { TimeoutSeconds = 0 },
+                "TimeoutSeconds"
+            },
+            {
+                new WebSearchOptions
+                {
+                    Provider = WebSearchOptions.OllamaProvider,
+                    Endpoint = "relative",
+                },
+                "Endpoint"
+            },
+        };
+
     private static IHttpClientFactory CreateHttpClientFactory()
     {
         return new StubHttpClientFactory(new StubHttpMessageHandler(

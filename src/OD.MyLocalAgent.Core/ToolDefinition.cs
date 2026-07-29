@@ -22,6 +22,11 @@ public sealed record ToolDefinition(
     bool IsAiStep)
 {
     /// <summary>
+    /// Gets argument names that may be omitted by direct invocation.
+    /// </summary>
+    public IReadOnlyList<string> OptionalArguments { get; init; } = [];
+
+    /// <summary>
     /// Gets a value indicating whether this entry is exposed as an agent tool.
     /// </summary>
     public bool IsAgentTool => AgentFunctionName is not null;
