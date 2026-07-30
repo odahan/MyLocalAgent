@@ -21,6 +21,7 @@ Ce dossier contient la version révisée du « Master Prompt » v1, corrigée pu
 | `12-Stage11-PerTaskFileSystemAuthorization.md` | **Extension post-v1** — autorisations absolues par tâche, en lecture seule ou lecture-écriture, propagées sans état singleton aux workflows, agents et chemins locaux Dropbox. |
 | `13-Stage12-SequentialWorkflowContext.md` | **Extension post-v1** — sélections structurées dans les sorties JSON, contexte accumulé optionnel pour `ai.prompt`, placeholders date/heure et aide légère à l'édition JSON séquentielle. |
 | `14-Stage13-AIWorkflowHelper.md` | **Extension post-v1** — fenêtre AI Workflow Helper : création et affinage de tableaux JSON par LLM, explication de workflows, validation déterministe, propositions d'outils et d'autorisations, rendu Markdown sécurisé. |
+| `15-Stage14-HierarchicalAIGenerationSettings.md` | **Extension post-v1** — réglages hiérarchiques de génération IA : valeurs globales Temperature/Top P, overrides par tâche et par step IA, fenêtre de contexte globale et politiques internes figées. |
 
 ## Mode d'emploi
 
@@ -28,7 +29,7 @@ Ce dossier contient la version révisée du « Master Prompt » v1, corrigée pu
 2. Ouvrez votre agent **dans ce dossier**, en lui donnant la permission d'écrire des fichiers et d'exécuter des commandes (`dotnet build`, `dotnet test`).
 3. Collez le **prompt de l'étape 0**. Attendez que l'agent annonce le *gate* vert (build + tests OK). Les prompts supposent que la spec partagée est lisible à `docs/prompts/00-Shared-Specification.md` ; si votre agent ne lit pas les fichiers du dépôt, collez la spec partagée en entier avant le prompt d'étape 0 (elle tiendra dans la fenêtre de contexte).
 4. Vérifiez rapidement le résultat (arborescence, absence de `// TODO`, `dotnet build` vert de votre côté aussi si possible), puis enchaînez avec l'étape suivante.
-5. Suivez l'ordre 0–8, puis 11–13. Les anciennes propositions 9 et 10 sont abandonnées et ne doivent pas être exécutées. Ne fusionnez pas les autres étapes : chacune suppose l'état exact laissé par la précédente.
+5. Suivez l'ordre 0–8, puis 11–14. Les anciennes propositions 9 et 10 sont abandonnées et ne doivent pas être exécutées. Ne fusionnez pas les autres étapes : chacune suppose l'état exact laissé par la précédente.
 6. Le fichier `docs/ARCHITECTURE-LEDGER.md`, créé à l'étape 0 puis complété à chaque étape, est la **mémoire inter-étapes** (décisions, API publiques, versions choisies). Si une étape dévie, c'est là qu'on le voit.
 
 ## Prérequis machine

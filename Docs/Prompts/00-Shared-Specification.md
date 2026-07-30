@@ -210,6 +210,10 @@ client id/secret from configuration. OAuth consent is an interactive, UI-side op
   IEnumerable<string> enabledTools, CancellationToken ct)` + a streaming variant (feeds the UI
   "Test the prompt" pane). Wraps `LlmConfigurationException` from the factory into a reported
   incident (R7) before surfacing a user-friendly error.
+  Stage 14 additionally passes an immutable effective generation policy into each task-owned
+  execution. A per-execution `IChatClient` wrapper or equivalent explicit mechanism applies
+  Temperature, Top P, and the global context-window declaration to every agent round without
+  mutating the shared provider client or using ambient current-task state (§17).
 - **`ToolRegistry`** — the single runtime view of the **Tool Map** (§8.3): maps workflow aliases
   and agent function names to `AITool` instances (built with `AIFunctionFactory.Create`,
   agent-facing names from the Tool Map) and enforces each task's `tools` whitelist (only
@@ -281,6 +285,9 @@ client id/secret from configuration. OAuth consent is an interactive, UI-side op
   carries named outputs between steps; placeholders (`{{stepId.output}}`, `{{previous.output}}`,
   `{{task.id}}`, `{{task.name}}`, `{{task.prompt}}`) are resolved per §8.3 before argument
   binding.
+- AI steps resolve Stage 14 generation options field by field immediately before execution:
+  step override, then task override, then global Settings. Non-AI steps reject generation
+  overrides. The immutable resolved policy is retained for the step's retry sequence (§17).
 - Error policy per step (effective policy = step `onError` ?? task `errorPolicy` ??
   `StopOnError`; also `ContinueOnError`, `Retry` with `retryCount` default 3 and exponential
   backoff `retryBackoffSeconds * 2^(attempt-1)`) using the injected `TimeProvider` for delays.
@@ -341,10 +348,11 @@ generators only**:
 3. **Task editor** — id (`[a-z0-9-]+`), name, cron with preview (next 3 occurrences via Cronos
    + a plain-language label for common patterns: minutely / hourly / daily / weekdays /
    weekly / monthly), tool checkboxes (whitelist), task-owned §14 authorized locations,
-   workflow editor (§8.3, validated on save), save → JSON store + scheduler sync.
+   optional §17 task generation overrides with effective-value provenance, workflow editor
+   (§8.3, validated on save), save → JSON store + scheduler sync.
 4. **Prompt editor** — task prompt editor; **Test the prompt** with live streamed output
    (agent streaming variant), chunk counter plus provider-reported token usage when available,
-   cancel button.
+   effective task generation values, cancel button.
 5. **Logs** (live, read-only) — auto-scrolling view fed by the in-memory Serilog sink; filters
    (level, source, task).
 6. **Tools configuration** — connector credentials only: Google OAuth status + **Connect**
@@ -355,7 +363,7 @@ generators only**:
    which `Safety` flag to enable.
 8. **AI playground** — free prompt → streamed answer from the active provider
    (`GenerateStreamingAsync`, raw completion — not the agent); read-only badge
-   (provider + model); health indicator.
+   (provider + model + §17 global generation defaults); health indicator.
 9. **Settings** — three sections:
    - **AI provider** — radio `Ollama (local, default)` / `OpenAI-compatible (cloud, opt-in)`
      with a visible "cloud" warning; per-provider fields (endpoint, model, timeout); the
@@ -365,6 +373,9 @@ generators only**:
      user settings file (§8.5) with `reloadOnChange`; because the factory reads
      `IOptionsMonitor` and the agent is built per execution, **the switch applies without
      restart** (next run/test uses it; already-running executions are not interrupted).
+     The same section contains §17 **AI generation defaults** for Temperature, Top P, and the
+     one global model-dependent Context window. Temperature and Top P are task/AI-step
+     overridable; Context window is global only.
    - **General** — `FileSystem:RootPath`, HTTP defaults, scheduler options (incl.
      `RunWhenLoggedOff` with its S4U warning), `Safety` toggles (R9) each with an explanatory
      label, Serilog minimum level, tasks/reports folders; validated settings object, Save
@@ -425,6 +436,9 @@ card layout, busy indicators, snackbars.
   "name": "Daily mail summary",
   "schedule": "0 7 * * *",
   "prompt": "Summarize today's emails in French, 10 bullet points max.",
+  "generationOptions": {
+    "temperature": 0.2
+  },
   "tools": ["gmail", "filesystem"],
   "fileSystemAccess": [],
   "workflow": [
@@ -445,13 +459,21 @@ follows §14; `tools` contains only
 the five tool-group constants (`gmail`, `calendar`, `dropbox`, `filesystem`, `http`);
 `workflow` follows §8.3 and only references whitelisted tool groups (`ai.*` steps are always
 allowed); `errorPolicy` ∈ `StopOnError | ContinueOnError | Retry`; `prompt` may be empty only
-if `workflow` is non-empty. Ship this file as `docs/samples/daily-mail-summary.json`.
+if `workflow` is non-empty; optional task `generationOptions` follows §17. Ship this file as
+`docs/samples/daily-mail-summary.json`.
 
 ### 8.2 `appsettings.json` template to ship (safe defaults, no real secrets)
 
 ```json
 {
-  "AI": { "Provider": "Ollama" },
+  "AI": {
+    "Provider": "Ollama",
+    "GenerationDefaults": {
+      "Temperature": 0.2,
+      "TopP": 1.0,
+      "ContextWindowTokens": 8192
+    }
+  },
   "Ollama": { "Endpoint": "http://localhost:11434", "Model": "gemma4:12b", "TimeoutSeconds": 300 },
   "OpenAI": { "Endpoint": "https://api.openai.com/v1", "Model": "gpt-4o-mini", "TimeoutSeconds": 120 },
   "Google": { "ClientId": "YOUR_CLIENT_ID", "ClientSecret": "YOUR_CLIENT_SECRET" },
@@ -481,6 +503,11 @@ A task's `workflow` is an ordered array. **String form**: `"<alias>"` (no argume
   "retryBackoffSeconds": 2
 }
 ```
+
+An object-form AI step may additionally contain sibling
+`"generationOptions": { "temperature": 0.4, "topP": 0.95 }`. Each property is optional and
+inherits independently through step → task → Settings. `generationOptions` on a non-AI step
+is invalid. Context-window configuration is never valid in task or workflow JSON (§17).
 
 - `id` is optional; defaults to the alias. Outputs are addressable as `{{<id>.output}}`.
 - Aliases are resolved case-insensitively against the **Tool Map** below; unknown alias →
@@ -545,7 +572,8 @@ Report Markdown per §7.4; index: one JSON object per line at
    `OpenAI:ApiKey`, `Dropbox:*` and wins over the previous layers.
 
 Options classes bind with `IOptionsMonitor<T>` where hot-reload matters (AI provider,
-endpoints), `IOptions<T>` elsewhere. Nothing ever reads `Environment.CurrentDirectory`.
+endpoints, and §17 global generation defaults), `IOptions<T>` elsewhere. Nothing ever reads
+`Environment.CurrentDirectory`.
 
 ## 9. KEY ARCHITECTURE DECISIONS (record these in the ledger at Stage 0)
 
@@ -586,6 +614,11 @@ endpoints), `IOptions<T>` elsewhere. Nothing ever reads `Environment.CurrentDire
   not prerequisites. Later steps may select fields from earlier JSON outputs or opt into a
   complete context snapshot. Prompt context is explicit rather than automatic to preserve
   compatibility and control local-model context growth.
+- **K. AI generation policy is hierarchical and immutable.** Stage 14 resolves Temperature
+  and Top P independently as AI step → task → global Settings. The model-dependent context
+  window is global because one provider/model is active at a time. Internal helper,
+  explanation, repair, and Guardrails operations use fixed program-owned Temperature/Top P
+  policies while still receiving the global context-window declaration.
 
 ## 10. CODING STANDARDS
 
@@ -614,6 +647,9 @@ plus the stage-specific checks. Stage 6 executes the **final acceptance checklis
 - [ ] All ViewModels use MVVM Toolkit source generators; no manual INPC or command classes.
 - [ ] Settings persists the provider choice, applies without restart; Test connection reports
   real health + latency; API key never touches settings.json (verify the file's contents).
+- [ ] Settings persists valid Temperature, Top P, and Context window values; task and AI-step
+  overrides resolve field by field as step → task → Settings; fixed internal AI operations
+  ignore user Temperature/Top P without losing the global context-window value.
 - [ ] Settings → Diagnostics: Save to disk writes a complete `.log`; Reset clears view and
   archives/truncates rolling files.
 - [ ] Exception drill via the "Trigger test incident" button **and** a faulted background
@@ -1154,6 +1190,204 @@ provider streaming, strict JSON response handling, three-attempt repair, cancell
 tool/path/Safety analysis, proposal acceptance/refusal, atomic Apply/Undo, invalid Explain
 short-circuiting, explanation coverage, Text/Markdown projection, restricted HTML, blocked
 navigation, WebView2 fallback, command states, and absence of assistant persistence/logging.
+
+The stage gate is a warning-clean Release build and complete deterministic test run. Restore,
+build, and test commands explicitly use MSBuild `-m:1`.
+
+## 17. HIERARCHICAL AI GENERATION SETTINGS ADDENDUM
+
+This addendum extends §7.3, §7.4, §7.6, §8.1–§8.3, and §8.5. It does not introduce
+per-task providers/models, a separate workflow model, or user control over deterministic
+internal AI policies.
+
+### 17.1 Locked product decisions
+
+- **D1:** Settings owns global Temperature, Top P, and Context window values for the one
+  currently selected provider/model.
+- **D2:** A task may override Temperature and/or Top P. An object-form Tool Map AI step may
+  independently override either value again.
+- **D3:** Effective user-workflow values resolve per property as AI step → task → Settings.
+  An absent property means inherit; it never resets the complete options object.
+- **D4:** Context window is global only. It cannot appear in task or step JSON and is not an
+  output-token limit.
+- **D5:** AI Workflow Helper generation/refinement/repair, AI Explain/repair, Guardrails
+  screening, and Guardrails reduction use named program-owned policies with Temperature 0
+  and Top P 1. User settings and task/step overrides cannot change them.
+- **D6:** Fixed internal policies still receive the same global Context window as every other
+  LLM call.
+- **D7:** Effective options are immutable and explicitly propagated per execution. Mutable
+  singleton, static current-task, `AsyncLocal`, and other ambient approaches are forbidden
+  because tasks may run concurrently.
+- **D8:** Existing tasks without overrides remain valid and inherit Settings. Empty override
+  objects are not emitted by canonical serialization.
+- **D9:** Provider adapters apply supported settings honestly. Unsupported context-window
+  configuration must not be sent as an invented API field or silently described as enforced.
+- **D10:** This stage does not add Top K, seed, penalties, stop sequences, output-token
+  control, per-task provider/model selection, or a generation-profile library.
+
+### 17.2 Global configuration
+
+The reloadable global contract is:
+
+```json
+{
+  "AI": {
+    "Provider": "Ollama",
+    "GenerationDefaults": {
+      "Temperature": 0.2,
+      "TopP": 1.0,
+      "ContextWindowTokens": 8192
+    }
+  }
+}
+```
+
+Validation is deterministic:
+
+- Temperature is finite and in inclusive range 0–2;
+- Top P is finite, greater than 0, and at most 1;
+- Context window is an integer in inclusive range 1,024–2,000,000;
+- invalid values are rejected, never silently clamped.
+
+Saving Settings preserves `AI:Provider` and unrelated configuration. Values reload through
+`IOptionsMonitor`; a new call sees the new snapshot, while an already-running call retains
+the immutable policy with which it began. Provider/model changes do not guess or silently
+rewrite the context window.
+
+### 17.3 Persisted task and workflow contracts
+
+A task's optional override is:
+
+```json
+"generationOptions": {
+  "temperature": 0.1,
+  "topP": 0.9
+}
+```
+
+Both properties are optional. JSON null, non-numeric values, non-finite values, invalid
+ranges, and unknown properties fail validation. An empty object is accepted on input but
+omitted from canonical output.
+
+An object-form AI workflow step uses the same sibling property:
+
+```json
+{
+  "step": "ai.prompt",
+  "id": "draft",
+  "args": {
+    "prompt": "Draft three titles from {{source.output}}."
+  },
+  "generationOptions": {
+    "temperature": 0.8
+  }
+}
+```
+
+It is workflow metadata, not an `args` value. It is never inserted into a prompt or passed to
+a tool. Eligibility comes only from `ToolMap.Definition.IsAiStep`, including `ai.prompt` and
+built-in AI skills. A non-AI step with `generationOptions` fails validation. String-form AI
+steps remain valid and inherit all values; adding an override requires object form.
+
+`contextWindowTokens`, provider, model, endpoint, credentials, and internal policy names are
+invalid in task/step generation options.
+
+### 17.4 Resolution and runtime propagation
+
+One pure resolver returns a fully populated immutable policy and independent provenance for
+Temperature and Top P:
+
+```text
+temperature = step.temperature ?? task.temperature ?? settings.temperature
+topP        = step.topP        ?? task.topP        ?? settings.topP
+context     = settings.contextWindowTokens
+```
+
+Normal call coverage:
+
+- a prompt-only Runner task uses the task-effective policy;
+- every agent round in that task execution uses the same policy;
+- Prompt editor Test uses the current unsaved task override;
+- an `ai.prompt` or direct built-in skill step uses its step-effective policy;
+- workflow retries retain the policy resolved when the step began;
+- AI Playground has no task and uses the global policy.
+
+Task execution paths must not accidentally use a taskless overload and lose overrides.
+Built-in skills accept explicit policies when called as workflow steps and inherit the
+containing task-agent policy when exposed inside an agent. Concurrent tasks cannot observe
+or mutate each other's policy.
+
+Apply effective Temperature and Top P through `Microsoft.Extensions.AI.ChatOptions`. A
+per-execution chat-client wrapper or equivalent mechanism may merge the policy into every
+agent request, but it must preserve tools, model id, response format, provider properties,
+and cancellation and must not mutate caller-owned options or the shared provider client.
+
+### 17.5 Fixed internal policies
+
+Named program constants are:
+
+```text
+WorkflowAuthoring:   Temperature 0, TopP 1
+WorkflowExplanation: Temperature 0, TopP 1
+GuardrailScreening:  Temperature 0, TopP 1
+GuardrailReduction:  Temperature 0, TopP 1
+```
+
+Workflow generation/refinement and their corrections use `WorkflowAuthoring`; explanation
+and its corrections use `WorkflowExplanation`. These constants are not exposed in Settings,
+task JSON, workflow JSON, or helper UI. They ignore all user Temperature/Top P values while
+still receiving the current global Context window.
+
+### 17.6 Context-window semantics
+
+`ContextWindowTokens` is the application's global declaration for the active model's total
+request budget:
+
+```text
+input messages + agent/tool context + generated output
+```
+
+It is distinct from timeout, source-character limits, and maximum output tokens. It cannot
+increase a model's physical capacity.
+
+Ollama integration maps it to the provider's supported native context-window request option.
+OpenAI-compatible models own their fixed context capacity and may not expose such a request
+option; no invented field is sent. In that case the configured value remains the
+application-declared budget, the UI states the limitation, and the provider is authoritative.
+Content is never silently truncated, summarized, or discarded to satisfy this setting.
+Provider context failures use the existing typed execution and incident/reporting paths.
+
+### 17.7 User interface and helper integration
+
+Settings adds an **AI generation defaults** card with numeric Temperature, Top P, and Context
+window controls, concise explanations, culture-safe decimal editing, inline validation, and
+disabled Save while invalid. It recommends tuning Temperature or Top P rather than both and
+states that context capacity is model-dependent.
+
+Task editor adds optional **AI generation override** controls for Temperature and Top P.
+Each has an independent **Use global default** state and displays its effective value and
+provenance. There is no task context-window field. All changes participate in dirty state,
+save, reload, and validation.
+
+Guided workflow authoring exposes `generationOptions` only for Tool Map AI steps. Stage 13
+deterministic descriptions preserve exact overrides and inherited properties; generation and
+refinement know the schema but never invent provider/model/context properties. AI Explain
+describes configured overrides and deterministic provenance while its own call retains the
+fixed explanation policy. Apply and Undo continue to transfer the canonical workflow JSON
+atomically.
+
+AI Playground displays its global effective policy. Prompt editor displays the current
+task-effective values and provenance during Test.
+
+### 17.8 Required verification
+
+Automated tests cover configuration load/save/hot-reload, culture-safe editing, ranges,
+strict JSON validation, backward-compatible task loading, canonical omission, task/step
+round-trip, non-AI rejection, every inheritance combination and provenance, Runner/agent/
+prompt/skill/playground propagation, retry stability, concurrent isolation, agent multi-round
+option preservation, fixed helper/explanation/Guardrails policies, global context propagation,
+Ollama mapping, OpenAI-compatible non-invention, provider failure behavior, helper description
+and explanation integration, UI command state, and privacy-safe logging.
 
 The stage gate is a warning-clean Release build and complete deterministic test run. Restore,
 build, and test commands explicitly use MSBuild `-m:1`.
