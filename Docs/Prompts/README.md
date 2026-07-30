@@ -14,10 +14,13 @@ Ce dossier contient la version révisée du « Master Prompt » v1, corrigée pu
 | `05-Stage4-UI-Foundation.md` | UI WPF : shell, thème sombre global, DI/host, gestion d'incidents, Dashboard, Settings, Logs. |
 | `06-Stage5-UI-Pages.md` | Pages restantes : Tasks, éditeur de tâche, éditeur de prompt, config outils, tool tester, AI playground, Diagnostics. |
 | `07-Stage6-Hardening-Docs.md` | Audit thème sombre, « exception drill », README complet, script de publication, checklist d'acceptation exécutée. |
-| `08-Stage7-Guardrails-PromptInjectionFilter.md` | **Extension post-v1** — filtre anti prompt-injection : nouveau projet `Guardrails` (screener LLM sans outils, score de confiance 0–100, contenu clair ou Base64), câblage GmailTool + HttpTool, panneau de test UI, docs. À exécuter après acceptation complète de l'étape 6. |
+| `08-Stage7-Guardrails-PromptInjectionFilter.V2.MD` | **Extension post-v1** — filtre anti prompt-injection : nouveau projet `Guardrails` (screener LLM sans outils, score de confiance 0–100, contenu clair ou Base64), câblage GmailTool + HttpTool, panneau de test UI, docs. À exécuter après acceptation complète de l'étape 6. |
 | `09-Stage8-WebSearch.md` | **Extension post-v1** — recherche web : outil `web.search` via l'API Ollama Web Search (clé gratuite, stockée en DPAPI), filtrage Guardrails obligatoire des résultats, groupe d'outils `web`, bloc de configuration UI, tâche d'exemple. Requiert les étapes 0–7. |
-| `10-Stage9-WorkflowGraphEngine-Library.md` | **Extension post-v1 (backend)** — workflows en **graphe conditionnel** : nœuds + transitions à tests (prédicats déterministes + bloc `ai.judge` à verdict borné, fallback obligatoire), DAG sans cycles, **bibliothèque de workflows** réutilisables, paramètres `{{param.*}}`, commande `test-workflow`. Syntaxe chaîne rétrocompatible. Requiert les étapes 0–8. |
-| `11-Stage10-WorkflowsPage.md` | **Extension post-v1 (UI)** — page « Workflows » : éditeur structuré en tables (pas de canvas), aperçu JSON live, validation live, tests depuis la page, liaison depuis l'éditeur de tâches + bouton « créer une tâche planifiée ». Requiert l'étape 9. |
+| `10-Stage9-WorkflowGraphEngine-Library.md` | **Proposition abandonnée — ne pas exécuter.** Ancienne proposition de moteur en graphe et bibliothèque de workflows, remplacée par la continuité du modèle séquentiel. |
+| `11-Stage10-WorkflowsPage.md` | **Proposition abandonnée — ne pas exécuter.** Ancienne proposition de page Workflows séparée, incompatible avec les décisions désormais verrouillées. |
+| `12-Stage11-PerTaskFileSystemAuthorization.md` | **Extension post-v1** — autorisations absolues par tâche, en lecture seule ou lecture-écriture, propagées sans état singleton aux workflows, agents et chemins locaux Dropbox. |
+| `13-Stage12-SequentialWorkflowContext.md` | **Extension post-v1** — sélections structurées dans les sorties JSON, contexte accumulé optionnel pour `ai.prompt`, placeholders date/heure et aide légère à l'édition JSON séquentielle. |
+| `14-Stage13-AIWorkflowHelper.md` | **Extension post-v1** — fenêtre AI Workflow Helper : création et affinage de tableaux JSON par LLM, explication de workflows, validation déterministe, propositions d'outils et d'autorisations, rendu Markdown sécurisé. |
 
 ## Mode d'emploi
 
@@ -25,7 +28,7 @@ Ce dossier contient la version révisée du « Master Prompt » v1, corrigée pu
 2. Ouvrez votre agent **dans ce dossier**, en lui donnant la permission d'écrire des fichiers et d'exécuter des commandes (`dotnet build`, `dotnet test`).
 3. Collez le **prompt de l'étape 0**. Attendez que l'agent annonce le *gate* vert (build + tests OK). Les prompts supposent que la spec partagée est lisible à `docs/prompts/00-Shared-Specification.md` ; si votre agent ne lit pas les fichiers du dépôt, collez la spec partagée en entier avant le prompt d'étape 0 (elle tiendra dans la fenêtre de contexte).
 4. Vérifiez rapidement le résultat (arborescence, absence de `// TODO`, `dotnet build` vert de votre côté aussi si possible), puis enchaînez avec l'étape suivante.
-5. **Ne sautez pas d'étape** et ne fusionnez pas d'étapes : chaque étape suppose l'état exact laissé par la précédente.
+5. Suivez l'ordre 0–8, puis 11–13. Les anciennes propositions 9 et 10 sont abandonnées et ne doivent pas être exécutées. Ne fusionnez pas les autres étapes : chacune suppose l'état exact laissé par la précédente.
 6. Le fichier `docs/ARCHITECTURE-LEDGER.md`, créé à l'étape 0 puis complété à chaque étape, est la **mémoire inter-étapes** (décisions, API publiques, versions choisies). Si une étape dévie, c'est là qu'on le voit.
 
 ## Prérequis machine

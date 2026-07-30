@@ -1009,3 +1009,150 @@ It classifies each identifiable message independently as exactly `Urgent`, `Repl
 `Waiting`, or `FYI` and returns a Markdown table in `text` with Message, Category, Reason,
 and Deadline. This is aggregate batch processing rather than a workflow loop: it produces a
 report and does not route or execute a separate action for each message.
+
+## 16. AI WORKFLOW HELPER ADDENDUM
+
+This addendum extends §7.6, §8.3, §14, and §15. It does not change task persistence,
+sequential execution, runtime authorization, Safety gates, or the existing workflow editor as
+the JSON source of truth.
+
+### 16.1 Locked product decisions
+
+- **D1:** The existing Task editor adds **AI Helper** for creation/modification and
+  **AI Explain** for a non-empty workflow. Both use one reusable **AI Workflow Helper**
+  window; there is no new page.
+- **D2:** Generation returns only the workflow JSON array currently entered by hand. The
+  application continues to construct and persist the complete `ScheduledTask`.
+- **D3:** Existing workflow JSON is converted deterministically in C# into an editable,
+  ordered, lossless textual description. Generation and refinement use that complete
+  description; no visible or persisted chat transcript is maintained.
+- **D4:** The currently configured LLM provider and model are used at each call. System
+  prompts, Tool Map context, placeholder context, repair prompts, provider, and model remain
+  internal. User-visible content is limited to authoring/refinement text, streamed output,
+  validation/proposal state, and explanation.
+- **D5:** Helper calls use `IChatClient` directly with no tools, skills, agent, or execution
+  path. Generated aliases are inert JSON until the task is later saved and run normally.
+- **D6:** The application, not the model, parses and validates JSON and derives tool groups,
+  filesystem requirements, unresolved-path warnings, and Safety-gate warnings.
+- **D7:** Each operation permits three model attempts total: the initial response and at most
+  two deterministic-error correction responses. Exhaustion preserves the last response and
+  errors for manual Retry.
+- **D8:** Apply requires valid JSON and acceptance of every statically required tool-group and
+  filesystem proposal. It atomically updates the Task editor workflow, tools, and authorized
+  locations. One-level Undo restores the immediately preceding editor values until the next
+  save/reload/navigation or helper application.
+- **D9:** Invalid Explain input is rejected locally without an LLM call. A valid explanation
+  is English and covers purpose, steps, workflow prompts, tools, skills, placeholders, data
+  flow, permissions, Safety gates, external effects, and likely failures.
+- **D10:** Assistant descriptions, refinements, responses, explanations, partial streams,
+  errors, and proposal choices are memory-only and must not be logged or persisted.
+- **D11:** Generation and explanation stream, are cancellable, and preserve incomplete output
+  read-only after cancellation. Cancellation causes no repair, execution, editor mutation, or
+  incident.
+- **D12:** Explanation defaults to deterministic plain text and can switch, without another
+  model call, to safely rendered Markdown through Markdig and WebView2.
+
+### 16.2 Authoring and refinement
+
+The deterministic description includes every step in declaration order, original
+string/object form, alias, explicit and effective id, exact typed argument JSON, placeholder
+text, step error policy, and retry values. It never resolves, summarizes, omits, or reorders
+content.
+
+An empty workflow begins with an empty description. Generate uses the complete editable
+description. After a valid candidate, the user may edit that description or submit one
+single-use refinement instruction. Refinement receives the current canonical candidate,
+current deterministic description, and latest instruction only. After success, the
+application rebuilds the complete description from the new JSON and clears the refinement.
+There is no hidden accumulated conversation history.
+
+Generation accepts only a response whose complete non-whitespace content is directly
+deserializable as the canonical workflow array. Markdown fences, prose, prefixes, suffixes,
+unknown aliases, invalid arguments, invalid placeholders, and invalid task rules are errors.
+Correction calls receive the prior raw response and exact deterministic errors and must
+return a complete replacement array.
+
+Required Tool Map arguments and statically checkable placeholder grammar use shared
+workflow-definition validation consumed by both the normal Task editor and the helper. The
+helper must not maintain a divergent validation rule set.
+
+### 16.3 Dynamic catalogs and model boundary
+
+Generation context is versioned and built from `ToolMap.Definitions`, including alias, tool
+group, ordered required/optional arguments, AI-step status, and Safety flag. Placeholder
+syntax comes from one shared catalog used by the runtime resolver and helper; the UI does not
+maintain a handwritten duplicate.
+
+The helper calls the current factory-selected `IChatClient` with one system message and one
+user message and no tools. It does not use `MyLocalAgentAI`, invoke an `ISkill`, inspect
+referenced data, resolve runtime outputs, read files, call connectors, or execute candidate
+steps. Model input excludes secrets, file contents, tool results, logs, and unrelated task
+data. Descriptions, workflow JSON, responses, paths, and explanation content are not logged
+or placed in incidents.
+
+### 16.4 Tool, path, and Safety analysis
+
+Non-AI tool groups are derived from Tool Map ownership. Missing groups are proposed and
+require explicit acceptance. Refusal keeps the helper open and disables Apply.
+
+Tool Map metadata additionally identifies local-path arguments, file/directory kind, and
+required `ReadOnly` or `ReadWrite` access. Static analysis covers filesystem operations and
+the local side of Dropbox transfers. Relative paths remain under `FileSystem:RootPath` and
+need no task grant. A literal absolute file path proposes its containing directory; a literal
+absolute directory proposes itself. Exact duplicate normalized proposals are combined using
+the strongest access, and existing most-specific authorization rules remain authoritative.
+A literal move/delete file-or-directory target proposes its containing directory with an
+explicit broader-scope warning because static analysis does not inspect disk to determine its
+kind.
+
+Paths containing workflow placeholders, unexpanded environment variables, runtime outputs,
+or otherwise indeterminate content produce warnings but no invented authorization. Disk
+existence is not inspected. Stage-11 volume-root confirmation and UNC/S4U warnings remain
+binding.
+
+Safety flags are reported from Tool Map metadata with their current status. The helper never
+changes global Safety settings. A disabled gate is a prominent likely-runtime-failure warning
+but does not alter task-schema validity.
+
+### 16.5 Apply, Undo, and explanation
+
+Before Apply, one review lists missing tool groups, missing or insufficient filesystem grants,
+unresolved dynamic paths, referenced Safety flags, and confirmation that no operation was
+executed. Every required task-owned proposal must be accepted. Apply transfers canonical
+indented workflow-array JSON plus accepted tools and grants to the normal Task editor as one
+operation. Only the existing Save command persists and schedules the task.
+
+AI Explain first parses and validates current draft workflow JSON. Valid input is sent with a
+deterministic requirements/risk analysis. The result explains declaration order, ids,
+arguments, workflow prompts, skills, placeholders, named outputs, structured selections,
+context inclusion, data flow, tool groups, filesystem grants, Safety gates, external effects,
+Guardrails boundaries, and statically visible failure risks. The helper's internal prompts
+are never disclosed.
+
+### 16.6 Markdown rendering and runtime fallback
+
+Stage 13 permits exactly two new centrally pinned packages: `Markdig` and
+`Microsoft.Web.WebView2`, using current stable .NET-10-compatible versions selected at
+implementation time and recorded in the architecture ledger.
+
+Markdig converts the single explanation response to HTML; plain text is a deterministic
+projection of the same parsed Markdown. Raw HTML is disabled or escaped. WebView2 receives an
+in-memory dark document with no scripts and a Content Security Policy blocking remote
+connections, resources, frames, media, fonts, and images. Navigation, pop-ups, downloads, and
+new-window requests are intercepted and blocked.
+
+If the WebView2 Runtime is unavailable or initialization fails, Text mode remains fully
+functional. The UI shows a normal WPF hyperlink to
+`https://developer.microsoft.com/microsoft-edge/webview2/`; only an explicit user action may
+open it. The application never downloads or installs the runtime.
+
+### 16.7 Required verification
+
+Automated tests cover deterministic description fidelity, dynamic catalogs, tool-less current-
+provider streaming, strict JSON response handling, three-attempt repair, cancellation,
+tool/path/Safety analysis, proposal acceptance/refusal, atomic Apply/Undo, invalid Explain
+short-circuiting, explanation coverage, Text/Markdown projection, restricted HTML, blocked
+navigation, WebView2 fallback, command states, and absence of assistant persistence/logging.
+
+The stage gate is a warning-clean Release build and complete deterministic test run. Restore,
+build, and test commands explicitly use MSBuild `-m:1`.
