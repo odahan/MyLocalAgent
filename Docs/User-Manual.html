@@ -2022,7 +2022,7 @@ ollama list</code></pre>
       "step": "filesystem.write",
       "args": {
         "path": "reports/mail-summary.md",
-        "content": "{{summary.output}}"
+        "content": "{{summary.output.text}}"
       }
     }
   ],
@@ -2079,8 +2079,46 @@ ollama list</code></pre>
                             <tr><td><code>{{task.prompt}}</code></td><td>Prompt enregistré.</td></tr>
                             <tr><td><code>{{previous.output}}</code></td><td>Sortie de l’étape précédente.</td></tr>
                             <tr><td><code>{{stepId.output}}</code></td><td>Sortie d’une étape désignée par son id.</td></tr>
+                            <tr><td><code>{{stepId.output.property}}</code></td><td>Propriété extraite d’une sortie JSON ; les index de tableau comme <code>items[0].name</code> sont acceptés.</td></tr>
+                            <tr><td><code>{{workflow.context}}</code></td><td>Instantané JSON de toutes les sorties réussies accumulées jusque-là.</td></tr>
+                            <tr><td><code>{{Today}}</code></td><td>Date locale courante au format <code>yyyy-MM-dd</code>.</td></tr>
+                            <tr><td><code>{{Today[format]}}</code></td><td>Date locale avec le format demandé, par exemple <code>{{Today[YYYY]}}</code> ou <code>{{Today[yyyyMMdd]}}</code>.</td></tr>
+                            <tr><td><code>{{Now}}</code></td><td>Date et heure locales au format <code>yyyy-MM-ddTHH:mm:sszzz</code>.</td></tr>
+                            <tr><td><code>{{Now[format]}}</code></td><td>Date et heure locales avec le format demandé, par exemple <code>{{Now[hhmmss]}}</code>.</td></tr>
                         </tbody>
                     </table>
+                </div>
+                <p>
+                    Les délimiteurs sont exactement deux accolades ouvrantes et deux accolades
+                    fermantes : <code>{{placeholder}}</code>. Un placeholder peut être seul ou
+                    entouré de texte dans toute valeur chaîne située sous <code>args</code>.
+                    La résolution parcourt les objets et tableaux, mais ne modifie ni les noms
+                    de propriétés JSON, ni les nombres, ni les booléens. Les noms et propriétés
+                    JSON sélectionnées ne sont pas sensibles à la casse. Il n’existe pas
+                    d’échappement pour écrire littéralement <code>{{...}}</code> : toute
+                    séquence de ce type est interprétée et un nom inconnu fait échouer l’étape.
+                </p>
+                <p>
+                    Les sélecteurs structurés commencent après <code>.output</code>. Un point
+                    sélectionne une propriété d’objet et <code>[0]</code> un élément de tableau
+                    avec un index commençant à zéro. Par exemple,
+                    <code>{{files.output.entries[0].name}}</code> retourne le nom du premier
+                    fichier. Une propriété absente, un index invalide ou une sélection
+                    structurée appliquée à du texte simple fait échouer l’étape.
+                </p>
+                <p>
+                    Les dates utilisent le fuseau Windows local. Les crochets contiennent un
+                    format personnalisé .NET. Pour les noms de fichiers, les alias
+                    <code>YYYY</code>, <code>YY</code>, <code>DD</code> et
+                    <code>hh</code> signifient <code>yyyy</code>, <code>yy</code>,
+                    <code>dd</code> et <code>HH</code> sur 24 heures. Évitez
+                    <code>/</code> et <code>:</code> dans un nom de fichier Windows.
+                </p>
+                <div class="code-block">
+                    <pre><code>{
+  "path": "reports/{{Today[YYYY]}}/triage-{{Now[yyyyMMdd-hhmmss]}}.md",
+  "content": "{{triage.output.text}}"
+}</code></pre>
                 </div>
 
                 <h3>Politiques d’erreur</h3>
@@ -2121,7 +2159,7 @@ ollama list</code></pre>
                             </tr>
                             <tr>
                                 <td>File system</td>
-                                <td><code>filesystem.list</code>, <code>read</code>, <code>write</code>, <code>move</code>, <code>delete</code>, <code>createDirectory</code></td>
+                                <td><code>filesystem.list</code>, <code>read</code>, <code>write</code>, <code>move</code>, <code>rename</code>, <code>setExtension</code>, <code>delete</code>, <code>createDirectory</code></td>
                                 <td>RootPath et emplacements autorisés de la tâche ; <code>delete</code> exige AllowFileDelete.</td>
                             </tr>
                             <tr>
@@ -2164,6 +2202,8 @@ ollama list</code></pre>
                                     <tr><td><code>filesystem.read</code></td><td><code>path</code></td><td>Lecture texte avec limite de taille.</td></tr>
                                     <tr><td><code>filesystem.write</code></td><td><code>path</code>, <code>content</code></td><td>Crée ou remplace le contenu.</td></tr>
                                     <tr><td><code>filesystem.move</code></td><td><code>from</code>, <code>to</code></td><td>Les deux chemins exigent une autorisation en lecture et écriture.</td></tr>
+                                    <tr><td><code>filesystem.rename</code></td><td><code>path</code>, <code>newName</code></td><td>Renomme un fichier sur place. <code>newName</code> ne peut pas contenir de dossier.</td></tr>
+                                    <tr><td><code>filesystem.setExtension</code></td><td><code>path</code>, <code>extension</code></td><td>Change uniquement l’extension ; accepte <code>md</code> ou <code>.md</code>.</td></tr>
                                     <tr><td><code>filesystem.delete</code></td><td><code>path</code></td><td>Exige AllowFileDelete.</td></tr>
                                     <tr><td><code>filesystem.createDirectory</code></td><td><code>path</code></td><td>Crée un dossier relatif.</td></tr>
                                     <tr><td><code>http.get</code></td><td><code>url</code></td><td>Retourne une réponse HTTP compacte.</td></tr>
@@ -2171,14 +2211,94 @@ ollama list</code></pre>
                                     <tr><td><code>http.post</code></td><td><code>url</code>, <code>body</code>, <code>contentType</code></td><td>Exige AllowHttpPost.</td></tr>
                                     <tr><td><code>web.search</code></td><td><code>query</code>, <code>maxResults</code> facultatif</td><td>Un ensemble compact protégé par Guardrails.</td></tr>
                                     <tr><td><code>ai.summarize</code></td><td><code>text</code> facultatif</td><td>Sans text, reçoit la sortie précédente.</td></tr>
-                                    <tr><td><code>ai.extractActionItems</code></td><td><code>text</code> facultatif</td><td>Extrait actions, responsables et échéances explicites.</td></tr>
-                                    <tr><td><code>ai.classifyEmail</code></td><td><code>text</code> facultatif</td><td>Classe l’urgence et la réponse attendue.</td></tr>
-                                    <tr><td><code>ai.prompt</code></td><td><code>prompt</code></td><td>Prompt libre pouvant contenir des placeholders.</td></tr>
+                                    <tr><td><code>ai.extractActionItems</code></td><td><code>text</code> facultatif</td><td>Checklist Markdown des actions explicites avec responsable, échéance et source. Une information absente vaut <code>Not stated</code> et n’est jamais inventée.</td></tr>
+                                    <tr><td><code>ai.classifyEmail</code></td><td><code>text</code> facultatif</td><td>Classe chaque message identifiable en <code>Urgent</code>, <code>ReplySoon</code>, <code>Waiting</code> ou <code>FYI</code>, puis retourne un tableau Markdown.</td></tr>
+                                    <tr><td><code>ai.prompt</code></td><td><code>prompt</code>, booléen <code>includeContext</code> facultatif</td><td>Prompt libre pouvant contenir des placeholders. L’ajout du contexte est volontaire car il peut être volumineux.</td></tr>
                                 </tbody>
                             </table>
                         </div>
                     </div>
                 </details>
+
+                <h3>Renommer un fichier et changer son extension</h3>
+                <p>
+                    <code>filesystem.rename</code> accepte uniquement un nom simple et
+                    conserve le dossier courant. <code>filesystem.setExtension</code> garde
+                    le nom de base et accepte une extension avec ou sans point initial. Les
+                    deux opérations exigent un accès en lecture-écriture, refusent une
+                    destination existante et retournent un chemin JSON <code>to</code>
+                    réutilisable par l’étape suivante.
+                </p>
+                <div class="code-block">
+                    <pre><code>[
+  {
+    "step": "filesystem.rename",
+    "id": "rename",
+    "args": {
+      "path": "incoming/report.tmp",
+      "newName": "report-{{Today[yyyyMMdd]}}.tmp"
+    }
+  },
+  {
+    "step": "filesystem.setExtension",
+    "args": {
+      "path": "{{rename.output.to}}",
+      "extension": ".md"
+    }
+  }
+]</code></pre>
+                </div>
+
+                <h3>Utiliser l’extraction et la classification sans boucle</h3>
+                <p>
+                    Ces deux skills appellent le LLM sans outil. Si <code>args.text</code> est
+                    omis, ils reçoivent la sortie complète de l’étape précédente ; placés en
+                    première étape, ils reçoivent le prompt de la tâche. Une valeur
+                    <code>text</code> explicite est prioritaire. Ils peuvent donc traiter en
+                    un seul appel tout le lot retourné par <code>gmail.readUnread</code>, sans
+                    boucle de workflow. Leur sortie suit la forme
+                    <code>{"text":"..."}</code> ; utilisez
+                    <code>{{stepId.output.text}}</code> pour insérer uniquement le Markdown.
+                </p>
+                <p>
+                    <code>ai.classifyEmail</code> crée une ligne par message identifiable avec
+                    Message, Category, Reason et Deadline. Il produit seulement un rapport
+                    global : il ne crée pas de branche et ne peut pas lancer une opération
+                    différente pour chaque catégorie.
+                </p>
+                <div class="code-block">
+                    <pre><code>[
+  "gmail.readUnread",
+  { "step": "ai.classifyEmail", "id": "triage" },
+  {
+    "step": "filesystem.write",
+    "args": {
+      "path": "reports/mail-triage-{{Today[yyyyMMdd]}}.md",
+      "content": "{{triage.output.text}}"
+    }
+  }
+]</code></pre>
+                </div>
+                <p>
+                    <code>ai.extractActionItems</code> suit le même schéma par lot. Il retourne
+                    des cases Markdown contenant seulement les actions explicites et écrit
+                    <code>Not stated</code> lorsqu’un responsable, une échéance ou une source
+                    manque. Sans action explicite, il retourne exactement
+                    <code>No explicit action items.</code>
+                </p>
+                <div class="code-block">
+                    <pre><code>[
+  "gmail.readUnread",
+  { "step": "ai.extractActionItems", "id": "actions" },
+  {
+    "step": "filesystem.write",
+    "args": {
+      "path": "reports/actions-{{Now[yyyyMMdd-HHmmss]}}.md",
+      "content": "{{actions.output.text}}"
+    }
+  }
+]</code></pre>
+                </div>
             </section>
 
             <section id="planification" data-title="Planification et cron">

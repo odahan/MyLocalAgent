@@ -10,7 +10,7 @@
     "ai.summarize",
     {
       "step": "filesystem.write",
-      "args": { "path": "reports/daily-mail-summary.md", "content": "{{ai.summarize.output}}" }
+      "args": { "path": "reports/daily-mail-summary.md", "content": "{{ai.summarize.output.text}}" }
     }
   ],
   "enabled": true,

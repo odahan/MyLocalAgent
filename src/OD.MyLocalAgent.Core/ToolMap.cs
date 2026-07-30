@@ -24,6 +24,8 @@ public static class ToolMap
         Tool("filesystem.read", "filesystem_read", ToolGroups.FileSystem, typeof(FileSystemTool), nameof(FileSystemTool.ReadAsync), ["path"]),
         Tool("filesystem.write", "filesystem_write", ToolGroups.FileSystem, typeof(FileSystemTool), nameof(FileSystemTool.WriteAsync), ["path", "content"]),
         Tool("filesystem.move", "filesystem_move", ToolGroups.FileSystem, typeof(FileSystemTool), nameof(FileSystemTool.MoveAsync), ["from", "to"]),
+        Tool("filesystem.rename", "filesystem_rename", ToolGroups.FileSystem, typeof(FileSystemTool), nameof(FileSystemTool.RenameAsync), ["path", "newName"]),
+        Tool("filesystem.setExtension", "filesystem_set_extension", ToolGroups.FileSystem, typeof(FileSystemTool), nameof(FileSystemTool.SetExtensionAsync), ["path", "extension"]),
         Tool("filesystem.delete", "filesystem_delete", ToolGroups.FileSystem, typeof(FileSystemTool), nameof(FileSystemTool.DeleteAsync), ["path"], "Safety:AllowFileDelete"),
         Tool("filesystem.createDirectory", "filesystem_create_directory", ToolGroups.FileSystem, typeof(FileSystemTool), nameof(FileSystemTool.CreateDirectoryAsync), ["path"]),
         Tool("http.get", "http_get", ToolGroups.Http, typeof(HttpTool), nameof(HttpTool.GetAsync), ["url"]),
@@ -40,7 +42,11 @@ public static class ToolMap
         Ai("ai.summarize", typeof(SummarizeTextSkill), ["text"]),
         Ai("ai.extractActionItems", typeof(ExtractActionItemsSkill), ["text"]),
         Ai("ai.classifyEmail", typeof(ClassifyEmailSkill), ["text"]),
-        Ai(PromptAlias, typeof(MyLocalAgentService), ["prompt"]),
+        Ai(
+            PromptAlias,
+            typeof(MyLocalAgentService),
+            ["prompt", "includeContext"],
+            optionalArguments: ["includeContext"]),
     ];
 
     /// <summary>
@@ -85,6 +91,10 @@ public static class ToolMap
     private static ToolDefinition Ai(
         string alias,
         Type type,
-        IReadOnlyList<string> arguments) =>
-        new(alias, null, "ai", type, null, arguments, null, IsAiStep: true);
+        IReadOnlyList<string> arguments,
+        IReadOnlyList<string>? optionalArguments = null) =>
+        new(alias, null, "ai", type, null, arguments, null, IsAiStep: true)
+        {
+            OptionalArguments = optionalArguments ?? [],
+        };
 }

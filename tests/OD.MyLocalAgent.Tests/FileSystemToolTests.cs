@@ -18,7 +18,7 @@ public sealed class FileSystemToolTests : IDisposable
         Path.Combine(Path.GetTempPath(), "OD.MyLocalAgent.Authorized", Guid.NewGuid().ToString("N"));
 
     /// <summary>
-    /// Verifies create, write, read, list, move, and gated delete behavior.
+    /// Verifies create, write, read, list, move, rename, extension, and gated delete behavior.
     /// </summary>
     [Fact]
     public async Task OperationsRemainInsideSandboxAndReturnCompactJson()
@@ -39,8 +39,16 @@ public sealed class FileSystemToolTests : IDisposable
             "reports/report.txt",
             "reports/moved.txt",
             CancellationToken.None);
-        var blockedDelete = () => blockedTool.DeleteAsync(
+        var renameJson = await blockedTool.RenameAsync(
             "reports/moved.txt",
+            "renamed.txt",
+            CancellationToken.None);
+        var extensionJson = await blockedTool.SetExtensionAsync(
+            "reports/renamed.txt",
+            "md",
+            CancellationToken.None);
+        var blockedDelete = () => blockedTool.DeleteAsync(
+            "reports/renamed.md",
             CancellationToken.None);
 
         JsonDocument.Parse(writeJson).RootElement.GetProperty("bytes").GetInt32()
@@ -49,16 +57,44 @@ public sealed class FileSystemToolTests : IDisposable
             .Should().Be("hello");
         JsonDocument.Parse(listJson).RootElement.GetProperty("entries").GetArrayLength()
             .Should().Be(1);
-        File.Exists(Path.Combine(_rootPath, "reports", "moved.txt")).Should().BeTrue();
+        JsonDocument.Parse(renameJson).RootElement.GetProperty("renamed").GetBoolean()
+            .Should().BeTrue();
+        JsonDocument.Parse(extensionJson).RootElement.GetProperty("extension").GetString()
+            .Should().Be(".md");
+        File.Exists(Path.Combine(_rootPath, "reports", "renamed.md")).Should().BeTrue();
         await blockedDelete.Should().ThrowAsync<SafetyException>()
             .Where(exception => exception.RequiredFlag == "Safety:AllowFileDelete");
 
         var allowedTool = CreateTool(allowDelete: true);
         var deleteJson = await allowedTool.DeleteAsync(
-            "reports/moved.txt",
+            "reports/renamed.md",
             CancellationToken.None);
         JsonDocument.Parse(deleteJson).RootElement.GetProperty("deleted").GetBoolean()
             .Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Verifies rename and extension arguments cannot introduce a directory path.
+    /// </summary>
+    [Fact]
+    public async Task RenameAndSetExtensionRejectPathInjection()
+    {
+        Directory.CreateDirectory(_rootPath);
+        var tool = CreateTool(allowDelete: false);
+        await tool.WriteAsync("source.txt", "content", CancellationToken.None);
+
+        var rename = () => tool.RenameAsync(
+            "source.txt",
+            "../escaped.txt",
+            CancellationToken.None);
+        var extension = () => tool.SetExtensionAsync(
+            "source.txt",
+            "../md",
+            CancellationToken.None);
+
+        await rename.Should().ThrowAsync<ArgumentException>();
+        await extension.Should().ThrowAsync<ArgumentException>();
+        File.Exists(Path.Combine(_rootPath, "source.txt")).Should().BeTrue();
     }
 
     /// <summary>
@@ -198,6 +234,50 @@ public sealed class FileSystemToolTests : IDisposable
 
         File.Exists(sourcePath).Should().BeFalse();
         File.Exists(destinationPath).Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Verifies absolute rename and extension changes require task read-write authorization.
+    /// </summary>
+    [Fact]
+    public async Task AbsoluteRenameAndSetExtensionRequireWriteAccess()
+    {
+        Directory.CreateDirectory(_rootPath);
+        Directory.CreateDirectory(_authorizedPath);
+        var sourcePath = Path.Combine(_authorizedPath, "source.txt");
+        await File.WriteAllTextAsync(sourcePath, "content");
+        var readOnlyTool = CreateTool(
+            allowDelete: false,
+            new ToolExecutionContext(
+                "read-only-rename",
+                [
+                    new FileSystemAccessRule
+                    {
+                        Path = _authorizedPath,
+                        Access = FileSystemAccessMode.ReadOnly,
+                    },
+                ]));
+        var blocked = () => readOnlyTool.RenameAsync(
+            sourcePath,
+            "blocked.txt",
+            CancellationToken.None);
+
+        await blocked.Should().ThrowAsync<PathSandboxException>()
+            .WithMessage("*read-only*");
+
+        var writableTool = CreateTool(
+            allowDelete: false,
+            CreateContext("writable-rename", _authorizedPath));
+        _ = await writableTool.RenameAsync(
+            sourcePath,
+            "renamed.txt",
+            CancellationToken.None);
+        _ = await writableTool.SetExtensionAsync(
+            Path.Combine(_authorizedPath, "renamed.txt"),
+            ".md",
+            CancellationToken.None);
+
+        File.Exists(Path.Combine(_authorizedPath, "renamed.md")).Should().BeTrue();
     }
 
     /// <summary>

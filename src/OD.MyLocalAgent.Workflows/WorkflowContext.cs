@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Text.Json;
 
 namespace OD.MyLocalAgent.Workflows;
 
@@ -57,5 +58,46 @@ public sealed class WorkflowContext
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(stepId);
         return _outputs.TryGetValue(stepId, out output);
+    }
+
+    /// <summary>
+    /// Creates a JSON snapshot of every successful step output.
+    /// JSON outputs remain structured while plain-text outputs remain strings.
+    /// </summary>
+    /// <returns>The serialized workflow context.</returns>
+    public string ToJson()
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(
+                   stream,
+                   new JsonWriterOptions { Indented = true }))
+        {
+            writer.WriteStartObject();
+            writer.WritePropertyName("steps");
+            writer.WriteStartObject();
+            foreach (var (stepId, output) in _outputs)
+            {
+                writer.WritePropertyName(stepId);
+                WriteOutput(writer, output);
+            }
+
+            writer.WriteEndObject();
+            writer.WriteEndObject();
+        }
+
+        return System.Text.Encoding.UTF8.GetString(stream.ToArray());
+    }
+
+    private static void WriteOutput(Utf8JsonWriter writer, string output)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(output);
+            document.RootElement.WriteTo(writer);
+        }
+        catch (JsonException)
+        {
+            writer.WriteStringValue(output);
+        }
     }
 }

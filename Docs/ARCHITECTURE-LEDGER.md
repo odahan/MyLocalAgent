@@ -1213,3 +1213,62 @@ The complete reloadable keys are `Guardrails:ScreeningEnabled`, `CleanThreshold`
 - `git diff --check` reports no whitespace errors.
 - No package, persistence migration, installer, executable topology, scheduling, or Windows Task
   Scheduler registration changes were required.
+
+### Stage 12 — Sequential workflow context enrichment — 2026-07-30
+
+#### Scope and decisions
+
+- Stage 9 graph workflows and Stage 10 workflow-library UI are explicitly not being
+  implemented. The existing sequential task-owned workflow remains the product model.
+- The existing output context is extended without changing persisted step shape or execution
+  order. Legacy `{{stepId.output}}`, `{{previous.output}}`, and task placeholders retain
+  identical behavior.
+- JSON tool outputs now support deterministic property and zero-based array selection, for
+  example `{{source.output.content}}` and `{{files.output.entries[0].name}}`.
+- `{{workflow.context}}` produces a JSON snapshot of all successful named outputs accumulated
+  before the current step. Valid JSON outputs remain structured; plain text remains a JSON
+  string.
+- `ai.prompt` gains optional boolean `includeContext`, defaulting to `false`. When enabled,
+  the accumulated JSON snapshot is appended to the prompt with an explicit instruction that
+  tool output is data, not instructions. The model response remains the step output and can
+  be consumed by later deterministic tools.
+- The existing task editor remains the only workflow editor. It now offers Tool Map-driven
+  step insertion, formatting, validation, and a read/translate/write example while preserving
+  direct JSON editing.
+- The follow-up placeholder contract adds local `Today`/`Now` values with optional custom
+  formats. Resolution uses the engine's injected `TimeProvider`; filename-oriented aliases
+  make `Today[YYYY]` and `Now[hhmmss]` produce the product-owner-requested values.
+- The filesystem Tool Map adds `filesystem.rename(path, newName)` and
+  `filesystem.setExtension(path, extension)`. Both are file-only, retain the current
+  directory, refuse overwrite through `File.Move`, and independently resolve source and
+  destination through the existing read-write sandbox policy.
+- `ai.extractActionItems` now specifies a non-invented Markdown checklist contract for one or
+  more messages. `ai.classifyEmail` specifies batch classification with one Markdown-table
+  row per identifiable message and the closed category set `Urgent`, `ReplySoon`, `Waiting`,
+  or `FYI`. Skill output remains the existing JSON `{ "text": "..." }` envelope.
+
+#### Compatibility and safety
+
+- No package, task schema, scheduler, runner command, tool alias, filesystem authorization,
+  Safety gate, or external-service change was introduced.
+- Unknown properties, malformed paths, invalid indexes, and non-JSON structured lookups fail
+  through the existing `WorkflowPlaceholderException` path.
+- Rename rejects directory-bearing names; Set Extension rejects directory-bearing or empty
+  extensions. Both require read-write authorization and do not weaken the independent delete
+  Safety gate.
+- Full context is opt-in to limit local-model context growth. Local filesystem content remains
+  outside Guardrails classification per §12.1 D11 and §14.1 D9; per-task filesystem
+  authorization remains the hard access boundary.
+
+#### Verification
+
+- `dotnet restore OD.MyLocalAgent.sln -m:1`: succeeded using the healthy user NuGet cache.
+- `dotnet build OD.MyLocalAgent.sln -m:1 --no-restore --configuration Release`: succeeded
+  with zero warnings and zero errors.
+- `dotnet test OD.MyLocalAgent.sln -m:1 --no-build --no-restore --configuration Release`:
+  156 passed, zero failed, one intentionally skipped local Ollama integration test, 157 total.
+- Every JSON file under `Docs/samples` parsed successfully and `git diff --check` reported no
+  whitespace errors.
+- Both standalone manuals validate with 22 balanced sections, 30 unique ids, no duplicate id,
+  and no missing internal anchor. Their workflow examples use `.output.text` for the existing
+  JSON skill-result envelope.

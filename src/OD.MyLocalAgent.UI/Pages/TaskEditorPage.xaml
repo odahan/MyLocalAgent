@@ -249,7 +249,33 @@
                                Text="Workflow JSON" />
                     <TextBlock Margin="0,4,0,14"
                                Style="{StaticResource CaptionTextStyle}"
-                               Text="Use Tool Map aliases in string or object form. Save validates syntax, aliases, arguments, ids, and whitelist access." />
+                               Text="Placeholders use double braces: {{task.id}}, {{previous.output}}, {{stepId.output.property}}, {{workflow.context}}, {{Today[yyyyMMdd]}}, or {{Now[HHmmss]}}. They may be inserted in any string value inside args."
+                               TextWrapping="Wrap" />
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="260" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <ComboBox DisplayMemberPath="Alias"
+                                  ItemsSource="{Binding WorkflowAliases}"
+                                  SelectedItem="{Binding SelectedWorkflowAlias}"
+                                  materialDesign:HintAssist.Hint="Step to add" />
+                        <Button Grid.Column="1"
+                                Margin="10,0,0,0"
+                                Command="{Binding AddWorkflowStepCommand}"
+                                Content="Add step" />
+                        <StackPanel Grid.Column="2"
+                                    HorizontalAlignment="Right"
+                                    Orientation="Horizontal">
+                            <Button Command="{Binding LoadTranslationExampleCommand}"
+                                    Content="Translation example" />
+                            <Button Command="{Binding FormatWorkflowCommand}"
+                                    Content="Format JSON" />
+                            <Button Command="{Binding ValidateWorkflowCommand}"
+                                    Content="Validate" />
+                        </StackPanel>
+                    </Grid>
                     <TextBox MinHeight="270"
                              AcceptsReturn="True"
                              AcceptsTab="True"

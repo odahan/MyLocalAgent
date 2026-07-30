@@ -79,6 +79,9 @@ public sealed partial class TaskEditorViewModel : ObservableObject
     private string _workflowText = "[]";
 
     [ObservableProperty]
+    private ToolDefinition? _selectedWorkflowAlias;
+
+    [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(OpenPromptCommand))]
     private bool _isIdReadOnly;
 
@@ -118,6 +121,8 @@ public sealed partial class TaskEditorViewModel : ObservableObject
         _messenger = messenger;
         _timeProvider = timeProvider;
         ErrorPolicies = Enum.GetValues<WorkflowErrorPolicy>();
+        WorkflowAliases = ToolMap.Definitions;
+        SelectedWorkflowAlias = WorkflowAliases.FirstOrDefault();
         UpdateCronPreview();
     }
 
@@ -125,6 +130,11 @@ public sealed partial class TaskEditorViewModel : ObservableObject
     /// Gets the supported task-level workflow error policies.
     /// </summary>
     public IReadOnlyList<WorkflowErrorPolicy> ErrorPolicies { get; }
+
+    /// <summary>
+    /// Gets the workflow steps available in the Tool Map.
+    /// </summary>
+    public IReadOnlyList<ToolDefinition> WorkflowAliases { get; }
 
     /// <summary>
     /// Gets the common scheduler patterns that can be applied without writing cron syntax.
@@ -345,6 +355,165 @@ public sealed partial class TaskEditorViewModel : ObservableObject
     [RelayCommand]
     private void BackToTasks() =>
         _messenger.Send(new NavigateMessage(PageRoute.Tasks));
+
+    [RelayCommand]
+    private void AddWorkflowStep()
+    {
+        if (SelectedWorkflowAlias is null)
+        {
+            ValidationText = "Choose a workflow step to add.";
+            return;
+        }
+
+        try
+        {
+            var workflow = DeserializeWorkflow(WorkflowText).ToList();
+            var idBase = SelectedWorkflowAlias.Alias.Replace('.', '-');
+            var id = idBase;
+            var suffix = 2;
+            while (workflow.Any(
+                       step => string.Equals(
+                           step.EffectiveId,
+                           id,
+                           StringComparison.OrdinalIgnoreCase)))
+            {
+                id = $"{idBase}-{suffix++}";
+            }
+
+            var arguments = new Dictionary<string, object?>();
+            foreach (var argument in SelectedWorkflowAlias.Arguments)
+            {
+                if (SelectedWorkflowAlias.OptionalArguments.Contains(
+                        argument,
+                        StringComparer.OrdinalIgnoreCase) ||
+                    (SelectedWorkflowAlias.IsAiStep &&
+                     !string.Equals(
+                         SelectedWorkflowAlias.Alias,
+                         ToolMap.PromptAlias,
+                         StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
+                arguments[argument] = argument == "prompt"
+                    ? "Use the workflow context to complete this step."
+                    : string.Empty;
+            }
+
+            if (string.Equals(
+                    SelectedWorkflowAlias.Alias,
+                    ToolMap.PromptAlias,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                arguments["includeContext"] = true;
+            }
+
+            workflow.Add(
+                new WorkflowStepDefinition
+                {
+                    Step = SelectedWorkflowAlias.Alias,
+                    Id = id,
+                    Args = JsonSerializer.SerializeToElement(arguments),
+                });
+            WorkflowText = JsonSerializer.Serialize(
+                workflow,
+                ScheduledTaskSerializer.Options);
+            ValidationText =
+                $"Step '{SelectedWorkflowAlias.Alias}' added. Complete its arguments.";
+        }
+        catch (Exception exception)
+            when (exception is JsonException or WorkflowValidationException)
+        {
+            ValidationText = exception.Message;
+        }
+    }
+
+    [RelayCommand]
+    private void FormatWorkflow()
+    {
+        try
+        {
+            WorkflowText = JsonSerializer.Serialize(
+                DeserializeWorkflow(WorkflowText),
+                ScheduledTaskSerializer.Options);
+            ValidationText = "Workflow JSON formatted.";
+        }
+        catch (Exception exception)
+            when (exception is JsonException or WorkflowValidationException)
+        {
+            ValidationText = exception.Message;
+        }
+    }
+
+    [RelayCommand]
+    private void ValidateWorkflow()
+    {
+        try
+        {
+            var workflow = DeserializeWorkflow(WorkflowText);
+            ScheduledTaskValidator.Validate(
+                new ScheduledTask
+                {
+                    Id = string.IsNullOrWhiteSpace(Id) ? "workflow-preview" : Id.Trim(),
+                    Name = string.IsNullOrWhiteSpace(Name) ? "Workflow preview" : Name.Trim(),
+                    Schedule = string.IsNullOrWhiteSpace(Schedule)
+                        ? "0 7 * * *"
+                        : Schedule.Trim(),
+                    Prompt = string.IsNullOrWhiteSpace(Prompt)
+                        ? "Workflow preview"
+                        : Prompt.Trim(),
+                    Tools = GetSelectedToolGroups(),
+                    Workflow = workflow,
+                    Enabled = false,
+                    ErrorPolicy = SelectedErrorPolicy,
+                });
+            ValidationText =
+                $"Workflow is valid ({workflow.Count} step(s)).";
+        }
+        catch (Exception exception)
+            when (exception is TaskValidationException or
+                WorkflowValidationException or
+                JsonException)
+        {
+            ValidationText = AddAliasSuggestion(exception.Message);
+        }
+    }
+
+    [RelayCommand]
+    private void LoadTranslationExample()
+    {
+        WorkflowText =
+            """
+            [
+              {
+                "step": "filesystem.read",
+                "id": "source",
+                "args": {
+                  "path": "inbox/source.txt"
+                }
+              },
+              {
+                "step": "ai.prompt",
+                "id": "translation",
+                "args": {
+                  "prompt": "Translate the source file into English. Return only the translated text.",
+                  "includeContext": true
+                }
+              },
+              {
+                "step": "filesystem.write",
+                "id": "save",
+                "args": {
+                  "path": "translations/source.en.txt",
+                  "content": "{{translation.output}}"
+                }
+              }
+            ]
+            """;
+        UseFileSystem = true;
+        ValidationText =
+            "Translation example loaded. Adapt the source and destination paths.";
+    }
 
     [RelayCommand]
     private void AddAuthorizedLocation()

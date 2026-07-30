@@ -24,9 +24,12 @@ public sealed class ExtractActionItemsSkill : SkillBase
 
     /// <inheritdoc />
     public override string Description =>
-        "Extracts concrete action items, including stated owners and due dates, from supplied untrusted text.";
+        "Extracts explicit action items from one or more untrusted messages, including stated owners, due dates, and sources.";
 
     /// <inheritdoc />
     protected override string Instruction =>
-        "Extract concrete action items. Return a compact list with owner and due date when those are stated; do not invent missing details.";
+        "Extract only explicit, concrete action items from one or more messages. " +
+        "Return Markdown checklist rows in the form '- [ ] Action — Owner: value — Due: value — Source: value'. " +
+        "Use 'Not stated' for missing owner, due date, or source; never infer or invent them. " +
+        "If there are no explicit action items, return exactly 'No explicit action items.'";
 }

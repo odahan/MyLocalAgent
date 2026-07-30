@@ -448,7 +448,7 @@ Object form supplies arguments, an optional output id, and an optional error pol
   "id": "writeReport",
   "args": {
     "path": "reports/mail-summary.md",
-    "content": "{{summary.output}}"
+    "content": "{{summary.output.text}}"
   },
   "onError": "Retry",
   "retryCount": 3,
@@ -467,9 +467,40 @@ Available placeholders are:
 - `{{task.prompt}}`
 - `{{previous.output}}`
 - `{{<stepId>.output}}`
+- `{{previous.output.<field>}}`
+- `{{<stepId>.output.<field>}}`
+- `{{<stepId>.output.<array>[<index>].<field>}}`
+- `{{workflow.context}}`
+- `{{Today}}` and `{{Today[format]}}`
+- `{{Now}}` and `{{Now[format]}}`
 
-An unknown placeholder fails the step. If both `prompt` and `workflow` are present, the
-workflow wins and the prompt remains available through `{{task.prompt}}`.
+Tool outputs that contain JSON can be addressed by property and zero-based array index. A
+selected string is inserted as text; other JSON values are inserted as compact JSON.
+`{{workflow.context}}` serializes every successful named output accumulated so far, preserving
+structured JSON values.
+
+Placeholders use two opening and two closing braces and may appear in any JSON string value
+inside `args`; surrounding text is retained. Names and JSON property selectors are
+case-insensitive. They are not resolved in JSON property names, numbers, or booleans. There is
+no escape syntax for a literal `{{...}}`: anything between double braces is interpreted as a
+placeholder. An unknown property, invalid index, invalid date/time format, or unknown
+placeholder fails the step.
+
+`Today` and `Now` use the Windows local time zone supplied by `TimeProvider`. Without a
+format, `Today` returns `yyyy-MM-dd` and `Now` returns
+`yyyy-MM-ddTHH:mm:sszzz`. Brackets accept .NET custom date/time format text. For convenient
+filename patterns, `YYYY`, `YY`, `DD`, and `hh` are accepted as friendly aliases for `yyyy`,
+`yy`, `dd`, and 24-hour `HH`:
+
+```json
+{
+  "path": "reports/{{Today[YYYY]}}/{{Today[yyyyMMdd]}}-{{Now[hhmmss]}}.md"
+}
+```
+
+This can produce `reports/2026/20260730-143705.md`. Use filename-safe formats without `/`,
+`:`, or other characters forbidden by Windows. If both `prompt` and `workflow` are present,
+the workflow wins and the prompt remains available through `{{task.prompt}}`.
 
 ### Tool Map
 
@@ -487,6 +518,8 @@ workflow wins and the prompt remains available through `{{task.prompt}}`.
 | `filesystem.read` | `filesystem_read` | `FileSystemTool.ReadAsync` | `path` | — |
 | `filesystem.write` | `filesystem_write` | `FileSystemTool.WriteAsync` | `path`, `content` | — |
 | `filesystem.move` | `filesystem_move` | `FileSystemTool.MoveAsync` | `from`, `to` | — |
+| `filesystem.rename` | `filesystem_rename` | `FileSystemTool.RenameAsync` | `path`, `newName` | — |
+| `filesystem.setExtension` | `filesystem_set_extension` | `FileSystemTool.SetExtensionAsync` | `path`, `extension` | — |
 | `filesystem.delete` | `filesystem_delete` | `FileSystemTool.DeleteAsync` | `path` | `Safety:AllowFileDelete` |
 | `filesystem.createDirectory` | `filesystem_create_directory` | `FileSystemTool.CreateDirectoryAsync` | `path` | — |
 | `http.get` | `http_get` | `HttpTool.GetAsync` | `url` | — |
@@ -496,7 +529,138 @@ workflow wins and the prompt remains available through `{{task.prompt}}`.
 | `ai.summarize` | — | `SummarizeTextSkill` | optional `text` | — |
 | `ai.extractActionItems` | — | `ExtractActionItemsSkill` | optional `text` | — |
 | `ai.classifyEmail` | — | `ClassifyEmailSkill` | optional `text` | — |
-| `ai.prompt` | — | workflow prompt step | required `prompt` | — |
+| `ai.prompt` | — | workflow prompt step | required `prompt`, optional `includeContext` | — |
+
+An `ai.prompt` step always records the model response as its named output. Set
+`"includeContext": true` to append a JSON snapshot of all completed step outputs to the
+prompt. The snapshot is explicitly labeled as data rather than instructions. The default is
+`false`, preserving existing workflow behavior and avoiding unnecessary context growth.
+
+`ai.extractActionItems` and `ai.classifyEmail` are tool-less LLM skills. With no
+`args.text`, they consume the previous step output; when first, they consume the task prompt.
+An explicit `text` string, including placeholders, takes precedence. Skill results are JSON
+objects shaped as `{"text":"..."}`; use `{{stepId.output.text}}` to insert only the produced
+Markdown, or `{{stepId.output}}` to pass the complete JSON wrapper.
+
+- `ai.extractActionItems` extracts only explicit actions from one or more messages. It emits
+  Markdown checklist rows with action, owner, due date, and source, uses `Not stated` for
+  missing metadata, and does not invent details. With no explicit action, it returns
+  `No explicit action items.`
+- `ai.classifyEmail` accepts one email or a batch such as the complete output of
+  `gmail.readUnread`. It classifies each identifiable message independently as exactly
+  `Urgent`, `ReplySoon`, `Waiting`, or `FYI`, then emits a Markdown table containing Message,
+  Category, Reason, and Deadline.
+
+The batch behavior makes classification useful without workflow loops:
+
+```json
+[
+  "gmail.readUnread",
+  {
+    "step": "ai.classifyEmail",
+    "id": "triage"
+  },
+  {
+    "step": "filesystem.write",
+    "args": {
+      "path": "reports/mail-triage-{{Today[yyyyMMdd]}}.md",
+      "content": "{{triage.output.text}}"
+    }
+  }
+]
+```
+
+This produces one report; it does not branch the workflow or perform an action per category.
+Use a later `ai.prompt` step to turn the table into one aggregate follow-up, or process the
+report externally when per-message actions are required.
+
+Action extraction uses the same batch pattern:
+
+```json
+[
+  "gmail.readUnread",
+  {
+    "step": "ai.extractActionItems",
+    "id": "actions"
+  },
+  {
+    "step": "filesystem.write",
+    "args": {
+      "path": "reports/actions-{{Now[yyyyMMdd-HHmmss]}}.md",
+      "content": "{{actions.output.text}}"
+    }
+  }
+]
+```
+
+`filesystem.rename` changes only the leaf name and keeps the file in its current directory.
+`filesystem.setExtension` keeps the directory and base name and accepts `md` or `.md`.
+Neither overwrites an existing destination. Both require read-write authorization for the
+source and destination, just like `filesystem.move`.
+
+```json
+[
+  {
+    "step": "filesystem.rename",
+    "id": "rename",
+    "args": {
+      "path": "incoming/report.tmp",
+      "newName": "report-{{Today[yyyyMMdd]}}.tmp"
+    }
+  },
+  {
+    "step": "filesystem.setExtension",
+    "args": {
+      "path": "{{rename.output.to}}",
+      "extension": ".md"
+    }
+  }
+]
+```
+
+### Example: read, translate, and write a file
+
+```json
+{
+  "id": "translate-local-file",
+  "name": "Translate local file",
+  "schedule": "0 7 * * *",
+  "prompt": "",
+  "tools": ["filesystem"],
+  "fileSystemAccess": [],
+  "workflow": [
+    {
+      "step": "filesystem.read",
+      "id": "source",
+      "args": {
+        "path": "inbox/source.txt"
+      }
+    },
+    {
+      "step": "ai.prompt",
+      "id": "translation",
+      "args": {
+        "prompt": "Translate the source file into English. Return only the translated text.",
+        "includeContext": true
+      }
+    },
+    {
+      "step": "filesystem.write",
+      "id": "save",
+      "args": {
+        "path": "translations/source.en.txt",
+        "content": "{{translation.output}}"
+      }
+    }
+  ],
+  "enabled": true,
+  "errorPolicy": "StopOnError"
+}
+```
+
+The prompt receives the structured `source` output, including its path and content, and its
+response becomes `translation.output`. For a more selective prompt, omit `includeContext` and
+use `{{source.output.content}}` directly in `prompt`.
 
 ### Example: mail summary to a report file
 
@@ -519,7 +683,7 @@ workflow wins and the prompt remains available through `{{task.prompt}}`.
       "id": "writeReport",
       "args": {
         "path": "reports/daily-mail-summary.md",
-        "content": "{{summary.output}}"
+        "content": "{{summary.output.text}}"
       }
     }
   ],
@@ -554,7 +718,7 @@ inside the filesystem sandbox, and backs it up to Dropbox:
         "summary": "Review unread mail actions",
         "start": "2026-07-30T09:00:00+02:00",
         "end": "2026-07-30T09:30:00+02:00",
-        "description": "{{actions.output}}"
+        "description": "{{actions.output.text}}"
       }
     },
     {
@@ -562,7 +726,7 @@ inside the filesystem sandbox, and backs it up to Dropbox:
       "id": "report",
       "args": {
         "path": "reports/unread-actions.md",
-        "content": "{{actions.output}}"
+        "content": "{{actions.output.text}}"
       }
     },
     {
@@ -611,7 +775,7 @@ the brief inside the filesystem sandbox:
       "step": "filesystem.write",
       "args": {
         "path": "reports/web-daily-brief.md",
-        "content": "{{summary.output}}"
+        "content": "{{summary.output.text}}"
       }
     }
   ],

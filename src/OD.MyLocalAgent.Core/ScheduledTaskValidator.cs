@@ -218,6 +218,15 @@ public static partial class ScheduledTaskValidator
                 throw new WorkflowValidationException(
                     "Workflow alias 'ai.prompt' requires string argument 'prompt'.");
             }
+
+            if (string.Equals(step.Step, ToolMap.PromptAlias, StringComparison.OrdinalIgnoreCase) &&
+                step.Args.TryGetProperty("includeContext", out var includeContext) &&
+                includeContext.ValueKind is not JsonValueKind.True and not JsonValueKind.False)
+            {
+                throw new WorkflowValidationException(
+                    "Workflow argument 'includeContext' must be a boolean.");
+            }
+
         }
     }
 

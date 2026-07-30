@@ -1,0 +1,37 @@
+{
+  "id": "translate-local-file",
+  "name": "Translate local file",
+  "schedule": "0 7 * * *",
+  "prompt": "",
+  "tools": [
+    "filesystem"
+  ],
+  "fileSystemAccess": [],
+  "workflow": [
+    {
+      "step": "filesystem.read",
+      "id": "source",
+      "args": {
+        "path": "inbox/source.txt"
+      }
+    },
+    {
+      "step": "ai.prompt",
+      "id": "translation",
+      "args": {
+        "prompt": "Translate the source file into English. Return only the translated text.",
+        "includeContext": true
+      }
+    },
+    {
+      "step": "filesystem.write",
+      "id": "save",
+      "args": {
+        "path": "translations/source.en.txt",
+        "content": "{{translation.output}}"
+      }
+    }
+  ],
+  "enabled": true,
+  "errorPolicy": "StopOnError"
+}

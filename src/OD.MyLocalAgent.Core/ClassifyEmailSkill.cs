@@ -24,9 +24,12 @@ public sealed class ClassifyEmailSkill : SkillBase
 
     /// <inheritdoc />
     public override string Description =>
-        "Classifies supplied untrusted email content by urgency and required response.";
+        "Classifies each supplied untrusted email independently by urgency and required response.";
 
     /// <inheritdoc />
     protected override string Instruction =>
-        "Classify the email as Urgent, ReplySoon, Waiting, or FYI. Give one short reason and identify any explicit deadline.";
+        "Classify each identifiable email independently as exactly one of Urgent, ReplySoon, Waiting, or FYI. " +
+        "Return a compact Markdown table with columns Message, Category, Reason, and Deadline. " +
+        "Use the provider id or subject as Message when present. Use 'Not stated' when no explicit deadline exists. " +
+        "Do not invent message identifiers, deadlines, or facts. If the input contains multiple emails, return one row per email.";
 }

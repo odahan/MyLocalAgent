@@ -581,6 +581,11 @@ endpoints), `IOptions<T>` elsewhere. Nothing ever reads `Environment.CurrentDire
   screening remains marked Base64. Source URLs are metadata outside the screened payload.
   A later local provider such as SearXNG fits behind `IWebSearchProvider` without changing
   workflows.
+- **J. Sequential workflows use an accumulated structured context.** Stage 12 retains the
+  task-owned ordered workflow model; the abandoned Stage 9 graph and Stage 10 library UI are
+  not prerequisites. Later steps may select fields from earlier JSON outputs or opt into a
+  complete context snapshot. Prompt context is explicit rather than automatic to preserve
+  compatibility and control local-model context growth.
 
 ## 10. CODING STANDARDS
 
@@ -937,3 +942,70 @@ and concurrent executions with different task policies.
 
 The stage gate is a warning-clean Release build and complete test run. Commands explicitly use
 MSBuild `-m:1`.
+
+## 15. SEQUENTIAL WORKFLOW CONTEXT ADDENDUM
+
+This addendum extends §7.4 and §8.3. It does not introduce graph routing, a workflow library,
+workflow parameters, `ai.judge`, or a separate Workflows page.
+
+### 15.1 Structured outputs and accumulated context
+
+The existing `{{previous.output}}` and `{{stepId.output}}` placeholders remain unchanged.
+When a tool output is valid JSON, a placeholder may append case-insensitive object properties
+and zero-based array indexes, for example `{{source.output.content}}` or
+`{{files.output.entries[0].name}}`. Selected strings are inserted as text; other JSON values
+are inserted as compact JSON. Missing properties, malformed or invalid indexes, and
+structured selection from non-JSON output fail with `WorkflowPlaceholderException`.
+
+`{{workflow.context}}` serializes the successful outputs completed before the current step as
+an object whose root property is `steps`. JSON outputs remain structured and plain-text
+outputs become JSON strings. Entries retain sequential execution order.
+
+### 15.2 Prompt steps
+
+`ai.prompt` accepts required string `prompt` and optional boolean `includeContext`. The
+default is `false`. When enabled, the engine appends the accumulated context snapshot under
+an English warning that the JSON is data, not instructions. The call retains the task tool
+whitelist and immutable per-task execution context. The returned model text is recorded as
+the prompt step's named output for later deterministic steps.
+
+Full context is opt-in because it may consume substantial model context. Local filesystem
+content remains outside Guardrails classification under §12.1 D11 and §14.1 D9; filesystem
+authorization, tool whitelists, and Safety gates remain the enforceable boundaries.
+
+### 15.3 Authoring
+
+The existing Task editor remains the workflow editor and JSON remains the persisted source
+of truth. It may provide Tool Map-driven step insertion, canonical formatting, validation,
+and ready-to-adapt examples. No additional workflow persistence or scheduling surface is
+introduced.
+
+### 15.4 Local date/time placeholders and file-name operations
+
+`{{Today}}` resolves in the injected `TimeProvider` local time zone as `yyyy-MM-dd`.
+`{{Now}}` resolves as `yyyy-MM-ddTHH:mm:sszzz`. Both accept bracketed .NET custom date/time
+formats. Filename-friendly aliases normalize `YYYY`, `YY`, `DD`, and `hh` to `yyyy`, `yy`,
+`dd`, and 24-hour `HH`; therefore `{{Today[YYYY]}}` returns the year and
+`{{Now[hhmmss]}}` returns a separator-free 24-hour time. Empty, excessive, malformed, or
+unknown placeholders fail the step. Users remain responsible for choosing formats containing
+only characters valid at the destination.
+
+The filesystem Tool Map adds `filesystem.rename(path, newName)` and
+`filesystem.setExtension(path, extension)`. Rename accepts only a leaf file name and never
+changes the directory. Set Extension accepts a value with or without a leading period and
+changes only the extension. Both operate on files, never overwrite an existing destination,
+and require effective read-write authorization for source and destination. They do not use
+the delete Safety gate.
+
+### 15.5 Batch skill semantics
+
+`ai.extractActionItems` accepts one or more messages and returns a JSON object containing a
+Markdown checklist in `text`. It extracts only explicit actions and includes owner, due date,
+and source; missing values are `Not stated` and are never inferred. No explicit action returns
+exactly `No explicit action items.`
+
+`ai.classifyEmail` accepts one email or a complete batch such as `gmail.readUnread` output.
+It classifies each identifiable message independently as exactly `Urgent`, `ReplySoon`,
+`Waiting`, or `FYI` and returns a Markdown table in `text` with Message, Category, Reason,
+and Deadline. This is aggregate batch processing rather than a workflow loop: it produces a
+report and does not route or execute a separate action for each message.

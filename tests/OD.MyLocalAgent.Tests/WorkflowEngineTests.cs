@@ -343,6 +343,207 @@ public sealed class WorkflowEngineTests
     }
 
     /// <summary>
+    /// Verifies placeholders can select object properties and array items from JSON outputs.
+    /// </summary>
+    [Fact]
+    public async Task ResolvesStructuredOutputPaths()
+    {
+        var registry = new RecordingToolRegistry(
+            (alias, arguments, _) =>
+            {
+                if (alias == "filesystem.list")
+                {
+                    return Task.FromResult(
+                        """{"path":"inbox","entries":[{"name":"source.txt","type":"file"}]}""");
+                }
+
+                arguments.GetProperty("path").GetString()
+                    .Should().Be("inbox/source.txt");
+                arguments.GetProperty("content").GetString()
+                    .Should().Be("source.txt");
+                return Task.FromResult("""{"path":"inbox/source.txt","bytes":10}""");
+            });
+        var task = CreateTask(
+            [
+                Step("filesystem.list", "files", """{ "path": "inbox" }"""),
+                Step(
+                    "filesystem.write",
+                    "save",
+                    """
+                    {
+                      "path": "{{files.output.path}}/{{files.output.entries[0].name}}",
+                      "content": "{{previous.output.entries[0].name}}"
+                    }
+                    """),
+            ]);
+
+        var result = await CreateEngine(registry).ExecuteAsync(
+            task,
+            CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        registry.Aliases.Should().Equal("filesystem.list", "filesystem.write");
+    }
+
+    /// <summary>
+    /// Verifies prompt steps can receive the accumulated structured workflow context.
+    /// </summary>
+    [Fact]
+    public async Task PromptStepCanIncludeAccumulatedContext()
+    {
+        var registry = new RecordingToolRegistry(
+            (_, _, _) => Task.FromResult(
+                """{"path":"inbox/source.txt","content":"Bonjour"}"""));
+        var agent = new Mock<IMyLocalAgentService>(MockBehavior.Strict);
+        agent.Setup(
+                service => service.RunPromptAsync(
+                    It.Is<string>(
+                        prompt =>
+                            prompt.StartsWith("Translate into English.") &&
+                            prompt.Contains("\"source\"") &&
+                            prompt.Contains("\"content\": \"Bonjour\"")),
+                    It.IsAny<IEnumerable<string>>(),
+                    It.IsAny<ToolExecutionContext>(),
+                    It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AgentRunResult("Hello", "Test"));
+        var task = CreateTask(
+            [
+                Step(
+                    "filesystem.read",
+                    "source",
+                    """{ "path": "inbox/source.txt" }"""),
+                Step(
+                    "ai.prompt",
+                    "translation",
+                    """
+                    {
+                      "prompt": "Translate into English.",
+                      "includeContext": true
+                    }
+                    """),
+            ]);
+
+        var result = await CreateEngine(
+                registry,
+                agentService: agent.Object)
+            .ExecuteAsync(task, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        result.FinalText.Should().Be("Hello");
+        agent.VerifyAll();
+    }
+
+    /// <summary>
+    /// Verifies invalid structured selectors fail before the following tool is invoked.
+    /// </summary>
+    [Fact]
+    public async Task InvalidStructuredOutputPathFailsStep()
+    {
+        var registry = new RecordingToolRegistry(
+            (alias, _, _) => Task.FromResult(
+                alias == "filesystem.list"
+                    ? """{"entries":[]}"""
+                    : "unexpected"));
+        var task = CreateTask(
+            [
+                Step("filesystem.list", "files", """{ "path": "inbox" }"""),
+                Step(
+                    "filesystem.read",
+                    "read",
+                    """{ "path": "{{files.output.entries[0].name}}" }"""),
+            ]);
+
+        var result = await CreateEngine(registry).ExecuteAsync(
+            task,
+            CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        result.Steps[1].Error.Should().BeOfType<WorkflowPlaceholderException>();
+        registry.Aliases.Should().Equal("filesystem.list");
+    }
+
+    /// <summary>
+    /// Verifies the context snapshot preserves JSON outputs and quotes plain text.
+    /// </summary>
+    [Fact]
+    public void WorkflowContextSerializesStructuredAndPlainOutputs()
+    {
+        var context = new WorkflowContext();
+        context.RecordOutput("source", """{"content":"Bonjour"}""");
+        context.RecordOutput("translation", "Hello");
+
+        using var document = JsonDocument.Parse(context.ToJson());
+
+        document.RootElement.GetProperty("steps")
+            .GetProperty("source")
+            .GetProperty("content")
+            .GetString()
+            .Should().Be("Bonjour");
+        document.RootElement.GetProperty("steps")
+            .GetProperty("translation")
+            .GetString()
+            .Should().Be("Hello");
+    }
+
+    /// <summary>
+    /// Verifies prompt context inclusion uses a JSON boolean rather than a string flag.
+    /// </summary>
+    [Fact]
+    public void PromptContextFlagMustBeBoolean()
+    {
+        var task = CreateTask(
+            [
+                Step(
+                    "ai.prompt",
+                    "prompt",
+                    """{ "prompt": "Translate.", "includeContext": "true" }"""),
+            ]);
+
+        var action = () => ScheduledTaskValidator.Validate(task);
+
+        action.Should()
+            .Throw<WorkflowValidationException>()
+            .WithMessage("*includeContext*boolean*");
+    }
+
+    /// <summary>
+    /// Verifies local date and time placeholders support defaults and filename-safe formats.
+    /// </summary>
+    [Fact]
+    public async Task ResolvesTodayAndNowWithFriendlyFormats()
+    {
+        var timeProvider = new RecordingTimeProvider();
+        var registry = new RecordingToolRegistry(
+            (_, arguments, _) =>
+            {
+                arguments.GetProperty("path").GetString()
+                    .Should().Be("reports/2026/20260729-120000.txt");
+                arguments.GetProperty("content").GetString()
+                    .Should().Be("2026-07-29|2026-07-29T12:00:00+00:00");
+                return Task.FromResult("ok");
+            });
+        var task = CreateTask(
+            [
+                Step(
+                    "filesystem.write",
+                    "dated",
+                    """
+                    {
+                      "path": "reports/{{Today[YYYY]}}/{{Today[yyyyMMdd]}}-{{Now[hhmmss]}}.txt",
+                      "content": "{{Today}}|{{Now}}"
+                    }
+                    """),
+            ]);
+
+        var result = await CreateEngine(
+                registry,
+                timeProvider: timeProvider)
+            .ExecuteAsync(task, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+    }
+
+    /// <summary>
     /// Verifies deterministic tool calls receive the task's file-system grants.
     /// </summary>
     [Fact]
@@ -543,6 +744,8 @@ public sealed class WorkflowEngineTests
         public List<TimeSpan> Delays { get; } = [];
 
         public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+
+        public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.Utc;
 
         public override DateTimeOffset GetUtcNow() =>
             InitialUtc + TimeSpan.FromTicks(_timestamp);

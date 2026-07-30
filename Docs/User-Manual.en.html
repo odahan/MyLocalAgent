@@ -1681,7 +1681,7 @@ ollama list</code></pre>
       "step": "filesystem.write",
       "args": {
         "path": "reports/mail-summary.md",
-        "content": "{{summary.output}}"
+        "content": "{{summary.output.text}}"
       }
     }
   ],
@@ -1736,8 +1736,45 @@ ollama list</code></pre>
                             <tr><td><code>{{task.prompt}}</code></td><td>Saved task prompt.</td></tr>
                             <tr><td><code>{{previous.output}}</code></td><td>Output of the previous step.</td></tr>
                             <tr><td><code>{{stepId.output}}</code></td><td>Output of a named step.</td></tr>
+                            <tr><td><code>{{stepId.output.property}}</code></td><td>Property selected from a JSON step output; array indexes such as <code>items[0].name</code> are supported.</td></tr>
+                            <tr><td><code>{{workflow.context}}</code></td><td>JSON snapshot of every successful output accumulated so far.</td></tr>
+                            <tr><td><code>{{Today}}</code></td><td>Current local date as <code>yyyy-MM-dd</code>.</td></tr>
+                            <tr><td><code>{{Today[format]}}</code></td><td>Current local date using the requested format, for example <code>{{Today[YYYY]}}</code> or <code>{{Today[yyyyMMdd]}}</code>.</td></tr>
+                            <tr><td><code>{{Now}}</code></td><td>Current local date and time as <code>yyyy-MM-ddTHH:mm:sszzz</code>.</td></tr>
+                            <tr><td><code>{{Now[format]}}</code></td><td>Current local date and time using the requested format, for example <code>{{Now[hhmmss]}}</code>.</td></tr>
                         </tbody>
                     </table>
+                </div>
+                <p>
+                    The delimiters are exactly two opening braces and two closing braces:
+                    <code>{{placeholder}}</code>. A placeholder may appear alone or inside
+                    surrounding text in any string value under <code>args</code>. Resolution
+                    is recursive in objects and arrays, but does not apply to JSON property
+                    names, numbers, or booleans. Names and selected JSON properties are
+                    case-insensitive. There is no literal-brace escape syntax: every
+                    <code>{{...}}</code> sequence is interpreted and an unknown name fails
+                    the step.
+                </p>
+                <p>
+                    Structured selectors start after <code>.output</code>. A dot selects an
+                    object property and <code>[0]</code> selects a zero-based array item.
+                    For example, <code>{{files.output.entries[0].name}}</code> selects the
+                    first file name. A missing property, invalid index, or selector applied
+                    to plain text fails the step instead of silently inserting an empty value.
+                </p>
+                <p>
+                    Date and time values use the Windows local time zone. Brackets contain
+                    .NET custom date/time format text. The filename-friendly aliases
+                    <code>YYYY</code>, <code>YY</code>, <code>DD</code>, and
+                    <code>hh</code> mean <code>yyyy</code>, <code>yy</code>,
+                    <code>dd</code>, and 24-hour <code>HH</code>. Use formats without
+                    <code>/</code> or <code>:</code> in Windows file names.
+                </p>
+                <div class="code-block">
+                    <pre><code>{
+  "path": "reports/{{Today[YYYY]}}/triage-{{Now[yyyyMMdd-hhmmss]}}.md",
+  "content": "{{triage.output.text}}"
+}</code></pre>
                 </div>
 
                 <h3>Error policies</h3>
@@ -1760,7 +1797,7 @@ ollama list</code></pre>
                             <tr><td>Gmail</td><td><code>gmail.readToday</code>, <code>gmail.readUnread</code>, <code>gmail.send</code></td><td><code>gmail.send</code> needs AllowSendEmail.</td></tr>
                             <tr><td>Calendar</td><td><code>calendar.today</code>, <code>calendar.create</code></td><td>Create uses explicit ISO 8601 dates.</td></tr>
                             <tr><td>Dropbox</td><td><code>dropbox.upload</code>, <code>dropbox.download</code>, <code>dropbox.list</code></td><td>Dropbox secrets use DPAPI.</td></tr>
-                            <tr><td>File system</td><td><code>filesystem.list</code>, <code>read</code>, <code>write</code>, <code>move</code>, <code>delete</code>, <code>createDirectory</code></td><td>RootPath plus task-authorized locations; delete needs AllowFileDelete.</td></tr>
+                            <tr><td>File system</td><td><code>filesystem.list</code>, <code>read</code>, <code>write</code>, <code>move</code>, <code>rename</code>, <code>setExtension</code>, <code>delete</code>, <code>createDirectory</code></td><td>RootPath plus task-authorized locations; delete needs AllowFileDelete.</td></tr>
                             <tr><td>HTTP</td><td><code>http.get</code>, <code>http.getText</code>, <code>http.post</code></td><td>Host allowlist; post needs AllowHttpPost.</td></tr>
                             <tr><td>Web</td><td><code>web.search</code></td><td>Explicit Ollama cloud opt-in; mandatory Guardrails envelope.</td></tr>
                             <tr><td>AI</td><td><code>ai.summarize</code>, <code>ai.extractActionItems</code>, <code>ai.classifyEmail</code>, <code>ai.prompt</code></td><td>Skills execute without tools.</td></tr>
@@ -1787,6 +1824,8 @@ ollama list</code></pre>
                                     <tr><td><code>filesystem.read</code></td><td><code>path</code></td><td>Text read with size cap.</td></tr>
                                     <tr><td><code>filesystem.write</code></td><td><code>path</code>, <code>content</code></td><td>Creates or replaces content.</td></tr>
                                     <tr><td><code>filesystem.move</code></td><td><code>from</code>, <code>to</code></td><td>Both paths require read-write authorization.</td></tr>
+                                    <tr><td><code>filesystem.rename</code></td><td><code>path</code>, <code>newName</code></td><td>Renames one file in place. <code>newName</code> cannot contain a directory.</td></tr>
+                                    <tr><td><code>filesystem.setExtension</code></td><td><code>path</code>, <code>extension</code></td><td>Changes only the extension; accepts <code>md</code> or <code>.md</code>.</td></tr>
                                     <tr><td><code>filesystem.delete</code></td><td><code>path</code></td><td>Requires AllowFileDelete.</td></tr>
                                     <tr><td><code>filesystem.createDirectory</code></td><td><code>path</code></td><td>Creates a relative directory.</td></tr>
                                     <tr><td><code>http.get</code></td><td><code>url</code></td><td>Returns a compact HTTP result.</td></tr>
@@ -1794,14 +1833,91 @@ ollama list</code></pre>
                                     <tr><td><code>http.post</code></td><td><code>url</code>, <code>body</code>, <code>contentType</code></td><td>Requires AllowHttpPost.</td></tr>
                                     <tr><td><code>web.search</code></td><td><code>query</code>, optional <code>maxResults</code></td><td>One compact Guardrails-protected result set.</td></tr>
                                     <tr><td><code>ai.summarize</code></td><td>Optional <code>text</code></td><td>Without text, receives previous output.</td></tr>
-                                    <tr><td><code>ai.extractActionItems</code></td><td>Optional <code>text</code></td><td>Extracts explicit actions, owners, and dates.</td></tr>
-                                    <tr><td><code>ai.classifyEmail</code></td><td>Optional <code>text</code></td><td>Classifies urgency and expected response.</td></tr>
-                                    <tr><td><code>ai.prompt</code></td><td><code>prompt</code></td><td>Free prompt that may include placeholders.</td></tr>
+                                    <tr><td><code>ai.extractActionItems</code></td><td>Optional <code>text</code></td><td>Markdown checklist of explicit actions with owner, due date, and source. Missing metadata is <code>Not stated</code>; details are never invented.</td></tr>
+                                    <tr><td><code>ai.classifyEmail</code></td><td>Optional <code>text</code></td><td>Classifies every identifiable input email as <code>Urgent</code>, <code>ReplySoon</code>, <code>Waiting</code>, or <code>FYI</code> and returns a Markdown table.</td></tr>
+                                    <tr><td><code>ai.prompt</code></td><td><code>prompt</code>, optional boolean <code>includeContext</code></td><td>Free prompt that may include placeholders. Context inclusion is opt-in because it can be large.</td></tr>
                                 </tbody>
                             </table>
                         </div>
                     </div>
                 </details>
+
+                <h3>Renaming a file and changing its extension</h3>
+                <p>
+                    <code>filesystem.rename</code> accepts a leaf name only and keeps the
+                    current directory. <code>filesystem.setExtension</code> keeps the base
+                    name and accepts an extension with or without its leading period. Both
+                    require read-write authorization, refuse an existing destination, and
+                    return a JSON <code>to</code> path that the next step can reuse.
+                </p>
+                <div class="code-block">
+                    <pre><code>[
+  {
+    "step": "filesystem.rename",
+    "id": "rename",
+    "args": {
+      "path": "incoming/report.tmp",
+      "newName": "report-{{Today[yyyyMMdd]}}.tmp"
+    }
+  },
+  {
+    "step": "filesystem.setExtension",
+    "args": {
+      "path": "{{rename.output.to}}",
+      "extension": ".md"
+    }
+  }
+]</code></pre>
+                </div>
+
+                <h3>Using action extraction and email classification without loops</h3>
+                <p>
+                    Both skills are tool-less LLM calls. If <code>args.text</code> is omitted,
+                    they receive the complete previous-step output; when they are first, they
+                    receive the task prompt. An explicit <code>text</code> value takes
+                    precedence. They can therefore process the complete batch returned by
+                    <code>gmail.readUnread</code> in one call—no workflow loop is required.
+                    Their output is <code>{"text":"..."}</code>; use
+                    <code>{{stepId.output.text}}</code> to insert only the generated Markdown.
+                </p>
+                <p>
+                    <code>ai.classifyEmail</code> creates one table row per identifiable
+                    message with Message, Category, Reason, and Deadline. It produces an
+                    aggregate report only: it does not branch the workflow and cannot execute
+                    a different operation for each category.
+                </p>
+                <div class="code-block">
+                    <pre><code>[
+  "gmail.readUnread",
+  { "step": "ai.classifyEmail", "id": "triage" },
+  {
+    "step": "filesystem.write",
+    "args": {
+      "path": "reports/mail-triage-{{Today[yyyyMMdd]}}.md",
+      "content": "{{triage.output.text}}"
+    }
+  }
+]</code></pre>
+                </div>
+                <p>
+                    <code>ai.extractActionItems</code> uses the same batch pattern. It returns
+                    Markdown checklist rows containing only explicit actions and writes
+                    <code>Not stated</code> for an absent owner, due date, or source. If none
+                    exist, it returns exactly <code>No explicit action items.</code>
+                </p>
+                <div class="code-block">
+                    <pre><code>[
+  "gmail.readUnread",
+  { "step": "ai.extractActionItems", "id": "actions" },
+  {
+    "step": "filesystem.write",
+    "args": {
+      "path": "reports/actions-{{Now[yyyyMMdd-HHmmss]}}.md",
+      "content": "{{actions.output.text}}"
+    }
+  }
+]</code></pre>
+                </div>
             </section>
 
             <section id="scheduling" data-title="Scheduling and cron">

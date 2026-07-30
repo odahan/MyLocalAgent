@@ -131,4 +131,29 @@ public sealed class TaskEditorViewModelTests
 
         viewModel.AuthorizedLocations.Should().BeEmpty();
     }
+
+    /// <summary>
+    /// Verifies the guided workflow editor inserts a usable prompt-step skeleton.
+    /// </summary>
+    [Fact]
+    public void GuidedEditorAddsAndFormatsPromptStep()
+    {
+        var viewModel = new TaskEditorViewModel(
+            Mock.Of<ITaskStore>(),
+            Mock.Of<ITaskSchedulerService>(),
+            Mock.Of<IIncidentReporter>(),
+            Mock.Of<IDesktopInteractionService>(),
+            Mock.Of<IMessenger>(),
+            TimeProvider.System)
+        {
+            SelectedWorkflowAlias = ToolMap.Find(ToolMap.PromptAlias),
+        };
+
+        viewModel.AddWorkflowStepCommand.Execute(null);
+
+        viewModel.WorkflowText.Should().Contain("\"step\": \"ai.prompt\"");
+        viewModel.WorkflowText.Should().Contain("\"includeContext\": true");
+        viewModel.ValidationText.Should().Contain("added");
+    }
+
 }

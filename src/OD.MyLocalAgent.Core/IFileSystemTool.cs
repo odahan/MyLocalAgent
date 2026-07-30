@@ -26,6 +26,22 @@ public interface IFileSystemTool
     Task<string> MoveAsync(string from, string to, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Renames a file while keeping it in the same directory.
+    /// </summary>
+    Task<string> RenameAsync(
+        string path,
+        string newName,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Changes a file extension while keeping its directory and base name.
+    /// </summary>
+    Task<string> SetExtensionAsync(
+        string path,
+        string extension,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Deletes a file or directory when the safety gate is enabled.
     /// </summary>
     Task<string> DeleteAsync(string path, CancellationToken cancellationToken);

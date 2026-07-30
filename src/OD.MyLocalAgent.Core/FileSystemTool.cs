@@ -204,6 +204,115 @@ public sealed class FileSystemTool : IFileSystemTool
             });
 
     /// <inheritdoc />
+    [Description("Renames an authorized local file without changing its directory.")]
+    public Task<string> RenameAsync(
+        [Description("Relative global-root or task-authorized absolute source file path.")] string path,
+        [Description("New file name only, without a directory path.")] string newName,
+        CancellationToken cancellationToken) =>
+        ToolCallLog.ExecuteAsync(
+            _logger,
+            _timeProvider,
+            "filesystem.rename",
+            new { path, newName },
+            async () =>
+            {
+                ValidateFileName(newName, nameof(newName));
+                var absoluteSource = _sandbox.Resolve(
+                    path,
+                    FileSystemAccessMode.ReadWrite,
+                    _executionContext);
+                var destinationPath = Path.Combine(
+                    Path.GetDirectoryName(path) ?? string.Empty,
+                    newName);
+                var absoluteDestination = _sandbox.Resolve(
+                    destinationPath,
+                    FileSystemAccessMode.ReadWrite,
+                    _executionContext);
+                var changed = !string.Equals(
+                    absoluteSource,
+                    absoluteDestination,
+                    StringComparison.OrdinalIgnoreCase);
+                await Task.Run(
+                    () =>
+                    {
+                        if (!File.Exists(absoluteSource))
+                        {
+                            throw new FileNotFoundException(
+                                $"File '{path}' does not exist.",
+                                path);
+                        }
+
+                        if (changed)
+                        {
+                            File.Move(absoluteSource, absoluteDestination);
+                        }
+                    },
+                    cancellationToken).ConfigureAwait(false);
+
+                return ToolJson.Serialize(
+                    new
+                    {
+                        from = Normalize(path),
+                        to = Normalize(destinationPath),
+                        renamed = changed,
+                    });
+            });
+
+    /// <inheritdoc />
+    [Description("Changes the extension of an authorized local file.")]
+    public Task<string> SetExtensionAsync(
+        [Description("Relative global-root or task-authorized absolute source file path.")] string path,
+        [Description("New extension with or without a leading period, for example '.md' or 'md'.")] string extension,
+        CancellationToken cancellationToken) =>
+        ToolCallLog.ExecuteAsync(
+            _logger,
+            _timeProvider,
+            "filesystem.setExtension",
+            new { path, extension },
+            async () =>
+            {
+                var normalizedExtension = NormalizeExtension(extension);
+                var destinationPath = Path.ChangeExtension(path, normalizedExtension);
+                var absoluteSource = _sandbox.Resolve(
+                    path,
+                    FileSystemAccessMode.ReadWrite,
+                    _executionContext);
+                var absoluteDestination = _sandbox.Resolve(
+                    destinationPath,
+                    FileSystemAccessMode.ReadWrite,
+                    _executionContext);
+                var changed = !string.Equals(
+                    absoluteSource,
+                    absoluteDestination,
+                    StringComparison.OrdinalIgnoreCase);
+                await Task.Run(
+                    () =>
+                    {
+                        if (!File.Exists(absoluteSource))
+                        {
+                            throw new FileNotFoundException(
+                                $"File '{path}' does not exist.",
+                                path);
+                        }
+
+                        if (changed)
+                        {
+                            File.Move(absoluteSource, absoluteDestination);
+                        }
+                    },
+                    cancellationToken).ConfigureAwait(false);
+
+                return ToolJson.Serialize(
+                    new
+                    {
+                        from = Normalize(path),
+                        to = Normalize(destinationPath),
+                        extension = normalizedExtension,
+                        changed,
+                    });
+            });
+
+    /// <inheritdoc />
     [Description("Deletes a sandboxed file or directory when Safety:AllowFileDelete is enabled.")]
     public Task<string> DeleteAsync(
         [Description("Relative global-root or task-authorized absolute file or directory path.")] string path,
@@ -275,4 +384,35 @@ public sealed class FileSystemTool : IFileSystemTool
 
     private static string Normalize(string path) =>
         path.Replace('\\', '/');
+
+    private static void ValidateFileName(string fileName, string parameterName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName, parameterName);
+        if (Path.IsPathRooted(fileName) ||
+            !string.Equals(Path.GetFileName(fileName), fileName, StringComparison.Ordinal) ||
+            fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+        {
+            throw new ArgumentException(
+                "The new name must be a valid file name without a directory path.",
+                parameterName);
+        }
+    }
+
+    private static string NormalizeExtension(string extension)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(extension);
+        var trimmed = extension.Trim();
+        var withoutPeriod = trimmed.TrimStart('.');
+        if (string.IsNullOrWhiteSpace(withoutPeriod) ||
+            withoutPeriod.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
+            withoutPeriod.Contains(Path.DirectorySeparatorChar) ||
+            withoutPeriod.Contains(Path.AltDirectorySeparatorChar))
+        {
+            throw new ArgumentException(
+                "The extension must contain only a file extension, with or without a leading period.",
+                nameof(extension));
+        }
+
+        return "." + withoutPeriod;
+    }
 }
