@@ -48,24 +48,53 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
         string prompt,
         IEnumerable<string> enabledTools,
         CancellationToken cancellationToken) =>
-        RunPromptAsync(
+        RunPromptCoreAsync(
             prompt,
             enabledTools,
+            ToolExecutionContext.Taskless,
             allowSkills: false,
             cancellationToken);
 
     /// <inheritdoc />
-    public async Task<AgentRunResult> RunPromptAsync(
+    public Task<AgentRunResult> RunPromptAsync(
         string prompt,
         IEnumerable<string> enabledTools,
+        ToolExecutionContext executionContext,
+        CancellationToken cancellationToken) =>
+        RunPromptCoreAsync(
+            prompt,
+            enabledTools,
+            executionContext,
+            allowSkills: false,
+            cancellationToken);
+
+    /// <inheritdoc />
+    public Task<AgentRunResult> RunPromptAsync(
+        string prompt,
+        IEnumerable<string> enabledTools,
+        bool allowSkills,
+        CancellationToken cancellationToken) =>
+        RunPromptCoreAsync(
+            prompt,
+            enabledTools,
+            ToolExecutionContext.Taskless,
+            allowSkills,
+            cancellationToken);
+
+    private async Task<AgentRunResult> RunPromptCoreAsync(
+        string prompt,
+        IEnumerable<string> enabledTools,
+        ToolExecutionContext executionContext,
         bool allowSkills,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
         ArgumentNullException.ThrowIfNull(enabledTools);
+        ArgumentNullException.ThrowIfNull(executionContext);
 
         var (provider, agent) = await CreateAgentAsync(
             enabledTools,
+            executionContext,
             allowSkills,
             cancellationToken).ConfigureAwait(false);
         var response = await agent.RunAsync(
@@ -79,24 +108,53 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
         string prompt,
         IEnumerable<string> enabledTools,
         CancellationToken cancellationToken) =>
-        RunPromptStreamingAsync(
+        RunPromptStreamingCoreAsync(
             prompt,
             enabledTools,
+            ToolExecutionContext.Taskless,
             allowSkills: false,
             cancellationToken);
 
     /// <inheritdoc />
-    public async IAsyncEnumerable<string> RunPromptStreamingAsync(
+    public IAsyncEnumerable<string> RunPromptStreamingAsync(
         string prompt,
         IEnumerable<string> enabledTools,
+        ToolExecutionContext executionContext,
+        CancellationToken cancellationToken) =>
+        RunPromptStreamingCoreAsync(
+            prompt,
+            enabledTools,
+            executionContext,
+            allowSkills: false,
+            cancellationToken);
+
+    /// <inheritdoc />
+    public IAsyncEnumerable<string> RunPromptStreamingAsync(
+        string prompt,
+        IEnumerable<string> enabledTools,
+        bool allowSkills,
+        CancellationToken cancellationToken) =>
+        RunPromptStreamingCoreAsync(
+            prompt,
+            enabledTools,
+            ToolExecutionContext.Taskless,
+            allowSkills,
+            cancellationToken);
+
+    private async IAsyncEnumerable<string> RunPromptStreamingCoreAsync(
+        string prompt,
+        IEnumerable<string> enabledTools,
+        ToolExecutionContext executionContext,
         bool allowSkills,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
         ArgumentNullException.ThrowIfNull(enabledTools);
+        ArgumentNullException.ThrowIfNull(executionContext);
 
         var (_, agent) = await CreateAgentAsync(
             enabledTools,
+            executionContext,
             allowSkills,
             cancellationToken).ConfigureAwait(false);
         await foreach (var update in agent.RunStreamingAsync(
@@ -112,13 +170,14 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
 
     private async Task<(ILlmClientService Provider, ChatClientAgent Agent)> CreateAgentAsync(
         IEnumerable<string> enabledTools,
+        ToolExecutionContext executionContext,
         bool allowSkills,
         CancellationToken cancellationToken)
     {
         try
         {
             var provider = _clientFactory.Create();
-            var tools = _toolRegistry.GetAgentTools(enabledTools);
+            var tools = _toolRegistry.GetAgentTools(enabledTools, executionContext);
             if (allowSkills)
             {
                 tools = [.. tools, .. CreateSkillTools()];

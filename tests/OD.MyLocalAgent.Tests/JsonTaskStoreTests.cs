@@ -36,6 +36,8 @@ public sealed class JsonTaskStoreTests : IDisposable
 
         loaded.Should().NotBeNull();
         loaded!.Id.Should().Be("mixed-task");
+        loaded.FileSystemAccess.Should().ContainSingle();
+        loaded.FileSystemAccess[0].Access.Should().Be(FileSystemAccessMode.ReadWrite);
         loaded.Workflow.Should().HaveCount(3);
         loaded.Workflow[0].IsStringForm.Should().BeTrue();
         loaded.Workflow[1].Args.GetProperty("path").GetString()
@@ -149,6 +151,106 @@ public sealed class JsonTaskStoreTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies task-specific file-system grants round-trip in canonical form.
+    /// </summary>
+    [Fact]
+    public void FileSystemAccessRulesRoundTripAndNormalizePaths()
+    {
+        var authorizedPath = Path.Combine(
+            Path.GetTempPath(),
+            "OD.MyLocalAgent.Tests",
+            "..",
+            "Authorized");
+        var task = new ScheduledTask
+        {
+            Id = "file-access",
+            Name = "File access",
+            Schedule = "0 7 * * *",
+            Prompt = "Read authorized files.",
+            Tools = [ToolGroups.FileSystem],
+            FileSystemAccess =
+            [
+                new FileSystemAccessRule
+                {
+                    Path = authorizedPath,
+                    Access = FileSystemAccessMode.ReadOnly,
+                },
+            ],
+        };
+
+        var json = ScheduledTaskSerializer.Serialize(task);
+        var roundTrip = ScheduledTaskSerializer.Deserialize(json);
+
+        roundTrip.FileSystemAccess.Should().ContainSingle();
+        roundTrip.FileSystemAccess[0].Path.Should().Be(
+            Path.GetFullPath(authorizedPath));
+        roundTrip.FileSystemAccess[0].Access.Should().Be(FileSystemAccessMode.ReadOnly);
+    }
+
+    /// <summary>
+    /// Verifies relative, wildcard, and duplicate grants fail task validation.
+    /// </summary>
+    [Fact]
+    public void InvalidFileSystemAccessRulesAreRejected()
+    {
+        var duplicatePath = Path.Combine(Path.GetTempPath(), "duplicate");
+        var task = new ScheduledTask
+        {
+            Id = "invalid-access",
+            Name = "Invalid access",
+            Schedule = "0 7 * * *",
+            Prompt = "Test.",
+            Tools = [ToolGroups.FileSystem],
+            FileSystemAccess =
+            [
+                new FileSystemAccessRule
+                {
+                    Path = duplicatePath,
+                    Access = FileSystemAccessMode.ReadOnly,
+                },
+                new FileSystemAccessRule
+                {
+                    Path = duplicatePath + Path.DirectorySeparatorChar,
+                    Access = FileSystemAccessMode.ReadWrite,
+                },
+            ],
+        };
+
+        var duplicateAction = () => ScheduledTaskValidator.Validate(task);
+        var relativeAction = () => ScheduledTaskValidator.Validate(
+            task with
+            {
+                FileSystemAccess =
+                [
+                    new FileSystemAccessRule
+                    {
+                        Path = "relative",
+                        Access = FileSystemAccessMode.ReadOnly,
+                    },
+                ],
+            });
+        var wildcardAction = () => ScheduledTaskValidator.Validate(
+            task with
+            {
+                FileSystemAccess =
+                [
+                    new FileSystemAccessRule
+                    {
+                        Path = Path.Combine(Path.GetTempPath(), "*"),
+                        Access = FileSystemAccessMode.ReadOnly,
+                    },
+                ],
+            });
+
+        duplicateAction.Should().Throw<TaskValidationException>()
+            .WithMessage("*duplicated*");
+        relativeAction.Should().Throw<TaskValidationException>()
+            .WithMessage("*must be absolute*");
+        wildcardAction.Should().Throw<TaskValidationException>()
+            .WithMessage("*wildcards*");
+    }
+
+    /// <summary>
     /// Deletes the isolated test directory.
     /// </summary>
     public void Dispose()
@@ -167,6 +269,12 @@ public sealed class JsonTaskStoreTests : IDisposable
           "schedule": "0 7 * * *",
           "prompt": "Summarize today's mail.",
           "tools": ["gmail", "filesystem"],
+          "fileSystemAccess": [
+            {
+              "path": "D:\\Archive",
+              "access": "ReadWrite"
+            }
+          ],
           "workflow": [
             "gmail.readToday",
             {

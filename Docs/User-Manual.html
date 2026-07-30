@@ -2011,6 +2011,7 @@ ollama list</code></pre>
   "schedule": "0 7 * * *",
   "prompt": "Summarize today's important messages.",
   "tools": ["gmail", "filesystem"],
+  "fileSystemAccess": [],
   "workflow": [
     "gmail.readToday",
     {
@@ -2036,8 +2037,30 @@ ollama list</code></pre>
                     <li>Le prompt peut être vide uniquement si le workflow contient au moins une étape.</li>
                     <li>Un alias d’outil exige que son groupe soit coché dans <span class="ui-label">Tool whitelist</span>.</li>
                     <li>Un skill <code>ai.*</code> est toujours autorisé dans un workflow.</li>
-                    <li>Les chemins fichiers sont relatifs à la racine configurée.</li>
+                    <li>Les chemins relatifs restent sous le RootPath configuré.</li>
+                    <li>Un chemin absolu exige un emplacement autorisé appartenant à la tâche.</li>
                 </ul>
+
+                <h3>Emplacements autorisés</h3>
+                <p>
+                    L’éditeur permet d’autoriser pour cette tâche des dossiers absolus
+                    supplémentaires, sans créer de catalogue global. Chaque règle inclut ses
+                    sous-dossiers et accorde <code>ReadOnly</code> ou
+                    <code>ReadWrite</code>. Une liste vide n’autorise aucun chemin absolu.
+                    Les droits Windows restent prioritaires.
+                </p>
+                <div class="code-block">
+                    <pre><code>"fileSystemAccess": [
+  {
+    "path": "D:\\Production\\Incoming",
+    "access": "ReadOnly"
+  },
+  {
+    "path": "E:\\Archives\\Daily",
+    "access": "ReadWrite"
+  }
+]</code></pre>
+                </div>
 
                 <h3>Étapes, sorties et placeholders</h3>
                 <p>
@@ -2099,7 +2122,7 @@ ollama list</code></pre>
                             <tr>
                                 <td>File system</td>
                                 <td><code>filesystem.list</code>, <code>read</code>, <code>write</code>, <code>move</code>, <code>delete</code>, <code>createDirectory</code></td>
-                                <td>Sandbox ; <code>delete</code> exige AllowFileDelete.</td>
+                                <td>RootPath et emplacements autorisés de la tâche ; <code>delete</code> exige AllowFileDelete.</td>
                             </tr>
                             <tr>
                                 <td>HTTP</td>
@@ -2134,13 +2157,13 @@ ollama list</code></pre>
                                     <tr><td><code>gmail.send</code></td><td><code>to</code>, <code>subject</code>, <code>body</code></td><td>Exige AllowSendEmail.</td></tr>
                                     <tr><td><code>calendar.today</code></td><td>Aucun</td><td>Événements du jour.</td></tr>
                                     <tr><td><code>calendar.create</code></td><td><code>summary</code>, <code>start</code>, <code>end</code>, <code>description</code></td><td>Dates ISO 8601 explicites.</td></tr>
-                                    <tr><td><code>dropbox.upload</code></td><td><code>localPath</code>, <code>dropboxPath</code></td><td>Le chemin local reste dans la sandbox.</td></tr>
+                                    <tr><td><code>dropbox.upload</code></td><td><code>localPath</code>, <code>dropboxPath</code></td><td>Le chemin local exige un accès en lecture.</td></tr>
                                     <tr><td><code>dropbox.download</code></td><td><code>dropboxPath</code>, <code>localPath</code></td><td>Écrit sous la racine autorisée.</td></tr>
                                     <tr><td><code>dropbox.list</code></td><td><code>folderPath</code></td><td>Liste un dossier Dropbox.</td></tr>
-                                    <tr><td><code>filesystem.list</code></td><td><code>path</code></td><td>Liste un dossier relatif.</td></tr>
+                                    <tr><td><code>filesystem.list</code></td><td><code>path</code></td><td>Liste un dossier relatif au RootPath ou un dossier absolu autorisé par la tâche.</td></tr>
                                     <tr><td><code>filesystem.read</code></td><td><code>path</code></td><td>Lecture texte avec limite de taille.</td></tr>
                                     <tr><td><code>filesystem.write</code></td><td><code>path</code>, <code>content</code></td><td>Crée ou remplace le contenu.</td></tr>
-                                    <tr><td><code>filesystem.move</code></td><td><code>from</code>, <code>to</code></td><td>Les deux chemins restent dans la sandbox.</td></tr>
+                                    <tr><td><code>filesystem.move</code></td><td><code>from</code>, <code>to</code></td><td>Les deux chemins exigent une autorisation en lecture et écriture.</td></tr>
                                     <tr><td><code>filesystem.delete</code></td><td><code>path</code></td><td>Exige AllowFileDelete.</td></tr>
                                     <tr><td><code>filesystem.createDirectory</code></td><td><code>path</code></td><td>Crée un dossier relatif.</td></tr>
                                     <tr><td><code>http.get</code></td><td><code>url</code></td><td>Retourne une réponse HTTP compacte.</td></tr>
@@ -2330,7 +2353,11 @@ ollama list</code></pre>
                             </tr>
                             <tr>
                                 <td>File-system root path</td>
-                                <td>Confine toutes les opérations fichiers sous une racine absolue.</td>
+                                <td>Confine les opérations utilisant un chemin relatif sous une racine absolue.</td>
+                            </tr>
+                            <tr>
+                                <td>Task authorized locations</td>
+                                <td>Autorise uniquement les dossiers absolus déclarés, en lecture seule ou en lecture et écriture.</td>
                             </tr>
                             <tr>
                                 <td>HTTP Allowed Hosts</td>
@@ -2540,9 +2567,12 @@ ollama list</code></pre>
                     <summary>Un chemin fichier est refusé</summary>
                     <div class="details-body">
                         <p>
-                            Utilisez un chemin relatif comme <code>reports\summary.md</code>. Les
-                            chemins absolus et les remontées <code>..\</code> hors de la racine sont
-                            volontairement rejetés. Vérifiez aussi File-system root path.
+                            Utilisez un chemin relatif comme <code>reports\summary.md</code>
+                            pour RootPath, ou ajoutez le dossier absolu dans
+                            <span class="ui-label">Authorized locations</span> de la tâche.
+                            Vérifiez le mode lecture/écriture, les droits Windows et la
+                            disponibilité du volume. Les remontées <code>..\</code> restent
+                            refusées.
                         </p>
                     </div>
                 </details>

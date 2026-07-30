@@ -6,7 +6,7 @@ namespace OD.MyLocalAgent.Core;
 public interface IDropboxTool
 {
     /// <summary>
-    /// Uploads a sandboxed local file.
+    /// Uploads an authorized local file.
     /// </summary>
     Task<string> UploadAsync(
         string localPath,
@@ -14,7 +14,7 @@ public interface IDropboxTool
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// Downloads a Dropbox file into the local sandbox.
+    /// Downloads a Dropbox file into an authorized local path.
     /// </summary>
     Task<string> DownloadAsync(
         string dropboxPath,

@@ -33,6 +33,16 @@ internal sealed class DesktopInteractionService : IDesktopInteractionService
         return dialog.ShowDialog() == true ? dialog.FileName : null;
     }
 
+    public string? SelectFolder(string title)
+    {
+        var dialog = new OpenFolderDialog
+        {
+            Title = title,
+            Multiselect = false,
+        };
+        return dialog.ShowDialog() == true ? dialog.FolderName : null;
+    }
+
     public void CopyText(string text)
     {
         ArgumentNullException.ThrowIfNull(text);

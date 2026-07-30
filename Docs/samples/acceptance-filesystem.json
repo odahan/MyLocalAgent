@@ -4,6 +4,7 @@
   "schedule": "15 6 * * *",
   "prompt": "Verify the local workflow and report pipeline without cloud credentials.",
   "tools": ["filesystem"],
+  "fileSystemAccess": [],
   "workflow": [
     {
       "step": "filesystem.createDirectory",

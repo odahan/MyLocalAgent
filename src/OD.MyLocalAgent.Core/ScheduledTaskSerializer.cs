@@ -44,7 +44,17 @@ public static class ScheduledTaskSerializer
     {
         ArgumentNullException.ThrowIfNull(task);
         ScheduledTaskValidator.Validate(task);
-        return JsonSerializer.Serialize(task, Options);
+        var normalizedTask = task with
+        {
+            FileSystemAccess = task.FileSystemAccess
+                .Select(
+                    static rule => rule with
+                    {
+                        Path = ScheduledTaskValidator.NormalizeAccessPath(rule.Path),
+                    })
+                .ToArray(),
+        };
+        return JsonSerializer.Serialize(normalizedTask, Options);
     }
 
     private static JsonSerializerOptions CreateOptions()

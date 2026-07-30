@@ -20,6 +20,13 @@ public interface IDesktopInteractionService
         string suggestedFileName);
 
     /// <summary>
+    /// Lets the user select an existing directory.
+    /// </summary>
+    /// <param name="title">The dialog title.</param>
+    /// <returns>The selected absolute path, or <see langword="null"/>.</returns>
+    string? SelectFolder(string title);
+
+    /// <summary>
     /// Copies text to the Windows clipboard.
     /// </summary>
     void CopyText(string text);

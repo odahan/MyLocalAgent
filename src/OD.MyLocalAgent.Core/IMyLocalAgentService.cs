@@ -18,6 +18,20 @@ public interface IMyLocalAgentService
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// Runs a task prompt with an immutable tool execution context.
+    /// </summary>
+    /// <param name="prompt">The task prompt.</param>
+    /// <param name="enabledTools">The task tool-group whitelist.</param>
+    /// <param name="executionContext">The immutable tool execution context.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The agent result.</returns>
+    Task<AgentRunResult> RunPromptAsync(
+        string prompt,
+        IEnumerable<string> enabledTools,
+        ToolExecutionContext executionContext,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Runs a prompt with an optional interactive skill catalog and returns the final report.
     /// </summary>
     /// <param name="prompt">The task prompt.</param>
@@ -43,6 +57,20 @@ public interface IMyLocalAgentService
     IAsyncEnumerable<string> RunPromptStreamingAsync(
         string prompt,
         IEnumerable<string> enabledTools,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Runs a task prompt with contextual tools and streams response text.
+    /// </summary>
+    /// <param name="prompt">The task prompt.</param>
+    /// <param name="enabledTools">The task tool-group whitelist.</param>
+    /// <param name="executionContext">The immutable tool execution context.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The streamed text chunks.</returns>
+    IAsyncEnumerable<string> RunPromptStreamingAsync(
+        string prompt,
+        IEnumerable<string> enabledTools,
+        ToolExecutionContext executionContext,
         CancellationToken cancellationToken);
 
     /// <summary>

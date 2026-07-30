@@ -1,10 +1,13 @@
 using System.Globalization;
+using System.Collections.ObjectModel;
+using System.IO;
 using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using OD.MyLocalAgent.Core;
 using OD.MyLocalAgent.UI.Messages;
+using OD.MyLocalAgent.UI.Services;
 
 namespace OD.MyLocalAgent.UI.ViewModels;
 
@@ -16,6 +19,7 @@ public sealed partial class TaskEditorViewModel : ObservableObject
     private readonly ITaskStore _taskStore;
     private readonly ITaskSchedulerService _scheduler;
     private readonly IIncidentReporter _incidentReporter;
+    private readonly IDesktopInteractionService _desktopInteraction;
     private readonly IMessenger _messenger;
     private readonly TimeProvider _timeProvider;
     private string? _requestedTaskId;
@@ -61,6 +65,16 @@ public sealed partial class TaskEditorViewModel : ObservableObject
     [ObservableProperty]
     private bool _useWeb;
 
+    /// <summary>
+    /// Gets the task-specific absolute authorized locations.
+    /// </summary>
+    public ObservableCollection<FileSystemAccessItem> AuthorizedLocations { get; } = [];
+
+    /// <summary>
+    /// Gets a value indicating whether local-path authorization is relevant.
+    /// </summary>
+    public bool ShowAuthorizedLocations => UseFileSystem || UseDropbox;
+
     [ObservableProperty]
     private string _workflowText = "[]";
 
@@ -93,12 +107,14 @@ public sealed partial class TaskEditorViewModel : ObservableObject
         ITaskStore taskStore,
         ITaskSchedulerService scheduler,
         IIncidentReporter incidentReporter,
+        IDesktopInteractionService desktopInteraction,
         IMessenger messenger,
         TimeProvider timeProvider)
     {
         _taskStore = taskStore;
         _scheduler = scheduler;
         _incidentReporter = incidentReporter;
+        _desktopInteraction = desktopInteraction;
         _messenger = messenger;
         _timeProvider = timeProvider;
         ErrorPolicies = Enum.GetValues<WorkflowErrorPolicy>();
@@ -153,6 +169,12 @@ public sealed partial class TaskEditorViewModel : ObservableObject
         }
     }
 
+    partial void OnUseFileSystemChanged(bool value) =>
+        OnPropertyChanged(nameof(ShowAuthorizedLocations));
+
+    partial void OnUseDropboxChanged(bool value) =>
+        OnPropertyChanged(nameof(ShowAuthorizedLocations));
+
     [RelayCommand]
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
@@ -197,6 +219,13 @@ public sealed partial class TaskEditorViewModel : ObservableObject
             UseWeb = task?.Tools.Contains(
                 ToolGroups.Web,
                 StringComparer.OrdinalIgnoreCase) == true;
+            AuthorizedLocations.Clear();
+            foreach (var rule in task?.FileSystemAccess ?? [])
+            {
+                AuthorizedLocations.Add(
+                    new FileSystemAccessItem(rule.Path, rule.Access));
+            }
+
             WorkflowText = task is null
                 ? "[]"
                 : JsonSerializer.Serialize(
@@ -240,6 +269,9 @@ public sealed partial class TaskEditorViewModel : ObservableObject
                 Schedule = Schedule.Trim(),
                 Prompt = Prompt.Trim(),
                 Tools = GetSelectedToolGroups(),
+                FileSystemAccess = AuthorizedLocations
+                    .Select(static item => item.ToRule())
+                    .ToArray(),
                 Workflow = workflow,
                 Enabled = IsEnabled,
                 ErrorPolicy = SelectedErrorPolicy,
@@ -313,6 +345,56 @@ public sealed partial class TaskEditorViewModel : ObservableObject
     [RelayCommand]
     private void BackToTasks() =>
         _messenger.Send(new NavigateMessage(PageRoute.Tasks));
+
+    [RelayCommand]
+    private void AddAuthorizedLocation()
+    {
+        var selectedPath = _desktopInteraction.SelectFolder(
+            "Select an authorized task location");
+        if (string.IsNullOrWhiteSpace(selectedPath))
+        {
+            return;
+        }
+
+        var normalizedPath = NormalizeDirectoryPath(selectedPath);
+        if (AuthorizedLocations.Any(
+                item => string.Equals(
+                    item.Path,
+                    normalizedPath,
+                    StringComparison.OrdinalIgnoreCase)))
+        {
+            ValidationText = $"Location '{normalizedPath}' is already authorized.";
+            return;
+        }
+
+        var root = Path.GetPathRoot(normalizedPath);
+        if (string.Equals(
+                Path.TrimEndingDirectorySeparator(normalizedPath),
+                Path.TrimEndingDirectorySeparator(root ?? string.Empty),
+                StringComparison.OrdinalIgnoreCase) &&
+            !_desktopInteraction.Confirm(
+                "Authorize an entire volume?",
+                $"This grants the task access to the entire volume '{normalizedPath}' and all descendants. Continue?"))
+        {
+            return;
+        }
+
+        AuthorizedLocations.Add(
+            new FileSystemAccessItem(
+                normalizedPath,
+                FileSystemAccessMode.ReadWrite));
+        ValidationText =
+            $"Location '{normalizedPath}' added with read and write access.";
+    }
+
+    [RelayCommand]
+    private void RemoveAuthorizedLocation(FileSystemAccessItem? item)
+    {
+        if (item is not null)
+        {
+            AuthorizedLocations.Remove(item);
+        }
+    }
 
     private bool CanOpenPrompt() => IsIdReadOnly;
 
@@ -401,6 +483,16 @@ public sealed partial class TaskEditorViewModel : ObservableObject
                 ScheduledTaskSerializer.Options)
             ?? throw new WorkflowValidationException(
                 "Workflow JSON must contain an array.");
+    }
+
+    private static string NormalizeDirectoryPath(string path)
+    {
+        var fullPath = Path.GetFullPath(
+            Environment.ExpandEnvironmentVariables(path.Trim()));
+        var root = Path.GetPathRoot(fullPath);
+        return string.Equals(fullPath, root, StringComparison.OrdinalIgnoreCase)
+            ? fullPath
+            : Path.TrimEndingDirectorySeparator(fullPath);
     }
 
     private async Task SynchronizeRegistrationAsync(

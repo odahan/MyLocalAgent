@@ -13,6 +13,7 @@ public sealed class DropboxTool : IDropboxTool
     private readonly IPathSandbox _sandbox;
     private readonly ILogger<DropboxTool> _logger;
     private readonly TimeProvider _timeProvider;
+    private readonly ToolExecutionContext _executionContext;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DropboxTool"/> class.
@@ -21,22 +22,25 @@ public sealed class DropboxTool : IDropboxTool
         IDropboxConnector connector,
         IPathSandbox sandbox,
         ILogger<DropboxTool> logger,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        ToolExecutionContext executionContext)
     {
         ArgumentNullException.ThrowIfNull(connector);
         ArgumentNullException.ThrowIfNull(sandbox);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentNullException.ThrowIfNull(executionContext);
         _connector = connector;
         _sandbox = sandbox;
         _logger = logger;
         _timeProvider = timeProvider;
+        _executionContext = executionContext;
     }
 
     /// <inheritdoc />
-    [Description("Uploads a sandboxed local file to Dropbox.")]
+    [Description("Uploads an authorized local file to Dropbox.")]
     public Task<string> UploadAsync(
-        [Description("Relative local source path.")] string localPath,
+        [Description("Relative global-root or task-authorized absolute local source path.")] string localPath,
         [Description("Dropbox destination path.")] string dropboxPath,
         CancellationToken cancellationToken) =>
         ToolCallLog.ExecuteAsync(
@@ -47,7 +51,10 @@ public sealed class DropboxTool : IDropboxTool
             async () =>
             {
                 ValidateDropboxPath(dropboxPath);
-                var absoluteLocalPath = _sandbox.Resolve(localPath);
+                var absoluteLocalPath = _sandbox.Resolve(
+                    localPath,
+                    FileSystemAccessMode.ReadOnly,
+                    _executionContext);
                 var item = await _connector.UploadAsync(
                     absoluteLocalPath,
                     dropboxPath,
@@ -56,10 +63,10 @@ public sealed class DropboxTool : IDropboxTool
             });
 
     /// <inheritdoc />
-    [Description("Downloads a Dropbox file into the local file-system sandbox.")]
+    [Description("Downloads a Dropbox file into an authorized local path.")]
     public Task<string> DownloadAsync(
         [Description("Dropbox source path.")] string dropboxPath,
-        [Description("Relative local destination path.")] string localPath,
+        [Description("Relative global-root or task-authorized absolute local destination path.")] string localPath,
         CancellationToken cancellationToken) =>
         ToolCallLog.ExecuteAsync(
             _logger,
@@ -69,7 +76,10 @@ public sealed class DropboxTool : IDropboxTool
             async () =>
             {
                 ValidateDropboxPath(dropboxPath);
-                var absoluteLocalPath = _sandbox.Resolve(localPath);
+                var absoluteLocalPath = _sandbox.Resolve(
+                    localPath,
+                    FileSystemAccessMode.ReadWrite,
+                    _executionContext);
                 var parent = Path.GetDirectoryName(absoluteLocalPath);
                 if (!string.IsNullOrEmpty(parent))
                 {

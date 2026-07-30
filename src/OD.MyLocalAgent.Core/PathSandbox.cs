@@ -3,7 +3,7 @@ using Microsoft.Extensions.Options;
 namespace OD.MyLocalAgent.Core;
 
 /// <summary>
-/// Enforces rooted-prefix path containment for local tool operations.
+/// Enforces global-root and task-specific containment for local tool operations.
 /// </summary>
 public sealed class PathSandbox : IPathSandbox
 {
@@ -36,18 +36,55 @@ public sealed class PathSandbox : IPathSandbox
     }
 
     /// <inheritdoc />
-    public string Resolve(string path)
+    public string Resolve(
+        string path,
+        FileSystemAccessMode requiredAccess,
+        ToolExecutionContext context)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        if (Path.IsPathRooted(path))
-        {
-            throw new PathSandboxException(path);
-        }
+        ArgumentNullException.ThrowIfNull(context);
 
         string absolutePath;
+        string authorizedRoot;
         try
         {
-            absolutePath = Path.GetFullPath(path, _rootPath);
+            if (Path.IsPathRooted(path))
+            {
+                absolutePath = Path.GetFullPath(path);
+                var matchingRule = context.FileSystemAccess
+                    .Select(
+                        static rule => new
+                        {
+                            Rule = rule,
+                            NormalizedPath =
+                                ScheduledTaskValidator.NormalizeAccessPath(rule.Path),
+                        })
+                    .Where(item => IsWithin(absolutePath, item.NormalizedPath))
+                    .OrderByDescending(static item => item.NormalizedPath.Length)
+                    .FirstOrDefault()
+                    ?? throw new PathSandboxException(
+                        path,
+                        "no task authorization covers this absolute path.");
+                if (requiredAccess == FileSystemAccessMode.ReadWrite &&
+                    matchingRule.Rule.Access != FileSystemAccessMode.ReadWrite)
+                {
+                    throw new PathSandboxException(
+                        path,
+                        "the most specific task authorization is read-only.");
+                }
+
+                authorizedRoot = matchingRule.NormalizedPath;
+            }
+            else
+            {
+                absolutePath = Path.GetFullPath(path, _rootPath);
+                if (!IsWithin(absolutePath, _rootPath))
+                {
+                    throw new PathSandboxException(path);
+                }
+
+                authorizedRoot = _rootPath;
+            }
         }
         catch (Exception exception) when (
             exception is ArgumentException or NotSupportedException or PathTooLongException)
@@ -55,12 +92,10 @@ public sealed class PathSandbox : IPathSandbox
             throw new PathSandboxException(path);
         }
 
-        if (!string.Equals(absolutePath, _rootPath, _comparison) &&
-            !absolutePath.StartsWith(_rootPrefix, _comparison))
-        {
-            throw new PathSandboxException(path);
-        }
-
+        RejectReparsePointEscape(
+            path,
+            Path.GetPathRoot(authorizedRoot) ?? authorizedRoot,
+            absolutePath);
         return absolutePath;
     }
 
@@ -77,5 +112,66 @@ public sealed class PathSandbox : IPathSandbox
 
         var relative = Path.GetRelativePath(_rootPath, fullPath);
         return relative == "." ? string.Empty : relative.Replace('\\', '/');
+    }
+
+    private static void RejectReparsePointEscape(
+        string requestedPath,
+        string authorizedRoot,
+        string absolutePath)
+    {
+        var current = authorizedRoot;
+        while (true)
+        {
+            if (File.Exists(current) || Directory.Exists(current))
+            {
+                var attributes = File.GetAttributes(current);
+                if (attributes.HasFlag(FileAttributes.ReparsePoint))
+                {
+                    throw new PathSandboxException(
+                        requestedPath,
+                        $"reparse point '{current}' could escape the authorized location.");
+                }
+            }
+
+            if (string.Equals(
+                    Path.TrimEndingDirectorySeparator(current),
+                    Path.TrimEndingDirectorySeparator(absolutePath),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            var relative = Path.GetRelativePath(current, absolutePath);
+            var separatorIndex = relative.IndexOfAny(
+                [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar]);
+            var nextComponent = separatorIndex < 0
+                ? relative
+                : relative[..separatorIndex];
+            if (string.IsNullOrEmpty(nextComponent) ||
+                string.Equals(nextComponent, ".", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            current = Path.Combine(current, nextComponent);
+        }
+    }
+
+    private static bool IsWithin(string absolutePath, string rootPath)
+    {
+        var normalizedRoot = Path.TrimEndingDirectorySeparator(rootPath);
+        var normalizedPath = Path.TrimEndingDirectorySeparator(absolutePath);
+        if (string.Equals(
+                normalizedPath,
+                normalizedRoot,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var rootPrefix = normalizedRoot + Path.DirectorySeparatorChar;
+        return normalizedPath.StartsWith(
+            rootPrefix,
+            StringComparison.OrdinalIgnoreCase);
     }
 }

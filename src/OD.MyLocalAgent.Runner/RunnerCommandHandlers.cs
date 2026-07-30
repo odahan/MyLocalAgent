@@ -262,6 +262,7 @@ internal static class RunnerCommandHandlers
                 var agentResult = await agent.RunPromptAsync(
                     task.Prompt,
                     task.Tools,
+                    ToolExecutionContext.FromTask(task),
                     cancellationToken).ConfigureAwait(false);
                 providerName = agentResult.ProviderName;
                 result = new WorkflowResult(

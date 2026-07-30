@@ -151,6 +151,56 @@ public sealed class ToolMapTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies direct registry invocation binds file tools to the supplied task context.
+    /// </summary>
+    [Fact]
+    public async Task RegistryUsesContextForAbsoluteFileSystemInvocation()
+    {
+        Directory.CreateDirectory(_rootPath);
+        var authorizedPath = Path.Combine(
+            Path.GetTempPath(),
+            "OD.MyLocalAgent.Registry",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(authorizedPath);
+        try
+        {
+            var registry = CreateRegistry();
+            var outputPath = Path.Combine(authorizedPath, "context.txt");
+            using var arguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(
+                    new { path = outputPath, content = "context" }));
+            var context = new ToolExecutionContext(
+                "registry-task",
+                [
+                    new FileSystemAccessRule
+                    {
+                        Path = authorizedPath,
+                        Access = FileSystemAccessMode.ReadWrite,
+                    },
+                ]);
+
+            _ = await registry.InvokeAsync(
+                "filesystem.write",
+                arguments.RootElement,
+                [ToolGroups.FileSystem],
+                context,
+                CancellationToken.None);
+            var tasklessAction = () => registry.InvokeAsync(
+                "filesystem.write",
+                arguments.RootElement,
+                [ToolGroups.FileSystem],
+                CancellationToken.None);
+
+            File.ReadAllText(outputPath).Should().Be("context");
+            await tasklessAction.Should().ThrowAsync<PathSandboxException>();
+        }
+        finally
+        {
+            Directory.Delete(authorizedPath, recursive: true);
+        }
+    }
+
+    /// <summary>
     /// Deletes the isolated test directory.
     /// </summary>
     public void Dispose()
@@ -198,17 +248,21 @@ public sealed class ToolMapTests : IDisposable
                 Mock.Of<ICalendarConnector>(),
                 NullLogger<CalendarTool>.Instance,
                 TimeProvider.System),
-            new DropboxTool(
-                Mock.Of<IDropboxConnector>(),
-                sandbox,
-                NullLogger<DropboxTool>.Instance,
-                TimeProvider.System),
-            new FileSystemTool(
-                sandbox,
-                safetyOptions,
-                fileSystemOptions,
-                NullLogger<FileSystemTool>.Instance,
-                TimeProvider.System),
+            new DelegateContextualToolFactory<DropboxTool>(
+                context => new DropboxTool(
+                    Mock.Of<IDropboxConnector>(),
+                    sandbox,
+                    NullLogger<DropboxTool>.Instance,
+                    TimeProvider.System,
+                    context)),
+            new DelegateContextualToolFactory<FileSystemTool>(
+                context => new FileSystemTool(
+                    sandbox,
+                    safetyOptions,
+                    fileSystemOptions,
+                    NullLogger<FileSystemTool>.Instance,
+                    TimeProvider.System,
+                    context)),
             new HttpTool(
                 new StubHttpClientFactory(handler),
                 Options.Create(new HttpOptions()),

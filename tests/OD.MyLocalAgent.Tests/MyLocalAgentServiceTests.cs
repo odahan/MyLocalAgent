@@ -22,7 +22,10 @@ public sealed class MyLocalAgentServiceTests
         factory.Setup(instance => instance.Create())
             .Throws(new LlmConfigurationException("Provider is invalid."));
         var registry = new Mock<IToolRegistry>(MockBehavior.Strict);
-        registry.Setup(instance => instance.GetAgentTools(It.IsAny<IEnumerable<string>>()))
+        registry.Setup(
+                instance => instance.GetAgentTools(
+                    It.IsAny<IEnumerable<string>>(),
+                    It.IsAny<ToolExecutionContext>()))
             .Returns([]);
         var reporter = new Mock<IIncidentReporter>(MockBehavior.Strict);
         reporter.Setup(instance => instance.ReportAsync(
@@ -60,7 +63,10 @@ public sealed class MyLocalAgentServiceTests
         factory.Setup(instance => instance.Create())
             .Returns(new StubLlmClientService("Concise report."));
         var registry = new Mock<IToolRegistry>(MockBehavior.Strict);
-        registry.Setup(instance => instance.GetAgentTools(It.IsAny<IEnumerable<string>>()))
+        registry.Setup(
+                instance => instance.GetAgentTools(
+                    It.IsAny<IEnumerable<string>>(),
+                    It.IsAny<ToolExecutionContext>()))
             .Returns([]);
         var reporter = new Mock<IIncidentReporter>(MockBehavior.Strict);
         var service = new MyLocalAgentService(
@@ -89,7 +95,10 @@ public sealed class MyLocalAgentServiceTests
         var factory = new Mock<ILlmClientFactory>(MockBehavior.Strict);
         factory.Setup(instance => instance.Create()).Returns(provider);
         var registry = new Mock<IToolRegistry>(MockBehavior.Strict);
-        registry.Setup(instance => instance.GetAgentTools(It.IsAny<IEnumerable<string>>()))
+        registry.Setup(
+                instance => instance.GetAgentTools(
+                    It.IsAny<IEnumerable<string>>(),
+                    It.IsAny<ToolExecutionContext>()))
             .Returns([]);
         var reporter = new Mock<IIncidentReporter>(MockBehavior.Strict);
         var service = new MyLocalAgentService(
@@ -108,5 +117,50 @@ public sealed class MyLocalAgentServiceTests
         provider.Client.LastOptions.Should().NotBeNull();
         provider.Client.LastOptions!.Tools.Should().ContainSingle(
             tool => tool.Name == "skill_summarize");
+    }
+
+    /// <summary>
+    /// Verifies a task execution context is used when agent tools are created.
+    /// </summary>
+    [Fact]
+    public async Task TaskContextIsPassedToAgentToolCreation()
+    {
+        var factory = new Mock<ILlmClientFactory>(MockBehavior.Strict);
+        factory.Setup(instance => instance.Create())
+            .Returns(new StubLlmClientService("Done."));
+        var authorizedPath = Path.Combine(Path.GetTempPath(), "agent-authorized");
+        var context = new ToolExecutionContext(
+            "agent-task",
+            [
+                new FileSystemAccessRule
+                {
+                    Path = authorizedPath,
+                    Access = FileSystemAccessMode.ReadOnly,
+                },
+            ]);
+        var registry = new Mock<IToolRegistry>(MockBehavior.Strict);
+        registry.Setup(
+                instance => instance.GetAgentTools(
+                    It.IsAny<IEnumerable<string>>(),
+                    It.Is<ToolExecutionContext>(
+                        value =>
+                            value.TaskId == "agent-task" &&
+                            value.FileSystemAccess.Count == 1)))
+            .Returns([]);
+        var service = new MyLocalAgentService(
+            factory.Object,
+            registry.Object,
+            [],
+            Mock.Of<IIncidentReporter>(),
+            TimeProvider.System);
+
+        var result = await service.RunPromptAsync(
+            "Do the task.",
+            [ToolGroups.FileSystem],
+            context,
+            CancellationToken.None);
+
+        result.Text.Should().Be("Done.");
+        registry.VerifyAll();
     }
 }

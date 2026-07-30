@@ -1670,6 +1670,7 @@ ollama list</code></pre>
   "schedule": "0 7 * * *",
   "prompt": "Summarize today's important messages.",
   "tools": ["gmail", "filesystem"],
+  "fileSystemAccess": [],
   "workflow": [
     "gmail.readToday",
     {
@@ -1695,8 +1696,30 @@ ollama list</code></pre>
                     <li>The prompt may be empty only when the workflow contains at least one step.</li>
                     <li>A tool alias requires its group in <span class="ui-label">Tool whitelist</span>.</li>
                     <li>An <code>ai.*</code> skill is always allowed in workflows.</li>
-                    <li>Filesystem paths are relative to the configured root.</li>
+                    <li>Relative filesystem paths stay beneath the configured RootPath.</li>
+                    <li>Absolute paths require a matching task-owned Authorized location.</li>
                 </ul>
+
+                <h3>Authorized locations</h3>
+                <p>
+                    The task editor can grant this task access to additional absolute
+                    directories without creating a global catalog. Each rule includes all
+                    descendants and is either <code>ReadOnly</code> or
+                    <code>ReadWrite</code>. An empty array grants no absolute path.
+                    Windows permissions remain authoritative.
+                </p>
+                <div class="code-block">
+                    <pre><code>"fileSystemAccess": [
+  {
+    "path": "D:\\Production\\Incoming",
+    "access": "ReadOnly"
+  },
+  {
+    "path": "E:\\Archives\\Daily",
+    "access": "ReadWrite"
+  }
+]</code></pre>
+                </div>
 
                 <h3>Outputs and placeholders</h3>
                 <p>
@@ -1737,7 +1760,7 @@ ollama list</code></pre>
                             <tr><td>Gmail</td><td><code>gmail.readToday</code>, <code>gmail.readUnread</code>, <code>gmail.send</code></td><td><code>gmail.send</code> needs AllowSendEmail.</td></tr>
                             <tr><td>Calendar</td><td><code>calendar.today</code>, <code>calendar.create</code></td><td>Create uses explicit ISO 8601 dates.</td></tr>
                             <tr><td>Dropbox</td><td><code>dropbox.upload</code>, <code>dropbox.download</code>, <code>dropbox.list</code></td><td>Dropbox secrets use DPAPI.</td></tr>
-                            <tr><td>File system</td><td><code>filesystem.list</code>, <code>read</code>, <code>write</code>, <code>move</code>, <code>delete</code>, <code>createDirectory</code></td><td>Sandbox; delete needs AllowFileDelete.</td></tr>
+                            <tr><td>File system</td><td><code>filesystem.list</code>, <code>read</code>, <code>write</code>, <code>move</code>, <code>delete</code>, <code>createDirectory</code></td><td>RootPath plus task-authorized locations; delete needs AllowFileDelete.</td></tr>
                             <tr><td>HTTP</td><td><code>http.get</code>, <code>http.getText</code>, <code>http.post</code></td><td>Host allowlist; post needs AllowHttpPost.</td></tr>
                             <tr><td>Web</td><td><code>web.search</code></td><td>Explicit Ollama cloud opt-in; mandatory Guardrails envelope.</td></tr>
                             <tr><td>AI</td><td><code>ai.summarize</code>, <code>ai.extractActionItems</code>, <code>ai.classifyEmail</code>, <code>ai.prompt</code></td><td>Skills execute without tools.</td></tr>
@@ -1757,13 +1780,13 @@ ollama list</code></pre>
                                     <tr><td><code>gmail.send</code></td><td><code>to</code>, <code>subject</code>, <code>body</code></td><td>Requires AllowSendEmail.</td></tr>
                                     <tr><td><code>calendar.today</code></td><td>None</td><td>Today’s events.</td></tr>
                                     <tr><td><code>calendar.create</code></td><td><code>summary</code>, <code>start</code>, <code>end</code>, <code>description</code></td><td>Explicit ISO 8601 dates.</td></tr>
-                                    <tr><td><code>dropbox.upload</code></td><td><code>localPath</code>, <code>dropboxPath</code></td><td>Local path remains sandboxed.</td></tr>
+                                    <tr><td><code>dropbox.upload</code></td><td><code>localPath</code>, <code>dropboxPath</code></td><td>Local path requires read access.</td></tr>
                                     <tr><td><code>dropbox.download</code></td><td><code>dropboxPath</code>, <code>localPath</code></td><td>Writes under the allowed root.</td></tr>
                                     <tr><td><code>dropbox.list</code></td><td><code>folderPath</code></td><td>Lists a Dropbox folder.</td></tr>
-                                    <tr><td><code>filesystem.list</code></td><td><code>path</code></td><td>Lists a relative directory.</td></tr>
+                                    <tr><td><code>filesystem.list</code></td><td><code>path</code></td><td>Lists a RootPath-relative or task-authorized absolute directory.</td></tr>
                                     <tr><td><code>filesystem.read</code></td><td><code>path</code></td><td>Text read with size cap.</td></tr>
                                     <tr><td><code>filesystem.write</code></td><td><code>path</code>, <code>content</code></td><td>Creates or replaces content.</td></tr>
-                                    <tr><td><code>filesystem.move</code></td><td><code>from</code>, <code>to</code></td><td>Both paths stay in the sandbox.</td></tr>
+                                    <tr><td><code>filesystem.move</code></td><td><code>from</code>, <code>to</code></td><td>Both paths require read-write authorization.</td></tr>
                                     <tr><td><code>filesystem.delete</code></td><td><code>path</code></td><td>Requires AllowFileDelete.</td></tr>
                                     <tr><td><code>filesystem.createDirectory</code></td><td><code>path</code></td><td>Creates a relative directory.</td></tr>
                                     <tr><td><code>http.get</code></td><td><code>url</code></td><td>Returns a compact HTTP result.</td></tr>
@@ -1927,7 +1950,8 @@ ollama list</code></pre>
                         <tbody>
                             <tr><td>Tool whitelist</td><td>Limits tool groups visible to a task or workflow.</td></tr>
                             <tr><td>Safety gates</td><td>Blocks email sending, file deletion, and HTTP POST by default.</td></tr>
-                            <tr><td>File-system root path</td><td>Confines file operations below an absolute root.</td></tr>
+                            <tr><td>File-system root path</td><td>Confines relative file operations below an absolute root.</td></tr>
+                            <tr><td>Task authorized locations</td><td>Allows only declared absolute directories with read-only or read-write access.</td></tr>
                             <tr><td>HTTP Allowed Hosts</td><td>Restricts HTTP destinations by exact host name.</td></tr>
                             <tr><td>DPAPI CurrentUser</td><td>Protects OpenAI, Dropbox, and Web Search secrets for the current Windows user.</td></tr>
                         </tbody>
@@ -2104,9 +2128,11 @@ ollama list</code></pre></div>
                     <summary>A filesystem path is rejected</summary>
                     <div class="details-body">
                         <p>
-                            Use a relative path such as <code>reports\summary.md</code>. Absolute
-                            paths and <code>..\</code> traversal outside the root are intentionally
-                            rejected. Also check File-system root path.
+                            Use a relative path such as <code>reports\summary.md</code> for
+                            RootPath, or add the absolute directory to the task's
+                            <span class="ui-label">Authorized locations</span>. Check the required
+                            read/write mode, Windows permissions, and unavailable volumes.
+                            <code>..\</code> traversal remains rejected.
                         </p>
                     </div>
                 </details>

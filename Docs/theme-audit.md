@@ -95,3 +95,11 @@ Dark/Light interaction evidence before release.
   the deployment environment requires.
 - Repeat the nine-page pass at non-default display scaling if the target machine uses
   scaling other than 100%.
+
+## Stage 11 authorized-location editor
+
+The task editor adds an application-themed `ItemsControl` of authorized locations using the
+existing surface, divider, caption, checkbox, and button styles. The folder chooser remains a
+native Windows dialog behind `IDesktopInteractionService`. Verify long absolute and UNC paths,
+read-only checkbox states, unavailable-location warnings, keyboard focus, and the volume-root
+confirmation in both supported palettes.

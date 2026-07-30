@@ -217,6 +217,7 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                     step.Alias,
                     resolvedArguments,
                     task.Tools,
+                    ToolExecutionContext.FromTask(task),
                     cancellationToken).ConfigureAwait(false);
 
             case SkillStep skillStep:
@@ -239,6 +240,7 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                 var agentResult = await _agentService.RunPromptAsync(
                     prompt,
                     task.Tools,
+                    ToolExecutionContext.FromTask(task),
                     cancellationToken).ConfigureAwait(false);
                 return agentResult.Text;
 

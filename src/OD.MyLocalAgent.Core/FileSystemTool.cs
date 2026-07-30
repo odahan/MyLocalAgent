@@ -15,6 +15,7 @@ public sealed class FileSystemTool : IFileSystemTool
     private readonly IOptions<FileSystemOptions> _fileSystemOptions;
     private readonly ILogger<FileSystemTool> _logger;
     private readonly TimeProvider _timeProvider;
+    private readonly ToolExecutionContext _executionContext;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FileSystemTool"/> class.
@@ -24,24 +25,27 @@ public sealed class FileSystemTool : IFileSystemTool
         IOptions<SafetyOptions> safetyOptions,
         IOptions<FileSystemOptions> fileSystemOptions,
         ILogger<FileSystemTool> logger,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        ToolExecutionContext executionContext)
     {
         ArgumentNullException.ThrowIfNull(sandbox);
         ArgumentNullException.ThrowIfNull(safetyOptions);
         ArgumentNullException.ThrowIfNull(fileSystemOptions);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentNullException.ThrowIfNull(executionContext);
         _sandbox = sandbox;
         _safetyOptions = safetyOptions;
         _fileSystemOptions = fileSystemOptions;
         _logger = logger;
         _timeProvider = timeProvider;
+        _executionContext = executionContext;
     }
 
     /// <inheritdoc />
-    [Description("Lists immediate files and directories beneath a sandboxed relative path.")]
+    [Description("Lists immediate files and directories beneath an authorized local path.")]
     public Task<string> ListAsync(
-        [Description("Relative directory path.")] string path,
+        [Description("Relative global-root path or task-authorized absolute directory path.")] string path,
         CancellationToken cancellationToken) =>
         ToolCallLog.ExecuteAsync(
             _logger,
@@ -50,7 +54,10 @@ public sealed class FileSystemTool : IFileSystemTool
             new { path },
             async () =>
             {
-                var absolutePath = _sandbox.Resolve(path);
+                var absolutePath = _sandbox.Resolve(
+                    path,
+                    FileSystemAccessMode.ReadOnly,
+                    _executionContext);
                 var entries = await Task.Run(
                     () =>
                     {
@@ -80,9 +87,9 @@ public sealed class FileSystemTool : IFileSystemTool
             });
 
     /// <inheritdoc />
-    [Description("Reads a UTF-8 text file beneath the configured sandbox root.")]
+    [Description("Reads a UTF-8 text file beneath an authorized local path.")]
     public Task<string> ReadAsync(
-        [Description("Relative file path.")] string path,
+        [Description("Relative global-root path or task-authorized absolute file path.")] string path,
         CancellationToken cancellationToken) =>
         ToolCallLog.ExecuteAsync(
             _logger,
@@ -91,7 +98,10 @@ public sealed class FileSystemTool : IFileSystemTool
             new { path },
             async () =>
             {
-                var absolutePath = _sandbox.Resolve(path);
+                var absolutePath = _sandbox.Resolve(
+                    path,
+                    FileSystemAccessMode.ReadOnly,
+                    _executionContext);
                 var file = new FileInfo(absolutePath);
                 if (!file.Exists)
                 {
@@ -112,9 +122,9 @@ public sealed class FileSystemTool : IFileSystemTool
             });
 
     /// <inheritdoc />
-    [Description("Writes UTF-8 text to a sandboxed relative file path.")]
+    [Description("Writes UTF-8 text to an authorized local file path.")]
     public Task<string> WriteAsync(
-        [Description("Relative file path.")] string path,
+        [Description("Relative global-root path or task-authorized absolute file path.")] string path,
         [Description("Text content to write.")] string content,
         CancellationToken cancellationToken) =>
         ToolCallLog.ExecuteAsync(
@@ -125,7 +135,10 @@ public sealed class FileSystemTool : IFileSystemTool
             async () =>
             {
                 ArgumentNullException.ThrowIfNull(content);
-                var absolutePath = _sandbox.Resolve(path);
+                var absolutePath = _sandbox.Resolve(
+                    path,
+                    FileSystemAccessMode.ReadWrite,
+                    _executionContext);
                 var parent = Path.GetDirectoryName(absolutePath);
                 if (!string.IsNullOrEmpty(parent))
                 {
@@ -146,10 +159,10 @@ public sealed class FileSystemTool : IFileSystemTool
             });
 
     /// <inheritdoc />
-    [Description("Moves a file or directory between sandboxed relative paths.")]
+    [Description("Moves a file or directory between authorized local paths.")]
     public Task<string> MoveAsync(
-        [Description("Relative source path.")] string from,
-        [Description("Relative destination path.")] string to,
+        [Description("Relative global-root or task-authorized absolute source path.")] string from,
+        [Description("Relative global-root or task-authorized absolute destination path.")] string to,
         CancellationToken cancellationToken) =>
         ToolCallLog.ExecuteAsync(
             _logger,
@@ -158,8 +171,14 @@ public sealed class FileSystemTool : IFileSystemTool
             new { from, to },
             async () =>
             {
-                var absoluteFrom = _sandbox.Resolve(from);
-                var absoluteTo = _sandbox.Resolve(to);
+                var absoluteFrom = _sandbox.Resolve(
+                    from,
+                    FileSystemAccessMode.ReadWrite,
+                    _executionContext);
+                var absoluteTo = _sandbox.Resolve(
+                    to,
+                    FileSystemAccessMode.ReadWrite,
+                    _executionContext);
                 await Task.Run(
                     () =>
                     {
@@ -187,7 +206,7 @@ public sealed class FileSystemTool : IFileSystemTool
     /// <inheritdoc />
     [Description("Deletes a sandboxed file or directory when Safety:AllowFileDelete is enabled.")]
     public Task<string> DeleteAsync(
-        [Description("Relative file or directory path.")] string path,
+        [Description("Relative global-root or task-authorized absolute file or directory path.")] string path,
         CancellationToken cancellationToken)
     {
         if (!_safetyOptions.Value.AllowFileDelete)
@@ -204,7 +223,10 @@ public sealed class FileSystemTool : IFileSystemTool
             new { path },
             async () =>
             {
-                var absolutePath = _sandbox.Resolve(path);
+                var absolutePath = _sandbox.Resolve(
+                    path,
+                    FileSystemAccessMode.ReadWrite,
+                    _executionContext);
                 await Task.Run(
                     () =>
                     {
@@ -230,9 +252,9 @@ public sealed class FileSystemTool : IFileSystemTool
     }
 
     /// <inheritdoc />
-    [Description("Creates a directory beneath the configured sandbox root.")]
+    [Description("Creates a directory beneath an authorized local path.")]
     public Task<string> CreateDirectoryAsync(
-        [Description("Relative directory path.")] string path,
+        [Description("Relative global-root or task-authorized absolute directory path.")] string path,
         CancellationToken cancellationToken) =>
         ToolCallLog.ExecuteAsync(
             _logger,
@@ -241,7 +263,10 @@ public sealed class FileSystemTool : IFileSystemTool
             new { path },
             async () =>
             {
-                var absolutePath = _sandbox.Resolve(path);
+                var absolutePath = _sandbox.Resolve(
+                    path,
+                    FileSystemAccessMode.ReadWrite,
+                    _executionContext);
                 await Task.Run(
                     () => Directory.CreateDirectory(absolutePath),
                     cancellationToken).ConfigureAwait(false);

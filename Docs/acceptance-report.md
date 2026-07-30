@@ -128,3 +128,17 @@ Date: 2026-07-30
 - ⏳ Copy `Docs/samples/web-daily-brief.json` into the task store, run it through the Runner,
   and verify the workflow report and guarded search output.
 - ⏳ Inspect the Tools card and sixth task whitelist checkbox in Dark and Light.
+
+## Stage 11 per-task file-system authorization
+
+The task contract now carries read-only or read-write absolute authorized locations while
+relative paths remain beneath `FileSystem:RootPath`. Deterministic tests cover canonical task
+serialization, invalid rules, relative and absolute containment, nested-rule precedence,
+read-only enforcement, move and delete authorization, Dropbox local paths, sibling-prefix and
+reparse-point rejection, immutable workflow/agent context propagation, taskless registry
+behavior, concurrent task isolation, and task-editor add/remove/save behavior.
+
+Deployment-environment follow-up: exercise one secondary local volume, one unavailable or
+removable volume, one NTFS-denied directory, and one UNC path in both InteractiveToken and S4U
+modes. Application authorization never replaces Windows permissions or supplies S4U network
+credentials.

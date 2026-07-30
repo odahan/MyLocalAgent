@@ -1,7 +1,7 @@
 namespace OD.MyLocalAgent.Core;
 
 /// <summary>
-/// Provides sandboxed local file-system tool operations.
+/// Provides authorized local file-system tool operations.
 /// </summary>
 public interface IFileSystemTool
 {

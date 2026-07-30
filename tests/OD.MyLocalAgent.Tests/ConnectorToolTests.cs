@@ -379,7 +379,8 @@ public sealed class ConnectorToolTests : IDisposable
             connector.Object,
             new PathSandbox(fileSystemOptions),
             NullLogger<DropboxTool>.Instance,
-            TimeProvider.System);
+            TimeProvider.System,
+            ToolExecutionContext.Taskless);
 
         var json = await tool.UploadAsync(
             "out.txt",
@@ -389,6 +390,71 @@ public sealed class ConnectorToolTests : IDisposable
         JsonDocument.Parse(json).RootElement
             .GetProperty("path").GetString().Should().Be("/backup/out.txt");
         connector.VerifyAll();
+    }
+
+    /// <summary>
+    /// Verifies Dropbox upload accepts a task-authorized absolute read-only path.
+    /// </summary>
+    [Fact]
+    public async Task DropboxUploadAcceptsAuthorizedAbsoluteReadOnlyPath()
+    {
+        Directory.CreateDirectory(_rootPath);
+        var authorizedPath = Path.Combine(
+            Path.GetTempPath(),
+            "OD.MyLocalAgent.Dropbox",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(authorizedPath);
+        try
+        {
+            var localFile = Path.Combine(authorizedPath, "upload.txt");
+            await File.WriteAllTextAsync(localFile, "content");
+            var connector = new Mock<IDropboxConnector>(MockBehavior.Strict);
+            connector.Setup(
+                    instance => instance.UploadAsync(
+                        localFile,
+                        "/upload.txt",
+                        It.IsAny<CancellationToken>()))
+                .ReturnsAsync(
+                    new DropboxItemDto(
+                        "upload.txt",
+                        "/upload.txt",
+                        false,
+                        7,
+                        null));
+            var fileSystemOptions = Options.Create(
+                new FileSystemOptions { RootPath = _rootPath });
+            var tool = new DropboxTool(
+                connector.Object,
+                new PathSandbox(fileSystemOptions),
+                NullLogger<DropboxTool>.Instance,
+                TimeProvider.System,
+                new ToolExecutionContext(
+                    "dropbox-task",
+                    [
+                        new FileSystemAccessRule
+                        {
+                            Path = authorizedPath,
+                            Access = FileSystemAccessMode.ReadOnly,
+                        },
+                    ]));
+
+            _ = await tool.UploadAsync(
+                localFile,
+                "/upload.txt",
+                CancellationToken.None);
+            var downloadAction = () => tool.DownloadAsync(
+                "/download.txt",
+                Path.Combine(authorizedPath, "download.txt"),
+                CancellationToken.None);
+
+            await downloadAction.Should().ThrowAsync<PathSandboxException>()
+                .WithMessage("*read-only*");
+            connector.VerifyAll();
+        }
+        finally
+        {
+            Directory.Delete(authorizedPath, recursive: true);
+        }
     }
 
     /// <summary>

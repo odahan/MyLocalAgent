@@ -64,6 +64,8 @@ public static partial class ScheduledTaskValidator
             }
         }
 
+        ValidateFileSystemAccess(task.FileSystemAccess);
+
         if (task.Workflow is null)
         {
             throw new TaskValidationException("Task 'workflow' must be an array.");
@@ -76,6 +78,85 @@ public static partial class ScheduledTaskValidator
         }
 
         ValidateWorkflow(task.Workflow, toolGroups);
+    }
+
+    private static void ValidateFileSystemAccess(
+        IReadOnlyList<FileSystemAccessRule>? rules)
+    {
+        if (rules is null)
+        {
+            throw new TaskValidationException(
+                "Task 'fileSystemAccess' must be an array.");
+        }
+
+        var normalizedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (var index = 0; index < rules.Count; index++)
+        {
+            var rule = rules[index]
+                ?? throw new TaskValidationException(
+                    $"File-system access rule {index + 1} cannot be null.");
+            if (string.IsNullOrWhiteSpace(rule.Path))
+            {
+                throw new TaskValidationException(
+                    $"File-system access rule {index + 1} requires a path.");
+            }
+
+            if (!Enum.IsDefined(rule.Access))
+            {
+                throw new TaskValidationException(
+                    $"File-system access rule {index + 1} has an unsupported access mode.");
+            }
+
+            var expandedPath = Environment.ExpandEnvironmentVariables(rule.Path.Trim());
+            if (!Path.IsPathRooted(expandedPath))
+            {
+                throw new TaskValidationException(
+                    $"File-system access path '{rule.Path}' must be absolute.");
+            }
+
+            if (expandedPath.IndexOfAny(['*', '?']) >= 0)
+            {
+                throw new TaskValidationException(
+                    $"File-system access path '{rule.Path}' cannot contain wildcards.");
+            }
+
+            string normalizedPath;
+            try
+            {
+                normalizedPath = NormalizeAccessPath(expandedPath);
+            }
+            catch (Exception exception) when (
+                exception is ArgumentException or
+                    NotSupportedException or
+                    PathTooLongException)
+            {
+                throw new TaskValidationException(
+                    $"File-system access path '{rule.Path}' is invalid.",
+                    exception);
+            }
+
+            if (!normalizedPaths.Add(normalizedPath))
+            {
+                throw new TaskValidationException(
+                    $"File-system access path '{rule.Path}' is duplicated.");
+            }
+
+            if (File.Exists(normalizedPath))
+            {
+                throw new TaskValidationException(
+                    $"File-system access path '{rule.Path}' must identify a directory.");
+            }
+        }
+    }
+
+    internal static string NormalizeAccessPath(string path)
+    {
+        var fullPath = Path.GetFullPath(
+            Environment.ExpandEnvironmentVariables(path.Trim()));
+        var root = Path.GetPathRoot(fullPath);
+        return string.Equals(fullPath, root, StringComparison.OrdinalIgnoreCase)
+            ? fullPath
+            : Path.TrimEndingDirectorySeparator(fullPath);
     }
 
     private static void ValidateWorkflow(

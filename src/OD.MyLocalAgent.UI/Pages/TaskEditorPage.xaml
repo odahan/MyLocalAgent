@@ -77,6 +77,71 @@
                 </StackPanel>
             </materialDesign:Card>
 
+            <materialDesign:Card Margin="0,16,0,0"
+                                 Visibility="{Binding ShowAuthorizedLocations, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <StackPanel>
+                    <Grid>
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionTitleStyle}"
+                                       Text="Authorized locations" />
+                            <TextBlock Margin="0,5,0,0"
+                                       Style="{StaticResource CaptionTextStyle}"
+                                       Text="Relative paths remain under the global RootPath. Add directories here only when this task needs absolute paths elsewhere."
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                        <Button HorizontalAlignment="Right"
+                                VerticalAlignment="Top"
+                                Command="{Binding AddAuthorizedLocationCommand}"
+                                Content="Add folder" />
+                    </Grid>
+
+                    <ItemsControl Margin="0,14,0,0"
+                                  ItemsSource="{Binding AuthorizedLocations}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="0,0,0,8"
+                                        Padding="12"
+                                        Background="{DynamicResource SurfaceBrush}"
+                                        BorderBrush="{DynamicResource DividerBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock FontFamily="Consolas"
+                                                       Text="{Binding Path}"
+                                                       TextWrapping="Wrap" />
+                                            <TextBlock Margin="0,4,0,0"
+                                                       Style="{StaticResource CaptionTextStyle}"
+                                                       Text="{Binding Status}"
+                                                       TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <CheckBox Grid.Column="1"
+                                                  Margin="18,0,18,0"
+                                                  VerticalAlignment="Center"
+                                                  Content="Read and write"
+                                                  IsChecked="{Binding CanWrite}" />
+                                        <Button Grid.Column="2"
+                                                VerticalAlignment="Center"
+                                                Command="{Binding DataContext.RemoveAuthorizedLocationCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                                CommandParameter="{Binding}"
+                                                Content="Remove" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock Style="{StaticResource CaptionTextStyle}"
+                               Text="Read-only locations allow listing, reading, and Dropbox upload. Writing, moving, deleting, directory creation, and Dropbox download require read and write access."
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </materialDesign:Card>
+
             <materialDesign:Card Margin="0,16,0,0">
                 <Grid>
                     <Grid.ColumnDefinitions>

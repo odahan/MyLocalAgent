@@ -321,6 +321,8 @@ public sealed class WorkflowEngineTests
                 service => service.RunPromptAsync(
                     "tool-output for Workflow test",
                     It.IsAny<IEnumerable<string>>(),
+                    It.Is<ToolExecutionContext>(
+                        context => context.TaskId == "workflow-test"),
                     It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AgentRunResult("prompt-output", "Test"));
         var engine = CreateEngine(registry, agentService: agent.Object);
@@ -338,6 +340,39 @@ public sealed class WorkflowEngineTests
         result.Success.Should().BeTrue();
         result.FinalText.Should().Be("prompt-output");
         agent.VerifyAll();
+    }
+
+    /// <summary>
+    /// Verifies deterministic tool calls receive the task's file-system grants.
+    /// </summary>
+    [Fact]
+    public async Task ToolStepReceivesTaskExecutionContext()
+    {
+        var registry = new RecordingToolRegistry(
+            (_, _, _) => Task.FromResult("ok"));
+        var authorizedPath = Path.Combine(Path.GetTempPath(), "workflow-authorized");
+        var task = CreateTask(
+            [Step("filesystem.list", "list", """{ "path": "." }""")]) with
+        {
+            FileSystemAccess =
+            [
+                new FileSystemAccessRule
+                {
+                    Path = authorizedPath,
+                    Access = FileSystemAccessMode.ReadOnly,
+                },
+            ],
+        };
+
+        var result = await CreateEngine(registry).ExecuteAsync(
+            task,
+            CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        registry.Contexts.Should().ContainSingle();
+        registry.Contexts[0].TaskId.Should().Be("workflow-test");
+        registry.Contexts[0].FileSystemAccess.Should().ContainSingle(
+            rule => rule.Path == authorizedPath);
     }
 
     private static SequentialWorkflowEngine CreateEngine(
@@ -416,9 +451,15 @@ public sealed class WorkflowEngineTests
 
         public List<string> Aliases { get; } = [];
 
+        public List<ToolExecutionContext> Contexts { get; } = [];
+
         public IReadOnlyList<ToolDefinition> Definitions => ToolMap.Definitions;
 
         public AITool[] GetAgentTools(IEnumerable<string> enabledToolGroups) => [];
+
+        public AITool[] GetAgentTools(
+            IEnumerable<string> enabledToolGroups,
+            ToolExecutionContext executionContext) => [];
 
         public bool TryGetDefinition(
             string alias,
@@ -433,6 +474,19 @@ public sealed class WorkflowEngineTests
             JsonElement arguments,
             IEnumerable<string> enabledToolGroups,
             CancellationToken cancellationToken)
+            => InvokeAsync(
+                alias,
+                arguments,
+                enabledToolGroups,
+                ToolExecutionContext.Taskless,
+                cancellationToken);
+
+        public Task<string> InvokeAsync(
+            string alias,
+            JsonElement arguments,
+            IEnumerable<string> enabledToolGroups,
+            ToolExecutionContext executionContext,
+            CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var definition = ToolMap.Find(alias) ??
@@ -446,6 +500,7 @@ public sealed class WorkflowEngineTests
             }
 
             Aliases.Add(alias);
+            Contexts.Add(executionContext);
             return _handler(alias, arguments, Aliases.Count);
         }
     }

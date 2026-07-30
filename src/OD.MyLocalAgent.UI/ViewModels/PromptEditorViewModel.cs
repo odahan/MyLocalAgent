@@ -180,10 +180,11 @@ public sealed partial class PromptEditorViewModel : ObservableObject
         StatusText = "The agent is generating with the task tool whitelist.";
         try
         {
-            await foreach (var chunk in _agentService
+                    await foreach (var chunk in _agentService
                                .RunPromptStreamingAsync(
                                    Prompt,
                                    _task.Tools,
+                                   ToolExecutionContext.FromTask(_task),
                                    cancellationToken)
                                .ConfigureAwait(true))
             {

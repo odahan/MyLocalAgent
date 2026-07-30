@@ -1161,3 +1161,55 @@ The complete reloadable keys are `Guardrails:ScreeningEnabled`, `CleanThreshold`
   queries and snippets leave the machine for the configured cloud endpoint.
 - Safety gates, per-task tool whitelists, filesystem sandboxing, and HTTP allowlisting remain
   the enforceable boundaries.
+
+### Stage 11 — Per-task file-system authorization — 2026-07-30
+
+#### Normative decision
+
+- Added shared specification §14 and the Stage 11 prompt before implementation. The global
+  required `FileSystem:RootPath` remains the sandbox for relative paths.
+- The canonical task contract gains `fileSystemAccess`, an array of absolute directory rules
+  with `ReadOnly` or `ReadWrite` access. Empty means no additional absolute-path grant.
+- Absolute paths are authorized only by the current task. The most-specific nested rule wins.
+  Windows ACLs, unavailable volumes, S4U limitations, and Safety gates remain independent
+  authorities.
+- Immutable execution context must flow through deterministic workflows and agent-selected
+  tools. Singleton services must not contain mutable current-task state.
+- File-system tools and Dropbox local paths share this policy. Tool Map aliases and method
+  arguments remain unchanged.
+- The repository has no deployed task population, so examples and tests move directly to the
+  new canonical task shape without a runtime migration mechanism.
+
+#### Delivered public API and implementation surface
+
+- `FileSystemAccessMode`, `FileSystemAccessRule`, and `ToolExecutionContext`.
+- Context-aware `IPathSandbox`, `IToolRegistry`, and `IMyLocalAgentService` operations.
+- `IContextualToolFactory<TTool>` creates immutable task-bound file-system and Dropbox tool
+  instances without singleton current-task state. Existing taskless registry and agent-service
+  overloads remain available for Tool Tester and AI Playground and are limited to relative paths
+  under `FileSystem:RootPath`.
+- The task editor exposes an Authorized locations card when File System or Dropbox is enabled.
+  Users select folders, choose read-only or read/write access, remove rules, see availability
+  information, and must confirm a volume-root grant.
+- Task validation and serialization reject relative, wildcard, duplicate, malformed, and
+  existing-file rules and persist normalized absolute directory paths.
+- `PathSandbox` applies separator-aware containment, most-specific-rule precedence, independent
+  source/destination checks for move operations, and reparse-point rejection. File deletion
+  additionally retains the global `Safety:AllowFileDelete` gate.
+
+#### Verification
+
+- `dotnet build OD.MyLocalAgent.sln -m:1 --no-restore --configuration Release`: succeeded with
+  zero warnings and zero errors.
+- `dotnet test OD.MyLocalAgent.sln -m:1 --no-build --no-restore --configuration Release`:
+  145 passed, zero failed, one intentionally skipped local Ollama integration test, 146 total.
+- Tests cover task-rule validation and round trips, relative and absolute sandbox behavior,
+  read-only/read-write enforcement, most-specific nested rules, sibling-prefix rejection,
+  source/destination move authorization, delete Safety composition, reparse points, concurrent
+  context isolation, workflow and agent context propagation, taskless Tool Map behavior, Dropbox
+  upload/download access modes, and task-editor add/change/remove flows.
+- All JSON samples parse successfully. Both English and French HTML manuals have balanced
+  sections, unique IDs, and valid internal navigation targets.
+- `git diff --check` reports no whitespace errors.
+- No package, persistence migration, installer, executable topology, scheduling, or Windows Task
+  Scheduler registration changes were required.

@@ -33,6 +33,11 @@ public sealed record ScheduledTask
     public IReadOnlyList<string> Tools { get; init; } = [];
 
     /// <summary>
+    /// Gets the absolute directories additionally authorized for this task.
+    /// </summary>
+    public IReadOnlyList<FileSystemAccessRule> FileSystemAccess { get; init; } = [];
+
+    /// <summary>
     /// Gets the optional deterministic workflow.
     /// </summary>
     public IReadOnlyList<WorkflowStepDefinition> Workflow { get; init; } = [];

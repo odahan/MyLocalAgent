@@ -229,8 +229,12 @@ A blocked operation throws `SafetyException` and names the required flag. This d
 task definition, model response, or imported workflow from silently sending mail, deleting
 files, or issuing outbound POST requests.
 
-Filesystem aliases are additionally confined to the absolute `FileSystem:RootPath`. Rooted
-inputs and parent traversal are rejected. `Http:AllowedHosts` is an exact hostname allowlist.
+Relative filesystem paths are confined to the absolute `FileSystem:RootPath`. A task may
+authorize additional absolute directories in its **Authorized locations** editor section;
+each location is read-only or read-write. Absolute paths without a matching task rule,
+parent traversal, sibling-prefix confusion, and reparse-point escapes are rejected. Dropbox
+local paths use the same policy, and Windows ACLs remain authoritative.
+`Http:AllowedHosts` is an exact hostname allowlist.
 An empty list allows every HTTP or HTTPS host; that is convenient for interactive use but
 increases unattended-network risk, so production tasks should use an explicit list.
 
@@ -395,6 +399,7 @@ A task is stored as one JSON object:
   "schedule": "0 7 * * *",
   "prompt": "Summarize today's important messages.",
   "tools": ["gmail", "filesystem"],
+  "fileSystemAccess": [],
   "workflow": [
     "gmail.readToday",
     "ai.summarize"
@@ -406,6 +411,28 @@ A task is stored as one JSON object:
 
 Task ids match `[a-z0-9-]+`. Cron is interpreted in the Windows local time zone. Tool groups
 are `gmail`, `calendar`, `dropbox`, `filesystem`, `http`, and `web`.
+
+`fileSystemAccess` authorizes absolute directories for this task. An empty array grants no
+absolute paths; relative paths continue beneath `FileSystem:RootPath`. Rules use
+`"ReadOnly"` or `"ReadWrite"`, include descendants, and the most-specific nested rule wins:
+
+```json
+"fileSystemAccess": [
+  {
+    "path": "D:\\Production\\Incoming",
+    "access": "ReadOnly"
+  },
+  {
+    "path": "E:\\Archives\\Daily",
+    "access": "ReadWrite"
+  }
+]
+```
+
+Listing, reading, and Dropbox upload need read access. Writing, moving, directory creation,
+deletion, and Dropbox download need read-write access. Delete also requires
+`Safety:AllowFileDelete`. A declared location never grants NTFS rights, and a network path
+can still fail in S4U.
 
 String form is for steps without explicit arguments:
 
@@ -480,6 +507,7 @@ workflow wins and the prompt remains available through `{{task.prompt}}`.
   "schedule": "0 7 * * *",
   "prompt": "Summarize today's messages and highlight required actions.",
   "tools": ["gmail", "filesystem"],
+  "fileSystemAccess": [],
   "workflow": [
     "gmail.readToday",
     {
@@ -512,6 +540,7 @@ inside the filesystem sandbox, and backs it up to Dropbox:
   "schedule": "0 9 * * 1-5",
   "prompt": "Extract concrete follow-up actions from unread messages.",
   "tools": ["gmail", "calendar", "filesystem", "dropbox"],
+  "fileSystemAccess": [],
   "workflow": [
     "gmail.readUnread",
     {
@@ -564,6 +593,7 @@ the brief inside the filesystem sandbox:
   "schedule": "0 8 * * 1-5",
   "prompt": "Create a concise daily brief from current web search results.",
   "tools": ["web", "filesystem"],
+  "fileSystemAccess": [],
   "workflow": [
     {
       "step": "web.search",

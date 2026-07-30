@@ -21,6 +21,16 @@ public interface IToolRegistry
     AITool[] GetAgentTools(IEnumerable<string> enabledToolGroups);
 
     /// <summary>
+    /// Builds the agent tools allowed by the supplied whitelist and execution context.
+    /// </summary>
+    /// <param name="enabledToolGroups">The task tool-group whitelist.</param>
+    /// <param name="executionContext">The immutable tool execution context.</param>
+    /// <returns>The contextual whitelisted agent tools.</returns>
+    AITool[] GetAgentTools(
+        IEnumerable<string> enabledToolGroups,
+        ToolExecutionContext executionContext);
+
+    /// <summary>
     /// Resolves a Tool Map alias.
     /// </summary>
     /// <param name="alias">The workflow alias.</param>
@@ -40,5 +50,21 @@ public interface IToolRegistry
         string alias,
         JsonElement arguments,
         IEnumerable<string> enabledToolGroups,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Invokes a whitelisted tool alias with an immutable execution context.
+    /// </summary>
+    /// <param name="alias">The workflow alias.</param>
+    /// <param name="arguments">The JSON argument object.</param>
+    /// <param name="enabledToolGroups">The task tool-group whitelist.</param>
+    /// <param name="executionContext">The immutable tool execution context.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The compact JSON tool result.</returns>
+    Task<string> InvokeAsync(
+        string alias,
+        JsonElement arguments,
+        IEnumerable<string> enabledToolGroups,
+        ToolExecutionContext executionContext,
         CancellationToken cancellationToken);
 }
