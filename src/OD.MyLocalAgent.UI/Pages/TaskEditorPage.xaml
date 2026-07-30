@@ -265,16 +265,22 @@
                                 Margin="10,0,0,0"
                                 Command="{Binding AddWorkflowStepCommand}"
                                 Content="Add step" />
-                        <StackPanel Grid.Column="2"
-                                    HorizontalAlignment="Right"
-                                    Orientation="Horizontal">
+                        <WrapPanel Grid.Column="2"
+                                   HorizontalAlignment="Right">
+                            <Button Command="{Binding OpenAIHelperCommand}"
+                                    Content="AI Helper" />
+                            <Button Command="{Binding OpenAIExplainCommand}"
+                                    Content="AI Explain" />
+                            <Button Command="{Binding UndoAIChangesCommand}"
+                                    Content="Undo AI changes"
+                                    Visibility="{Binding HasAIUndoSnapshot, Converter={StaticResource BooleanToVisibilityConverter}}" />
                             <Button Command="{Binding LoadTranslationExampleCommand}"
                                     Content="Translation example" />
                             <Button Command="{Binding FormatWorkflowCommand}"
                                     Content="Format JSON" />
                             <Button Command="{Binding ValidateWorkflowCommand}"
                                     Content="Validate" />
-                        </StackPanel>
+                        </WrapPanel>
                     </Grid>
                     <TextBox MinHeight="270"
                              AcceptsReturn="True"

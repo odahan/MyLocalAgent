@@ -2003,6 +2003,47 @@ ollama list</code></pre>
                     </article>
                 </div>
 
+                <h3>AI Workflow Helper</h3>
+                <p>
+                    <span class="ui-label">AI Helper</span> transforme une description en
+                    anglais en exactement le tableau de workflow affiché dans l’éditeur.
+                    Un workflow chargé devient localement une description déterministe et
+                    modifiable, sans appel au modèle. Vous pouvez la modifier ou fournir une
+                    instruction de raffinement à usage unique ; aucun historique de chat
+                    n’est conservé. La réponse est diffusée par le fournisseur choisi dans
+                    Settings et doit passer la validation stricte de l’application.
+                </p>
+                <p>
+                    Examinez chaque proposition de groupe d’outils ou de dossier absolu :
+                    elle est décochée par défaut et doit être acceptée explicitement. Les
+                    chemins dynamiques produisent un avertissement sans autorisation inventée ;
+                    les réglages Safety restent globaux et ne sont jamais modifiés.
+                    <span class="ui-label">Apply</span> met à jour ensemble le JSON, les outils
+                    et les emplacements ; seul <span class="ui-label">Save task</span> persiste
+                    ces valeurs. <span class="ui-label">Undo AI changes</span> restaure l’état
+                    précédent jusqu’à la sauvegarde, au rechargement, à la navigation ou à une
+                    application ultérieure.
+                </p>
+                <p>
+                    <span class="ui-label">AI Explain</span> valide d’abord le workflow
+                    localement, puis explique les étapes, prompts, skills, placeholders, flux
+                    de données, autorisations, barrières Safety, effets et échecs probables.
+                    Text est le mode de repli fiable. Rendered Markdown réutilise la même
+                    réponse dans un document WebView2 restreint ; si le runtime manque, Text
+                    reste disponible et seul un lien explicite vers la page Microsoft
+                    officielle est proposé.
+                </p>
+                <div class="callout warn">
+                    <strong>Confidentialité et limites.</strong>
+                    L’assistant n’exécute aucune étape, n’appelle aucun outil ou skill, ne lit
+                    aucun fichier référencé, ne change aucun réglage Safety et ne persiste pas
+                    son contenu. Le fournisseur cloud reçoit la description et le contexte du
+                    workflow lorsqu’il est sélectionné. Un JSON valide peut rester incorrect
+                    sémantiquement et l’analyse statique ne prévoit pas tous les chemins ou
+                    valeurs d’exécution. Cancel conserve la sortie partielle, sans permettre
+                    Apply.
+                </div>
+
                 <h3>Forme d’une tâche</h3>
                 <div class="code-block">
                     <pre><code>{

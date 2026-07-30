@@ -5,6 +5,7 @@ using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
+using Microsoft.Extensions.Options;
 using OD.MyLocalAgent.Core;
 using OD.MyLocalAgent.UI.Messages;
 using OD.MyLocalAgent.UI.Services;
@@ -14,7 +15,7 @@ namespace OD.MyLocalAgent.UI.ViewModels;
 /// <summary>
 /// Edits and validates scheduled task definitions.
 /// </summary>
-public sealed partial class TaskEditorViewModel : ObservableObject
+public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatablePage
 {
     private readonly ITaskStore _taskStore;
     private readonly ITaskSchedulerService _scheduler;
@@ -22,8 +23,11 @@ public sealed partial class TaskEditorViewModel : ObservableObject
     private readonly IDesktopInteractionService _desktopInteraction;
     private readonly IMessenger _messenger;
     private readonly TimeProvider _timeProvider;
+    private readonly IAIWorkflowHelperDialogService? _workflowHelperDialog;
+    private readonly IOptionsMonitor<SafetyOptions>? _safetyOptions;
     private string? _requestedTaskId;
     private string? _originalTaskId;
+    private AIEditorSnapshot? _aiUndoSnapshot;
 
     [ObservableProperty]
     private string _editorTitle = "New task";
@@ -76,7 +80,12 @@ public sealed partial class TaskEditorViewModel : ObservableObject
     public bool ShowAuthorizedLocations => UseFileSystem || UseDropbox;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(OpenAIExplainCommand))]
     private string _workflowText = "[]";
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(UndoAIChangesCommand))]
+    private bool _hasAIUndoSnapshot;
 
     [ObservableProperty]
     private ToolDefinition? _selectedWorkflowAlias;
@@ -112,7 +121,9 @@ public sealed partial class TaskEditorViewModel : ObservableObject
         IIncidentReporter incidentReporter,
         IDesktopInteractionService desktopInteraction,
         IMessenger messenger,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IAIWorkflowHelperDialogService? workflowHelperDialog = null,
+        IOptionsMonitor<SafetyOptions>? safetyOptions = null)
     {
         _taskStore = taskStore;
         _scheduler = scheduler;
@@ -120,6 +131,8 @@ public sealed partial class TaskEditorViewModel : ObservableObject
         _desktopInteraction = desktopInteraction;
         _messenger = messenger;
         _timeProvider = timeProvider;
+        _workflowHelperDialog = workflowHelperDialog;
+        _safetyOptions = safetyOptions;
         ErrorPolicies = Enum.GetValues<WorkflowErrorPolicy>();
         WorkflowAliases = ToolMap.Definitions;
         SelectedWorkflowAlias = WorkflowAliases.FirstOrDefault();
@@ -164,6 +177,9 @@ public sealed partial class TaskEditorViewModel : ObservableObject
         }
     }
 
+    void IDeactivatablePage.Deactivate() =>
+        ClearAIUndo();
+
     partial void OnScheduleChanged(string value) =>
         UpdateCronPreview();
 
@@ -203,6 +219,7 @@ public sealed partial class TaskEditorViewModel : ObservableObject
             }
 
             _originalTaskId = task?.Id;
+            ClearAIUndo();
             EditorTitle = task is null ? "New task" : $"Edit task · {task.Name}";
             Id = task?.Id ?? string.Empty;
             Name = task?.Name ?? string.Empty;
@@ -313,6 +330,7 @@ public sealed partial class TaskEditorViewModel : ObservableObject
             await SynchronizeRegistrationAsync(task, cancellationToken)
                 .ConfigureAwait(true);
             _originalTaskId = task.Id;
+            ClearAIUndo();
             Id = task.Id;
             IsIdReadOnly = true;
             EditorTitle = $"Edit task · {task.Name}";
@@ -353,8 +371,11 @@ public sealed partial class TaskEditorViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void BackToTasks() =>
+    private void BackToTasks()
+    {
+        ClearAIUndo();
         _messenger.Send(new NavigateMessage(PageRoute.Tasks));
+    }
 
     [RelayCommand]
     private void AddWorkflowStep()
@@ -516,6 +537,86 @@ public sealed partial class TaskEditorViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void OpenAIHelper()
+    {
+        if (_workflowHelperDialog is null)
+        {
+            ValidationText = "AI Workflow Helper is unavailable.";
+            return;
+        }
+
+        try
+        {
+            var workflow = DeserializeWorkflow(WorkflowText);
+            var result = _workflowHelperDialog.Show(
+                CreateHelperRequest(AIWorkflowHelperMode.Author, workflow));
+            if (result is not null)
+            {
+                ApplyAIResult(result);
+            }
+        }
+        catch (Exception exception) when (
+            exception is TaskValidationException or
+                WorkflowValidationException or
+                JsonException)
+        {
+            ValidationText = AddAliasSuggestion(exception.Message);
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanOpenAIExplain))]
+    private void OpenAIExplain()
+    {
+        if (_workflowHelperDialog is null)
+        {
+            ValidationText = "AI Workflow Helper is unavailable.";
+            return;
+        }
+
+        try
+        {
+            var workflow = DeserializeWorkflow(WorkflowText);
+            if (workflow.Count == 0)
+            {
+                ValidationText = "AI Explain requires at least one workflow step.";
+                return;
+            }
+
+            ValidateWorkflowPreview(workflow);
+            _ = _workflowHelperDialog.Show(
+                CreateHelperRequest(AIWorkflowHelperMode.Explain, workflow));
+        }
+        catch (Exception exception) when (
+            exception is TaskValidationException or
+                WorkflowValidationException or
+                JsonException)
+        {
+            ValidationText = AddAliasSuggestion(exception.Message);
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanUndoAIChanges))]
+    private void UndoAIChanges()
+    {
+        if (_aiUndoSnapshot is null)
+        {
+            return;
+        }
+
+        WorkflowText = _aiUndoSnapshot.WorkflowText;
+        SetSelectedToolGroups(_aiUndoSnapshot.ToolGroups);
+        AuthorizedLocations.Clear();
+        foreach (var rule in _aiUndoSnapshot.FileSystemAccess)
+        {
+            AuthorizedLocations.Add(
+                new FileSystemAccessItem(rule.Path, rule.Access));
+        }
+
+        ClearAIUndo();
+        ValidationText = "AI workflow changes were undone.";
+    }
+
+    [RelayCommand]
     private void AddAuthorizedLocation()
     {
         var selectedPath = _desktopInteraction.SelectFolder(
@@ -639,6 +740,90 @@ public sealed partial class TaskEditorViewModel : ObservableObject
         return groups;
     }
 
+    private bool CanOpenAIExplain() =>
+        !string.IsNullOrWhiteSpace(WorkflowText) &&
+        !string.Equals(WorkflowText.Trim(), "[]", StringComparison.Ordinal);
+
+    private bool CanUndoAIChanges() => HasAIUndoSnapshot;
+
+    private AIWorkflowHelperRequest CreateHelperRequest(
+        AIWorkflowHelperMode mode,
+        IReadOnlyList<WorkflowStepDefinition> workflow)
+    {
+        var safety = _safetyOptions?.CurrentValue ?? new SafetyOptions();
+        return new AIWorkflowHelperRequest(
+            mode,
+            workflow,
+            Id,
+            Name,
+            Schedule,
+            Prompt,
+            SelectedErrorPolicy,
+            GetSelectedToolGroups(),
+            AuthorizedLocations.Select(static item => item.ToRule()).ToArray(),
+            new SafetyOptions
+            {
+                AllowSendEmail = safety.AllowSendEmail,
+                AllowFileDelete = safety.AllowFileDelete,
+                AllowHttpPost = safety.AllowHttpPost,
+            });
+    }
+
+    private void ValidateWorkflowPreview(
+        IReadOnlyList<WorkflowStepDefinition> workflow) =>
+        ScheduledTaskValidator.Validate(
+            new ScheduledTask
+            {
+                Id = string.IsNullOrWhiteSpace(Id) ? "workflow-preview" : Id.Trim(),
+                Name = string.IsNullOrWhiteSpace(Name) ? "Workflow preview" : Name.Trim(),
+                Schedule = string.IsNullOrWhiteSpace(Schedule) ? "0 7 * * *" : Schedule.Trim(),
+                Prompt = string.IsNullOrWhiteSpace(Prompt) ? "Workflow preview" : Prompt,
+                Tools = GetSelectedToolGroups(),
+                FileSystemAccess = AuthorizedLocations.Select(static item => item.ToRule()).ToArray(),
+                Workflow = workflow,
+                Enabled = false,
+                ErrorPolicy = SelectedErrorPolicy,
+            });
+
+    private void ApplyAIResult(AIWorkflowHelperResult result)
+    {
+        _aiUndoSnapshot = new AIEditorSnapshot(
+            WorkflowText,
+            GetSelectedToolGroups().ToArray(),
+            AuthorizedLocations.Select(static item => item.ToRule()).ToArray());
+        WorkflowText = result.WorkflowJson;
+        SetSelectedToolGroups(result.ToolGroups);
+        AuthorizedLocations.Clear();
+        foreach (var rule in result.FileSystemAccess)
+        {
+            AuthorizedLocations.Add(
+                new FileSystemAccessItem(rule.Path, rule.Access));
+        }
+
+        HasAIUndoSnapshot = true;
+        ValidationText =
+            "AI workflow changes applied to the editor. Save the task to persist them.";
+    }
+
+    private void SetSelectedToolGroups(IEnumerable<string> toolGroups)
+    {
+        var groups = new HashSet<string>(
+            toolGroups,
+            StringComparer.OrdinalIgnoreCase);
+        UseGmail = groups.Contains(ToolGroups.Gmail);
+        UseCalendar = groups.Contains(ToolGroups.Calendar);
+        UseDropbox = groups.Contains(ToolGroups.Dropbox);
+        UseFileSystem = groups.Contains(ToolGroups.FileSystem);
+        UseHttp = groups.Contains(ToolGroups.Http);
+        UseWeb = groups.Contains(ToolGroups.Web);
+    }
+
+    private void ClearAIUndo()
+    {
+        _aiUndoSnapshot = null;
+        HasAIUndoSnapshot = false;
+    }
+
     private static IReadOnlyList<WorkflowStepDefinition> DeserializeWorkflow(
         string workflowText)
     {
@@ -748,4 +933,9 @@ public sealed partial class TaskEditorViewModel : ObservableObject
             .ReportAsync(exception, source, CancellationToken.None)
             .ConfigureAwait(true);
     }
+
+    private sealed record AIEditorSnapshot(
+        string WorkflowText,
+        IReadOnlyList<string> ToolGroups,
+        IReadOnlyList<FileSystemAccessRule> FileSystemAccess);
 }

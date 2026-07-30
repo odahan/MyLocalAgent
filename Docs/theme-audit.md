@@ -103,3 +103,18 @@ existing surface, divider, caption, checkbox, and button styles. The folder choo
 native Windows dialog behind `IDesktopInteractionService`. Verify long absolute and UNC paths,
 read-only checkbox states, unavailable-location warnings, keyboard focus, and the volume-root
 confirmation in both supported palettes.
+
+## Stage 13 AI Workflow Helper modal
+
+The reusable modal window adds application-themed multiline description/refinement inputs,
+read-only streamed JSON/Markdown panes, indeterminate progress, validation and cancellation
+states, explicit proposal checkboxes, warning text, Text/Rendered Markdown tabs, WebView2
+surface, Apply/Retry/Copy/Close commands, and the missing-runtime fallback card. It uses only
+palette resources and the existing implicit control styles.
+
+Automated build and ViewModel tests cover state/command enablement, proposal refusal and
+acceptance, cancellation, Text/HTML projection, raw-HTML disabling, and restricted-document
+content. Human visual follow-up remains required for both palettes, keyboard traversal,
+long descriptions/errors/paths, narrow minimum size, WebView2 initialization failure, and
+actual rendered Markdown. No Stage 13 GUI or WebView2 runtime flow was manually exercised in
+this implementation pass.

@@ -37,6 +37,7 @@ This ledger is the binding project memory for OD.MyLocalAgent. Every stage must 
 | `Google.Apis.Gmail.v1` | 1.74.0.4162 |
 | `HtmlAgilityPack` | 1.12.4 |
 | `MahApps.Metro.IconPacks` | 6.2.1 |
+| `Markdig` | 1.3.2 |
 | `MaterialDesignThemes` | 5.3.2 |
 | `Microsoft.Agents.AI` | 1.15.0 |
 | `Microsoft.Extensions.AI` | 10.8.3 |
@@ -46,6 +47,7 @@ This ledger is the binding project memory for OD.MyLocalAgent. Every stage must 
 | `Microsoft.Extensions.Http` | 10.0.10 |
 | `Microsoft.Extensions.Options.ConfigurationExtensions` | 10.0.10 |
 | `Microsoft.NET.Test.Sdk` | 18.8.1 |
+| `Microsoft.Web.WebView2` | 1.0.4078.44 |
 | `Moq` | 4.20.72 |
 | `OllamaSharp` | 5.4.30 |
 | `OpenAI` | 2.12.0 |
@@ -1272,3 +1274,118 @@ The complete reloadable keys are `Guardrails:ScreeningEnabled`, `CleanThreshold`
 - Both standalone manuals validate with 22 balanced sections, 30 unique ids, no duplicate id,
   and no missing internal anchor. Their workflow examples use `.output.text` for the existing
   JSON skill-result envelope.
+
+### Stage 13 — AI Workflow Helper — 2026-07-30
+
+#### Scope and contracts
+
+- Added one reusable modal **AI Workflow Helper** window with explicit Author and Explain modes.
+  The Task editor remains the only persistence surface and workflow-array JSON remains the
+  source of truth.
+- Authoring converts loaded JSON locally into a deterministic, editable description preserving
+  string/object form, order, alias, explicit/effective id, compact typed arguments,
+  placeholders, policies, retry values, and output name. Generation and single-use refinement
+  keep no transcript or hidden history.
+- `WorkflowAssistantService` resolves `ILlmClientFactory.Create()` for every attempt and calls
+  the selected provider's `IChatClient` directly with exactly one system message, one user
+  message, streaming, temperature zero, and `Tools=null`. It does not use the agent, skills,
+  connectors, workflow engine, or any side-effect callback.
+- Prompt contracts are `workflow-generation-v1` and `workflow-explanation-v1`. Generation
+  context is built from `ToolMap.Definitions` and `WorkflowPlaceholderCatalog` version 1 rather
+  than a UI alias/placeholder duplicate.
+- Strict parsing accepts only a complete workflow JSON array. Shared validation now covers
+  required and unknown arguments, supported JSON kinds, placeholder grammar and declaration
+  order, ids, retries, aliases, `includeContext`, tool whitelisting, and normal task rules.
+- One initial attempt plus at most two deterministic correction attempts is enforced for
+  generation, refinement, and explanation. Cancellation preserves partial text, performs no
+  repair or incident report, and cannot enable Apply.
+
+#### Requirements, Apply, and privacy boundaries
+
+- `ToolDefinition.LocalPathArguments` centralizes local-path argument, target kind,
+  read/read-write access, and rename/set-extension derivation metadata for filesystem and
+  Dropbox aliases.
+- `WorkflowRequirementAnalyzer` derives non-AI tool groups, missing groups, literal absolute
+  directory grants, strongest duplicate access, dynamic-path warnings, volume-root/UNC review
+  facts, and current Safety-gate status without inspecting disk contents or target existence.
+  Relative paths remain under `FileSystem:RootPath`; placeholders, runtime values, unexpanded
+  variables, and malformed values never create grants.
+- Every missing task-owned proposal starts unchecked. Safety flags are warnings and are never
+  changed. Apply returns canonical JSON plus accepted tool/grant unions and updates all three
+  Task editor values as one command. One-level Undo is cleared by save, load, navigation away,
+  or a later helper application.
+- Assistant descriptions, refinements, prompts, raw/partial responses, explanations, errors,
+  paths, and proposal choices are memory-only and are not logged or persisted. Provider
+  incidents contain only sanitized operation metadata and a correlation id.
+- Explain input is validated locally before opening a model-backed operation. Markdown is
+  stored once and projected to Text and restricted in-memory HTML without regeneration.
+
+#### Markdown and WebView2
+
+- Added centrally pinned `Markdig` 1.3.2, the current stable .NET-10-compatible release at
+  implementation time, for raw-HTML-disabled Markdown parsing, deterministic plain text, and
+  HTML conversion.
+- Added centrally pinned `Microsoft.Web.WebView2` 1.0.4078.44, the current stable release at
+  implementation time, for WPF rendering. The in-memory document has no script and uses a CSP
+  that blocks default resources, scripts, connections, frames, images, media, fonts, objects,
+  forms, and base URIs. The control disables developer/context-menu/host-object features and
+  blocks navigation, pop-ups, new windows, and downloads.
+- Runtime detection or initialization failure switches back to Text. The only recovery action
+  is an explicit shell-open of Microsoft's official WebView2 Runtime page through
+  `IDesktopInteractionService`; no download or installation is started.
+
+#### Exact file-tree delta
+
+Added:
+
+- Core:
+  `LocalPathArgumentDefinition.cs`, `LocalPathDerivationKind.cs`,
+  `LocalPathTargetKind.cs`, `WorkflowDefinitionSerializer.cs`,
+  `WorkflowDescriptionFormatter.cs`, `WorkflowPathRequirement.cs`,
+  `WorkflowPlaceholderCatalog.cs`, `WorkflowRequirementAnalysis.cs`,
+  `WorkflowRequirementAnalyzer.cs`, and `WorkflowSafetyRequirement.cs`.
+- UI:
+  `AIWorkflowHelperWindow.xaml`, `AIWorkflowHelperWindow.xaml.cs`,
+  `Controls/SafeMarkdownView.cs`, `Services/AIWorkflowHelperDialogService.cs`,
+  `Services/AIWorkflowHelperRequest.cs`, `Services/AIWorkflowHelperResult.cs`,
+  `Services/IAIWorkflowHelperDialogService.cs`, `Services/IMarkdownRenderingService.cs`,
+  `Services/IWebView2AvailabilityService.cs`, `Services/IWorkflowAssistantService.cs`,
+  `Services/MarkdownRenderingService.cs`,
+  `Services/WorkflowAssistantPromptBuilder.cs`, `Services/WorkflowAssistantService.cs`,
+  `Services/WebView2AvailabilityService.cs`,
+  `ViewModels/AIWorkflowHelperMode.cs`, `ViewModels/AIWorkflowHelperState.cs`,
+  `ViewModels/AIWorkflowHelperViewModel.cs`, `ViewModels/IDeactivatablePage.cs`, and
+  `ViewModels/WorkflowProposalItem.cs`.
+- Tests: `WorkflowAssistantCoreTests.cs` and `WorkflowAssistantServiceTests.cs`.
+
+Modified:
+
+- `Directory.Packages.props`, `README.md`, `Docs/Prompts/00-Shared-Specification.md`,
+  `Docs/ARCHITECTURE-LEDGER.md`, both standalone manuals, `Docs/theme-audit.md`, and
+  `Docs/acceptance-report.md`.
+- Core: `ScheduledTaskValidator.cs`, `ToolDefinition.cs`, and `ToolMap.cs`.
+- Workflows: `WorkflowPlaceholderResolver.cs`.
+- UI: `App.xaml.cs`, `OD.MyLocalAgent.UI.csproj`, `Pages/TaskEditorPage.xaml`,
+  `Services/DesktopInteractionService.cs`, `Services/IDesktopInteractionService.cs`,
+  `Themes/ControlStyles.xaml`, `ViewModels/MainWindowViewModel.cs`, and
+  `ViewModels/TaskEditorViewModel.cs`.
+- Tests: `TaskEditorViewModelTests.cs`.
+
+#### Verification and residual risks
+
+- `dotnet restore OD.MyLocalAgent.sln -m:1`: succeeded for all eight projects.
+- `dotnet build OD.MyLocalAgent.sln -m:1 --no-restore --configuration Release`: succeeded with
+  zero warnings and zero errors.
+- `dotnet test OD.MyLocalAgent.sln -m:1 --no-build --no-restore --configuration Release`:
+  191 passed, zero failed, one intentionally skipped local Ollama integration test, 192 total.
+- All four JSON files under `Docs/samples` parsed successfully. `git diff --check` reported no
+  whitespace errors.
+- The WPF application was not launched in this implementation pass. Author/Explain with a
+  live provider, refusal, cancellation, Undo, rendered Markdown, and missing-runtime fallback
+  were therefore not claimed as manual GUI verification; deterministic tests cover their
+  non-environmental state and policy behavior.
+- Generated workflows can be semantically wrong despite valid JSON. Literal analysis cannot
+  predict every runtime path or value. Disabled Safety gates can still make an applied
+  workflow fail. Context and latency grow with workflow size. Selecting the cloud provider
+  sends entered description and workflow context to that configured provider. Markdown
+  rendering is best-effort and Text remains the dependable fallback.

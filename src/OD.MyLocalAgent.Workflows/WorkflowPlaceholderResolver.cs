@@ -2,7 +2,6 @@ using System.Buffers;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using OD.MyLocalAgent.Core;
 
 namespace OD.MyLocalAgent.Workflows;
@@ -46,10 +45,10 @@ internal static partial class WorkflowPlaceholderResolver
         DateTimeOffset localNow)
     {
         ArgumentNullException.ThrowIfNull(template);
-        return PlaceholderPattern().Replace(
+        return WorkflowPlaceholderCatalog.Replace(
             template,
-            match => ResolvePlaceholder(
-                match.Groups[1].Value.Trim(),
+            placeholder => ResolvePlaceholder(
+                placeholder,
                 task,
                 context,
                 stepId,
@@ -199,7 +198,8 @@ internal static partial class WorkflowPlaceholderResolver
 
         var name = match.Groups["name"].Value;
         var format = match.Groups["format"].Success
-            ? NormalizeFriendlyDateTimeFormat(match.Groups["format"].Value)
+            ? WorkflowPlaceholderCatalog.NormalizeDateTimeFormat(
+                match.Groups["format"].Value)
             : string.Equals(name, "Today", StringComparison.OrdinalIgnoreCase)
                 ? "yyyy-MM-dd"
                 : "yyyy-MM-ddTHH:mm:sszzz";
@@ -212,13 +212,6 @@ internal static partial class WorkflowPlaceholderResolver
         value = localNow.ToString(format, CultureInfo.InvariantCulture);
         return true;
     }
-
-    private static string NormalizeFriendlyDateTimeFormat(string format) =>
-        format
-            .Replace("YYYY", "yyyy", StringComparison.Ordinal)
-            .Replace("YY", "yy", StringComparison.Ordinal)
-            .Replace("DD", "dd", StringComparison.Ordinal)
-            .Replace("hh", "HH", StringComparison.Ordinal);
 
     private static string ResolveOutputPath(
         string output,
@@ -314,13 +307,9 @@ internal static partial class WorkflowPlaceholderResolver
         return false;
     }
 
-    [GeneratedRegex(
-        @"\{\{\s*([^{}]+?)\s*\}\}",
-        RegexOptions.CultureInvariant)]
-    private static partial Regex PlaceholderPattern();
-
-    [GeneratedRegex(
+    [System.Text.RegularExpressions.GeneratedRegex(
         @"^(?<name>Today|Now)(?:\[(?<format>[^\[\]]*)\])?$",
-        RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
-    private static partial Regex DateTimePlaceholderPattern();
+        System.Text.RegularExpressions.RegexOptions.CultureInvariant |
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase)]
+    private static partial System.Text.RegularExpressions.Regex DateTimePlaceholderPattern();
 }

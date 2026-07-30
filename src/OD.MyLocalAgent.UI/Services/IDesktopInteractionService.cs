@@ -35,4 +35,10 @@ public interface IDesktopInteractionService
     /// Opens a directory in the Windows shell.
     /// </summary>
     void OpenFolder(string path);
+
+    /// <summary>
+    /// Opens an absolute URI through the Windows shell after an explicit user action.
+    /// </summary>
+    /// <param name="uri">The absolute URI.</param>
+    void OpenUri(string uri);
 }

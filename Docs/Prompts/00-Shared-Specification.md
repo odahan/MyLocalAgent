@@ -1131,9 +1131,10 @@ are never disclosed.
 
 ### 16.6 Markdown rendering and runtime fallback
 
-Stage 13 permits exactly two new centrally pinned packages: `Markdig` and
-`Microsoft.Web.WebView2`, using current stable .NET-10-compatible versions selected at
-implementation time and recorded in the architecture ledger.
+Stage 13 permits exactly two new centrally pinned packages: `Markdig` 1.3.2 and
+`Microsoft.Web.WebView2` 1.0.4078.44. The internal prompt contracts are
+`workflow-generation-v1` and `workflow-explanation-v1`; the shared placeholder catalog is
+version 1. Exact versions and justifications are recorded in the architecture ledger.
 
 Markdig converts the single explanation response to HTML; plain text is a deterministic
 projection of the same parsed Markdown. Raw HTML is disabled or escaped. WebView2 receives an

@@ -142,3 +142,19 @@ Deployment-environment follow-up: exercise one secondary local volume, one unava
 removable volume, one NTFS-denied directory, and one UNC path in both InteractiveToken and S4U
 modes. Application authorization never replaces Windows permissions or supplies S4U network
 credentials.
+
+## Stage 13 AI Workflow Helper
+
+Deterministic tests exercise lossless workflow descriptions, strict pure-array parsing,
+shared argument/placeholder validation, dynamic Tool Map and placeholder prompt context,
+tool-less current-provider streaming, exactly three attempts, correction content, retained
+errors, cancellation without repair or incident, tool/path/Safety analysis, proposal
+refusal/acceptance, atomic Apply/Undo, invalid Explain short-circuiting, one-response
+Text/Markdown projection, raw-HTML disabling, and restrictive local HTML.
+
+The Release stage gate passed with 191 tests, zero failures, and the one explicit local Ollama
+probe skipped. All sample JSON parsed and `git diff --check` passed. The WPF application was
+not launched during this implementation pass, so Author/Explain streaming with a live model,
+refusal, cancellation, Undo, rendered Markdown, and missing-WebView2 fallback remain honest
+manual GUI follow-ups. Valid JSON does not guarantee a semantically correct workflow, and
+literal authorization analysis cannot predict dynamic runtime paths or values.

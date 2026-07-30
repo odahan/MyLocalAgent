@@ -161,6 +161,11 @@ public sealed partial class MainWindowViewModel :
             return;
         }
 
+        if (CurrentPage is IDeactivatablePage deactivatablePage)
+        {
+            deactivatablePage.Deactivate();
+        }
+
         CurrentPage = value.Route switch
         {
             PageRoute.Dashboard =>

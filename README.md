@@ -502,6 +502,56 @@ This can produce `reports/2026/20260730-143705.md`. Use filename-safe formats wi
 `:`, or other characters forbidden by Windows. If both `prompt` and `workflow` are present,
 the workflow wins and the prompt remains available through `{{task.prompt}}`.
 
+### AI Workflow Helper and AI Explain
+
+The Task editor keeps workflow-array JSON as the only persisted workflow source of truth and
+adds two memory-only aids:
+
+- **AI Helper** turns an English description into exactly that workflow array. A loaded
+  workflow is first converted locally into a deterministic, editable description containing
+  every step form, alias, explicit/effective id, typed argument, placeholder, error policy,
+  retry value, and output name. Editing the description and the single-use **Refinement**
+  field creates replacement candidates without a visible or hidden chat transcript.
+- **AI Explain** is enabled for a non-empty workflow. The application parses and validates it
+  locally before any provider call, then asks for an English explanation of purpose, ordered
+  execution, prompts, skills, placeholders, data flow, permissions, Safety gates, external
+  effects, Guardrails boundaries, and likely failures.
+
+Both modes stream through the provider and model currently selected in Settings. Helper calls
+use the provider's `IChatClient` directly with one system message, one user message, and no
+tools, skills, agent wrapper, connector, file read, or workflow execution. Choosing the
+OpenAI-compatible cloud provider therefore sends the entered description and relevant
+workflow/authorization context to that configured provider; Ollama remains the local default.
+Secrets, file contents, tool outputs, logs, and unrelated task data are excluded.
+
+Generation accepts only a complete pure JSON array—Markdown fences and commentary are errors.
+Application validation, not the model, checks aliases, argument names and kinds, required
+arguments, placeholders, ids, retries, the task whitelist, and filesystem rules. One initial
+response and at most two correction responses are allowed. Cancellation preserves the
+incomplete streamed text for inspection, performs no correction, reports no cancellation
+incident, and cannot enable Apply.
+
+After validation, a review lists every missing tool group and statically identifiable
+absolute-directory grant. Each proposal starts unchecked and must be explicitly accepted.
+Relative paths need no task grant; dynamic paths, placeholders, unexpanded environment
+variables, and malformed paths produce warnings without invented authorization. Safety flags
+are warnings only and are never changed. A disabled gate can still make the later execution
+fail.
+
+**Apply** updates workflow JSON, tool groups, and authorized locations as one editor operation;
+only **Save task** persists or schedules it. **Undo AI changes** restores the immediately
+preceding values until Save, reload, navigation away, or another helper application.
+
+Explanations default to deterministic Text. Rendered Markdown uses the same response through
+Markdig and a restricted in-memory WebView2 document with raw HTML disabled, no scripts or
+remote resources, and blocked navigation, pop-ups, and downloads. Missing or failed WebView2
+falls back to Text and offers only a user-initiated link to Microsoft's official runtime
+page; the application never downloads or installs it.
+
+Generated workflows can be semantically wrong even when their JSON is valid. Literal static
+analysis cannot predict every runtime path or value, model context and latency grow with
+workflow size, and Markdown rendering is best-effort; Text remains the dependable fallback.
+
 ### Tool Map
 
 | Workflow alias | Agent function | Implementation | Arguments | Safety |

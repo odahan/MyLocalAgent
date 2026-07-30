@@ -128,6 +128,10 @@ public partial class App : Application
         services.AddSingleton<IThemeService, ThemeService>();
         services.AddSingleton<IUserSettingsService, UserSettingsService>();
         services.AddSingleton<ILogManagementService, LogManagementService>();
+        services.AddSingleton<IWorkflowAssistantService, WorkflowAssistantService>();
+        services.AddSingleton<IMarkdownRenderingService, MarkdownRenderingService>();
+        services.AddSingleton<IWebView2AvailabilityService, WebView2AvailabilityService>();
+        services.AddSingleton<IAIWorkflowHelperDialogService, AIWorkflowHelperDialogService>();
         services.AddSingleton<IncidentMessengerBridge>();
         services.AddHostedService<SchedulerStartupService>();
 

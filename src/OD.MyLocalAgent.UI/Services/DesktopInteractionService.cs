@@ -60,4 +60,23 @@ internal sealed class DesktopInteractionService : IDesktopInteractionService
                 UseShellExecute = true,
             });
     }
+
+    public void OpenUri(string uri)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(uri);
+        if (!Uri.TryCreate(uri, UriKind.Absolute, out var parsed) ||
+            parsed.Scheme is not ("http" or "https"))
+        {
+            throw new ArgumentException(
+                "Only absolute HTTP or HTTPS links can be opened.",
+                nameof(uri));
+        }
+
+        _ = Process.Start(
+            new ProcessStartInfo
+            {
+                FileName = parsed.AbsoluteUri,
+                UseShellExecute = true,
+            });
+    }
 }

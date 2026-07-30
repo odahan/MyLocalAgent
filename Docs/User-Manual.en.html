@@ -1662,6 +1662,43 @@ ollama list</code></pre>
                     </article>
                 </div>
 
+                <h3>AI Workflow Helper</h3>
+                <p>
+                    <span class="ui-label">AI Helper</span> turns an English description into
+                    exactly the workflow array shown in the editor. A loaded workflow becomes
+                    a deterministic, editable step-by-step description without a model call.
+                    You can edit it directly or submit one single-use refinement; no chat
+                    transcript is stored. The response streams through the provider selected
+                    in Settings and is accepted only after strict application validation.
+                </p>
+                <p>
+                    Review every proposed missing tool group and literal absolute-directory
+                    authorization. Each starts unchecked. Dynamic or placeholder paths produce
+                    warnings without invented grants, and disabled Safety gates remain global
+                    warnings rather than automatic changes. <span class="ui-label">Apply</span>
+                    updates workflow, tools, and locations together in the editor; only
+                    <span class="ui-label">Save task</span> persists them.
+                    <span class="ui-label">Undo AI changes</span> restores the prior editor
+                    values until save, reload, navigation, or a later Apply.
+                </p>
+                <p>
+                    <span class="ui-label">AI Explain</span> validates locally before calling
+                    the model and explains steps, prompts, skills, placeholders, data flow,
+                    permissions, Safety gates, effects, and likely failures. Text is the
+                    dependable default. Rendered Markdown uses the same response in a restricted
+                    WebView2 document; a missing runtime keeps Text functional and exposes only
+                    a user-initiated official Microsoft download-page link.
+                </p>
+                <div class="callout warn">
+                    <strong>Privacy and limits.</strong>
+                    The helper never executes a step, invokes a tool or skill, reads referenced
+                    files, changes Safety, or persists assistant content. Selecting the cloud
+                    provider sends the description and workflow context to that configured
+                    endpoint. Valid JSON can still be semantically wrong, and static analysis
+                    cannot predict every runtime path or value. Cancel preserves incomplete
+                    output but cannot Apply it.
+                </div>
+
                 <h3>Task shape</h3>
                 <div class="code-block">
                     <pre><code>{

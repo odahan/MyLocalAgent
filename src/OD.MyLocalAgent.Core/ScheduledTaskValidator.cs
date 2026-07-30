@@ -77,7 +77,23 @@ public static partial class ScheduledTaskValidator
                 "Task 'prompt' may be empty only when the workflow contains at least one step.");
         }
 
-        ValidateWorkflow(task.Workflow, toolGroups);
+        ValidateWorkflowDefinitions(task.Workflow, toolGroups);
+    }
+
+    /// <summary>
+    /// Validates workflow definitions against Tool Map metadata and a tool whitelist.
+    /// </summary>
+    /// <param name="workflow">The ordered workflow definitions.</param>
+    /// <param name="toolGroups">The available task tool groups.</param>
+    public static void ValidateWorkflowDefinitions(
+        IReadOnlyList<WorkflowStepDefinition> workflow,
+        IEnumerable<string> toolGroups)
+    {
+        ArgumentNullException.ThrowIfNull(workflow);
+        ArgumentNullException.ThrowIfNull(toolGroups);
+        ValidateWorkflow(
+            workflow,
+            new HashSet<string>(toolGroups, StringComparer.OrdinalIgnoreCase));
     }
 
     private static void ValidateFileSystemAccess(
@@ -149,7 +165,12 @@ public static partial class ScheduledTaskValidator
         }
     }
 
-    internal static string NormalizeAccessPath(string path)
+    /// <summary>
+    /// Expands and normalizes an absolute task authorization path.
+    /// </summary>
+    /// <param name="path">The path to normalize.</param>
+    /// <returns>The normalized path, preserving a volume root separator.</returns>
+    public static string NormalizeAccessPath(string path)
     {
         var fullPath = Path.GetFullPath(
             Environment.ExpandEnvironmentVariables(path.Trim()));
@@ -192,7 +213,7 @@ public static partial class ScheduledTaskValidator
                     $"Workflow step id '{step.EffectiveId}' contains unsupported characters.");
             }
 
-            if (!identifiers.Add(step.EffectiveId))
+            if (identifiers.Contains(step.EffectiveId))
             {
                 throw new WorkflowValidationException(
                     $"Workflow step id '{step.EffectiveId}' is duplicated.");
@@ -227,7 +248,199 @@ public static partial class ScheduledTaskValidator
                     "Workflow argument 'includeContext' must be a boolean.");
             }
 
+            ValidateArguments(step, definition);
+            ValidatePlaceholders(step, identifiers);
+            identifiers.Add(step.EffectiveId);
         }
+    }
+
+    private static void ValidateArguments(
+        WorkflowStepDefinition step,
+        ToolDefinition definition)
+    {
+        var supplied = step.Args.ValueKind == JsonValueKind.Object
+            ? step.Args.EnumerateObject().ToArray()
+            : [];
+        foreach (var property in supplied)
+        {
+            if (!definition.Arguments.Contains(
+                    property.Name,
+                    StringComparer.OrdinalIgnoreCase))
+            {
+                throw new WorkflowValidationException(
+                    $"Workflow alias '{step.Step}' does not define argument '{property.Name}'.");
+            }
+        }
+
+        foreach (var argument in definition.Arguments)
+        {
+            var optional = definition.OptionalArguments.Contains(
+                argument,
+                StringComparer.OrdinalIgnoreCase) ||
+                (definition.IsAiStep &&
+                 !string.Equals(
+                     definition.Alias,
+                     ToolMap.PromptAlias,
+                     StringComparison.OrdinalIgnoreCase));
+            if (!optional &&
+                !supplied.Any(
+                    property => string.Equals(
+                        property.Name,
+                        argument,
+                        StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new WorkflowValidationException(
+                    $"Workflow alias '{step.Step}' requires argument '{argument}'.");
+            }
+        }
+
+        foreach (var property in supplied)
+        {
+            var expectedType = GetArgumentType(definition, property.Name);
+            if (!IsCompatible(property.Value, expectedType))
+            {
+                throw new WorkflowValidationException(
+                    $"Workflow argument '{property.Name}' for '{step.Step}' must be {DescribeType(expectedType)}.");
+            }
+        }
+    }
+
+    private static void ValidatePlaceholders(
+        WorkflowStepDefinition step,
+        IReadOnlySet<string> availableStepIds)
+    {
+        if (step.Args.ValueKind != JsonValueKind.Object)
+        {
+            return;
+        }
+
+        foreach (var text in EnumerateStrings(step.Args))
+        {
+            var textWithoutValidPlaceholders = WorkflowPlaceholderCatalog.Replace(
+                text,
+                static _ => string.Empty);
+            if (textWithoutValidPlaceholders.Contains("{{", StringComparison.Ordinal) ||
+                textWithoutValidPlaceholders.Contains("}}", StringComparison.Ordinal))
+            {
+                throw new WorkflowValidationException(
+                    $"Workflow alias '{step.Step}' contains malformed placeholder braces.");
+            }
+
+            foreach (var placeholder in WorkflowPlaceholderCatalog.Extract(text))
+            {
+                if (!WorkflowPlaceholderCatalog.IsValid(
+                        placeholder,
+                        availableStepIds,
+                        out var error))
+                {
+                    throw new WorkflowValidationException(error!);
+                }
+            }
+        }
+    }
+
+    private static IEnumerable<string> EnumerateStrings(JsonElement element)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Object:
+                foreach (var property in element.EnumerateObject())
+                {
+                    foreach (var value in EnumerateStrings(property.Value))
+                    {
+                        yield return value;
+                    }
+                }
+
+                break;
+            case JsonValueKind.Array:
+                foreach (var item in element.EnumerateArray())
+                {
+                    foreach (var value in EnumerateStrings(item))
+                    {
+                        yield return value;
+                    }
+                }
+
+                break;
+            case JsonValueKind.String:
+                yield return element.GetString() ?? string.Empty;
+                break;
+        }
+    }
+
+    private static Type GetArgumentType(
+        ToolDefinition definition,
+        string argumentName)
+    {
+        if (definition.IsAiStep)
+        {
+            return string.Equals(
+                argumentName,
+                "includeContext",
+                StringComparison.OrdinalIgnoreCase)
+                ? typeof(bool)
+                : typeof(string);
+        }
+
+        var method = definition.DeclaringType.GetMethod(definition.MethodName!)
+            ?? throw new InvalidOperationException(
+                $"Tool Map method '{definition.MethodName}' is unavailable.");
+        return method.GetParameters()
+            .Single(
+                parameter => string.Equals(
+                    parameter.Name,
+                    argumentName,
+                    StringComparison.OrdinalIgnoreCase))
+            .ParameterType;
+    }
+
+    private static bool IsCompatible(JsonElement value, Type expectedType)
+    {
+        var underlying = Nullable.GetUnderlyingType(expectedType) ?? expectedType;
+        if (Nullable.GetUnderlyingType(expectedType) is not null &&
+            value.ValueKind == JsonValueKind.Null)
+        {
+            return true;
+        }
+
+        if (underlying == typeof(string))
+        {
+            return value.ValueKind == JsonValueKind.String;
+        }
+
+        if (underlying == typeof(bool))
+        {
+            return value.ValueKind is JsonValueKind.True or JsonValueKind.False;
+        }
+
+        if (underlying == typeof(int))
+        {
+            return value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out _);
+        }
+
+        return true;
+    }
+
+    private static string DescribeType(Type type)
+    {
+        var underlying = Nullable.GetUnderlyingType(type) ?? type;
+        if (underlying == typeof(string))
+        {
+            return "a string";
+        }
+
+        if (underlying == typeof(bool))
+        {
+            return "a boolean";
+        }
+
+        if (underlying == typeof(int))
+        {
+            return "an integer";
+        }
+
+        return "a compatible JSON value";
     }
 
     [GeneratedRegex("^[a-z0-9-]+$", RegexOptions.CultureInvariant)]

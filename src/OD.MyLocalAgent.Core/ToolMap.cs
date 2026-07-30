@@ -17,17 +17,39 @@ public static class ToolMap
         Tool("gmail.send", "gmail_send", ToolGroups.Gmail, typeof(GmailTool), nameof(GmailTool.SendAsync), ["to", "subject", "body"], "Safety:AllowSendEmail"),
         Tool("calendar.today", "calendar_today", ToolGroups.Calendar, typeof(CalendarTool), nameof(CalendarTool.TodayAsync)),
         Tool("calendar.create", "calendar_create", ToolGroups.Calendar, typeof(CalendarTool), nameof(CalendarTool.CreateAsync), ["summary", "start", "end", "description"]),
-        Tool("dropbox.upload", "dropbox_upload", ToolGroups.Dropbox, typeof(DropboxTool), nameof(DropboxTool.UploadAsync), ["localPath", "dropboxPath"]),
-        Tool("dropbox.download", "dropbox_download", ToolGroups.Dropbox, typeof(DropboxTool), nameof(DropboxTool.DownloadAsync), ["dropboxPath", "localPath"]),
+        Tool("dropbox.upload", "dropbox_upload", ToolGroups.Dropbox, typeof(DropboxTool), nameof(DropboxTool.UploadAsync), ["localPath", "dropboxPath"],
+            localPaths: [Path("localPath", LocalPathTargetKind.File, FileSystemAccessMode.ReadOnly)]),
+        Tool("dropbox.download", "dropbox_download", ToolGroups.Dropbox, typeof(DropboxTool), nameof(DropboxTool.DownloadAsync), ["dropboxPath", "localPath"],
+            localPaths: [Path("localPath", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite)]),
         Tool("dropbox.list", "dropbox_list", ToolGroups.Dropbox, typeof(DropboxTool), nameof(DropboxTool.ListAsync), ["folderPath"]),
-        Tool("filesystem.list", "filesystem_list", ToolGroups.FileSystem, typeof(FileSystemTool), nameof(FileSystemTool.ListAsync), ["path"]),
-        Tool("filesystem.read", "filesystem_read", ToolGroups.FileSystem, typeof(FileSystemTool), nameof(FileSystemTool.ReadAsync), ["path"]),
-        Tool("filesystem.write", "filesystem_write", ToolGroups.FileSystem, typeof(FileSystemTool), nameof(FileSystemTool.WriteAsync), ["path", "content"]),
-        Tool("filesystem.move", "filesystem_move", ToolGroups.FileSystem, typeof(FileSystemTool), nameof(FileSystemTool.MoveAsync), ["from", "to"]),
-        Tool("filesystem.rename", "filesystem_rename", ToolGroups.FileSystem, typeof(FileSystemTool), nameof(FileSystemTool.RenameAsync), ["path", "newName"]),
-        Tool("filesystem.setExtension", "filesystem_set_extension", ToolGroups.FileSystem, typeof(FileSystemTool), nameof(FileSystemTool.SetExtensionAsync), ["path", "extension"]),
-        Tool("filesystem.delete", "filesystem_delete", ToolGroups.FileSystem, typeof(FileSystemTool), nameof(FileSystemTool.DeleteAsync), ["path"], "Safety:AllowFileDelete"),
-        Tool("filesystem.createDirectory", "filesystem_create_directory", ToolGroups.FileSystem, typeof(FileSystemTool), nameof(FileSystemTool.CreateDirectoryAsync), ["path"]),
+        Tool("filesystem.list", "filesystem_list", ToolGroups.FileSystem, typeof(FileSystemTool), nameof(FileSystemTool.ListAsync), ["path"],
+            localPaths: [Path("path", LocalPathTargetKind.Directory, FileSystemAccessMode.ReadOnly)]),
+        Tool("filesystem.read", "filesystem_read", ToolGroups.FileSystem, typeof(FileSystemTool), nameof(FileSystemTool.ReadAsync), ["path"],
+            localPaths: [Path("path", LocalPathTargetKind.File, FileSystemAccessMode.ReadOnly)]),
+        Tool("filesystem.write", "filesystem_write", ToolGroups.FileSystem, typeof(FileSystemTool), nameof(FileSystemTool.WriteAsync), ["path", "content"],
+            localPaths: [Path("path", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite)]),
+        Tool("filesystem.move", "filesystem_move", ToolGroups.FileSystem, typeof(FileSystemTool), nameof(FileSystemTool.MoveAsync), ["from", "to"],
+            localPaths:
+            [
+                Path("from", LocalPathTargetKind.FileOrDirectory, FileSystemAccessMode.ReadWrite),
+                Path("to", LocalPathTargetKind.FileOrDirectory, FileSystemAccessMode.ReadWrite),
+            ]),
+        Tool("filesystem.rename", "filesystem_rename", ToolGroups.FileSystem, typeof(FileSystemTool), nameof(FileSystemTool.RenameAsync), ["path", "newName"],
+            localPaths:
+            [
+                Path("path", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite),
+                new LocalPathArgumentDefinition("path", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite, LocalPathDerivationKind.SameDirectoryLeafName, "newName"),
+            ]),
+        Tool("filesystem.setExtension", "filesystem_set_extension", ToolGroups.FileSystem, typeof(FileSystemTool), nameof(FileSystemTool.SetExtensionAsync), ["path", "extension"],
+            localPaths:
+            [
+                Path("path", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite),
+                new LocalPathArgumentDefinition("path", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite, LocalPathDerivationKind.SameDirectoryExtension, "extension"),
+            ]),
+        Tool("filesystem.delete", "filesystem_delete", ToolGroups.FileSystem, typeof(FileSystemTool), nameof(FileSystemTool.DeleteAsync), ["path"], "Safety:AllowFileDelete",
+            localPaths: [Path("path", LocalPathTargetKind.FileOrDirectory, FileSystemAccessMode.ReadWrite)]),
+        Tool("filesystem.createDirectory", "filesystem_create_directory", ToolGroups.FileSystem, typeof(FileSystemTool), nameof(FileSystemTool.CreateDirectoryAsync), ["path"],
+            localPaths: [Path("path", LocalPathTargetKind.Directory, FileSystemAccessMode.ReadWrite)]),
         Tool("http.get", "http_get", ToolGroups.Http, typeof(HttpTool), nameof(HttpTool.GetAsync), ["url"]),
         Tool("http.post", "http_post", ToolGroups.Http, typeof(HttpTool), nameof(HttpTool.PostAsync), ["url", "body", "contentType"], "Safety:AllowHttpPost"),
         Tool("http.getText", "http_get_text", ToolGroups.Http, typeof(HttpTool), nameof(HttpTool.GetTextAsync), ["url"]),
@@ -74,7 +96,8 @@ public static class ToolMap
         string method,
         IReadOnlyList<string>? arguments = null,
         string? safetyFlag = null,
-        IReadOnlyList<string>? optionalArguments = null) =>
+        IReadOnlyList<string>? optionalArguments = null,
+        IReadOnlyList<LocalPathArgumentDefinition>? localPaths = null) =>
         new ToolDefinition(
             alias,
             agentName,
@@ -86,6 +109,7 @@ public static class ToolMap
             IsAiStep: false)
         {
             OptionalArguments = optionalArguments ?? [],
+            LocalPathArguments = localPaths ?? [],
         };
 
     private static ToolDefinition Ai(
@@ -97,4 +121,10 @@ public static class ToolMap
         {
             OptionalArguments = optionalArguments ?? [],
         };
+
+    private static LocalPathArgumentDefinition Path(
+        string argumentName,
+        LocalPathTargetKind targetKind,
+        FileSystemAccessMode requiredAccess) =>
+        new(argumentName, targetKind, requiredAccess);
 }

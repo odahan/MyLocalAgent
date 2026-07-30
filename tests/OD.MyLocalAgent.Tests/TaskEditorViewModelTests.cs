@@ -156,4 +156,82 @@ public sealed class TaskEditorViewModelTests
         viewModel.ValidationText.Should().Contain("added");
     }
 
+    /// <summary>
+    /// Verifies invalid Explain input is rejected locally without opening the helper.
+    /// </summary>
+    [Fact]
+    public void InvalidExplainInputDoesNotOpenDialog()
+    {
+        var dialog = new Mock<IAIWorkflowHelperDialogService>(MockBehavior.Strict);
+        var viewModel = new TaskEditorViewModel(
+            Mock.Of<ITaskStore>(),
+            Mock.Of<ITaskSchedulerService>(),
+            Mock.Of<IIncidentReporter>(),
+            Mock.Of<IDesktopInteractionService>(),
+            Mock.Of<IMessenger>(),
+            TimeProvider.System,
+            dialog.Object)
+        {
+            WorkflowText = "not json",
+        };
+
+        viewModel.OpenAIExplainCommand.Execute(null);
+
+        viewModel.ValidationText.Should().Contain("invalid");
+        dialog.VerifyNoOtherCalls();
+    }
+
+    /// <summary>
+    /// Verifies helper Apply and one-level Undo atomically cover workflow, tools, and grants.
+    /// </summary>
+    [Fact]
+    public void AppliedAIChangesCanBeUndoneAsOneEditorOperation()
+    {
+        var path = ScheduledTaskValidator.NormalizeAccessPath(
+            Path.Combine(Path.GetTempPath(), "OD.Stage13.Editor"));
+        var dialog = new Mock<IAIWorkflowHelperDialogService>(MockBehavior.Strict);
+        dialog.Setup(
+                instance => instance.Show(
+                    It.Is<AIWorkflowHelperRequest>(
+                        request => request.Mode == AIWorkflowHelperMode.Author)))
+            .Returns(
+                new AIWorkflowHelperResult(
+                    """[{"step":"filesystem.list","args":{"path":"."}}]""",
+                    [ToolGroups.FileSystem],
+                    [
+                        new FileSystemAccessRule
+                        {
+                            Path = path,
+                            Access = FileSystemAccessMode.ReadOnly,
+                        },
+                    ]));
+        var viewModel = new TaskEditorViewModel(
+            Mock.Of<ITaskStore>(),
+            Mock.Of<ITaskSchedulerService>(),
+            Mock.Of<IIncidentReporter>(),
+            Mock.Of<IDesktopInteractionService>(),
+            Mock.Of<IMessenger>(),
+            TimeProvider.System,
+            dialog.Object)
+        {
+            WorkflowText = "[]",
+        };
+
+        viewModel.OpenAIHelperCommand.Execute(null);
+
+        viewModel.WorkflowText.Should().Be(
+            """[{"step":"filesystem.list","args":{"path":"."}}]""");
+        viewModel.UseFileSystem.Should().BeTrue();
+        viewModel.AuthorizedLocations.Should().ContainSingle();
+        viewModel.HasAIUndoSnapshot.Should().BeTrue();
+
+        viewModel.UndoAIChangesCommand.Execute(null);
+
+        viewModel.WorkflowText.Should().Be("[]");
+        viewModel.UseFileSystem.Should().BeFalse();
+        viewModel.AuthorizedLocations.Should().BeEmpty();
+        viewModel.HasAIUndoSnapshot.Should().BeFalse();
+        dialog.VerifyAll();
+    }
+
 }

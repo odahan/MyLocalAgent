@@ -27,6 +27,11 @@ public sealed record ToolDefinition(
     public IReadOnlyList<string> OptionalArguments { get; init; } = [];
 
     /// <summary>
+    /// Gets the local-path argument semantics used by deterministic authorization analysis.
+    /// </summary>
+    public IReadOnlyList<LocalPathArgumentDefinition> LocalPathArguments { get; init; } = [];
+
+    /// <summary>
     /// Gets a value indicating whether this entry is exposed as an agent tool.
     /// </summary>
     public bool IsAgentTool => AgentFunctionName is not null;
