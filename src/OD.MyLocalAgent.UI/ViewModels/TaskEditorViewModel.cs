@@ -2,6 +2,8 @@ using System.Globalization;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Text.Json;
+using System.ComponentModel;
+using System.Collections.Specialized;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
@@ -9,6 +11,7 @@ using Microsoft.Extensions.Options;
 using OD.MyLocalAgent.Core;
 using OD.MyLocalAgent.UI.Messages;
 using OD.MyLocalAgent.UI.Services;
+using OD.MyLocalAgent.Ollama;
 
 namespace OD.MyLocalAgent.UI.ViewModels;
 
@@ -17,6 +20,27 @@ namespace OD.MyLocalAgent.UI.ViewModels;
 /// </summary>
 public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatablePage
 {
+    private static readonly HashSet<string> EditablePropertyNames =
+    [
+        nameof(Id),
+        nameof(Name),
+        nameof(Schedule),
+        nameof(Prompt),
+        nameof(IsEnabled),
+        nameof(SelectedErrorPolicy),
+        nameof(UseGmail),
+        nameof(UseCalendar),
+        nameof(UseDropbox),
+        nameof(UseFileSystem),
+        nameof(UseHttp),
+        nameof(UseWeb),
+        nameof(WorkflowText),
+        nameof(UseGlobalTemperature),
+        nameof(TemperatureOverrideText),
+        nameof(UseGlobalTopP),
+        nameof(TopPOverrideText),
+    ];
+
     private readonly ITaskStore _taskStore;
     private readonly ITaskSchedulerService _scheduler;
     private readonly IIncidentReporter _incidentReporter;
@@ -25,9 +49,11 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
     private readonly TimeProvider _timeProvider;
     private readonly IAIWorkflowHelperDialogService? _workflowHelperDialog;
     private readonly IOptionsMonitor<SafetyOptions>? _safetyOptions;
+    private readonly IOptionsMonitor<AIOptions>? _aiOptions;
     private string? _requestedTaskId;
     private string? _originalTaskId;
     private AIEditorSnapshot? _aiUndoSnapshot;
+    private bool _isLoading;
 
     [ObservableProperty]
     private string _editorTitle = "New task";
@@ -43,6 +69,37 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
 
     [ObservableProperty]
     private string _prompt = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsTemperatureOverrideEnabled))]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    private bool _useGlobalTemperature = true;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    private string _temperatureOverrideText = "0.2";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsTopPOverrideEnabled))]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    private bool _useGlobalTopP = true;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    private string _topPOverrideText = "1";
+
+    [ObservableProperty]
+    private string _effectiveTemperatureText = "0.2 (Settings)";
+
+    [ObservableProperty]
+    private string _effectiveTopPText = "1 (Settings)";
+
+    [ObservableProperty]
+    private string _generationValidationText =
+        "Task generation overrides are valid.";
+
+    [ObservableProperty]
+    private bool _hasGenerationValidationError;
 
     [ObservableProperty]
     private bool _isEnabled = true;
@@ -79,6 +136,16 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
     /// </summary>
     public bool ShowAuthorizedLocations => UseFileSystem || UseDropbox;
 
+    /// <summary>
+    /// Gets a value indicating whether the Temperature override editor is enabled.
+    /// </summary>
+    public bool IsTemperatureOverrideEnabled => !UseGlobalTemperature;
+
+    /// <summary>
+    /// Gets a value indicating whether the Top P override editor is enabled.
+    /// </summary>
+    public bool IsTopPOverrideEnabled => !UseGlobalTopP;
+
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(OpenAIExplainCommand))]
     private string _workflowText = "[]";
@@ -110,7 +177,11 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
     private string _validationText = "Complete the task definition, then save.";
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     private bool _isBusy;
+
+    [ObservableProperty]
+    private bool _isDirty;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TaskEditorViewModel"/> class.
@@ -123,7 +194,8 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
         IMessenger messenger,
         TimeProvider timeProvider,
         IAIWorkflowHelperDialogService? workflowHelperDialog = null,
-        IOptionsMonitor<SafetyOptions>? safetyOptions = null)
+        IOptionsMonitor<SafetyOptions>? safetyOptions = null,
+        IOptionsMonitor<AIOptions>? aiOptions = null)
     {
         _taskStore = taskStore;
         _scheduler = scheduler;
@@ -133,9 +205,12 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
         _timeProvider = timeProvider;
         _workflowHelperDialog = workflowHelperDialog;
         _safetyOptions = safetyOptions;
+        _aiOptions = aiOptions;
         ErrorPolicies = Enum.GetValues<WorkflowErrorPolicy>();
         WorkflowAliases = ToolMap.Definitions;
         SelectedWorkflowAlias = WorkflowAliases.FirstOrDefault();
+        PropertyChanged += OnEditablePropertyChanged;
+        AuthorizedLocations.CollectionChanged += OnAuthorizedLocationsChanged;
         UpdateCronPreview();
     }
 
@@ -201,10 +276,23 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
     partial void OnUseDropboxChanged(bool value) =>
         OnPropertyChanged(nameof(ShowAuthorizedLocations));
 
+    partial void OnUseGlobalTemperatureChanged(bool value) =>
+        UpdateGenerationState();
+
+    partial void OnTemperatureOverrideTextChanged(string value) =>
+        UpdateGenerationState();
+
+    partial void OnUseGlobalTopPChanged(bool value) =>
+        UpdateGenerationState();
+
+    partial void OnTopPOverrideTextChanged(string value) =>
+        UpdateGenerationState();
+
     [RelayCommand]
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
         IsBusy = true;
+        _isLoading = true;
         try
         {
             var task = string.IsNullOrWhiteSpace(_requestedTaskId)
@@ -225,6 +313,21 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
             Name = task?.Name ?? string.Empty;
             Schedule = task?.Schedule ?? "0 7 * * *";
             Prompt = task?.Prompt ?? string.Empty;
+            var defaults = CurrentGenerationDefaults;
+            UseGlobalTemperature =
+                task?.GenerationOptions?.Temperature is null;
+            TemperatureOverrideText =
+                (task?.GenerationOptions?.Temperature ??
+                 defaults.Temperature).ToString(
+                    "G",
+                    CultureInfo.CurrentCulture);
+            UseGlobalTopP = task?.GenerationOptions?.TopP is null;
+            TopPOverrideText =
+                (task?.GenerationOptions?.TopP ??
+                 defaults.TopP).ToString(
+                    "G",
+                    CultureInfo.CurrentCulture);
+            UpdateGenerationState();
             IsEnabled = task?.Enabled ?? true;
             SelectedErrorPolicy =
                 task?.ErrorPolicy ?? WorkflowErrorPolicy.StopOnError;
@@ -263,6 +366,7 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
                 ? "Enter an id, name, prompt or workflow, and schedule."
                 : "Task loaded. The id is immutable after creation.";
             UpdateCronPreview();
+            IsDirty = false;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -278,16 +382,18 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
         }
         finally
         {
+            _isLoading = false;
             IsBusy = false;
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanSave))]
     private async Task SaveAsync(CancellationToken cancellationToken)
     {
         IsBusy = true;
         try
         {
+            var generationOptions = CreateGenerationOptions();
             var workflow = DeserializeWorkflow(WorkflowText);
             var task = new ScheduledTask
             {
@@ -295,6 +401,7 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
                 Name = Name.Trim(),
                 Schedule = Schedule.Trim(),
                 Prompt = Prompt.Trim(),
+                GenerationOptions = generationOptions,
                 Tools = GetSelectedToolGroups(),
                 FileSystemAccess = AuthorizedLocations
                     .Select(static item => item.ToRule())
@@ -335,6 +442,7 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
             IsIdReadOnly = true;
             EditorTitle = $"Edit task · {task.Name}";
             ValidationText = "Task saved and scheduler registration synchronized.";
+            IsDirty = false;
             _messenger.Send(new TaskSavedMessage(task.Id));
             _messenger.Send(
                 new SnackbarNotificationMessage(
@@ -364,9 +472,14 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
     [RelayCommand(CanExecute = nameof(CanOpenPrompt))]
     private void OpenPrompt()
     {
-        if (_originalTaskId is not null)
+        if (_originalTaskId is not null &&
+            TryCreateGenerationOptions(out var generationOptions))
         {
-            _messenger.Send(new EditPromptMessage(_originalTaskId));
+            _messenger.Send(
+                new EditPromptMessage(
+                    _originalTaskId,
+                    generationOptions,
+                    UseGenerationOptionsSnapshot: true));
         }
     }
 
@@ -483,6 +596,7 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
                     Prompt = string.IsNullOrWhiteSpace(Prompt)
                         ? "Workflow preview"
                         : Prompt.Trim(),
+                    GenerationOptions = CreateGenerationOptions(),
                     Tools = GetSelectedToolGroups(),
                     Workflow = workflow,
                     Enabled = false,
@@ -766,7 +880,11 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
                 AllowSendEmail = safety.AllowSendEmail,
                 AllowFileDelete = safety.AllowFileDelete,
                 AllowHttpPost = safety.AllowHttpPost,
-            });
+            })
+        {
+            TaskGenerationOptions = CreateGenerationOptions(),
+            GenerationDefaults = CurrentGenerationDefaults,
+        };
     }
 
     private void ValidateWorkflowPreview(
@@ -778,6 +896,7 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
                 Name = string.IsNullOrWhiteSpace(Name) ? "Workflow preview" : Name.Trim(),
                 Schedule = string.IsNullOrWhiteSpace(Schedule) ? "0 7 * * *" : Schedule.Trim(),
                 Prompt = string.IsNullOrWhiteSpace(Prompt) ? "Workflow preview" : Prompt,
+                GenerationOptions = CreateGenerationOptions(),
                 Tools = GetSelectedToolGroups(),
                 FileSystemAccess = AuthorizedLocations.Select(static item => item.ToRule()).ToArray(),
                 Workflow = workflow,
@@ -933,6 +1052,130 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
             .ReportAsync(exception, source, CancellationToken.None)
             .ConfigureAwait(true);
     }
+
+    private AIGenerationDefaults CurrentGenerationDefaults =>
+        _aiOptions?.CurrentValue.GenerationDefaults ??
+        new AIGenerationDefaults();
+
+    private bool CanSave() =>
+        !IsBusy && TryCreateGenerationOptions(out _);
+
+    private GenerationOptions? CreateGenerationOptions()
+    {
+        if (!TryCreateGenerationOptions(out var options))
+        {
+            throw new TaskValidationException(GenerationValidationText);
+        }
+
+        return options;
+    }
+
+    private bool TryCreateGenerationOptions(
+        out GenerationOptions? options)
+    {
+        options = null;
+        double? temperature = null;
+        double? topP = null;
+        if (!UseGlobalTemperature)
+        {
+            if (!SettingsViewModel.TryParseCultureSafeDouble(
+                    TemperatureOverrideText,
+                    CultureInfo.CurrentCulture,
+                    out var parsedTemperature))
+            {
+                GenerationValidationText =
+                    "Task Temperature must be a number from 0 through 2.";
+                return false;
+            }
+
+            temperature = parsedTemperature;
+        }
+
+        if (!UseGlobalTopP)
+        {
+            if (!SettingsViewModel.TryParseCultureSafeDouble(
+                    TopPOverrideText,
+                    CultureInfo.CurrentCulture,
+                    out var parsedTopP))
+            {
+                GenerationValidationText =
+                    "Task Top P must be a number greater than 0 and at most 1.";
+                return false;
+            }
+
+            topP = parsedTopP;
+        }
+
+        if (temperature is null && topP is null)
+        {
+            return true;
+        }
+
+        var candidate = new GenerationOptions
+        {
+            Temperature = temperature,
+            TopP = topP,
+        };
+        var error = GenerationPolicyValidation.ValidateOverrides(candidate);
+        if (error is not null)
+        {
+            GenerationValidationText = error;
+            return false;
+        }
+
+        options = candidate;
+        return true;
+    }
+
+    private void UpdateGenerationState()
+    {
+        if (TryCreateGenerationOptions(out var options))
+        {
+            HasGenerationValidationError = false;
+            GenerationValidationText =
+                "Valid. Each property applies to task-owned AI calls unless an AI workflow step overrides it.";
+            var effective = GenerationPolicyResolver.Resolve(
+                CurrentGenerationDefaults,
+                options);
+            EffectiveTemperatureText =
+                FormatEffective(effective.Temperature, effective.TemperatureSource);
+            EffectiveTopPText =
+                FormatEffective(effective.TopP, effective.TopPSource);
+        }
+        else
+        {
+            HasGenerationValidationError = true;
+        }
+
+        SaveCommand.NotifyCanExecuteChanged();
+    }
+
+    private void OnEditablePropertyChanged(
+        object? sender,
+        PropertyChangedEventArgs e)
+    {
+        if (!_isLoading &&
+            e.PropertyName is not null &&
+            EditablePropertyNames.Contains(e.PropertyName))
+        {
+            IsDirty = true;
+        }
+    }
+
+    private void OnAuthorizedLocationsChanged(
+        object? sender,
+        NotifyCollectionChangedEventArgs e)
+    {
+        if (!_isLoading)
+        {
+            IsDirty = true;
+        }
+    }
+
+    private static string FormatEffective(
+        double value,
+        GenerationOptionSource source) =>
+        $"{value.ToString("G", CultureInfo.CurrentCulture)} ({source})";
 
     private sealed record AIEditorSnapshot(
         string WorkflowText,

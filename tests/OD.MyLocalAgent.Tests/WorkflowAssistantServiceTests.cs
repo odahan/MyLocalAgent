@@ -7,6 +7,7 @@ using OD.MyLocalAgent.Ollama;
 using OD.MyLocalAgent.Tests.TestDoubles;
 using OD.MyLocalAgent.UI.Services;
 using OD.MyLocalAgent.UI.ViewModels;
+using OllamaSharp.Models;
 using Xunit;
 
 namespace OD.MyLocalAgent.Tests;
@@ -44,10 +45,23 @@ public sealed class WorkflowAssistantServiceTests
     public async Task ServiceUsesCurrentFactoryStreamingAndNoTools()
     {
         var chat = new StubChatClient("""["gmail.readToday"]""");
-        var provider = new StubLlmClientService(chat, "Current");
+        var provider = new StubLlmClientService(
+            chat,
+            AIOptions.OllamaProvider);
         var factory = new Mock<ILlmClientFactory>(MockBehavior.Strict);
         factory.Setup(instance => instance.Create()).Returns(provider);
-        var service = new WorkflowAssistantService(factory.Object);
+        var service = new WorkflowAssistantService(
+            factory.Object,
+            new MutableOptionsMonitor<AIOptions>(
+                new AIOptions
+                {
+                    GenerationDefaults = new AIGenerationDefaults
+                    {
+                        Temperature = 1.7,
+                        TopP = 0.2,
+                        ContextWindowTokens = 30_000,
+                    },
+                }));
 
         var chunks = new List<string>();
         await foreach (var chunk in service.StreamGenerationAsync(
@@ -64,6 +78,11 @@ public sealed class WorkflowAssistantServiceTests
         chat.LastMessages[1].Role.Should().Be(ChatRole.User);
         chat.LastOptions.Should().NotBeNull();
         chat.LastOptions!.Tools.Should().BeNull();
+        chat.LastOptions.Temperature.Should().Be(0);
+        chat.LastOptions.TopP.Should().Be(1);
+        chat.LastOptions.AdditionalProperties.Should()
+            .ContainKey(OllamaOption.NumCtx.Name)
+            .WhoseValue.Should().Be(30_000);
         factory.VerifyAll();
     }
 

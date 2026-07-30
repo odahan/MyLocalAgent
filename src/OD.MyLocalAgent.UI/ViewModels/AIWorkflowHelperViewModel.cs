@@ -167,7 +167,7 @@ public sealed partial class AIWorkflowHelperViewModel : ObservableObject
 
         if (request.Workflow.Count > 0)
         {
-            Description = WorkflowDescriptionFormatter.Format(request.Workflow);
+            Description = FormatDescription(request.Workflow);
             if (IsAuthorMode)
             {
                 try
@@ -524,6 +524,7 @@ public sealed partial class AIWorkflowHelperViewModel : ObservableObject
                     Name = string.IsNullOrWhiteSpace(_request.TaskName) ? "Workflow preview" : _request.TaskName.Trim(),
                     Schedule = string.IsNullOrWhiteSpace(_request.Schedule) ? "0 7 * * *" : _request.Schedule.Trim(),
                     Prompt = string.IsNullOrWhiteSpace(_request.Prompt) ? "Workflow preview" : _request.Prompt,
+                    GenerationOptions = _request.TaskGenerationOptions,
                     Tools = provisionalGroups,
                     FileSystemAccess = provisionalRules,
                     Workflow = workflow,
@@ -559,7 +560,7 @@ public sealed partial class AIWorkflowHelperViewModel : ObservableObject
             _request!.ToolGroups,
             _request.FileSystemAccess,
             _request.Safety);
-        Description = WorkflowDescriptionFormatter.Format(workflow);
+        Description = FormatDescription(workflow);
         if (updateResponse)
         {
             ValidationErrors.Clear();
@@ -686,6 +687,9 @@ public sealed partial class AIWorkflowHelperViewModel : ObservableObject
             Canonical workflow:
             {WorkflowDefinitionSerializer.Serialize(_candidate!)}
 
+            Deterministic generation-option description:
+            {FormatDescription(_candidate!)}
+
             Deterministic application analysis:
             Required tool groups: {string.Join(", ", _analysis.RequiredToolGroups)}
             Missing tool groups: {string.Join(", ", _analysis.MissingToolGroups)}
@@ -718,6 +722,13 @@ public sealed partial class AIWorkflowHelperViewModel : ObservableObject
             : string.Join(
                 "; ",
                 rules.Select(static rule => $"{rule.Path} ({rule.Access})"));
+
+    private string FormatDescription(
+        IReadOnlyList<WorkflowStepDefinition> workflow) =>
+        WorkflowDescriptionFormatter.Format(
+            workflow,
+            _request?.TaskGenerationOptions,
+            _request?.GenerationDefaults);
 
     private static IReadOnlyList<FileSystemAccessRule> MergeRules(
         IEnumerable<FileSystemAccessRule> current,

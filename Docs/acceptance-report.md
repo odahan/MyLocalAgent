@@ -158,3 +158,29 @@ not launched during this implementation pass, so Author/Explain streaming with a
 refusal, cancellation, Undo, rendered Markdown, and missing-WebView2 fallback remain honest
 manual GUI follow-ups. Valid JSON does not guarantee a semantically correct workflow, and
 literal authorization analysis cannot predict dynamic runtime paths or values.
+
+## Stage 14 hierarchical AI generation settings
+
+Date: 2026-07-30
+
+| Checklist item | Status | Executed evidence |
+|---|---:|---|
+| Safe global defaults and strict ranges are configured and reloadable. | ✅ | `GenerationPolicyTests` covers defaults, finite/range rejection, and a new execution observing a changed `IOptionsMonitor` snapshot while an in-flight execution retains its resolved policy. |
+| Resolution is field-wise step → task → Settings with independent provenance. | ✅ | Deterministic resolver cases cover no override, partial task override, partial step override, and mixed task/step inheritance for both properties. |
+| Existing task JSON remains valid; strict override JSON round-trips canonically. | ✅ | Tests cover legacy tasks, partial task and every AI-alias step round-trip, empty-object omission, unknown/null/non-numeric/out-of-range fields, forbidden context/provider fields, and every non-AI alias rejection. |
+| Runner, agent, skills, workflow retries, Prompt editor, helper, Playground, and concurrent tasks retain the intended immutable policy. | ✅ | Service, workflow-engine, task-editor, helper, and policy-wrapper tests cover explicit propagation, multi-round option preservation, retry stability after a settings change, and concurrent isolation. |
+| Internal authoring, explanation, screening, and reduction policies remain fixed at Temperature 0 / Top P 1. | ✅ | Named-policy assertions plus captured helper and Guardrails requests verify all four constants and the current global context window. |
+| Provider mapping is honest. | ✅ | Captured Ollama requests contain native `num_ctx`; captured OpenAI-compatible requests contain Temperature and Top P but no invented context-window property. Existing provider error paths remain unchanged. |
+| Settings and Task editor validation/command behavior is deterministic and culture-safe. | ✅ | ViewModel tests cover comma/dot parsing in French and English cultures, independent partial overrides, effective provenance, dirty state, save/reload, and disabled save on invalid input. |
+| Documentation and sample coverage are complete. | ✅ | README, shared specification §17, both standalone manuals, theme audit, architecture ledger, acceptance report, and the scheduled mail-summary sample document the delivered hierarchy and limits. |
+
+### Stage 14 environment-dependent follow-ups
+
+- ⏳ Inspect Settings, Task editor, Prompt editor, and AI playground in Dark and Light,
+  including invalid, inherited/disabled, long-value, keyboard-focus, and narrow-window states.
+- ⏳ Run one real Ollama request and inspect its provider behavior with a model whose supported
+  context capacity is known; run one configured OpenAI-compatible endpoint and confirm its own
+  context-limit error behavior.
+- ⏳ The WPF application was not launched in this implementation pass. Automated binding,
+  ViewModel, serialization, runtime propagation, provider-option, build, and test evidence is
+  complete, but no manual GUI or live-provider result is claimed.

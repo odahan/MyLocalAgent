@@ -91,11 +91,15 @@ public sealed class ContentTrustService : IContentTrustService
             var provider = _clientFactory.Create();
             providerName = provider.ProviderName;
             var snapshot = CaptureSnapshot(provider);
+            var screeningPolicy = GenerationPolicyResolver.ResolveInternal(
+                InternalGenerationPolicies.GuardrailScreening,
+                _aiOptions.CurrentValue.GenerationDefaults);
             var verdict = await GetVerdictAsync(
                     provider,
                     snapshot,
                     content,
                     options,
+                    screeningPolicy,
                     requireStableConfiguration: false,
                     cancellationToken)
                 .ConfigureAwait(false);
@@ -177,6 +181,13 @@ public sealed class ContentTrustService : IContentTrustService
             var provider = _clientFactory.Create();
             providerName = provider.ProviderName;
             var snapshot = CaptureSnapshot(provider);
+            var defaults = _aiOptions.CurrentValue.GenerationDefaults;
+            var screeningPolicy = GenerationPolicyResolver.ResolveInternal(
+                InternalGenerationPolicies.GuardrailScreening,
+                defaults);
+            var reductionPolicy = GenerationPolicyResolver.ResolveInternal(
+                InternalGenerationPolicies.GuardrailReduction,
+                defaults);
             var cacheKey = CreateSummaryCacheKey(snapshot, content, maxSummaryChars);
             if (options.CacheResults &&
                 TryGetSummaryCache(cacheKey, out var cached))
@@ -190,6 +201,8 @@ public sealed class ContentTrustService : IContentTrustService
                     content,
                     maxSummaryChars,
                     options,
+                    screeningPolicy,
+                    reductionPolicy,
                     cancellationToken)
                 .ConfigureAwait(false);
             EnsureSnapshot(snapshot);
@@ -220,6 +233,8 @@ public sealed class ContentTrustService : IContentTrustService
         string content,
         int maxSummaryChars,
         GuardrailsOptions options,
+        EffectiveGenerationPolicy screeningPolicy,
+        EffectiveGenerationPolicy reductionPolicy,
         CancellationToken cancellationToken)
     {
         var currentLevel = content;
@@ -246,6 +261,7 @@ public sealed class ContentTrustService : IContentTrustService
                         snapshot,
                         chunk,
                         options,
+                        screeningPolicy,
                         requireStableConfiguration: true,
                         cancellationToken)
                     .ConfigureAwait(false);
@@ -259,6 +275,7 @@ public sealed class ContentTrustService : IContentTrustService
                         ContentSummarizerPrompt.System,
                         WrapForReduction(chunk),
                         options,
+                        reductionPolicy,
                         requireStableConfiguration: true,
                         cancellationToken)
                     .ConfigureAwait(false);
@@ -295,6 +312,7 @@ public sealed class ContentTrustService : IContentTrustService
         ProviderSnapshot snapshot,
         string content,
         GuardrailsOptions options,
+        EffectiveGenerationPolicy generationPolicy,
         bool requireStableConfiguration,
         CancellationToken cancellationToken)
     {
@@ -318,6 +336,7 @@ public sealed class ContentTrustService : IContentTrustService
                 ContentScreenerPrompt.System,
                 WrapForScreening(content),
                 options,
+                generationPolicy,
                 requireStableConfiguration,
                 cancellationToken)
             .ConfigureAwait(false);
@@ -349,6 +368,7 @@ public sealed class ContentTrustService : IContentTrustService
         string systemPrompt,
         string userPrompt,
         GuardrailsOptions options,
+        EffectiveGenerationPolicy generationPolicy,
         bool requireStableConfiguration,
         CancellationToken cancellationToken)
     {
@@ -361,14 +381,17 @@ public sealed class ContentTrustService : IContentTrustService
             timeoutSource.Token);
         try
         {
-            var response = await provider.ChatClient.GetResponseAsync(
+            var policyClient = new GenerationPolicyChatClient(
+                provider.ChatClient,
+                generationPolicy,
+                provider.ProviderName);
+            var response = await policyClient.GetResponseAsync(
                     [
                         new ChatMessage(ChatRole.System, systemPrompt),
                         new ChatMessage(ChatRole.User, userPrompt),
                     ],
                     new ChatOptions
                     {
-                        Temperature = 0,
                         Tools = null,
                     },
                     linkedSource.Token)

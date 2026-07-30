@@ -1,5 +1,6 @@
 using System.Text.Json;
 using OD.MyLocalAgent.Core;
+using OD.MyLocalAgent.Ollama;
 
 namespace OD.MyLocalAgent.Workflows;
 
@@ -35,6 +36,7 @@ public abstract class WorkflowStep
         RetryBackoffSeconds =
             definition.RetryBackoffSeconds ?? DefaultRetryBackoffSeconds;
         IsStringForm = definition.IsStringForm;
+        GenerationOptions = definition.GenerationOptions;
     }
 
     /// <summary>
@@ -71,4 +73,9 @@ public abstract class WorkflowStep
     /// Gets a value indicating whether the persisted definition used string form.
     /// </summary>
     public bool IsStringForm { get; }
+
+    /// <summary>
+    /// Gets the optional AI-step generation overrides.
+    /// </summary>
+    public GenerationOptions? GenerationOptions { get; }
 }

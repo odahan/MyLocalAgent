@@ -28,10 +28,10 @@ internal sealed class DynamicOpenAIChatClient : IChatClient
         ArgumentNullException.ThrowIfNull(messages);
         var current = GetValidatedOptions();
         using var timeoutSource = CreateTimeoutSource(current.TimeoutSeconds, cancellationToken);
-        options ??= new ChatOptions();
-        options.ModelId = current.Model;
+        var effectiveOptions = options?.Clone() ?? new ChatOptions();
+        effectiveOptions.ModelId = current.Model;
         using var client = CreateClient(current);
-        return await client.GetResponseAsync(messages, options, timeoutSource.Token).ConfigureAwait(false);
+        return await client.GetResponseAsync(messages, effectiveOptions, timeoutSource.Token).ConfigureAwait(false);
     }
 
     public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
@@ -42,12 +42,12 @@ internal sealed class DynamicOpenAIChatClient : IChatClient
         ArgumentNullException.ThrowIfNull(messages);
         var current = GetValidatedOptions();
         using var timeoutSource = CreateTimeoutSource(current.TimeoutSeconds, cancellationToken);
-        options ??= new ChatOptions();
-        options.ModelId = current.Model;
+        var effectiveOptions = options?.Clone() ?? new ChatOptions();
+        effectiveOptions.ModelId = current.Model;
         using var client = CreateClient(current);
 
         await foreach (var update in client
-            .GetStreamingResponseAsync(messages, options, timeoutSource.Token)
+            .GetStreamingResponseAsync(messages, effectiveOptions, timeoutSource.Token)
             .ConfigureAwait(false))
         {
             yield return update;

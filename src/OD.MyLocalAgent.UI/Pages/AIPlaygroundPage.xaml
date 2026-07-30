@@ -28,6 +28,13 @@
                     <TextBlock FontWeight="SemiBold"
                                Text="{Binding ProviderBadge}" />
                 </Border>
+                <TextBlock MaxWidth="520"
+                           Margin="0,5,0,0"
+                           HorizontalAlignment="Right"
+                           Foreground="{DynamicResource MutedTextBrush}"
+                           Text="{Binding GenerationPolicyText}"
+                           TextAlignment="Right"
+                           TextWrapping="Wrap" />
                 <Button Margin="0,8,0,0"
                         HorizontalAlignment="Right"
                         Command="{Binding RefreshProviderCommand}"

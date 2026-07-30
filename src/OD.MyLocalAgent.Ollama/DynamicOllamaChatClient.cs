@@ -33,10 +33,10 @@ internal sealed class DynamicOllamaChatClient : IChatClient
         try
         {
             await _ensureModelAvailableAsync(timeoutSource.Token).ConfigureAwait(false);
-            options ??= new ChatOptions();
-            options.ModelId = current.Model;
+            var effectiveOptions = options?.Clone() ?? new ChatOptions();
+            effectiveOptions.ModelId = current.Model;
             using var client = CreateClient(current);
-            return await client.GetResponseAsync(messages, options, timeoutSource.Token).ConfigureAwait(false);
+            return await client.GetResponseAsync(messages, effectiveOptions, timeoutSource.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
         {
@@ -82,11 +82,11 @@ internal sealed class DynamicOllamaChatClient : IChatClient
                     exception);
             }
 
-            options ??= new ChatOptions();
-            options.ModelId = current.Model;
+            var effectiveOptions = options?.Clone() ?? new ChatOptions();
+            effectiveOptions.ModelId = current.Model;
             client = CreateClient(current);
             enumerator = client
-                .GetStreamingResponseAsync(messages, options, timeoutSource.Token)
+                .GetStreamingResponseAsync(messages, effectiveOptions, timeoutSource.Token)
                 .GetAsyncEnumerator(timeoutSource.Token);
 
             while (true)

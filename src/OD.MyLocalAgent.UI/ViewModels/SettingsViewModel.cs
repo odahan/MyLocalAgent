@@ -36,6 +36,9 @@ public sealed partial class SettingsViewModel :
         nameof(OpenAIEndpoint),
         nameof(OpenAIModel),
         nameof(OpenAITimeoutSeconds),
+        nameof(GenerationTemperatureText),
+        nameof(GenerationTopPText),
+        nameof(ContextWindowTokensText),
         nameof(ApiKeyReplacement),
         nameof(FileSystemRootPath),
         nameof(HttpTimeoutSeconds),
@@ -116,6 +119,22 @@ public sealed partial class SettingsViewModel :
     private int _openAITimeoutSeconds;
 
     [ObservableProperty]
+    private string _generationTemperatureText = "0.2";
+
+    [ObservableProperty]
+    private string _generationTopPText = "1";
+
+    [ObservableProperty]
+    private string _contextWindowTokensText = "8192";
+
+    [ObservableProperty]
+    private string _generationValidationText =
+        "Generation defaults are valid.";
+
+    [ObservableProperty]
+    private bool _hasGenerationValidationError;
+
+    [ObservableProperty]
     private string _apiKeyReplacement = string.Empty;
 
     [ObservableProperty]
@@ -191,6 +210,7 @@ public sealed partial class SettingsViewModel :
     private bool _isDirty;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     private bool _isBusy;
 
     [ObservableProperty]
@@ -354,6 +374,15 @@ public sealed partial class SettingsViewModel :
             requireExists: false);
     }
 
+    partial void OnGenerationTemperatureTextChanged(string value) =>
+        UpdateGenerationValidation();
+
+    partial void OnGenerationTopPTextChanged(string value) =>
+        UpdateGenerationValidation();
+
+    partial void OnContextWindowTokensTextChanged(string value) =>
+        UpdateGenerationValidation();
+
     [RelayCommand]
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
@@ -376,6 +405,16 @@ public sealed partial class SettingsViewModel :
                 AIOptions.OllamaProvider,
                 StringComparison.OrdinalIgnoreCase);
             IsOpenAIProvider = !IsOllamaProvider;
+            GenerationTemperatureText = ai.GenerationDefaults.Temperature.ToString(
+                "G",
+                CultureInfo.CurrentCulture);
+            GenerationTopPText = ai.GenerationDefaults.TopP.ToString(
+                "G",
+                CultureInfo.CurrentCulture);
+            ContextWindowTokensText =
+                ai.GenerationDefaults.ContextWindowTokens.ToString(
+                    CultureInfo.CurrentCulture);
+            UpdateGenerationValidation();
             OllamaEndpoint = ollama.Endpoint;
             OllamaModel = ollama.Model;
             OllamaTimeoutSeconds = ollama.TimeoutSeconds;
@@ -437,12 +476,18 @@ public sealed partial class SettingsViewModel :
     private Task RefreshOllamaModelsAsync(CancellationToken cancellationToken) =>
         LoadOllamaModelsAsync(cancellationToken);
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanSave))]
     private async Task SaveAsync(CancellationToken cancellationToken)
     {
         IsBusy = true;
         try
         {
+            if (!TryGetGenerationDefaults(out var generationDefaults))
+            {
+                UpdateGenerationValidation();
+                return;
+            }
+
             var currentScheduler = _schedulerOptions.CurrentValue;
             var settings = new UserSettingsData(
                 IsOpenAIProvider
@@ -475,7 +520,10 @@ public sealed partial class SettingsViewModel :
                 GuardrailsCacheResults,
                 GuardrailsMaxGmailMessagesPerOperation,
                 LoggingMinimumLevel,
-                SelectedTheme);
+                SelectedTheme,
+                generationDefaults.Temperature,
+                generationDefaults.TopP,
+                generationDefaults.ContextWindowTokens);
             await _userSettingsService
                 .SaveAsync(
                     settings,
@@ -753,6 +801,111 @@ public sealed partial class SettingsViewModel :
             IsDirty = true;
             SaveStatus = "Unsaved changes.";
         }
+    }
+
+    private bool CanSave() =>
+        !IsBusy && TryGetGenerationDefaults(out _);
+
+    private void UpdateGenerationValidation()
+    {
+        if (TryGetGenerationDefaults(out _))
+        {
+            HasGenerationValidationError = false;
+            GenerationValidationText =
+                "Valid. New calls use these values after Save; running calls keep their current policy.";
+        }
+        else
+        {
+            HasGenerationValidationError = true;
+        }
+
+        SaveCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool TryGetGenerationDefaults(
+        out AIGenerationDefaults defaults)
+    {
+        defaults = new AIGenerationDefaults();
+        if (!TryParseCultureSafeDouble(
+                GenerationTemperatureText,
+                CultureInfo.CurrentCulture,
+                out var temperature))
+        {
+            GenerationValidationText =
+                "Temperature must be a number from 0 through 2.";
+            return false;
+        }
+
+        if (!TryParseCultureSafeDouble(
+                GenerationTopPText,
+                CultureInfo.CurrentCulture,
+                out var topP))
+        {
+            GenerationValidationText =
+                "Top P must be a number greater than 0 and at most 1.";
+            return false;
+        }
+
+        if (!int.TryParse(
+                ContextWindowTokensText,
+                NumberStyles.Integer,
+                CultureInfo.CurrentCulture,
+                out var contextWindowTokens) &&
+            !int.TryParse(
+                ContextWindowTokensText,
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out contextWindowTokens))
+        {
+            GenerationValidationText =
+                "Context window must be a whole number of tokens.";
+            return false;
+        }
+
+        defaults = new AIGenerationDefaults
+        {
+            Temperature = temperature,
+            TopP = topP,
+            ContextWindowTokens = contextWindowTokens,
+        };
+        var error = GenerationPolicyValidation.ValidateDefaults(defaults);
+        if (error is not null)
+        {
+            GenerationValidationText = error;
+            return false;
+        }
+
+        return true;
+    }
+
+    internal static bool TryParseCultureSafeDouble(
+        string text,
+        CultureInfo culture,
+        out double value)
+    {
+        ArgumentNullException.ThrowIfNull(culture);
+        var candidate = text?.Trim() ?? string.Empty;
+        if (double.TryParse(
+                candidate,
+                NumberStyles.Float,
+                culture,
+                out value) ||
+            double.TryParse(
+                candidate,
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out value))
+        {
+            return double.IsFinite(value);
+        }
+
+        var normalized = candidate.Replace(',', '.');
+        return double.TryParse(
+                   normalized,
+                   NumberStyles.Float,
+                   CultureInfo.InvariantCulture,
+                   out value) &&
+               double.IsFinite(value);
     }
 
     private async Task ReportAsync(Exception exception, string source)

@@ -118,3 +118,21 @@ content. Human visual follow-up remains required for both palettes, keyboard tra
 long descriptions/errors/paths, narrow minimum size, WebView2 initialization failure, and
 actual rendered Markdown. No Stage 13 GUI or WebView2 runtime flow was manually exercised in
 this implementation pass.
+
+## Stage 14 hierarchical AI generation settings
+
+Settings adds one standard Material card containing three outlined numeric text fields for
+Temperature, Top P, and Context window. The fields reuse the existing caption, validation,
+disabled, focus, surface, and text treatments; no new control type, custom template, or
+inline color was introduced. Save is disabled while any generation value is invalid, and
+the shared validation text uses the existing error semantic brush.
+
+The Task editor adds two standard checkboxes, two outlined numeric text fields, and compact
+effective-value/provenance captions. Each checkbox independently enables or disables its
+override field. Prompt editor and AI playground add read-only policy captions to their
+existing provider/model status area. Long values, invalid states, disabled inherited fields,
+keyboard traversal, and both Dark/Light palettes remain human visual follow-ups.
+
+This implementation pass did not launch the WPF application. Release compilation and
+ViewModel tests verify bindings, command state, culture-safe parsing, dirty tracking, reload,
+save, and displayed policy text; they are not claimed as pixel-level GUI evidence.

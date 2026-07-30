@@ -1,0 +1,383 @@
+using System.Globalization;
+using System.Text.Json;
+using FluentAssertions;
+using Microsoft.Extensions.AI;
+using OD.MyLocalAgent.Core;
+using OD.MyLocalAgent.Ollama;
+using OD.MyLocalAgent.Tests.TestDoubles;
+using OD.MyLocalAgent.UI.ViewModels;
+using OllamaSharp.Models;
+using Xunit;
+
+namespace OD.MyLocalAgent.Tests;
+
+/// <summary>
+/// Verifies Stage 14 generation contracts, precedence, strict persistence, and provider mapping.
+/// </summary>
+public sealed class GenerationPolicyTests
+{
+    private static readonly AIGenerationDefaults Defaults = new()
+    {
+        Temperature = 0.2,
+        TopP = 0.95,
+        ContextWindowTokens = 12_345,
+    };
+
+    /// <summary>
+    /// Verifies every property resolves independently through step, task, and Settings.
+    /// </summary>
+    [Theory]
+    [InlineData(null, null, 0.2, GenerationOptionSource.Settings)]
+    [InlineData(0.4, null, 0.4, GenerationOptionSource.Task)]
+    [InlineData(null, 0.8, 0.8, GenerationOptionSource.Step)]
+    [InlineData(0.4, 0.8, 0.8, GenerationOptionSource.Step)]
+    public void ResolverUsesFieldWisePrecedence(
+        double? taskTemperature,
+        double? stepTemperature,
+        double expected,
+        GenerationOptionSource source)
+    {
+        var policy = GenerationPolicyResolver.Resolve(
+            Defaults,
+            new GenerationOptions
+            {
+                Temperature = taskTemperature,
+                TopP = 0.7,
+            },
+            new GenerationOptions
+            {
+                Temperature = stepTemperature,
+            });
+
+        policy.Temperature.Should().Be(expected);
+        policy.TemperatureSource.Should().Be(source);
+        policy.TopP.Should().Be(0.7);
+        policy.TopPSource.Should().Be(GenerationOptionSource.Task);
+        policy.ContextWindowTokens.Should().Be(12_345);
+    }
+
+    /// <summary>
+    /// Verifies fixed internal policies ignore user sampling defaults but retain global context.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(InternalPolicies))]
+    public void InternalPoliciesRemainFixed(InternalGenerationPolicy internalPolicy)
+    {
+        var policy = GenerationPolicyResolver.ResolveInternal(
+            internalPolicy,
+            Defaults with { Temperature = 1.8, TopP = 0.2 });
+
+        policy.Temperature.Should().Be(0);
+        policy.TopP.Should().Be(1);
+        policy.ContextWindowTokens.Should().Be(12_345);
+        policy.TemperatureSource.Should().Be(GenerationOptionSource.Program);
+        policy.TopPSource.Should().Be(GenerationOptionSource.Program);
+    }
+
+    /// <summary>
+    /// Gets all fixed program-owned policies.
+    /// </summary>
+    public static TheoryData<InternalGenerationPolicy> InternalPolicies => new()
+    {
+        InternalGenerationPolicies.WorkflowAuthoring,
+        InternalGenerationPolicies.WorkflowExplanation,
+        InternalGenerationPolicies.GuardrailScreening,
+        InternalGenerationPolicies.GuardrailReduction,
+    };
+
+    /// <summary>
+    /// Verifies invalid global and override ranges are rejected without clamping.
+    /// </summary>
+    [Theory]
+    [InlineData(double.NaN, 1, 8192)]
+    [InlineData(double.PositiveInfinity, 1, 8192)]
+    [InlineData(-0.01, 1, 8192)]
+    [InlineData(2.01, 1, 8192)]
+    [InlineData(0.2, 0, 8192)]
+    [InlineData(0.2, 1.01, 8192)]
+    [InlineData(0.2, 1, 1023)]
+    [InlineData(0.2, 1, 2_000_001)]
+    public void InvalidDefaultsAreRejected(
+        double temperature,
+        double topP,
+        int context)
+    {
+        var error = GenerationPolicyValidation.ValidateDefaults(
+            new AIGenerationDefaults
+            {
+                Temperature = temperature,
+                TopP = topP,
+                ContextWindowTokens = context,
+            });
+
+        error.Should().NotBeNullOrWhiteSpace();
+    }
+
+    /// <summary>
+    /// Verifies existing task JSON remains valid and does not acquire an override.
+    /// </summary>
+    [Fact]
+    public void ExistingTaskWithoutOverridesRemainsCanonical()
+    {
+        var task = ScheduledTaskSerializer.Deserialize(ValidTaskJson());
+
+        task.GenerationOptions.Should().BeNull();
+        ScheduledTaskSerializer.Serialize(task)
+            .Should().NotContain("generationOptions");
+    }
+
+    /// <summary>
+    /// Verifies partial task and AI-step overrides round-trip while empty objects are omitted.
+    /// </summary>
+    [Fact]
+    public void PartialOverridesRoundTripAndEmptyObjectsAreOmitted()
+    {
+        var task = CreateTask() with
+        {
+            GenerationOptions = new GenerationOptions { Temperature = 0.1 },
+            Workflow =
+            [
+                new WorkflowStepDefinition
+                {
+                    Step = "ai.prompt",
+                    Id = "draft",
+                    Args = JsonSerializer.SerializeToElement(
+                        new { prompt = "Draft a title." }),
+                    GenerationOptions =
+                        new GenerationOptions { TopP = 0.8 },
+                },
+            ],
+        };
+
+        var json = ScheduledTaskSerializer.Serialize(task);
+        var roundTrip = ScheduledTaskSerializer.Deserialize(json);
+
+        roundTrip.GenerationOptions!.Temperature.Should().Be(0.1);
+        roundTrip.GenerationOptions.TopP.Should().BeNull();
+        var stepOptions = roundTrip.Workflow[0].GenerationOptions;
+        stepOptions.Should().NotBeNull();
+        stepOptions!.Temperature.Should().BeNull();
+        stepOptions.TopP.Should().Be(0.8);
+
+        var empty = task with
+        {
+            GenerationOptions = new GenerationOptions(),
+            Workflow =
+            [
+                new WorkflowStepDefinition
+                {
+                    Step = "ai.summarize",
+                    IsStringForm = true,
+                    GenerationOptions = new GenerationOptions(),
+                },
+            ],
+        };
+        ScheduledTaskSerializer.Serialize(empty)
+            .Should().NotContain("generationOptions");
+    }
+
+    /// <summary>
+    /// Verifies every Tool Map AI alias accepts an object-form generation override.
+    /// </summary>
+    [Fact]
+    public void EveryAiAliasRoundTripsGenerationOptions()
+    {
+        foreach (var definition in ToolMap.Definitions.Where(
+                     static item => item.IsAiStep))
+        {
+            var arguments = definition.Alias == ToolMap.PromptAlias
+                ? JsonSerializer.SerializeToElement(new { prompt = "Test" })
+                : JsonSerializer.SerializeToElement(new { text = "Test" });
+            var workflow = new[]
+            {
+                new WorkflowStepDefinition
+                {
+                    Step = definition.Alias,
+                    Args = arguments,
+                    GenerationOptions =
+                        new GenerationOptions { Temperature = 0.6 },
+                },
+            };
+
+            var json = WorkflowDefinitionSerializer.Serialize(workflow);
+            var parsed = WorkflowDefinitionSerializer.Deserialize(json);
+
+            parsed.Single().GenerationOptions!.Temperature.Should().Be(
+                0.6,
+                definition.Alias);
+        }
+    }
+
+    /// <summary>
+    /// Verifies every deterministic Tool Map alias rejects generation metadata.
+    /// </summary>
+    [Fact]
+    public void EveryNonAiAliasRejectsGenerationOptions()
+    {
+        foreach (var definition in ToolMap.Definitions.Where(
+                     static item => !item.IsAiStep))
+        {
+            var workflow = new[]
+            {
+                new WorkflowStepDefinition
+                {
+                    Step = definition.Alias,
+                    GenerationOptions =
+                        new GenerationOptions { Temperature = 0.4 },
+                },
+            };
+
+            var action = () =>
+                ScheduledTaskValidator.ValidateWorkflowDefinitions(
+                    workflow,
+                    ToolGroups.All);
+
+            action.Should()
+                .Throw<WorkflowValidationException>()
+                .WithMessage("*generationOptions*not an AI step*");
+        }
+    }
+
+    /// <summary>
+    /// Verifies nulls, unknown properties, invalid JSON types, and context-window overrides fail.
+    /// </summary>
+    [Theory]
+    [InlineData("""null""")]
+    [InlineData("""{"temperature":"0.2"}""")]
+    [InlineData("""{"temperature":null}""")]
+    [InlineData("""{"topP":false}""")]
+    [InlineData("""{"contextWindowTokens":8192}""")]
+    [InlineData("""{"unknown":1}""")]
+    public void InvalidGenerationJsonFailsDeterministically(
+        string generationOptions)
+    {
+        var json = ValidTaskJson().Replace(
+            "\"prompt\": \"Test\",",
+            $"\"prompt\": \"Test\", \"generationOptions\": {generationOptions},",
+            StringComparison.Ordinal);
+
+        var action = () => ScheduledTaskSerializer.Deserialize(json);
+
+        action.Should().Throw<TaskValidationException>();
+    }
+
+    /// <summary>
+    /// Verifies task and workflow context-window properties cannot enter persistence.
+    /// </summary>
+    [Theory]
+    [InlineData(
+        """{"step":"ai.prompt","args":{"prompt":"x"},"generationOptions":{"contextWindowTokens":4096}}""")]
+    [InlineData(
+        """{"step":"ai.prompt","args":{"prompt":"x"},"contextWindowTokens":4096}""")]
+    public void WorkflowContextWindowPropertiesAreRejected(string step)
+    {
+        var action = () =>
+            WorkflowDefinitionSerializer.Deserialize($"[{step}]");
+
+        action.Should().Throw<WorkflowValidationException>();
+    }
+
+    /// <summary>
+    /// Verifies decimal editing accepts comma and dot input under French and English cultures.
+    /// </summary>
+    [Theory]
+    [InlineData("fr-FR", "0,25", 0.25)]
+    [InlineData("fr-FR", "0.25", 0.25)]
+    [InlineData("en-US", "0.25", 0.25)]
+    [InlineData("en-US", "0,25", 0.25)]
+    public void DecimalEditingIsCultureSafe(
+        string cultureName,
+        string text,
+        double expected)
+    {
+        var parsed = SettingsViewModel.TryParseCultureSafeDouble(
+            text,
+            CultureInfo.GetCultureInfo(cultureName),
+            out var value);
+
+        parsed.Should().BeTrue();
+        value.Should().Be(expected);
+    }
+
+    /// <summary>
+    /// Verifies policy application preserves caller options and maps context only for Ollama.
+    /// </summary>
+    [Fact]
+    public async Task PolicyWrapperPreservesOptionsAndMapsProviderHonestly()
+    {
+        var callerOptions = new ChatOptions
+        {
+            ModelId = "caller-model",
+            Temperature = 1.7f,
+            TopP = 0.4f,
+            Tools = [],
+            ResponseFormat = ChatResponseFormat.Json,
+        };
+        var ollamaCapture = new StubChatClient("ok");
+        var ollama = new GenerationPolicyChatClient(
+            ollamaCapture,
+            GenerationPolicyResolver.Resolve(Defaults),
+            AIOptions.OllamaProvider);
+
+        _ = await ollama.GetResponseAsync(
+            [new ChatMessage(ChatRole.User, "test")],
+            callerOptions,
+            CancellationToken.None);
+
+        callerOptions.Temperature.Should().Be(1.7f);
+        callerOptions.TopP.Should().Be(0.4f);
+        ollamaCapture.LastOptions.Should().NotBeSameAs(callerOptions);
+        ollamaCapture.LastOptions!.Temperature.Should().Be(0.2f);
+        ollamaCapture.LastOptions.TopP.Should().Be(0.95f);
+        ollamaCapture.LastOptions.ModelId.Should().Be("caller-model");
+        ollamaCapture.LastOptions.Tools.Should().NotBeNull();
+        ollamaCapture.LastOptions.ResponseFormat.Should().BeSameAs(
+            ChatResponseFormat.Json);
+        ollamaCapture.LastOptions.AdditionalProperties.Should()
+            .ContainKey(OllamaOption.NumCtx.Name);
+
+        var openAICapture = new StubChatClient("ok");
+        var openAI = new GenerationPolicyChatClient(
+            openAICapture,
+            GenerationPolicyResolver.Resolve(Defaults),
+            AIOptions.OpenAIProvider);
+        _ = await openAI.GetResponseAsync(
+            [new ChatMessage(ChatRole.User, "test")],
+            callerOptions,
+            CancellationToken.None);
+
+        openAICapture.LastOptions!.Temperature.Should().Be(0.2f);
+        openAICapture.LastOptions.TopP.Should().Be(0.95f);
+        (openAICapture.LastOptions.AdditionalProperties?.ContainsKey(
+            OllamaOption.NumCtx.Name) ?? false).Should().BeFalse();
+    }
+
+    private static ScheduledTask CreateTask() =>
+        new()
+        {
+            Id = "generation-test",
+            Name = "Generation test",
+            Schedule = "0 7 * * *",
+            Prompt = "Test",
+            Tools = [],
+            FileSystemAccess = [],
+            Workflow = [],
+            Enabled = true,
+            ErrorPolicy = WorkflowErrorPolicy.StopOnError,
+        };
+
+    private static string ValidTaskJson() =>
+        """
+        {
+          "id": "generation-test",
+          "name": "Generation test",
+          "schedule": "0 7 * * *",
+          "prompt": "Test",
+          "tools": [],
+          "fileSystemAccess": [],
+          "workflow": [],
+          "enabled": true,
+          "errorPolicy": "StopOnError"
+        }
+        """;
+}

@@ -17,6 +17,7 @@ public sealed class OllamaClientService : ILlmClientService, IOllamaModelCatalog
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<OllamaClientService> _logger;
     private readonly DynamicOllamaChatClient _chatClient;
+    private readonly IOptionsMonitor<AIOptions>? _aiOptions;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="OllamaClientService"/> class.
@@ -25,11 +26,13 @@ public sealed class OllamaClientService : ILlmClientService, IOllamaModelCatalog
     /// <param name="options">The reloadable Ollama configuration.</param>
     /// <param name="timeProvider">The time source used to measure latency.</param>
     /// <param name="logger">The structured logger.</param>
+    /// <param name="aiOptions">The optional reloadable global generation defaults.</param>
     public OllamaClientService(
         IHttpClientFactory httpClientFactory,
         IOptionsMonitor<OllamaOptions> options,
         TimeProvider timeProvider,
-        ILogger<OllamaClientService> logger)
+        ILogger<OllamaClientService> logger,
+        IOptionsMonitor<AIOptions>? aiOptions = null)
     {
         ArgumentNullException.ThrowIfNull(httpClientFactory);
         ArgumentNullException.ThrowIfNull(options);
@@ -40,6 +43,7 @@ public sealed class OllamaClientService : ILlmClientService, IOllamaModelCatalog
         _options = options;
         _timeProvider = timeProvider;
         _logger = logger;
+        _aiOptions = aiOptions;
         _chatClient = new DynamicOllamaChatClient(
             httpClientFactory,
             options,
@@ -53,15 +57,29 @@ public sealed class OllamaClientService : ILlmClientService, IOllamaModelCatalog
     public string ProviderName => AIOptions.OllamaProvider;
 
     /// <inheritdoc />
-    public async Task<string> GenerateAsync(string prompt, CancellationToken cancellationToken)
+    public Task<string> GenerateAsync(
+        string prompt,
+        CancellationToken cancellationToken) =>
+        GenerateAsync(prompt, ResolveGlobalPolicy(), cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<string> GenerateAsync(
+        string prompt,
+        EffectiveGenerationPolicy policy,
+        CancellationToken cancellationToken)
     {
         ValidatePrompt(prompt);
+        ArgumentNullException.ThrowIfNull(policy);
         var current = _options.CurrentValue;
         _logger.LogInformation(
             "Starting Ollama generation with model {Model}.",
             current.Model);
 
-        var response = await _chatClient.GetResponseAsync(
+        var policyClient = new GenerationPolicyChatClient(
+            _chatClient,
+            policy,
+            ProviderName);
+        var response = await policyClient.GetResponseAsync(
             [new ChatMessage(ChatRole.User, prompt)],
             new ChatOptions { ModelId = current.Model },
             cancellationToken).ConfigureAwait(false);
@@ -73,17 +91,32 @@ public sealed class OllamaClientService : ILlmClientService, IOllamaModelCatalog
     }
 
     /// <inheritdoc />
+    public IAsyncEnumerable<string> GenerateStreamingAsync(
+        string prompt,
+        CancellationToken cancellationToken) =>
+        GenerateStreamingAsync(
+            prompt,
+            ResolveGlobalPolicy(),
+            cancellationToken);
+
+    /// <inheritdoc />
     public async IAsyncEnumerable<string> GenerateStreamingAsync(
         string prompt,
+        EffectiveGenerationPolicy policy,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         ValidatePrompt(prompt);
+        ArgumentNullException.ThrowIfNull(policy);
         var current = _options.CurrentValue;
         _logger.LogInformation(
             "Starting streaming Ollama generation with model {Model}.",
             current.Model);
 
-        await foreach (var update in _chatClient
+        var policyClient = new GenerationPolicyChatClient(
+            _chatClient,
+            policy,
+            ProviderName);
+        await foreach (var update in policyClient
             .GetStreamingResponseAsync(
                 [new ChatMessage(ChatRole.User, prompt)],
                 new ChatOptions { ModelId = current.Model },
@@ -250,4 +283,9 @@ public sealed class OllamaClientService : ILlmClientService, IOllamaModelCatalog
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
     }
+
+    private EffectiveGenerationPolicy ResolveGlobalPolicy() =>
+        GenerationPolicyResolver.Resolve(
+            _aiOptions?.CurrentValue.GenerationDefaults ??
+            new AIGenerationDefaults());
 }

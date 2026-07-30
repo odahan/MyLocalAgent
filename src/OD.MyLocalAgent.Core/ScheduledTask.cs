@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using OD.MyLocalAgent.Ollama;
 
 namespace OD.MyLocalAgent.Core;
 
@@ -26,6 +27,12 @@ public sealed record ScheduledTask
     /// Gets the prompt used by the task and exposed to workflows.
     /// </summary>
     public string Prompt { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the optional task-level Temperature and Top P overrides.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GenerationOptions? GenerationOptions { get; init; }
 
     /// <summary>
     /// Gets the whitelisted tool groups.

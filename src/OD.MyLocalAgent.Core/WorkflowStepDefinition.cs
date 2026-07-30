@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using OD.MyLocalAgent.Ollama;
 
 namespace OD.MyLocalAgent.Core;
 
@@ -38,6 +39,11 @@ public sealed record WorkflowStepDefinition
     /// Gets the optional initial retry backoff in seconds.
     /// </summary>
     public int? RetryBackoffSeconds { get; init; }
+
+    /// <summary>
+    /// Gets the optional AI-step Temperature and Top P overrides.
+    /// </summary>
+    public GenerationOptions? GenerationOptions { get; init; }
 
     /// <summary>
     /// Gets a value indicating whether the step was read from string form.

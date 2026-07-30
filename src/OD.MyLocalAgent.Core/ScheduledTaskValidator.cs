@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Cronos;
+using OD.MyLocalAgent.Ollama;
 
 namespace OD.MyLocalAgent.Core;
 
@@ -26,6 +27,14 @@ public static partial class ScheduledTaskValidator
         if (string.IsNullOrWhiteSpace(task.Name))
         {
             throw new TaskValidationException("Task 'name' is required.");
+        }
+
+        if (task.GenerationOptions is not null &&
+            GenerationPolicyValidation.ValidateOverrides(task.GenerationOptions)
+                is { } generationError)
+        {
+            throw new TaskValidationException(
+                $"Task 'generationOptions' is invalid. {generationError}");
         }
 
         if (string.IsNullOrWhiteSpace(task.Schedule))
@@ -198,6 +207,20 @@ public static partial class ScheduledTaskValidator
             {
                 throw new WorkflowValidationException(
                     $"Workflow alias '{step.Step}' requires whitelisted tool group '{definition.ToolGroup}'.");
+            }
+
+            if (!definition.IsAiStep && step.GenerationOptions is not null)
+            {
+                throw new WorkflowValidationException(
+                    $"Workflow step '{step.EffectiveId}' cannot define 'generationOptions' because alias '{step.Step}' is not an AI step.");
+            }
+
+            if (step.GenerationOptions is not null &&
+                GenerationPolicyValidation.ValidateOverrides(step.GenerationOptions)
+                    is { } generationError)
+            {
+                throw new WorkflowValidationException(
+                    $"Workflow step '{step.EffectiveId}' has invalid 'generationOptions'. {generationError}");
             }
 
             if (step.Args.ValueKind is not JsonValueKind.Undefined and not JsonValueKind.Object)

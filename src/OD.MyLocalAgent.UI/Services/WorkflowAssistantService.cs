@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Options;
 using OD.MyLocalAgent.Ollama;
 
 namespace OD.MyLocalAgent.UI.Services;
@@ -10,15 +11,20 @@ namespace OD.MyLocalAgent.UI.Services;
 public sealed class WorkflowAssistantService : IWorkflowAssistantService
 {
     private readonly ILlmClientFactory _clientFactory;
+    private readonly IOptionsMonitor<AIOptions>? _aiOptions;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WorkflowAssistantService"/> class.
     /// </summary>
     /// <param name="clientFactory">The hot-switching provider factory.</param>
-    public WorkflowAssistantService(ILlmClientFactory clientFactory)
+    /// <param name="aiOptions">The optional reloadable global generation defaults.</param>
+    public WorkflowAssistantService(
+        ILlmClientFactory clientFactory,
+        IOptionsMonitor<AIOptions>? aiOptions = null)
     {
         ArgumentNullException.ThrowIfNull(clientFactory);
         _clientFactory = clientFactory;
+        _aiOptions = aiOptions;
     }
 
     /// <inheritdoc />
@@ -28,6 +34,7 @@ public sealed class WorkflowAssistantService : IWorkflowAssistantService
         StreamAsync(
             WorkflowAssistantPromptBuilder.BuildGenerationSystemPrompt(),
             userMessage,
+            InternalGenerationPolicies.WorkflowAuthoring,
             cancellationToken);
 
     /// <inheritdoc />
@@ -37,16 +44,26 @@ public sealed class WorkflowAssistantService : IWorkflowAssistantService
         StreamAsync(
             WorkflowAssistantPromptBuilder.BuildExplanationSystemPrompt(),
             userMessage,
+            InternalGenerationPolicies.WorkflowExplanation,
             cancellationToken);
 
     private async IAsyncEnumerable<string> StreamAsync(
         string systemMessage,
         string userMessage,
+        InternalGenerationPolicy internalPolicy,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(userMessage);
         var provider = _clientFactory.Create();
-        await foreach (var update in provider.ChatClient
+        var generationPolicy = GenerationPolicyResolver.ResolveInternal(
+            internalPolicy,
+            _aiOptions?.CurrentValue.GenerationDefaults ??
+            new AIGenerationDefaults());
+        var policyClient = new GenerationPolicyChatClient(
+            provider.ChatClient,
+            generationPolicy,
+            provider.ProviderName);
+        await foreach (var update in policyClient
             .GetStreamingResponseAsync(
                 [
                     new ChatMessage(ChatRole.System, systemMessage),
@@ -54,7 +71,6 @@ public sealed class WorkflowAssistantService : IWorkflowAssistantService
                 ],
                 new ChatOptions
                 {
-                    Temperature = 0,
                     Tools = null,
                 },
                 cancellationToken))

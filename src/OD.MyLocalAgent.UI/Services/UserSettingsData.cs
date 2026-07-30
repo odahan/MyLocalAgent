@@ -32,6 +32,9 @@ namespace OD.MyLocalAgent.UI.Services;
 /// <param name="GuardrailsMaxGmailMessagesPerOperation">The Gmail processing limit.</param>
 /// <param name="LoggingMinimumLevel">The Serilog minimum level.</param>
 /// <param name="Theme">The application color theme.</param>
+/// <param name="GenerationTemperature">The global default sampling temperature.</param>
+/// <param name="GenerationTopP">The global default nucleus-sampling value.</param>
+/// <param name="ContextWindowTokens">The declared global context-window budget.</param>
 public sealed record UserSettingsData(
     string Provider,
     string OllamaEndpoint,
@@ -61,4 +64,7 @@ public sealed record UserSettingsData(
     bool GuardrailsCacheResults,
     int GuardrailsMaxGmailMessagesPerOperation,
     string LoggingMinimumLevel,
-    string Theme);
+    string Theme,
+    double GenerationTemperature,
+    double GenerationTopP,
+    int ContextWindowTokens);

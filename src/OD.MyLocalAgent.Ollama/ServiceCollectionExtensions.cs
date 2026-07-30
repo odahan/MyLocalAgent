@@ -27,7 +27,7 @@ public static class ServiceCollectionExtensions
             .Bind(configuration.GetSection(AIOptions.SectionName))
             .Validate(
                 static options => LlmOptionsValidation.ValidateAI(options) is null,
-                "AI:Provider is required.");
+                "AI provider or generation-default configuration is invalid.");
         services
             .AddOptions<OllamaOptions>()
             .Bind(configuration.GetSection(OllamaOptions.SectionName))

@@ -215,6 +215,76 @@ The DPAPI keys are `OpenAI:ApiKey`, `Dropbox:AccessToken`, `Dropbox:RefreshToken
 `Dropbox:AppKey`, and `WebSearch:ApiKey`. They must not be added to either JSON configuration
 file.
 
+## AI generation policy
+
+**Settings → AI generation defaults** defines the policy used by new AI calls:
+
+| Setting | Default | Valid range | Meaning |
+|---|---:|---:|---|
+| Temperature | `0.2` | finite `0`–`2` | Sampling variability |
+| Top P | `1.0` | finite, greater than `0` and at most `1` | Nucleus-sampling threshold |
+| Context window | `8192` | `1024`–`2000000` | Declared total request budget, not an output-token limit |
+
+Tune Temperature or Top P first instead of changing both at once. The context window covers
+input messages, agent/tool context, and generated output; it cannot increase the selected
+model's physical capacity and does not silently truncate, summarize, or discard content.
+Changes are reloadable: a new call sees the saved values, while an already-running call keeps
+the immutable snapshot with which it started.
+
+A task may override Temperature and Top P independently:
+
+```json
+"generationOptions": {
+  "temperature": 0.1
+}
+```
+
+An object-form AI workflow step may override either value again:
+
+```json
+{
+  "step": "ai.prompt",
+  "id": "draft",
+  "args": {
+    "prompt": "Draft three titles from {{source.output}}."
+  },
+  "generationOptions": {
+    "topP": 0.9
+  }
+}
+```
+
+Each property resolves separately:
+
+```text
+AI step override → task override → Settings default
+```
+
+In the example, the step uses task Temperature `0.1` and step Top P `0.9`. Missing properties
+inherit; they do not reset the other property. Context is global only. `generationOptions`
+is valid only at task level and on object-form `ai.*` steps; unknown fields, nulls, invalid
+ranges, and use on non-AI steps are rejected. Existing tasks without this object remain valid,
+and empty objects are omitted when a task is saved.
+
+Prompt editor Test displays and uses the current unsaved task-effective values. Workflow AI
+steps display configured overrides and deterministic provenance through AI Explain. The AI
+playground has no task, so it displays and uses the global policy.
+
+Workflow authoring/refinement/repair, workflow explanation/repair, Guardrails screening, and
+Guardrails reduction deliberately use program-owned Temperature `0` and Top P `1`. User
+defaults and task/step overrides cannot change these deterministic internal policies, but they
+still receive the current global context-window value.
+
+Ollama receives the context window through its native `num_ctx` request option. OpenAI-compatible
+models generally own a fixed context capacity and this application does not invent a request
+field for it; the configured value remains the application's declared budget and the provider
+is authoritative. Provider context errors follow the normal execution and incident paths.
+Temperature and Top P semantics can vary slightly by provider and model, and provider
+tokenization is authoritative rather than a universal exact counter. Tuning both sampling
+controls at once can make results harder to predict; higher randomness can reduce
+structured-output and tool-selection reliability. OpenAI-compatible endpoints may also reject
+sampling ranges or oversized requests that another provider accepts.
+
 ## Safety defaults
 
 The following side effects are disabled by default:

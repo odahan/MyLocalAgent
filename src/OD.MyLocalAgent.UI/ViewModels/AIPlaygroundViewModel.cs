@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using OD.MyLocalAgent.Core;
 using OD.MyLocalAgent.Ollama;
 using OD.MyLocalAgent.UI.Messages;
+using System.Globalization;
 
 namespace OD.MyLocalAgent.UI.ViewModels;
 
@@ -55,6 +56,10 @@ public sealed partial class AIPlaygroundViewModel :
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ExecutionModeDescription))]
     private bool _allowSkills;
+
+    [ObservableProperty]
+    private string _generationPolicyText =
+        "Generation policy has not been resolved.";
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AIPlaygroundViewModel"/> class.
@@ -124,6 +129,7 @@ public sealed partial class AIPlaygroundViewModel :
         HealthState = "Checking";
         HealthText = "Checking the active provider and configured model…";
         ProviderBadge = BuildProviderBadge();
+        UpdateGenerationPolicyText();
         try
         {
             var provider = _llmClientFactory.Create();
@@ -173,6 +179,9 @@ public sealed partial class AIPlaygroundViewModel :
         ChunkCount = 0;
         try
         {
+            var generationPolicy = GenerationPolicyResolver.Resolve(
+                _aiOptions.CurrentValue.GenerationDefaults);
+            UpdateGenerationPolicyText(generationPolicy);
             ProviderBadge = BuildProviderBadge();
             HealthState = "Checking";
             HealthText = $"Streaming · {ExecutionModeDescription}…";
@@ -186,6 +195,7 @@ public sealed partial class AIPlaygroundViewModel :
                                        Prompt,
                                        enabledTools,
                                        AllowSkills,
+                                       generationPolicy,
                                        cancellationToken)
                                    .ConfigureAwait(true))
                 {
@@ -198,6 +208,7 @@ public sealed partial class AIPlaygroundViewModel :
                 await foreach (var chunk in provider
                                    .GenerateStreamingAsync(
                                        Prompt,
+                                       generationPolicy,
                                        cancellationToken)
                                    .ConfigureAwait(true))
                 {
@@ -246,5 +257,16 @@ public sealed partial class AIPlaygroundViewModel :
             ? _openAIOptions.CurrentValue.Model
             : _ollamaOptions.CurrentValue.Model;
         return $"{provider} · {model}";
+    }
+
+    private void UpdateGenerationPolicyText(
+        EffectiveGenerationPolicy? policy = null)
+    {
+        policy ??= GenerationPolicyResolver.Resolve(
+            _aiOptions.CurrentValue.GenerationDefaults);
+        GenerationPolicyText =
+            $"Temperature {policy.Temperature.ToString("G", CultureInfo.CurrentCulture)} · " +
+            $"Top P {policy.TopP.ToString("G", CultureInfo.CurrentCulture)} · " +
+            $"Declared context {policy.ContextWindowTokens.ToString("N0", CultureInfo.CurrentCulture)} tokens";
     }
 }

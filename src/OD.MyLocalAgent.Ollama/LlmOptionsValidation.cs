@@ -4,9 +4,16 @@ internal static class LlmOptionsValidation
 {
     public static string? ValidateAI(AIOptions options)
     {
-        return string.IsNullOrWhiteSpace(options.Provider)
-            ? "AI:Provider is required. Use 'Ollama' or 'OpenAI'."
-            : null;
+        if (string.IsNullOrWhiteSpace(options.Provider))
+        {
+            return "AI:Provider is required. Use 'Ollama' or 'OpenAI'.";
+        }
+
+        var generationError =
+            GenerationPolicyValidation.ValidateDefaults(options.GenerationDefaults);
+        return generationError is null
+            ? null
+            : $"AI:GenerationDefaults is invalid. {generationError}";
     }
 
     public static string? ValidateOllama(OllamaOptions options)

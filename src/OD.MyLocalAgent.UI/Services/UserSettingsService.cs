@@ -61,9 +61,29 @@ internal sealed class UserSettingsService : IUserSettingsService
                          _configuration["Google:ClientId"] ?? string.Empty,
                          _configuration["Google:ClientSecret"] ?? string.Empty))
             {
-                document[section.Key] = JsonSerializer.SerializeToNode(
-                    section.Value,
-                    SerializerOptions);
+                if (string.Equals(
+                        section.Key,
+                        AIOptions.SectionName,
+                        StringComparison.Ordinal))
+                {
+                    var aiSection = document[AIOptions.SectionName] as JsonObject
+                        ?? new JsonObject();
+                    var savedAI = JsonSerializer.SerializeToNode(
+                        section.Value,
+                        SerializerOptions)!.AsObject();
+                    foreach (var property in savedAI)
+                    {
+                        aiSection[property.Key] = property.Value?.DeepClone();
+                    }
+
+                    document[AIOptions.SectionName] = aiSection;
+                }
+                else
+                {
+                    document[section.Key] = JsonSerializer.SerializeToNode(
+                        section.Value,
+                        SerializerOptions);
+                }
             }
 
             await WriteDocumentAsync(document, cancellationToken)
@@ -218,6 +238,12 @@ internal sealed class UserSettingsService : IUserSettingsService
             ["AI"] = new Dictionary<string, object>
             {
                 ["Provider"] = settings.Provider,
+                ["GenerationDefaults"] = new Dictionary<string, object>
+                {
+                    ["Temperature"] = settings.GenerationTemperature,
+                    ["TopP"] = settings.GenerationTopP,
+                    ["ContextWindowTokens"] = settings.ContextWindowTokens,
+                },
             },
             ["Ollama"] = new Dictionary<string, object>
             {
@@ -291,6 +317,18 @@ internal sealed class UserSettingsService : IUserSettingsService
         if (settings.Provider is not AIOptions.OllamaProvider and not AIOptions.OpenAIProvider)
         {
             throw new InvalidOperationException("Select a supported AI provider.");
+        }
+
+        var generationError = GenerationPolicyValidation.ValidateDefaults(
+            new AIGenerationDefaults
+            {
+                Temperature = settings.GenerationTemperature,
+                TopP = settings.GenerationTopP,
+                ContextWindowTokens = settings.ContextWindowTokens,
+            });
+        if (generationError is not null)
+        {
+            throw new InvalidOperationException(generationError);
         }
 
         ValidateProvider(

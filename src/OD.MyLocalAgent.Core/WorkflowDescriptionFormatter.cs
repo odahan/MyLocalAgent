@@ -1,5 +1,7 @@
 using System.Text;
 using System.Text.Json;
+using System.Globalization;
+using OD.MyLocalAgent.Ollama;
 
 namespace OD.MyLocalAgent.Core;
 
@@ -12,8 +14,13 @@ public static class WorkflowDescriptionFormatter
     /// Formats normalized workflow definitions in declaration order.
     /// </summary>
     /// <param name="workflow">The workflow definitions.</param>
+    /// <param name="taskGenerationOptions">The optional task overrides used for provenance.</param>
+    /// <param name="generationDefaults">The optional Settings defaults used for effective values.</param>
     /// <returns>The deterministic English description.</returns>
-    public static string Format(IReadOnlyList<WorkflowStepDefinition> workflow)
+    public static string Format(
+        IReadOnlyList<WorkflowStepDefinition> workflow,
+        GenerationOptions? taskGenerationOptions = null,
+        AIGenerationDefaults? generationDefaults = null)
     {
         ArgumentNullException.ThrowIfNull(workflow);
         var builder = new StringBuilder();
@@ -59,11 +66,67 @@ public static class WorkflowDescriptionFormatter
                 .AppendLine(step.RetryCount?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "<omitted>");
             builder.Append("  retryBackoffSeconds: ")
                 .AppendLine(step.RetryBackoffSeconds?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "<omitted>");
+            AppendGenerationOptions(
+                builder,
+                step,
+                taskGenerationOptions,
+                generationDefaults);
             builder.Append("  Produced output: {{")
                 .Append(step.EffectiveId)
                 .AppendLine(".output}}");
         }
 
         return builder.ToString().TrimEnd();
+    }
+
+    private static void AppendGenerationOptions(
+        StringBuilder builder,
+        WorkflowStepDefinition step,
+        GenerationOptions? taskOptions,
+        AIGenerationDefaults? defaults)
+    {
+        builder.AppendLine("  Generation options:");
+        var definition = ToolMap.Find(step.Step);
+        if (definition?.IsAiStep != true)
+        {
+            builder.AppendLine("    <not applicable to this deterministic step>");
+            return;
+        }
+
+        builder.Append("    configured temperature: ")
+            .AppendLine(
+                step.GenerationOptions?.Temperature?.ToString(
+                    "G",
+                    CultureInfo.InvariantCulture) ??
+                "<inherit from task, then Settings>");
+        builder.Append("    configured topP: ")
+            .AppendLine(
+                step.GenerationOptions?.TopP?.ToString(
+                    "G",
+                    CultureInfo.InvariantCulture) ??
+                "<inherit from task, then Settings>");
+        if (defaults is null)
+        {
+            return;
+        }
+
+        var effective = GenerationPolicyResolver.Resolve(
+            defaults,
+            taskOptions,
+            step.GenerationOptions);
+        builder.Append("    effective temperature: ")
+            .Append(effective.Temperature.ToString(
+                "G",
+                CultureInfo.InvariantCulture))
+            .Append(" (")
+            .Append(effective.TemperatureSource)
+            .AppendLine(")");
+        builder.Append("    effective topP: ")
+            .Append(effective.TopP.ToString(
+                "G",
+                CultureInfo.InvariantCulture))
+            .Append(" (")
+            .Append(effective.TopPSource)
+            .AppendLine(")");
     }
 }

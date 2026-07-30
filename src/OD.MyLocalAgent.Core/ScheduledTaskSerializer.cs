@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 namespace OD.MyLocalAgent.Core;
 
@@ -46,6 +47,9 @@ public static class ScheduledTaskSerializer
         ScheduledTaskValidator.Validate(task);
         var normalizedTask = task with
         {
+            GenerationOptions = task.GenerationOptions is { IsEmpty: false }
+                ? task.GenerationOptions
+                : null,
             FileSystemAccess = task.FileSystemAccess
                 .Select(
                     static rule => rule with
@@ -63,7 +67,10 @@ public static class ScheduledTaskSerializer
         {
             WriteIndented = true,
             PropertyNameCaseInsensitive = true,
+            UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+            TypeInfoResolver = new DefaultJsonTypeInfoResolver(),
         };
+        options.Converters.Add(new GenerationOptionsJsonConverter());
         options.Converters.Add(new JsonStringEnumConverter());
         return options;
     }

@@ -1,5 +1,6 @@
 using OD.MyLocalAgent.Core;
 using OD.MyLocalAgent.UI.ViewModels;
+using OD.MyLocalAgent.Ollama;
 
 namespace OD.MyLocalAgent.UI.Services;
 
@@ -26,4 +27,15 @@ public sealed record AIWorkflowHelperRequest(
     WorkflowErrorPolicy ErrorPolicy,
     IReadOnlyList<string> ToolGroups,
     IReadOnlyList<FileSystemAccessRule> FileSystemAccess,
-    SafetyOptions Safety);
+    SafetyOptions Safety)
+{
+    /// <summary>
+    /// Gets the current unsaved task generation overrides.
+    /// </summary>
+    public GenerationOptions? TaskGenerationOptions { get; init; }
+
+    /// <summary>
+    /// Gets the current global generation defaults used for deterministic provenance.
+    /// </summary>
+    public AIGenerationDefaults GenerationDefaults { get; init; } = new();
+}

@@ -62,7 +62,12 @@
 
         <Grid Grid.Row="3"
               Margin="0,14,0,14">
-            <TextBlock Text="{Binding StatusText}" />
+            <StackPanel>
+                <TextBlock Text="{Binding StatusText}" />
+                <TextBlock Margin="0,4,0,0"
+                           Foreground="{DynamicResource MutedTextBrush}"
+                           Text="{Binding GenerationPolicyText}" />
+            </StackPanel>
             <StackPanel HorizontalAlignment="Right"
                         Orientation="Horizontal">
                 <TextBlock Margin="0,0,18,0"

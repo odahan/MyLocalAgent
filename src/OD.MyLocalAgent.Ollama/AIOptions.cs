@@ -24,4 +24,9 @@ public sealed record AIOptions
     /// Gets the configured provider.
     /// </summary>
     public string Provider { get; init; } = OllamaProvider;
+
+    /// <summary>
+    /// Gets the reloadable generation defaults shared by the active provider and model.
+    /// </summary>
+    public AIGenerationDefaults GenerationDefaults { get; init; } = new();
 }

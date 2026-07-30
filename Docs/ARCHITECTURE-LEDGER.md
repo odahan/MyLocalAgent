@@ -1389,3 +1389,145 @@ Modified:
   workflow fail. Context and latency grow with workflow size. Selecting the cloud provider
   sends entered description and workflow context to that configured provider. Markdown
   rendering is best-effort and Text remains the dependable fallback.
+
+### Stage 14 — Hierarchical AI generation settings — 2026-07-30
+
+#### Scope, contracts, and defaults
+
+- Added reloadable `AI:GenerationDefaults` with Temperature `0.2`, Top P `1.0`, and Context
+  window `8192`. Validation rejects non-finite or out-of-range sampling values and context
+  outside `1024`–`2000000`; values are never clamped.
+- Added immutable public contracts `GenerationOptions`, `EffectiveGenerationPolicy`, and
+  `GenerationOptionSource`, the pure `GenerationPolicyResolver`, and centralized
+  `GenerationPolicyValidation`. Temperature and Top P resolve independently as
+  AI step → task → Settings; Context window is always the Settings snapshot.
+- Added named program-owned policies `WorkflowAuthoring`, `WorkflowExplanation`,
+  `GuardrailScreening`, and `GuardrailReduction`. All fix Temperature 0 / Top P 1 while
+  receiving the current global Context window. They are not user-editable or serializable.
+- Task and object-form AI-step JSON accept only optional lowercase `temperature` and `topP`.
+  Strict parsing rejects null, non-number, non-finite, duplicate, unknown, or out-of-range
+  values. Context/provider/model/endpoint/credential/internal-policy fields are therefore
+  invalid. Empty objects are accepted on input and omitted from canonical output.
+
+#### Runtime propagation and provider behavior
+
+- `GenerationPolicyChatClient` clones each caller-owned `ChatOptions`, preserves tools,
+  model id, response format, provider properties, and cancellation, then merges the immutable
+  policy without disposing or mutating the shared provider client.
+- Explicit policy-bearing overloads on `ILlmClientService`, `IMyLocalAgentService`, and
+  `ISkill` carry the resolved policy across task execution. Prompt-only Runner calls, every
+  agent round, agent-exposed skills, `ai.prompt`, direct built-in skills, workflow retries,
+  Prompt editor Test, and AI Playground use the intended snapshot. Taskless compatibility
+  overloads resolve the current Settings defaults; the provider-neutral default
+  `ILlmClientService` policy overload also applies the wrapper instead of discarding a policy.
+- A workflow AI step resolves once before its retry loop. A prompt-only task resolves before
+  entering the agent. Concurrent executions carry separate immutable values and do not use
+  static, singleton-current-task, `AsyncLocal`, or another ambient task context.
+- Ollama maps Context window to its native `num_ctx` provider option. OpenAI-compatible calls
+  receive Temperature and Top P but no invented context-window request property; the
+  configured Context value remains an application-declared total budget and the provider
+  remains authoritative. No output-token control or silent content reduction was added.
+- Workflow authoring/refinement/correction, explanation/correction, Guardrails screening, and
+  Guardrails reduction now call through their named fixed policies. Context is captured once
+  per operation so an in-flight call remains stable across configuration reload.
+
+#### UI, persistence, and helper integration
+
+- Settings adds **AI generation defaults** numeric fields, English help text, culture-safe
+  comma/dot decimal parsing, inline validation, and disabled Save while invalid.
+  `UserSettingsService` merges `AI:GenerationDefaults` without losing provider or unknown
+  sibling properties.
+- Task editor adds independent **Use global default** states for Temperature and Top P,
+  override inputs, effective values, provenance, validation, dirty tracking, save/reload, and
+  no task context-window control. Prompt editor Test displays and uses current unsaved
+  task-effective values passed as a non-persisted snapshot. AI Playground displays and uses
+  Settings values.
+- Deterministic workflow descriptions preserve configured overrides and can report effective
+  values/provenance when task/global context is available. Authoring prompts expose
+  `generationOptions` only for Tool Map AI steps and forbid context/provider/model fields.
+  Explain covers configured overrides and provenance while its own request remains fixed.
+- The scheduled mail-summary sample uses a Temperature `0.1` task override to demonstrate a
+  real repeatability-oriented exception without distributing redundant overrides.
+
+#### Exact file-tree delta
+
+Added:
+
+- Ollama:
+  `AIGenerationDefaults.cs`, `EffectiveGenerationPolicy.cs`, `GenerationOptionSource.cs`,
+  `GenerationOptions.cs`, `GenerationPolicyChatClient.cs`, `GenerationPolicyResolver.cs`,
+  `GenerationPolicyValidation.cs`, `InternalGenerationPolicies.cs`, and
+  `InternalGenerationPolicy.cs`.
+- Core: `GenerationOptionsJsonConverter.cs`.
+- Tests: `GenerationPolicyTests.cs`, `GenerationSurfaceViewModelTests.cs`, and
+  `RunnerGenerationPolicyTests.cs`.
+
+Modified:
+
+- Root/docs: `appsettings.json`, `README.md`,
+  `Docs/Prompts/00-Shared-Specification.md`, `Docs/ARCHITECTURE-LEDGER.md`,
+  `Docs/User-Manual.html`, `Docs/User-Manual.en.html`, `Docs/theme-audit.md`,
+  `Docs/acceptance-report.md`, and `Docs/samples/daily-mail-summary.json`.
+- Ollama: `AIOptions.cs`, `DynamicOllamaChatClient.cs`, `DynamicOpenAIChatClient.cs`,
+  `ILlmClientService.cs`, `LlmOptionsValidation.cs`, `OllamaClientService.cs`,
+  `OpenAIClientService.cs`, and `ServiceCollectionExtensions.cs`.
+- Core: `ClassifyEmailSkill.cs`, `ExtractActionItemsSkill.cs`,
+  `IMyLocalAgentService.cs`, `ISkill.cs`, `MyLocalAgentService.cs`, `ScheduledTask.cs`,
+  `ScheduledTaskSerializer.cs`, `ScheduledTaskValidator.cs`, `SkillBase.cs`,
+  `SummarizeTextSkill.cs`, `WorkflowDescriptionFormatter.cs`,
+  `WorkflowStepDefinition.cs`, and `WorkflowStepDefinitionJsonConverter.cs`.
+- Guardrails/Workflows/Runner: `ContentTrustService.cs`,
+  `SequentialWorkflowEngine.cs`, `WorkflowStep.cs`, and `RunnerCommandHandlers.cs`.
+- UI pages/services:
+  `Pages/AIPlaygroundPage.xaml`, `Pages/PromptEditorPage.xaml`,
+  `Pages/SettingsPage.xaml`, `Pages/TaskEditorPage.xaml`,
+  `Services/AIWorkflowHelperRequest.cs`, `Services/UserSettingsData.cs`,
+  `Services/UserSettingsService.cs`, `Services/WorkflowAssistantPromptBuilder.cs`, and
+  `Services/WorkflowAssistantService.cs`.
+- UI ViewModels:
+  `AIPlaygroundViewModel.cs`, `AIWorkflowHelperViewModel.cs`,
+  `MainWindowViewModel.cs`, `PromptEditorViewModel.cs`, `SettingsViewModel.cs`, and
+  `TaskEditorViewModel.cs`.
+- UI messages: `EditPromptMessage.cs`.
+- Tests:
+  `ContentTrustServiceTests.cs`, `MyLocalAgentServiceTests.cs`,
+  `TaskEditorViewModelTests.cs`, `UserSettingsServiceTests.cs`,
+  `WorkflowAssistantServiceTests.cs`, and `WorkflowEngineTests.cs`.
+
+#### Verification and residual risks
+
+- Release solution test before final stage gates:
+  237 passed, zero failed, one intentionally skipped local Ollama integration test,
+  238 total. Final restore/build/test, sample parsing, standalone-manual validation, and
+  whitespace gates are recorded after their execution below.
+- Deterministic coverage includes defaults/ranges, strict and backward-compatible JSON,
+  every AI/non-AI alias, every precedence/provenance combination, monitored reload,
+  agent/skill/workflow propagation, retry stability, concurrent isolation, fixed internal
+  policies, option preservation, Ollama `num_ctx`, OpenAI-compatible non-invention, culture
+  parsing, editor command state, save/reload, and privacy-safe policy logging.
+- The WPF application was not launched in this implementation pass. Dark/Light appearance,
+  keyboard traversal, narrow layout, long values, and live provider/model behavior remain
+  explicit human checks rather than claimed GUI evidence.
+- Context capacity remains model-dependent. The declared value cannot enlarge a model, is not
+  a maximum-output-tokens control, and never causes silent truncation. OpenAI-compatible
+  endpoints may reject an oversized request according to their own fixed capacity. Provider
+  request failures continue through existing typed execution, incident, and report paths.
+- Temperature/Top P semantics and accepted ranges may vary slightly by provider/model.
+  Changing both simultaneously is harder to reason about, and higher randomness can reduce
+  structured-output and tool-selection reliability. Provider tokenization is authoritative;
+  the application declaration is not a universal exact token counter.
+
+#### Final Stage 14 gate output
+
+- `dotnet restore OD.MyLocalAgent.sln -m:1`: succeeded; three projects restored and five of
+  eight were already current. The first sandboxed attempt could not reach NuGet, and a second
+  attempt exposed an incomplete isolated temporary-cache package; the successful required
+  gate used the normal user NuGet cache without changing source files.
+- `dotnet build OD.MyLocalAgent.sln -m:1 --no-restore --configuration Release`: succeeded
+  for all eight projects with `0 Warning(s)` and `0 Error(s)`.
+- `dotnet test OD.MyLocalAgent.sln -m:1 --no-build --no-restore --configuration Release`:
+  237 passed, zero failed, one intentionally skipped local Ollama integration test, 238 total.
+- All four JSON files under `Docs/samples` parsed successfully.
+- Both standalone manuals passed the structural HTML gate: each has 22 balanced sections,
+  30 unique ids, no duplicate id, and no missing internal anchor.
+- `git diff --check`: clean.

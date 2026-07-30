@@ -16,6 +16,7 @@ public sealed class OpenAIClientService : ILlmClientService
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<OpenAIClientService> _logger;
     private readonly DynamicOpenAIChatClient _chatClient;
+    private readonly IOptionsMonitor<AIOptions>? _aiOptions;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="OpenAIClientService"/> class.
@@ -24,11 +25,13 @@ public sealed class OpenAIClientService : ILlmClientService
     /// <param name="options">The reloadable OpenAI configuration.</param>
     /// <param name="timeProvider">The time source used to measure latency.</param>
     /// <param name="logger">The structured logger.</param>
+    /// <param name="aiOptions">The optional reloadable global generation defaults.</param>
     public OpenAIClientService(
         IHttpClientFactory httpClientFactory,
         IOptionsMonitor<OpenAIOptions> options,
         TimeProvider timeProvider,
-        ILogger<OpenAIClientService> logger)
+        ILogger<OpenAIClientService> logger,
+        IOptionsMonitor<AIOptions>? aiOptions = null)
     {
         ArgumentNullException.ThrowIfNull(httpClientFactory);
         ArgumentNullException.ThrowIfNull(options);
@@ -39,6 +42,7 @@ public sealed class OpenAIClientService : ILlmClientService
         _options = options;
         _timeProvider = timeProvider;
         _logger = logger;
+        _aiOptions = aiOptions;
         _chatClient = new DynamicOpenAIChatClient(httpClientFactory, options);
     }
 
@@ -49,15 +53,29 @@ public sealed class OpenAIClientService : ILlmClientService
     public string ProviderName => AIOptions.OpenAIProvider;
 
     /// <inheritdoc />
-    public async Task<string> GenerateAsync(string prompt, CancellationToken cancellationToken)
+    public Task<string> GenerateAsync(
+        string prompt,
+        CancellationToken cancellationToken) =>
+        GenerateAsync(prompt, ResolveGlobalPolicy(), cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<string> GenerateAsync(
+        string prompt,
+        EffectiveGenerationPolicy policy,
+        CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
+        ArgumentNullException.ThrowIfNull(policy);
         var current = GetValidatedOptions();
         _logger.LogInformation(
             "Starting OpenAI generation with model {Model}.",
             current.Model);
 
-        var response = await _chatClient.GetResponseAsync(
+        var policyClient = new GenerationPolicyChatClient(
+            _chatClient,
+            policy,
+            ProviderName);
+        var response = await policyClient.GetResponseAsync(
             [new ChatMessage(ChatRole.User, prompt)],
             new ChatOptions { ModelId = current.Model },
             cancellationToken).ConfigureAwait(false);
@@ -69,17 +87,32 @@ public sealed class OpenAIClientService : ILlmClientService
     }
 
     /// <inheritdoc />
+    public IAsyncEnumerable<string> GenerateStreamingAsync(
+        string prompt,
+        CancellationToken cancellationToken) =>
+        GenerateStreamingAsync(
+            prompt,
+            ResolveGlobalPolicy(),
+            cancellationToken);
+
+    /// <inheritdoc />
     public async IAsyncEnumerable<string> GenerateStreamingAsync(
         string prompt,
+        EffectiveGenerationPolicy policy,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
+        ArgumentNullException.ThrowIfNull(policy);
         var current = GetValidatedOptions();
         _logger.LogInformation(
             "Starting streaming OpenAI generation with model {Model}.",
             current.Model);
 
-        await foreach (var update in _chatClient
+        var policyClient = new GenerationPolicyChatClient(
+            _chatClient,
+            policy,
+            ProviderName);
+        await foreach (var update in policyClient
             .GetStreamingResponseAsync(
                 [new ChatMessage(ChatRole.User, prompt)],
                 new ChatOptions { ModelId = current.Model },
@@ -159,4 +192,9 @@ public sealed class OpenAIClientService : ILlmClientService
             _timeProvider.GetElapsedTime(start).TotalMilliseconds,
             MidpointRounding.AwayFromZero);
     }
+
+    private EffectiveGenerationPolicy ResolveGlobalPolicy() =>
+        GenerationPolicyResolver.Resolve(
+            _aiOptions?.CurrentValue.GenerationDefaults ??
+            new AIGenerationDefaults());
 }

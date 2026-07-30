@@ -36,6 +36,9 @@ public sealed class UserSettingsServiceTests : IDisposable
               "Custom": {
                 "Keep": "yes"
               },
+              "AI": {
+                "FutureSetting": "preserve"
+              },
               "WebSearch": {
                 "Provider": "",
                 "Endpoint": "https://old.example.test/search",
@@ -90,8 +93,16 @@ public sealed class UserSettingsServiceTests : IDisposable
         webSearch.GetProperty("MaxResultsCap").GetInt32().Should().Be(9);
         webSearch.GetProperty("TimeoutSeconds").GetInt32().Should().Be(12);
         webSearch.TryGetProperty("ApiKey", out _).Should().BeFalse();
-        root.GetProperty("AI").GetProperty("Provider").GetString()
+        var ai = root.GetProperty("AI");
+        ai.GetProperty("Provider").GetString()
             .Should().Be(AIOptions.OllamaProvider);
+        ai.GetProperty("FutureSetting").GetString()
+            .Should().Be("preserve");
+        var generation = ai.GetProperty("GenerationDefaults");
+        generation.GetProperty("Temperature").GetDouble().Should().Be(0.2);
+        generation.GetProperty("TopP").GetDouble().Should().Be(1);
+        generation.GetProperty("ContextWindowTokens").GetInt32()
+            .Should().Be(8192);
         secrets.VerifyAll();
         Directory.GetFiles(_directoryPath, "*.tmp")
             .Should().BeEmpty();
@@ -172,5 +183,8 @@ public sealed class UserSettingsServiceTests : IDisposable
             true,
             0,
             "Information",
-            AppThemeCatalog.DarkName);
+            AppThemeCatalog.DarkName,
+            0.2,
+            1.0,
+            8192);
 }

@@ -4,6 +4,9 @@ using Moq;
 using OD.MyLocalAgent.Core;
 using OD.MyLocalAgent.UI.Services;
 using OD.MyLocalAgent.UI.ViewModels;
+using OD.MyLocalAgent.UI.Messages;
+using OD.MyLocalAgent.Ollama;
+using OD.MyLocalAgent.Tests.TestDoubles;
 using Xunit;
 
 namespace OD.MyLocalAgent.Tests;
@@ -232,6 +235,138 @@ public sealed class TaskEditorViewModelTests
         viewModel.AuthorizedLocations.Should().BeEmpty();
         viewModel.HasAIUndoSnapshot.Should().BeFalse();
         dialog.VerifyAll();
+    }
+
+    /// <summary>
+    /// Verifies independent override controls update provenance, dirty state, validation, and persistence.
+    /// </summary>
+    [Fact]
+    public async Task GenerationOverrideControlsPersistPartialValues()
+    {
+        var store = new Mock<ITaskStore>(MockBehavior.Strict);
+        store.Setup(
+                instance => instance.GetAsync(
+                    "generation-editor",
+                    It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ScheduledTask?)null);
+        ScheduledTask? saved = null;
+        store.Setup(
+                instance => instance.SaveAsync(
+                    It.IsAny<ScheduledTask>(),
+                    It.IsAny<CancellationToken>()))
+            .Callback<ScheduledTask, CancellationToken>(
+                (task, _) => saved = task)
+            .Returns(Task.CompletedTask);
+        var scheduler = new Mock<ITaskSchedulerService>(MockBehavior.Strict);
+        scheduler.Setup(
+                instance => instance.RegisterAsync(
+                    It.IsAny<ScheduledTask>(),
+                    It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        var ai = new MutableOptionsMonitor<AIOptions>(
+            new AIOptions
+            {
+                GenerationDefaults = new AIGenerationDefaults
+                {
+                    Temperature = 0.2,
+                    TopP = 0.9,
+                    ContextWindowTokens = 8192,
+                },
+            });
+        var viewModel = new TaskEditorViewModel(
+            store.Object,
+            scheduler.Object,
+            Mock.Of<IIncidentReporter>(),
+            Mock.Of<IDesktopInteractionService>(),
+            Mock.Of<IMessenger>(),
+            TimeProvider.System,
+            workflowHelperDialog: null,
+            safetyOptions: null,
+            aiOptions: ai)
+        {
+            Id = "generation-editor",
+            Name = "Generation editor",
+            Prompt = "Test",
+            UseGlobalTemperature = false,
+            TemperatureOverrideText = "0.45",
+            UseGlobalTopP = true,
+        };
+
+        viewModel.IsDirty.Should().BeTrue();
+        viewModel.HasGenerationValidationError.Should().BeFalse();
+        viewModel.EffectiveTemperatureText.Should().Contain("Task");
+        viewModel.EffectiveTopPText.Should().Contain("Settings");
+        viewModel.SaveCommand.CanExecute(null).Should().BeTrue();
+
+        await viewModel.SaveCommand.ExecuteAsync(null);
+
+        saved.Should().NotBeNull();
+        saved!.GenerationOptions.Should().NotBeNull();
+        saved.GenerationOptions!.Temperature.Should().Be(0.45);
+        saved.GenerationOptions.TopP.Should().BeNull();
+        viewModel.IsDirty.Should().BeFalse();
+        store.VerifyAll();
+        scheduler.VerifyAll();
+    }
+
+    /// <summary>
+    /// Verifies opening Prompt editor carries the current unsaved inherit/override snapshot.
+    /// </summary>
+    [Fact]
+    public async Task OpenPromptCarriesUnsavedGenerationOverride()
+    {
+        var storedTask = new ScheduledTask
+        {
+            Id = "prompt-snapshot",
+            Name = "Prompt snapshot",
+            Schedule = "0 7 * * *",
+            Prompt = "Test",
+            Tools = [],
+            FileSystemAccess = [],
+            Workflow = [],
+            Enabled = true,
+            ErrorPolicy = WorkflowErrorPolicy.StopOnError,
+            GenerationOptions = new GenerationOptions
+            {
+                Temperature = 0.8,
+                TopP = 0.7,
+            },
+        };
+        var store = new Mock<ITaskStore>(MockBehavior.Strict);
+        store.Setup(
+                instance => instance.GetAsync(
+                    storedTask.Id,
+                    It.IsAny<CancellationToken>()))
+            .ReturnsAsync(storedTask);
+        var messenger = new StrongReferenceMessenger();
+        var recipient = new object();
+        EditPromptMessage? received = null;
+        messenger.Register<EditPromptMessage>(
+            recipient,
+            (_, message) => received = message);
+        var viewModel = new TaskEditorViewModel(
+            store.Object,
+            Mock.Of<ITaskSchedulerService>(),
+            Mock.Of<IIncidentReporter>(),
+            Mock.Of<IDesktopInteractionService>(),
+            messenger,
+            TimeProvider.System);
+
+        viewModel.Open(storedTask.Id);
+        await (viewModel.LoadCommand.ExecutionTask ?? Task.CompletedTask);
+        viewModel.UseGlobalTemperature = false;
+        viewModel.TemperatureOverrideText = "0.35";
+        viewModel.UseGlobalTopP = true;
+
+        viewModel.OpenPromptCommand.Execute(null);
+
+        received.Should().NotBeNull();
+        received!.TaskId.Should().Be(storedTask.Id);
+        received.UseGenerationOptionsSnapshot.Should().BeTrue();
+        received.GenerationOptions.Should().NotBeNull();
+        received.GenerationOptions!.Temperature.Should().Be(0.35);
+        received.GenerationOptions.TopP.Should().BeNull();
+        store.VerifyAll();
     }
 
 }

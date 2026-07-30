@@ -51,6 +51,60 @@
                                    Text="Cloud warning: prompts and relevant context are sent to the configured OpenAI-compatible endpoint. Guardrail screening and complete-source summarization also send Gmail and HTTP content, including every oversized-source chunk." />
                     </Border>
 
+                    <Border Margin="0,18,0,0"
+                            Padding="16"
+                            Background="{DynamicResource SurfaceBrush}"
+                            BorderBrush="{DynamicResource DividerBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6">
+                        <StackPanel>
+                            <TextBlock FontWeight="SemiBold"
+                                       Text="AI generation defaults" />
+                            <TextBlock Margin="0,5,0,14"
+                                       Style="{StaticResource CaptionTextStyle}"
+                                       Text="Temperature controls precision versus creativity; Top P controls nucleus sampling. Tasks and AI workflow steps inherit these values independently. Most users should tune either Temperature or Top P, not both."
+                                       TextWrapping="Wrap" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox Text="{Binding GenerationTemperatureText, UpdateSourceTrigger=PropertyChanged}"
+                                         materialDesign:HintAssist.Hint="Temperature · 0–2" />
+                                <TextBox Grid.Column="2"
+                                         Text="{Binding GenerationTopPText, UpdateSourceTrigger=PropertyChanged}"
+                                         materialDesign:HintAssist.Hint="Top P · &gt;0–1" />
+                                <TextBox Grid.Column="4"
+                                         Text="{Binding ContextWindowTokensText, UpdateSourceTrigger=PropertyChanged}"
+                                         materialDesign:HintAssist.Hint="Context window (tokens)" />
+                            </Grid>
+                            <TextBlock Margin="0,10,0,0"
+                                       Style="{StaticResource CaptionTextStyle}"
+                                       Text="Context window means input messages + tool/agent context + generated output. It is not a timeout or output-token limit. Capacity is model-dependent: this declaration cannot increase the model's physical capacity, and OpenAI-compatible endpoints remain authoritative."
+                                       TextWrapping="Wrap" />
+                            <TextBlock Margin="0,8,0,0"
+                                       Text="{Binding GenerationValidationText}"
+                                       TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="{x:Type TextBlock}">
+                                        <Setter Property="Foreground"
+                                                Value="{DynamicResource MutedTextBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasGenerationValidationError}"
+                                                         Value="True">
+                                                <Setter Property="Foreground"
+                                                        Value="{DynamicResource ErrorBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+
                     <Grid Margin="0,20,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />

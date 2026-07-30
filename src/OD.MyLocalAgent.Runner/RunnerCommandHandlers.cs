@@ -2,7 +2,9 @@ using System.Globalization;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using OD.MyLocalAgent.Core;
+using OD.MyLocalAgent.Ollama;
 using OD.MyLocalAgent.Workflows;
 
 namespace OD.MyLocalAgent.Runner;
@@ -259,10 +261,16 @@ internal static class RunnerCommandHandlers
             try
             {
                 var agent = services.GetRequiredService<IMyLocalAgentService>();
+                var generationPolicy = GenerationPolicyResolver.Resolve(
+                    services
+                        .GetRequiredService<IOptionsMonitor<AIOptions>>()
+                        .CurrentValue.GenerationDefaults,
+                    task.GenerationOptions);
                 var agentResult = await agent.RunPromptAsync(
                     task.Prompt,
                     task.Tools,
                     ToolExecutionContext.FromTask(task),
+                    generationPolicy,
                     cancellationToken).ConfigureAwait(false);
                 providerName = agentResult.ProviderName;
                 result = new WorkflowResult(

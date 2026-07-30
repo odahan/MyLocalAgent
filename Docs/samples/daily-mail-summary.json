@@ -5,6 +5,9 @@
   "prompt": "Summarize today's emails in French, 10 bullet points max. Sort emails by category: REPLY IMMEDIATELY, TO READ, NOISE",
   "tools": ["gmail", "filesystem"],
   "fileSystemAccess": [],
+  "generationOptions": {
+    "temperature": 0.1
+  },
   "workflow": [
     "gmail.readToday",
     "ai.summarize",

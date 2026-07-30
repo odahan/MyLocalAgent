@@ -3,6 +3,9 @@ using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using OD.MyLocalAgent.Core;
 using OD.MyLocalAgent.UI.Messages;
+using OD.MyLocalAgent.Ollama;
+using Microsoft.Extensions.Options;
+using System.Globalization;
 
 namespace OD.MyLocalAgent.UI.ViewModels;
 
@@ -16,8 +19,11 @@ public sealed partial class PromptEditorViewModel : ObservableObject
     private readonly IMyLocalAgentService _agentService;
     private readonly IIncidentReporter _incidentReporter;
     private readonly IMessenger _messenger;
+    private readonly IOptionsMonitor<AIOptions>? _aiOptions;
     private string? _requestedTaskId;
     private ScheduledTask? _task;
+    private GenerationOptions? _generationOptionsSnapshot;
+    private bool _useGenerationOptionsSnapshot;
 
     [ObservableProperty]
     private string _taskId = string.Empty;
@@ -47,6 +53,10 @@ public sealed partial class PromptEditorViewModel : ObservableObject
     [ObservableProperty]
     private bool _isStreaming;
 
+    [ObservableProperty]
+    private string _generationPolicyText =
+        "Generation policy has not been resolved.";
+
     /// <summary>
     /// Initializes a new instance of the <see cref="PromptEditorViewModel"/> class.
     /// </summary>
@@ -55,23 +65,36 @@ public sealed partial class PromptEditorViewModel : ObservableObject
         ITaskSchedulerService scheduler,
         IMyLocalAgentService agentService,
         IIncidentReporter incidentReporter,
-        IMessenger messenger)
+        IMessenger messenger,
+        IOptionsMonitor<AIOptions>? aiOptions = null)
     {
         _taskStore = taskStore;
         _scheduler = scheduler;
         _agentService = agentService;
         _incidentReporter = incidentReporter;
         _messenger = messenger;
+        _aiOptions = aiOptions;
     }
 
     /// <summary>
     /// Opens the prompt editor for an existing task.
     /// </summary>
     /// <param name="taskId">The task identifier.</param>
-    public void Open(string taskId)
+    /// <param name="generationOptions">
+    /// The optional unsaved task-generation override snapshot.
+    /// </param>
+    /// <param name="useGenerationOptionsSnapshot">
+    /// Whether prompt tests must use the supplied override snapshot.
+    /// </param>
+    public void Open(
+        string taskId,
+        GenerationOptions? generationOptions = null,
+        bool useGenerationOptionsSnapshot = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(taskId);
         _requestedTaskId = taskId;
+        _generationOptionsSnapshot = generationOptions;
+        _useGenerationOptionsSnapshot = useGenerationOptionsSnapshot;
         if (!LoadCommand.IsRunning)
         {
             LoadCommand.Execute(null);
@@ -92,6 +115,7 @@ public sealed partial class PromptEditorViewModel : ObservableObject
             TaskId = _task.Id;
             TaskName = _task.Name;
             Prompt = _task.Prompt;
+            UpdateGenerationPolicyText();
             Output = "Test output will stream here.";
             ChunkCount = 0;
             StatusText = "Prompt loaded.";
@@ -180,11 +204,14 @@ public sealed partial class PromptEditorViewModel : ObservableObject
         StatusText = "The agent is generating with the task tool whitelist.";
         try
         {
-                    await foreach (var chunk in _agentService
+            var generationPolicy = ResolveGenerationPolicy();
+            UpdateGenerationPolicyText(generationPolicy);
+            await foreach (var chunk in _agentService
                                .RunPromptStreamingAsync(
                                    Prompt,
                                    _task.Tools,
                                    ToolExecutionContext.FromTask(_task),
+                                   generationPolicy,
                                    cancellationToken)
                                .ConfigureAwait(true))
             {
@@ -236,5 +263,23 @@ public sealed partial class PromptEditorViewModel : ObservableObject
         _ = await _incidentReporter
             .ReportAsync(exception, source, CancellationToken.None)
             .ConfigureAwait(true);
+    }
+
+    private EffectiveGenerationPolicy ResolveGenerationPolicy() =>
+        GenerationPolicyResolver.Resolve(
+            _aiOptions?.CurrentValue.GenerationDefaults ??
+            new AIGenerationDefaults(),
+            _useGenerationOptionsSnapshot
+                ? _generationOptionsSnapshot
+                : _task?.GenerationOptions);
+
+    private void UpdateGenerationPolicyText(
+        EffectiveGenerationPolicy? policy = null)
+    {
+        policy ??= ResolveGenerationPolicy();
+        GenerationPolicyText =
+            $"Temperature {policy.Temperature.ToString("G", CultureInfo.CurrentCulture)} ({policy.TemperatureSource}) · " +
+            $"Top P {policy.TopP.ToString("G", CultureInfo.CurrentCulture)} ({policy.TopPSource}) · " +
+            $"Context {policy.ContextWindowTokens.ToString("N0", CultureInfo.CurrentCulture)} tokens (Settings)";
     }
 }

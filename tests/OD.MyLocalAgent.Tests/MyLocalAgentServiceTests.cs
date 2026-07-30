@@ -163,4 +163,107 @@ public sealed class MyLocalAgentServiceTests
         result.Text.Should().Be("Done.");
         registry.VerifyAll();
     }
+
+    /// <summary>
+    /// Verifies one immutable policy is applied to the agent request without losing tools.
+    /// </summary>
+    [Fact]
+    public async Task ExplicitGenerationPolicyReachesAgentRequest()
+    {
+        var provider = new StubLlmClientService(
+            new StubChatClient("Done."),
+            AIOptions.OllamaProvider);
+        var factory = new Mock<ILlmClientFactory>(MockBehavior.Strict);
+        factory.Setup(instance => instance.Create()).Returns(provider);
+        var registry = new Mock<IToolRegistry>(MockBehavior.Strict);
+        registry.Setup(
+                instance => instance.GetAgentTools(
+                    It.IsAny<IEnumerable<string>>(),
+                    It.IsAny<ToolExecutionContext>()))
+            .Returns([]);
+        var service = new MyLocalAgentService(
+            factory.Object,
+            registry.Object,
+            [],
+            Mock.Of<IIncidentReporter>(),
+            TimeProvider.System);
+        var policy = new EffectiveGenerationPolicy(
+            0.45,
+            0.75,
+            24_000,
+            GenerationOptionSource.Task,
+            GenerationOptionSource.Step);
+
+        _ = await service.RunPromptAsync(
+            "Do the task.",
+            [],
+            ToolExecutionContext.Taskless,
+            policy,
+            CancellationToken.None);
+
+        provider.Client.LastOptions.Should().NotBeNull();
+        provider.Client.LastOptions!.Temperature.Should().Be(0.45f);
+        provider.Client.LastOptions.TopP.Should().Be(0.75f);
+        provider.Client.LastOptions.Tools.Should().NotBeNull();
+    }
+
+    /// <summary>
+    /// Verifies taskless calls resolve reloadable global defaults at the start of each execution.
+    /// </summary>
+    [Fact]
+    public async Task NewExecutionObservesReloadedGlobalDefaults()
+    {
+        var provider = new StubLlmClientService(
+            new StubChatClient(["first", "second"]),
+            AIOptions.OpenAIProvider);
+        var factory = new Mock<ILlmClientFactory>(MockBehavior.Strict);
+        factory.Setup(instance => instance.Create()).Returns(provider);
+        var registry = new Mock<IToolRegistry>(MockBehavior.Strict);
+        registry.Setup(
+                instance => instance.GetAgentTools(
+                    It.IsAny<IEnumerable<string>>(),
+                    It.IsAny<ToolExecutionContext>()))
+            .Returns([]);
+        var options = new MutableOptionsMonitor<AIOptions>(
+            new AIOptions
+            {
+                GenerationDefaults = new AIGenerationDefaults
+                {
+                    Temperature = 0.2,
+                    TopP = 1,
+                    ContextWindowTokens = 8192,
+                },
+            });
+        var service = new MyLocalAgentService(
+            factory.Object,
+            registry.Object,
+            [],
+            Mock.Of<IIncidentReporter>(),
+            TimeProvider.System,
+            options);
+
+        _ = await service.RunPromptAsync(
+            "First.",
+            [],
+            CancellationToken.None);
+        options.Set(
+            new AIOptions
+            {
+                GenerationDefaults = new AIGenerationDefaults
+                {
+                    Temperature = 0.9,
+                    TopP = 0.7,
+                    ContextWindowTokens = 32_000,
+                },
+            });
+        _ = await service.RunPromptAsync(
+            "Second.",
+            [],
+            CancellationToken.None);
+
+        provider.Client.OptionCalls.Should().HaveCount(2);
+        provider.Client.OptionCalls[0]!.Temperature.Should().Be(0.2f);
+        provider.Client.OptionCalls[1]!.Temperature.Should().Be(0.9f);
+        provider.Client.OptionCalls[1]!.TopP.Should().Be(0.7f);
+    }
 }

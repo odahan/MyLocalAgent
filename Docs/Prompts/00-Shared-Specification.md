@@ -1322,6 +1322,13 @@ per-execution chat-client wrapper or equivalent mechanism may merge the policy i
 agent request, but it must preserve tools, model id, response format, provider properties,
 and cancellation and must not mutate caller-owned options or the shared provider client.
 
+The implemented shared contracts are `GenerationOptions`, `EffectiveGenerationPolicy`,
+`GenerationOptionSource`, and the pure `GenerationPolicyResolver`. Execution boundaries use
+explicit policy-bearing overloads on `ILlmClientService`, `IMyLocalAgentService`, and
+`ISkill`; `GenerationPolicyChatClient` clones caller options before adding the resolved
+values. These names are normative for the Stage 14 implementation and make policy flow
+reviewable without ambient execution state.
+
 ### 17.5 Fixed internal policies
 
 Named program constants are:
@@ -1350,7 +1357,7 @@ input messages + agent/tool context + generated output
 It is distinct from timeout, source-character limits, and maximum output tokens. It cannot
 increase a model's physical capacity.
 
-Ollama integration maps it to the provider's supported native context-window request option.
+Ollama integration maps it to the provider's supported native `num_ctx` request option.
 OpenAI-compatible models own their fixed context capacity and may not expose such a request
 option; no invented field is sent. In that case the configured value remains the
 application-declared budget, the UI states the limitation, and the provider is authoritative.

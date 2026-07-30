@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using OD.MyLocalAgent.Core;
+using OD.MyLocalAgent.Ollama;
 
 namespace OD.MyLocalAgent.Workflows;
 
@@ -17,6 +19,7 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
     private readonly IMyLocalAgentService _agentService;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<SequentialWorkflowEngine> _logger;
+    private readonly IOptionsMonitor<AIOptions>? _aiOptions;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SequentialWorkflowEngine"/> class.
@@ -26,7 +29,8 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
         IEnumerable<ISkill> skills,
         IMyLocalAgentService agentService,
         TimeProvider timeProvider,
-        ILogger<SequentialWorkflowEngine> logger)
+        ILogger<SequentialWorkflowEngine> logger,
+        IOptionsMonitor<AIOptions>? aiOptions = null)
     {
         ArgumentNullException.ThrowIfNull(toolRegistry);
         ArgumentNullException.ThrowIfNull(skills);
@@ -40,6 +44,7 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
         _agentService = agentService;
         _timeProvider = timeProvider;
         _logger = logger;
+        _aiOptions = aiOptions;
     }
 
     /// <inheritdoc />
@@ -113,11 +118,30 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
         var startedUtc = _timeProvider.GetUtcNow();
         var startedTimestamp = _timeProvider.GetTimestamp();
         var attempts = 0;
+        var definition = ToolMap.Find(step.Alias);
+        var generationPolicy = definition?.IsAiStep == true
+            ? GenerationPolicyResolver.Resolve(
+                _aiOptions?.CurrentValue.GenerationDefaults ??
+                new AIGenerationDefaults(),
+                task.GenerationOptions,
+                step.GenerationOptions)
+            : null;
 
         _logger.LogInformation(
             "Workflow step {StepId} ({StepAlias}) started.",
             step.Id,
             step.Alias);
+        if (generationPolicy is not null)
+        {
+            _logger.LogInformation(
+                "Workflow AI step {StepId} uses Temperature {Temperature} from {TemperatureSource}, Top P {TopP} from {TopPSource}, and declared context window {ContextWindowTokens}.",
+                step.Id,
+                generationPolicy.Temperature,
+                generationPolicy.TemperatureSource,
+                generationPolicy.TopP,
+                generationPolicy.TopPSource,
+                generationPolicy.ContextWindowTokens);
+        }
 
         while (true)
         {
@@ -136,6 +160,7 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                     resolvedArguments,
                     task,
                     context,
+                    generationPolicy,
                     cancellationToken).ConfigureAwait(false);
                 var duration = _timeProvider.GetElapsedTime(startedTimestamp);
                 var outputSize = System.Text.Encoding.UTF8.GetByteCount(output);
@@ -209,6 +234,7 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
         JsonElement resolvedArguments,
         ScheduledTask task,
         WorkflowContext context,
+        EffectiveGenerationPolicy? generationPolicy,
         CancellationToken cancellationToken)
     {
         switch (step)
@@ -222,6 +248,11 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                     cancellationToken).ConfigureAwait(false);
 
             case SkillStep skillStep:
+                if (generationPolicy is null)
+                {
+                    throw new InvalidOperationException(
+                        $"AI step '{step.Alias}' has no resolved generation policy.");
+                }
                 var skill = _skills.TryGetValue(skillStep.SkillName, out var resolvedSkill)
                     ? resolvedSkill
                     : throw new WorkflowValidationException(
@@ -231,12 +262,18 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                     task.Prompt;
                 var skillOutput = await skill.ExecuteAsync(
                     text,
+                    generationPolicy,
                     cancellationToken).ConfigureAwait(false);
                 return JsonSerializer.Serialize(
                     new { text = skillOutput },
                     SerializerOptions);
 
             case PromptStep:
+                if (generationPolicy is null)
+                {
+                    throw new InvalidOperationException(
+                        $"AI step '{step.Alias}' has no resolved generation policy.");
+                }
                 var prompt = ReadRequiredString(resolvedArguments, "prompt", step.Alias);
                 if (ReadOptionalBoolean(resolvedArguments, "includeContext") == true)
                 {
@@ -253,6 +290,7 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                     prompt,
                     task.Tools,
                     ToolExecutionContext.FromTask(task),
+                    generationPolicy,
                     cancellationToken).ConfigureAwait(false);
                 return agentResult.Text;
 

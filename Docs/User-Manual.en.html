@@ -1185,6 +1185,15 @@ ollama list</code></pre>
                         <p>The field remains editable, but a manually entered tag must still exist in Ollama.</p>
                     </li>
                     <li>
+                        <strong>Review <span class="ui-label">AI generation defaults</span>.</strong>
+                        <p>
+                            Initial values are Temperature <code>0.2</code>, Top P
+                            <code>1</code>, and Context window <code>8192</code>. Valid ranges
+                            are 0–2, greater than 0 through 1, and 1024–2000000. Tune
+                            Temperature or Top P first instead of changing both.
+                        </p>
+                    </li>
+                    <li>
                         <strong>Keep a suitable timeout.</strong>
                         <p>The default 300 seconds allows for a slow first token from a large local model.</p>
                     </li>
@@ -1196,6 +1205,12 @@ ollama list</code></pre>
                 <div class="callout success">
                     A healthy result means both that the endpoint is reachable and that the
                     configured model appears in the installed-model list.
+                </div>
+                <div class="callout warning">
+                    Context window is the declared total budget—messages, agent/tool context,
+                    and response—not an output-token limit. Ollama receives it through native
+                    <code>num_ctx</code>. An OpenAI-compatible provider remains authoritative
+                    for its fixed capacity; no unsupported request field is invented.
                 </div>
             </section>
 
@@ -1477,7 +1492,10 @@ ollama list</code></pre>
                 <ol class="steps">
                     <li>
                         <strong>Open <span class="ui-label">AI playground</span>.</strong>
-                        <p>The badge shows the active provider and model.</p>
+                        <p>
+                            The badge shows the active provider, model, and global effective
+                            policy used for that generation.
+                        </p>
                     </li>
                     <li>
                         <strong>Select <span class="ui-label">Check health</span>.</strong>
@@ -1662,6 +1680,55 @@ ollama list</code></pre>
                     </article>
                 </div>
 
+                <h3>Hierarchical generation settings</h3>
+                <p>
+                    Settings defines Temperature, Top P, and Context window for every new
+                    call. A task can independently override Temperature and/or Top P through
+                    <span class="ui-label">AI generation override</span>. An object-form AI
+                    step can override each property again. Resolution is independent:
+                    AI step → task → Settings. Context window remains global and never
+                    appears in task or step JSON.
+                </p>
+                <div class="code-block">
+                    <pre><code>{
+  "generationOptions": {
+    "temperature": 0.1
+  },
+  "workflow": [
+    {
+      "step": "ai.summarize",
+      "id": "summary",
+      "generationOptions": {
+        "topP": 0.9
+      }
+    }
+  ]
+}</code></pre>
+                </div>
+                <p>
+                    In this example, the step uses task Temperature <code>0.1</code> and step
+                    Top P <code>0.9</code>. The Task editor's
+                    <span class="ui-label">Use global default</span> checkboxes are independent
+                    and show the effective value and provenance. Invalid input disables save.
+                    Prompt editor displays and uses these effective values—including unsaved
+                    changes—when running <span class="ui-label">Test</span>.
+                </p>
+                <div class="callout warning">
+                    <code>generationOptions</code> is rejected on non-AI steps. Unknown fields,
+                    null or out-of-range values, and context/provider/model/endpoint/credential
+                    fields are rejected. Existing tasks without overrides remain valid; an
+                    empty object is omitted by canonical save.
+                </div>
+                <div class="callout warning">
+                    <strong>Model limitations.</strong>
+                    Temperature and Top P can behave slightly differently across providers and
+                    models. Changing both at once makes results harder to predict, and higher
+                    randomness can reduce structured-JSON or tool-selection reliability.
+                    Provider tokenization remains authoritative: Context window is a declared
+                    budget, not a universal exact counter, and cannot increase the model's
+                    physical capacity.
+                </div>
+
                 <h3>AI Workflow Helper</h3>
                 <p>
                     <span class="ui-label">AI Helper</span> turns an English description into
@@ -1670,6 +1737,8 @@ ollama list</code></pre>
                     You can edit it directly or submit one single-use refinement; no chat
                     transcript is stored. The response streams through the provider selected
                     in Settings and is accepted only after strict application validation.
+                    Generation, refinement, and their repairs always use Temperature 0 /
+                    Top P 1 with the global Context window.
                 </p>
                 <p>
                     Review every proposed missing tool group and literal absolute-directory
@@ -1688,6 +1757,9 @@ ollama list</code></pre>
                     dependable default. Rendered Markdown uses the same response in a restricted
                     WebView2 document; a missing runtime keeps Text functional and exposes only
                     a user-initiated official Microsoft download-page link.
+                    Explanation and its repairs use the same fixed internal Temperature 0 /
+                    Top P 1 policy, while the explanation still describes configured
+                    overrides and their effective provenance.
                 </p>
                 <div class="callout warn">
                     <strong>Privacy and limits.</strong>
@@ -1708,11 +1780,17 @@ ollama list</code></pre>
   "prompt": "Summarize today's important messages.",
   "tools": ["gmail", "filesystem"],
   "fileSystemAccess": [],
+  "generationOptions": {
+    "temperature": 0.1
+  },
   "workflow": [
     "gmail.readToday",
     {
       "step": "ai.summarize",
-      "id": "summary"
+      "id": "summary",
+      "generationOptions": {
+        "topP": 0.9
+      }
     },
     {
       "step": "filesystem.write",

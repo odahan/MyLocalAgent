@@ -109,7 +109,10 @@ public sealed partial class MainWindowViewModel :
     {
         SelectTasksNavigationItem();
         var viewModel = _serviceProvider.GetRequiredService<PromptEditorViewModel>();
-        viewModel.Open(message.TaskId);
+        viewModel.Open(
+            message.TaskId,
+            message.GenerationOptions,
+            message.UseGenerationOptionsSnapshot);
         CurrentPage = viewModel;
     }
 

@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Options;
 using OD.MyLocalAgent.Ollama;
 
 namespace OD.MyLocalAgent.Core;
@@ -20,6 +21,7 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
     private readonly IReadOnlyList<ISkill> _skills;
     private readonly IIncidentReporter _incidentReporter;
     private readonly TimeProvider _timeProvider;
+    private readonly IOptionsMonitor<AIOptions>? _aiOptions;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MyLocalAgentService"/> class.
@@ -29,7 +31,8 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
         IToolRegistry toolRegistry,
         IEnumerable<ISkill> skills,
         IIncidentReporter incidentReporter,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IOptionsMonitor<AIOptions>? aiOptions = null)
     {
         ArgumentNullException.ThrowIfNull(clientFactory);
         ArgumentNullException.ThrowIfNull(toolRegistry);
@@ -41,6 +44,7 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
         _skills = skills.ToArray();
         _incidentReporter = incidentReporter;
         _timeProvider = timeProvider;
+        _aiOptions = aiOptions;
     }
 
     /// <inheritdoc />
@@ -53,6 +57,7 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
             enabledTools,
             ToolExecutionContext.Taskless,
             allowSkills: false,
+            ResolveGlobalPolicy(),
             cancellationToken);
 
     /// <inheritdoc />
@@ -66,6 +71,22 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
             enabledTools,
             executionContext,
             allowSkills: false,
+            ResolveGlobalPolicy(),
+            cancellationToken);
+
+    /// <inheritdoc />
+    public Task<AgentRunResult> RunPromptAsync(
+        string prompt,
+        IEnumerable<string> enabledTools,
+        ToolExecutionContext executionContext,
+        EffectiveGenerationPolicy generationPolicy,
+        CancellationToken cancellationToken) =>
+        RunPromptCoreAsync(
+            prompt,
+            enabledTools,
+            executionContext,
+            allowSkills: false,
+            generationPolicy,
             cancellationToken);
 
     /// <inheritdoc />
@@ -79,6 +100,7 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
             enabledTools,
             ToolExecutionContext.Taskless,
             allowSkills,
+            ResolveGlobalPolicy(),
             cancellationToken);
 
     private async Task<AgentRunResult> RunPromptCoreAsync(
@@ -86,16 +108,19 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
         IEnumerable<string> enabledTools,
         ToolExecutionContext executionContext,
         bool allowSkills,
+        EffectiveGenerationPolicy generationPolicy,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
         ArgumentNullException.ThrowIfNull(enabledTools);
         ArgumentNullException.ThrowIfNull(executionContext);
+        ArgumentNullException.ThrowIfNull(generationPolicy);
 
         var (provider, agent) = await CreateAgentAsync(
             enabledTools,
             executionContext,
             allowSkills,
+            generationPolicy,
             cancellationToken).ConfigureAwait(false);
         var response = await agent.RunAsync(
             prompt,
@@ -113,6 +138,7 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
             enabledTools,
             ToolExecutionContext.Taskless,
             allowSkills: false,
+            ResolveGlobalPolicy(),
             cancellationToken);
 
     /// <inheritdoc />
@@ -126,6 +152,22 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
             enabledTools,
             executionContext,
             allowSkills: false,
+            ResolveGlobalPolicy(),
+            cancellationToken);
+
+    /// <inheritdoc />
+    public IAsyncEnumerable<string> RunPromptStreamingAsync(
+        string prompt,
+        IEnumerable<string> enabledTools,
+        ToolExecutionContext executionContext,
+        EffectiveGenerationPolicy generationPolicy,
+        CancellationToken cancellationToken) =>
+        RunPromptStreamingCoreAsync(
+            prompt,
+            enabledTools,
+            executionContext,
+            allowSkills: false,
+            generationPolicy,
             cancellationToken);
 
     /// <inheritdoc />
@@ -139,6 +181,22 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
             enabledTools,
             ToolExecutionContext.Taskless,
             allowSkills,
+            ResolveGlobalPolicy(),
+            cancellationToken);
+
+    /// <inheritdoc />
+    public IAsyncEnumerable<string> RunPromptStreamingAsync(
+        string prompt,
+        IEnumerable<string> enabledTools,
+        bool allowSkills,
+        EffectiveGenerationPolicy generationPolicy,
+        CancellationToken cancellationToken) =>
+        RunPromptStreamingCoreAsync(
+            prompt,
+            enabledTools,
+            ToolExecutionContext.Taskless,
+            allowSkills,
+            generationPolicy,
             cancellationToken);
 
     private async IAsyncEnumerable<string> RunPromptStreamingCoreAsync(
@@ -146,16 +204,19 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
         IEnumerable<string> enabledTools,
         ToolExecutionContext executionContext,
         bool allowSkills,
+        EffectiveGenerationPolicy generationPolicy,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
         ArgumentNullException.ThrowIfNull(enabledTools);
         ArgumentNullException.ThrowIfNull(executionContext);
+        ArgumentNullException.ThrowIfNull(generationPolicy);
 
         var (_, agent) = await CreateAgentAsync(
             enabledTools,
             executionContext,
             allowSkills,
+            generationPolicy,
             cancellationToken).ConfigureAwait(false);
         await foreach (var update in agent.RunStreamingAsync(
                            prompt,
@@ -172,6 +233,7 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
         IEnumerable<string> enabledTools,
         ToolExecutionContext executionContext,
         bool allowSkills,
+        EffectiveGenerationPolicy generationPolicy,
         CancellationToken cancellationToken)
     {
         try
@@ -180,11 +242,15 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
             var tools = _toolRegistry.GetAgentTools(enabledTools, executionContext);
             if (allowSkills)
             {
-                tools = [.. tools, .. CreateSkillTools()];
+                tools = [.. tools, .. CreateSkillTools(generationPolicy)];
             }
 
             var instructions = BuildSystemPrompt(_timeProvider.GetLocalNow());
-            var agent = provider.ChatClient.AsAIAgent(
+            var policyClient = new GenerationPolicyChatClient(
+                provider.ChatClient,
+                generationPolicy,
+                provider.ProviderName);
+            var agent = policyClient.AsAIAgent(
                 instructions: instructions,
                 name: AgentName,
                 tools: tools);
@@ -201,26 +267,32 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
         }
     }
 
-    private AITool[] CreateSkillTools()
+    private AITool[] CreateSkillTools(
+        EffectiveGenerationPolicy generationPolicy)
     {
         return _skills
             .Select(
                 skill =>
                 {
-                    var method = skill.GetType().GetMethod(
-                        nameof(ISkill.ExecuteAsync),
-                        [typeof(string), typeof(CancellationToken)])
+                    var boundSkill = new BoundSkill(skill, generationPolicy);
+                    var method = typeof(BoundSkill).GetMethod(
+                        nameof(BoundSkill.ExecuteAsync))
                         ?? throw new InvalidOperationException(
                             $"Skill '{skill.Name}' does not expose ExecuteAsync.");
                     return (AITool)AIFunctionFactory.Create(
                         method,
-                        skill,
+                        boundSkill,
                         skill.AgentFunctionName,
                         skill.Description,
                         ToolJson.Options);
                 })
             .ToArray();
     }
+
+    private EffectiveGenerationPolicy ResolveGlobalPolicy() =>
+        GenerationPolicyResolver.Resolve(
+            _aiOptions?.CurrentValue.GenerationDefaults ??
+            new AIGenerationDefaults());
 
     private static string BuildSystemPrompt(DateTimeOffset localNow) =>
         $"""
@@ -232,4 +304,23 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
         Never claim an action succeeded unless its tool result confirms success.
         End every execution with a concise report of actions, results, and any failures.
         """;
+
+    private sealed class BoundSkill
+    {
+        private readonly ISkill _skill;
+        private readonly EffectiveGenerationPolicy _policy;
+
+        public BoundSkill(
+            ISkill skill,
+            EffectiveGenerationPolicy policy)
+        {
+            _skill = skill;
+            _policy = policy;
+        }
+
+        public Task<string> ExecuteAsync(
+            string text,
+            CancellationToken cancellationToken) =>
+            _skill.ExecuteAsync(text, _policy, cancellationToken);
+    }
 }

@@ -1,4 +1,5 @@
 using OD.MyLocalAgent.Ollama;
+using Microsoft.Extensions.Options;
 
 namespace OD.MyLocalAgent.Core;
 
@@ -11,8 +12,11 @@ public sealed class ExtractActionItemsSkill : SkillBase
     /// Initializes a new instance of the <see cref="ExtractActionItemsSkill"/> class.
     /// </summary>
     /// <param name="clientFactory">The hot-switching language-model client factory.</param>
-    public ExtractActionItemsSkill(ILlmClientFactory clientFactory)
-        : base(clientFactory)
+    /// <param name="aiOptions">The optional reloadable global generation defaults.</param>
+    public ExtractActionItemsSkill(
+        ILlmClientFactory clientFactory,
+        IOptionsMonitor<AIOptions>? aiOptions = null)
+        : base(clientFactory, aiOptions)
     {
     }
 

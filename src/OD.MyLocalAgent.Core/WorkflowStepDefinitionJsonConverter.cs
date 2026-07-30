@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using OD.MyLocalAgent.Ollama;
 
 namespace OD.MyLocalAgent.Core;
 
@@ -32,6 +33,7 @@ internal sealed class WorkflowStepDefinitionJsonConverter : JsonConverter<Workfl
 
         using var document = JsonDocument.ParseValue(ref reader);
         var root = document.RootElement;
+        ValidateProperties(root);
         if (!root.TryGetProperty("step", out var stepElement) ||
             stepElement.ValueKind != JsonValueKind.String ||
             string.IsNullOrWhiteSpace(stepElement.GetString()))
@@ -47,6 +49,7 @@ internal sealed class WorkflowStepDefinitionJsonConverter : JsonConverter<Workfl
             OnError = ReadOptionalPolicy(root),
             RetryCount = ReadOptionalInt32(root, "retryCount"),
             RetryBackoffSeconds = ReadOptionalInt32(root, "retryBackoffSeconds"),
+            GenerationOptions = ReadGenerationOptions(root, options),
         };
     }
 
@@ -60,7 +63,8 @@ internal sealed class WorkflowStepDefinitionJsonConverter : JsonConverter<Workfl
             value.Args.ValueKind == JsonValueKind.Undefined &&
             value.OnError is null &&
             value.RetryCount is null &&
-            value.RetryBackoffSeconds is null)
+            value.RetryBackoffSeconds is null &&
+            (value.GenerationOptions is null || value.GenerationOptions.IsEmpty))
         {
             writer.WriteStringValue(value.Step);
             return;
@@ -94,7 +98,64 @@ internal sealed class WorkflowStepDefinitionJsonConverter : JsonConverter<Workfl
             writer.WriteNumber("retryBackoffSeconds", value.RetryBackoffSeconds.Value);
         }
 
+        if (value.GenerationOptions is { IsEmpty: false } generationOptions)
+        {
+            writer.WritePropertyName("generationOptions");
+            JsonSerializer.Serialize(writer, generationOptions, options);
+        }
+
         writer.WriteEndObject();
+    }
+
+    private static void ValidateProperties(JsonElement root)
+    {
+        string[] allowed =
+        [
+            "step",
+            "id",
+            "args",
+            "onError",
+            "retryCount",
+            "retryBackoffSeconds",
+            "generationOptions",
+        ];
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var property in root.EnumerateObject())
+        {
+            if (!allowed.Contains(
+                    property.Name,
+                    StringComparer.OrdinalIgnoreCase))
+            {
+                throw new JsonException(
+                    $"Unknown workflow-step property '{property.Name}'.");
+            }
+
+            if (!seen.Add(property.Name))
+            {
+                throw new JsonException(
+                    $"Workflow-step property '{property.Name}' is duplicated.");
+            }
+        }
+    }
+
+    private static GenerationOptions? ReadGenerationOptions(
+        JsonElement root,
+        JsonSerializerOptions options)
+    {
+        if (!root.TryGetProperty("generationOptions", out var element))
+        {
+            return null;
+        }
+
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            throw new JsonException(
+                "Workflow property 'generationOptions' must be an object.");
+        }
+
+        return element.Deserialize<GenerationOptions>(options)
+            ?? throw new JsonException(
+                "Workflow property 'generationOptions' cannot be null.");
     }
 
     private static string? ReadOptionalString(JsonElement root, string propertyName)

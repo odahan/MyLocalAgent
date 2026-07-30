@@ -1,10 +1,14 @@
 using System.Text.Json;
+using System.Collections.Concurrent;
 using FluentAssertions;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
 using OD.MyLocalAgent.Core;
 using OD.MyLocalAgent.Workflows;
+using OD.MyLocalAgent.Ollama;
+using OD.MyLocalAgent.Tests.TestDoubles;
 using Xunit;
 
 namespace OD.MyLocalAgent.Tests;
@@ -323,6 +327,7 @@ public sealed class WorkflowEngineTests
                     It.IsAny<IEnumerable<string>>(),
                     It.Is<ToolExecutionContext>(
                         context => context.TaskId == "workflow-test"),
+                    It.IsAny<EffectiveGenerationPolicy>(),
                     It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AgentRunResult("prompt-output", "Test"));
         var engine = CreateEngine(registry, agentService: agent.Object);
@@ -404,6 +409,7 @@ public sealed class WorkflowEngineTests
                             prompt.Contains("\"content\": \"Bonjour\"")),
                     It.IsAny<IEnumerable<string>>(),
                     It.IsAny<ToolExecutionContext>(),
+                    It.IsAny<EffectiveGenerationPolicy>(),
                     It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AgentRunResult("Hello", "Test"));
         var task = CreateTask(
@@ -576,11 +582,224 @@ public sealed class WorkflowEngineTests
             rule => rule.Path == authorizedPath);
     }
 
+    /// <summary>
+    /// Verifies direct built-in skill steps receive field-wise step and task values.
+    /// </summary>
+    [Fact]
+    public async Task AiSkillStepReceivesEffectiveGenerationPolicy()
+    {
+        var skill = new RecordingSkill("summarize", "summary");
+        var options = new MutableOptionsMonitor<AIOptions>(
+            new AIOptions
+            {
+                GenerationDefaults = new AIGenerationDefaults
+                {
+                    Temperature = 0.2,
+                    TopP = 1,
+                    ContextWindowTokens = 16_384,
+                },
+            });
+        var definition = Step(
+            "ai.summarize",
+            "summary",
+            """{"text":"input"}""") with
+        {
+            GenerationOptions = new GenerationOptions { TopP = 0.8 },
+        };
+        var task = CreateTask([definition]) with
+        {
+            GenerationOptions =
+                new GenerationOptions { Temperature = 0.4 },
+        };
+
+        var result = await CreateEngine(
+            new RecordingToolRegistry(
+                (_, _, _) => Task.FromResult(string.Empty)),
+            [skill],
+            aiOptions: options).ExecuteAsync(
+                task,
+                CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        skill.Policies.Should().ContainSingle();
+        skill.Policies[0].Temperature.Should().Be(0.4);
+        skill.Policies[0].TemperatureSource.Should()
+            .Be(GenerationOptionSource.Task);
+        skill.Policies[0].TopP.Should().Be(0.8);
+        skill.Policies[0].TopPSource.Should()
+            .Be(GenerationOptionSource.Step);
+        skill.Policies[0].ContextWindowTokens.Should().Be(16_384);
+    }
+
+    /// <summary>
+    /// Verifies ai.prompt receives its step-effective policy with task context and whitelist intact.
+    /// </summary>
+    [Fact]
+    public async Task AiPromptReceivesStepEffectivePolicyAndTaskContext()
+    {
+        EffectiveGenerationPolicy? capturedPolicy = null;
+        var agent = new Mock<IMyLocalAgentService>(MockBehavior.Strict);
+        agent.Setup(
+                service => service.RunPromptAsync(
+                    "Draft the report.",
+                    It.Is<IEnumerable<string>>(
+                        tools => tools.SequenceEqual(
+                            new[] { ToolGroups.FileSystem })),
+                    It.Is<ToolExecutionContext>(
+                        context => context.TaskId == "workflow-test"),
+                    It.IsAny<EffectiveGenerationPolicy>(),
+                    It.IsAny<CancellationToken>()))
+            .Callback<
+                string,
+                IEnumerable<string>,
+                ToolExecutionContext,
+                EffectiveGenerationPolicy,
+                CancellationToken>(
+                (_, _, _, policy, _) => capturedPolicy = policy)
+            .ReturnsAsync(new AgentRunResult("draft", "Test"));
+        var options = new MutableOptionsMonitor<AIOptions>(
+            new AIOptions
+            {
+                GenerationDefaults = new AIGenerationDefaults
+                {
+                    Temperature = 0.2,
+                    TopP = 1,
+                    ContextWindowTokens = 12_000,
+                },
+            });
+        var definition = Step(
+            "ai.prompt",
+            "draft",
+            """{"prompt":"Draft the report."}""") with
+        {
+            GenerationOptions = new GenerationOptions
+            {
+                Temperature = 0.7,
+            },
+        };
+        var task = CreateTask([definition]) with
+        {
+            GenerationOptions = new GenerationOptions
+            {
+                TopP = 0.85,
+            },
+        };
+
+        var result = await CreateEngine(
+            new RecordingToolRegistry(
+                (_, _, _) => Task.FromResult(string.Empty)),
+            agentService: agent.Object,
+            aiOptions: options).ExecuteAsync(
+                task,
+                CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        capturedPolicy.Should().NotBeNull();
+        capturedPolicy!.Temperature.Should().Be(0.7);
+        capturedPolicy.TemperatureSource.Should().Be(
+            GenerationOptionSource.Step);
+        capturedPolicy.TopP.Should().Be(0.85);
+        capturedPolicy.TopPSource.Should().Be(GenerationOptionSource.Task);
+        capturedPolicy.ContextWindowTokens.Should().Be(12_000);
+        agent.VerifyAll();
+    }
+
+    /// <summary>
+    /// Verifies workflow retries retain the policy resolved when the step began.
+    /// </summary>
+    [Fact]
+    public async Task RetryRetainsResolvedPolicyAfterSettingsChange()
+    {
+        var options = new MutableOptionsMonitor<AIOptions>(
+            new AIOptions
+            {
+                GenerationDefaults = new AIGenerationDefaults
+                {
+                    Temperature = 0.2,
+                    TopP = 1,
+                    ContextWindowTokens = 8192,
+                },
+            });
+        var skill = new SettingsChangingSkill(options);
+        var definition = Step(
+            "ai.summarize",
+            "summary",
+            """{"text":"input"}""",
+            WorkflowErrorPolicy.Retry,
+            retryCount: 1,
+            retryBackoffSeconds: 0);
+
+        var result = await CreateEngine(
+            new RecordingToolRegistry(
+                (_, _, _) => Task.FromResult(string.Empty)),
+            [skill],
+            aiOptions: options).ExecuteAsync(
+                CreateTask([definition]),
+                CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        skill.Policies.Should().HaveCount(2);
+        skill.Policies.Should().OnlyContain(
+            static policy =>
+                policy.Temperature == 0.2 &&
+                policy.ContextWindowTokens == 8192);
+    }
+
+    /// <summary>
+    /// Verifies concurrent tasks cannot observe one another's generation overrides.
+    /// </summary>
+    [Fact]
+    public async Task ConcurrentTaskGenerationPoliciesRemainIsolated()
+    {
+        var skill = new ConcurrentPolicySkill();
+        var options = new MutableOptionsMonitor<AIOptions>(
+            new AIOptions
+            {
+                GenerationDefaults = new AIGenerationDefaults(),
+            });
+        var engine = CreateEngine(
+            new RecordingToolRegistry(
+                (_, _, _) => Task.FromResult(string.Empty)),
+            [skill],
+            aiOptions: options);
+        var first = CreateTask(
+            [Step("ai.summarize", "first", """{"text":"first"}""")]) with
+        {
+            Id = "first-task",
+            GenerationOptions = new GenerationOptions
+            {
+                Temperature = 0.1,
+                TopP = 0.8,
+            },
+        };
+        var second = CreateTask(
+            [Step("ai.summarize", "second", """{"text":"second"}""")]) with
+        {
+            Id = "second-task",
+            GenerationOptions = new GenerationOptions
+            {
+                Temperature = 0.9,
+                TopP = 0.6,
+            },
+        };
+
+        var results = await Task.WhenAll(
+            engine.ExecuteAsync(first, CancellationToken.None),
+            engine.ExecuteAsync(second, CancellationToken.None));
+
+        results.Should().OnlyContain(static result => result.Success);
+        skill.Policies["first"].Temperature.Should().Be(0.1);
+        skill.Policies["first"].TopP.Should().Be(0.8);
+        skill.Policies["second"].Temperature.Should().Be(0.9);
+        skill.Policies["second"].TopP.Should().Be(0.6);
+    }
+
     private static SequentialWorkflowEngine CreateEngine(
         IToolRegistry registry,
         IEnumerable<ISkill>? skills = null,
         IMyLocalAgentService? agentService = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IOptionsMonitor<AIOptions>? aiOptions = null)
     {
         var agent = agentService ?? Mock.Of<IMyLocalAgentService>();
         return new SequentialWorkflowEngine(
@@ -588,7 +807,8 @@ public sealed class WorkflowEngineTests
             skills ?? [],
             agent,
             timeProvider ?? TimeProvider.System,
-            NullLogger<SequentialWorkflowEngine>.Instance);
+            NullLogger<SequentialWorkflowEngine>.Instance,
+            aiOptions);
     }
 
     private static ScheduledTask CreateTask(
@@ -724,6 +944,8 @@ public sealed class WorkflowEngineTests
 
         public List<string> Inputs { get; } = [];
 
+        public List<EffectiveGenerationPolicy> Policies { get; } = [];
+
         public Task<string> ExecuteAsync(
             string text,
             CancellationToken cancellationToken)
@@ -731,6 +953,94 @@ public sealed class WorkflowEngineTests
             cancellationToken.ThrowIfCancellationRequested();
             Inputs.Add(text);
             return Task.FromResult(_output);
+        }
+
+        public Task<string> ExecuteAsync(
+            string text,
+            EffectiveGenerationPolicy generationPolicy,
+            CancellationToken cancellationToken)
+        {
+            Policies.Add(generationPolicy);
+            return ExecuteAsync(text, cancellationToken);
+        }
+    }
+
+    private sealed class SettingsChangingSkill : ISkill
+    {
+        private readonly MutableOptionsMonitor<AIOptions> _options;
+        private int _attempt;
+
+        public SettingsChangingSkill(
+            MutableOptionsMonitor<AIOptions> options)
+        {
+            _options = options;
+        }
+
+        public string Name => "summarize";
+
+        public string AgentFunctionName => "skill_summarize";
+
+        public string Description => "Changes Settings during the first attempt.";
+
+        public List<EffectiveGenerationPolicy> Policies { get; } = [];
+
+        public Task<string> ExecuteAsync(
+            string text,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException(
+                "The explicit policy overload is required.");
+
+        public Task<string> ExecuteAsync(
+            string text,
+            EffectiveGenerationPolicy generationPolicy,
+            CancellationToken cancellationToken)
+        {
+            Policies.Add(generationPolicy);
+            if (Interlocked.Increment(ref _attempt) == 1)
+            {
+                _options.Set(
+                    new AIOptions
+                    {
+                        GenerationDefaults = new AIGenerationDefaults
+                        {
+                            Temperature = 1.5,
+                            TopP = 0.5,
+                            ContextWindowTokens = 65_536,
+                        },
+                    });
+                throw new InvalidOperationException("First attempt fails.");
+            }
+
+            return Task.FromResult("ok");
+        }
+    }
+
+    private sealed class ConcurrentPolicySkill : ISkill
+    {
+        public string Name => "summarize";
+
+        public string AgentFunctionName => "skill_summarize";
+
+        public string Description => "Records concurrent generation policies.";
+
+        public ConcurrentDictionary<string, EffectiveGenerationPolicy> Policies
+        {
+            get;
+        } = new(StringComparer.Ordinal);
+
+        public Task<string> ExecuteAsync(
+            string text,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException(
+                "The explicit policy overload is required.");
+
+        public Task<string> ExecuteAsync(
+            string text,
+            EffectiveGenerationPolicy generationPolicy,
+            CancellationToken cancellationToken)
+        {
+            Policies[text] = generationPolicy;
+            return Task.FromResult(text);
         }
     }
 

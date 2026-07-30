@@ -6,6 +6,7 @@ using OD.MyLocalAgent.Guardrails;
 using OD.MyLocalAgent.Ollama;
 using OD.MyLocalAgent.Tests.TestDoubles;
 using Xunit;
+using OllamaSharp.Models;
 
 namespace OD.MyLocalAgent.Tests;
 
@@ -298,6 +299,52 @@ public sealed class ContentTrustServiceTests
         exception.Which.InnerException.Should().BeOfType<TimeoutException>();
         exception.Which.FallbackResult.Status.Should().Be(ContentTrustStatus.Failed);
         DecodeEnvelope(exception.Which.FallbackResult.Content).Should().Be("external");
+    }
+
+    /// <summary>
+    /// Verifies Guardrails ignores user sampling defaults and retains the global context declaration.
+    /// </summary>
+    [Fact]
+    public async Task ScreeningUsesFixedPolicyAndGlobalContext()
+    {
+        var chat = new StubChatClient(
+            """{"score":100,"indicators":[]}""");
+        var provider = new StubLlmClientService(
+            chat,
+            AIOptions.OllamaProvider);
+        var factory = new Mock<ILlmClientFactory>(MockBehavior.Strict);
+        factory.Setup(instance => instance.Create()).Returns(provider);
+        var service = new ContentTrustService(
+            factory.Object,
+            new MutableOptionsMonitor<GuardrailsOptions>(
+                new GuardrailsOptions()),
+            new MutableOptionsMonitor<AIOptions>(
+                new AIOptions
+                {
+                    GenerationDefaults = new AIGenerationDefaults
+                    {
+                        Temperature = 1.9,
+                        TopP = 0.1,
+                        ContextWindowTokens = 22_000,
+                    },
+                }),
+            new MutableOptionsMonitor<OllamaOptions>(
+                new OllamaOptions { Model = "test-model" }),
+            new MutableOptionsMonitor<OpenAIOptions>(
+                new OpenAIOptions()),
+            TimeProvider.System);
+
+        _ = await service.ScreenAsync(
+            "external",
+            returnBase64: false,
+            CancellationToken.None);
+
+        chat.LastOptions.Should().NotBeNull();
+        chat.LastOptions!.Temperature.Should().Be(0);
+        chat.LastOptions.TopP.Should().Be(1);
+        chat.LastOptions.AdditionalProperties.Should()
+            .ContainKey(OllamaOption.NumCtx.Name)
+            .WhoseValue.Should().Be(22_000);
     }
 
     private static ContentTrustService CreateService(
