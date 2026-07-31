@@ -8,7 +8,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="190" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <Grid>
@@ -106,7 +106,8 @@
                        Text="{Binding StatusText}" />
         </Grid>
 
-        <materialDesign:Card Grid.Row="4">
+        <materialDesign:Card Grid.Row="4"
+                             Height="{Binding RunnerOutputHeight}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -115,9 +116,23 @@
                 <Grid>
                     <TextBlock Style="{StaticResource SectionTitleStyle}"
                                Text="{Binding RunnerDisplayTitle}" />
-                    <Button HorizontalAlignment="Right"
-                            Command="{Binding ToggleRunContextCommand}"
-                            Content="{Binding RunContextButtonText}" />
+                    <StackPanel HorizontalAlignment="Right"
+                                Orientation="Horizontal">
+                        <CheckBox Margin="0,0,14,0"
+                                  VerticalAlignment="Center"
+                                  Content="Debug (next run)"
+                                  IsChecked="{Binding IsDebugMode, Mode=TwoWay}"
+                                  ToolTip="Shows ephemeral LLM request and response details. This may include task and email content." />
+                        <CheckBox Margin="0,0,14,0"
+                                  VerticalAlignment="Center"
+                                  Content="Large"
+                                  IsChecked="{Binding IsLargeRunnerOutput, Mode=TwoWay}"
+                                  Checked="OnLargeRunnerOutputModeChanged"
+                                  Unchecked="OnLargeRunnerOutputModeChanged"
+                                  ToolTip="Makes the Runner panel and application window taller." />
+                        <Button Command="{Binding ToggleRunContextCommand}"
+                                Content="{Binding RunContextButtonText}" />
+                    </StackPanel>
                 </Grid>
                 <TextBox x:Name="RunnerOutputTextBox"
                          Grid.Row="1"
@@ -125,7 +140,7 @@
                          AcceptsReturn="True"
                          FontFamily="Consolas"
                          IsReadOnly="True"
-                         Text="{Binding DisplayedRunText}"
+                         Text="{Binding DisplayedRunText, Mode=OneWay}"
                          TextWrapping="Wrap"
                          TextChanged="OnRunnerOutputTextChanged"
                          VerticalScrollBarVisibility="Auto" />

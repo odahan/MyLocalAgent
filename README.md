@@ -981,6 +981,14 @@ outputs accumulated after each successful workflow step; it remains available af
 ends and is replaced only when another task starts. This context can contain task data and is
 kept in UI memory rather than added to ordinary runner log lines.
 
+For a one-off interactive diagnosis, **Debug (next run)** shows that run's full LLM requests
+and responses in Runner Output alongside the normal tool traces and arguments. It can include
+task data, does not persist the detailed payloads, and excludes configured credentials and
+tokens. Debug output does not auto-scroll. **Large** increases the Runner Output panel and,
+when the window is not maximized, the main window height. Gmail logs `message N of M` while
+Guardrails screens the retrieved messages, making a long finite screening pass distinguishable
+from an agent tool loop.
+
 Tool start traces serialize readable JSON arguments. Completion traces include the number of
 Gmail messages, Calendar events, or Web Search results returned, and Dropbox item names and
 sizes. Credentials and configured tokens remain excluded.

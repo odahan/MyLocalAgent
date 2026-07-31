@@ -169,6 +169,10 @@ public sealed class GmailTool : IGmailTool
                 var protectedMessages = new List<ProtectedGmailMessage>(processedCount);
                 for (var index = 0; index < processedCount; index++)
                 {
+                    _logger.LogInformation(
+                        "Gmail guardrails processing message {MessageIndex} of {MessageCount}.",
+                        index + 1,
+                        processedCount);
                     protectedMessages.Add(
                         await ProtectMessageAsync(
                                 fetched[index],

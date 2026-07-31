@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Text;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
@@ -25,6 +26,7 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
     private readonly IIncidentReporter _incidentReporter;
     private readonly TimeProvider _timeProvider;
     private readonly IOptionsMonitor<AIOptions>? _aiOptions;
+    private readonly IExecutionDebugTrace _debugTrace;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MyLocalAgentService"/> class.
@@ -35,7 +37,8 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
         IEnumerable<ISkill> skills,
         IIncidentReporter incidentReporter,
         TimeProvider timeProvider,
-        IOptionsMonitor<AIOptions>? aiOptions = null)
+        IOptionsMonitor<AIOptions>? aiOptions = null,
+        IExecutionDebugTrace? debugTrace = null)
     {
         ArgumentNullException.ThrowIfNull(clientFactory);
         ArgumentNullException.ThrowIfNull(toolRegistry);
@@ -48,6 +51,7 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
         _incidentReporter = incidentReporter;
         _timeProvider = timeProvider;
         _aiOptions = aiOptions;
+        _debugTrace = debugTrace ?? new NullExecutionDebugTrace();
     }
 
     /// <inheritdoc />
@@ -79,14 +83,21 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
                 provider.ChatClient,
                 generationPolicy,
                 provider.ProviderName);
+            var systemPrompt = BuildSystemPrompt(_timeProvider.GetLocalNow());
+            WriteLlmRequestTrace(
+                "ai.prompt",
+                provider.ProviderName,
+                systemPrompt,
+                prompt,
+                generationPolicy,
+                []);
             var response = await policyClient.GetResponseAsync(
                 [
-                    new ChatMessage(
-                        ChatRole.System,
-                        BuildSystemPrompt(_timeProvider.GetLocalNow())),
+                    new ChatMessage(ChatRole.System, systemPrompt),
                     new ChatMessage(ChatRole.User, prompt),
                 ],
                 cancellationToken: cancellationToken).ConfigureAwait(false);
+            WriteLlmResponseTrace("ai.prompt", provider.ProviderName, response.Text);
             return new AgentRunResult(response.Text, provider.ProviderName);
         }
         catch (LlmConfigurationException exception)
@@ -156,15 +167,26 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
         ArgumentNullException.ThrowIfNull(executionContext);
         ArgumentNullException.ThrowIfNull(generationPolicy);
 
+        var toolNames = enabledTools.ToArray();
+        var systemPrompt = BuildSystemPrompt(_timeProvider.GetLocalNow());
         var (provider, agent, loopGuard) = await CreateAgentAsync(
-            enabledTools,
+            toolNames,
             executionContext,
             allowSkills,
             generationPolicy,
+            systemPrompt,
             cancellationToken).ConfigureAwait(false);
+        WriteLlmRequestTrace(
+            "agent",
+            provider.ProviderName,
+            systemPrompt,
+            prompt,
+            generationPolicy,
+            toolNames);
         var response = await agent.RunAsync(
             prompt,
             cancellationToken: cancellationToken).ConfigureAwait(false);
+        WriteLlmResponseTrace("agent", provider.ProviderName, response.Text);
         loopGuard.ThrowIfRepeatedCallDetected();
         return new AgentRunResult(response.Text, provider.ProviderName);
     }
@@ -253,20 +275,40 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
         ArgumentNullException.ThrowIfNull(executionContext);
         ArgumentNullException.ThrowIfNull(generationPolicy);
 
-        var (_, agent, loopGuard) = await CreateAgentAsync(
-            enabledTools,
+        var toolNames = enabledTools.ToArray();
+        var systemPrompt = BuildSystemPrompt(_timeProvider.GetLocalNow());
+        var (provider, agent, loopGuard) = await CreateAgentAsync(
+            toolNames,
             executionContext,
             allowSkills,
             generationPolicy,
+            systemPrompt,
             cancellationToken).ConfigureAwait(false);
+        WriteLlmRequestTrace(
+            "agent.streaming",
+            provider.ProviderName,
+            systemPrompt,
+            prompt,
+            generationPolicy,
+            toolNames);
+        var response = _debugTrace.IsEnabled ? new StringBuilder() : null;
         await foreach (var update in agent.RunStreamingAsync(
                            prompt,
                            cancellationToken: cancellationToken).ConfigureAwait(false))
         {
             if (!string.IsNullOrEmpty(update.Text))
             {
+                response?.Append(update.Text);
                 yield return update.Text;
             }
+        }
+
+        if (response is not null)
+        {
+            WriteLlmResponseTrace(
+                "agent.streaming",
+                provider.ProviderName,
+                response.ToString());
         }
 
         loopGuard.ThrowIfRepeatedCallDetected();
@@ -277,8 +319,10 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
         ToolExecutionContext executionContext,
         bool allowSkills,
         EffectiveGenerationPolicy generationPolicy,
+        string systemPrompt,
         CancellationToken cancellationToken)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(systemPrompt);
         try
         {
             var provider = _clientFactory.Create();
@@ -288,7 +332,6 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
                 tools = [.. tools, .. CreateSkillTools(generationPolicy)];
             }
 
-            var instructions = BuildSystemPrompt(_timeProvider.GetLocalNow());
             var policyClient = new GenerationPolicyChatClient(
                 provider.ChatClient,
                 generationPolicy,
@@ -302,7 +345,7 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
                 FunctionInvoker = loopGuard.InvokeAsync,
             };
             var agent = functionClient.AsAIAgent(
-                instructions: instructions,
+                instructions: systemPrompt,
                 name: AgentName,
                 tools: tools);
             return (provider, agent, loopGuard);
@@ -355,6 +398,51 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
         Never claim an action succeeded unless its tool result confirms success.
         End every execution with a concise report of actions, results, and any failures.
         """;
+
+    private void WriteLlmRequestTrace(
+        string operation,
+        string provider,
+        string systemPrompt,
+        string userPrompt,
+        EffectiveGenerationPolicy generationPolicy,
+        IReadOnlyCollection<string> tools)
+    {
+        if (!_debugTrace.IsEnabled)
+        {
+            return;
+        }
+
+        _debugTrace.Write(
+            "llm.request",
+            operation,
+            new
+            {
+                provider,
+                generation = new
+                {
+                    generationPolicy.Temperature,
+                    generationPolicy.TopP,
+                    generationPolicy.ContextWindowTokens,
+                },
+                tools,
+                systemPrompt,
+                userPrompt,
+            });
+    }
+
+    private void WriteLlmResponseTrace(
+        string operation,
+        string provider,
+        string responseText)
+    {
+        if (_debugTrace.IsEnabled)
+        {
+            _debugTrace.Write(
+                "llm.response",
+                operation,
+                new { provider, responseText });
+        }
+    }
 
     private sealed class BoundSkill
     {

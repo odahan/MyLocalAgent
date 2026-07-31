@@ -1,7 +1,9 @@
 using System.CommandLine;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using OD.MyLocalAgent.Core;
+using OD.MyLocalAgent.Ollama;
 using OD.MyLocalAgent.Workflows;
 using Serilog;
 
@@ -53,6 +55,12 @@ internal static class RunnerApplication
             builder.AddODServices(
                 static loggerConfiguration =>
                     loggerConfiguration.WriteTo.Console());
+            if (IsInteractiveDebugEnabled())
+            {
+                builder.Services.Replace(
+                    ServiceDescriptor.Singleton<IExecutionDebugTrace>(
+                        new RunnerExecutionDebugTrace(output)));
+            }
             builder.Services.AddWorkflowServices();
             host = builder.Build();
 
@@ -136,4 +144,10 @@ internal static class RunnerApplication
                 CancellationToken.None).ConfigureAwait(false);
         }
     }
+
+    private static bool IsInteractiveDebugEnabled() =>
+        string.Equals(
+            Environment.GetEnvironmentVariable("ODMLA_RUNNER_DEBUG"),
+            "1",
+            StringComparison.Ordinal);
 }

@@ -23,6 +23,7 @@ public sealed class ContentTrustService : IContentTrustService
     private readonly IOptionsMonitor<OllamaOptions> _ollamaOptions;
     private readonly IOptionsMonitor<OpenAIOptions> _openAIOptions;
     private readonly TimeProvider _timeProvider;
+    private readonly IExecutionDebugTrace _debugTrace;
     private readonly ConcurrentDictionary<string, VerdictCacheEntry> _verdictCache = [];
     private readonly ConcurrentDictionary<string, SummaryCacheEntry> _summaryCache = [];
 
@@ -35,13 +36,15 @@ public sealed class ContentTrustService : IContentTrustService
     /// <param name="ollamaOptions">The reloadable Ollama settings.</param>
     /// <param name="openAIOptions">The reloadable OpenAI-compatible settings.</param>
     /// <param name="timeProvider">The time source for latency, timeout, and cache expiry.</param>
+    /// <param name="debugTrace">The optional ephemeral interactive diagnostic trace.</param>
     public ContentTrustService(
         ILlmClientFactory clientFactory,
         IOptionsMonitor<GuardrailsOptions> guardrailsOptions,
         IOptionsMonitor<AIOptions> aiOptions,
         IOptionsMonitor<OllamaOptions> ollamaOptions,
         IOptionsMonitor<OpenAIOptions> openAIOptions,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IExecutionDebugTrace? debugTrace = null)
     {
         ArgumentNullException.ThrowIfNull(clientFactory);
         ArgumentNullException.ThrowIfNull(guardrailsOptions);
@@ -55,6 +58,7 @@ public sealed class ContentTrustService : IContentTrustService
         _ollamaOptions = ollamaOptions;
         _openAIOptions = openAIOptions;
         _timeProvider = timeProvider;
+        _debugTrace = debugTrace ?? new NullExecutionDebugTrace();
     }
 
     /// <inheritdoc />
@@ -385,6 +389,12 @@ public sealed class ContentTrustService : IContentTrustService
                 provider.ChatClient,
                 generationPolicy,
                 provider.ProviderName);
+            WriteLlmRequestTrace(
+                provider.ProviderName,
+                systemPrompt,
+                userPrompt,
+                generationPolicy,
+                options.TimeoutSeconds);
             var response = await policyClient.GetResponseAsync(
                     [
                         new ChatMessage(ChatRole.System, systemPrompt),
@@ -401,6 +411,7 @@ public sealed class ContentTrustService : IContentTrustService
                 EnsureSnapshot(snapshot);
             }
 
+            WriteLlmResponseTrace(provider.ProviderName, response.Text);
             return new ProviderCallResult(
                 response.Text,
                 GetElapsedMilliseconds(started));
@@ -462,6 +473,45 @@ public sealed class ContentTrustService : IContentTrustService
     {
         var provider = _aiOptions.CurrentValue.Provider;
         return string.IsNullOrWhiteSpace(provider) ? "Unknown" : provider;
+    }
+
+    private void WriteLlmRequestTrace(
+        string provider,
+        string systemPrompt,
+        string userPrompt,
+        EffectiveGenerationPolicy generationPolicy,
+        int timeoutSeconds)
+    {
+        if (_debugTrace.IsEnabled)
+        {
+            _debugTrace.Write(
+                "llm.request",
+                "guardrails",
+                new
+                {
+                    provider,
+                    timeoutSeconds,
+                    generation = new
+                    {
+                        generationPolicy.Temperature,
+                        generationPolicy.TopP,
+                        generationPolicy.ContextWindowTokens,
+                    },
+                    systemPrompt,
+                    userPrompt,
+                });
+        }
+    }
+
+    private void WriteLlmResponseTrace(string provider, string responseText)
+    {
+        if (_debugTrace.IsEnabled)
+        {
+            _debugTrace.Write(
+                "llm.response",
+                "guardrails",
+                new { provider, responseText });
+        }
     }
 
     private bool TryGetVerdictCache(string key, out VerdictCacheEntry entry)

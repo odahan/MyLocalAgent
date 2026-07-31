@@ -55,6 +55,7 @@ public static class HostApplicationBuilderExtensions
         ConfigureLogging(builder, configureAdditionalSinks);
 
         builder.Services.TryAddSingleton(TimeProvider.System);
+        builder.Services.TryAddSingleton<IExecutionDebugTrace, NullExecutionDebugTrace>();
         builder.Services.AddSingleton<ISecretStore>(secretStore);
         builder.Services.AddLlmProviders(builder.Configuration);
         builder.Services.AddGuardrails(builder.Configuration);

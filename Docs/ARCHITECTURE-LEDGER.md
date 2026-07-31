@@ -1582,3 +1582,35 @@ Modified:
   standard per-user installation. The published Runner `--help` smoke check exited with code 0.
 - The real Gmail task supplied as data was neither created nor executed. Live AI Helper theme,
   WebView2, and real-workflow execution remain explicit human checks.
+
+#### Post-release UI correction — 2026-07-31
+
+- The Tasks Runner output `TextBox` now explicitly binds `DisplayedRunText` with `Mode=OneWay`.
+  The property is intentionally computed and read-only; the prior default TwoWay binding caused
+  a dispatcher incident when the Tasks page loaded. The correction does not execute, modify, or
+  expose any task data.
+
+#### Runner diagnosis and Gmail progress — 2026-07-31
+
+- The observed daily Gmail workflow was not in an agent loop: its initial unbounded
+  `gmail.readToday` retrieval returned 40 messages, and Guardrails began 27 sequential local
+  LLM screening calls before the user cancelled. The workflow context remained empty because
+  the Gmail step had not yet completed successfully.
+- Tasks adds session-only **Debug (next run)** and **Large** controls. Debug routes full LLM
+  request/response payloads through a private child-Runner-to-UI channel alongside the normal
+  sanitized tool-argument traces; it disables automatic scrolling and never persists those
+  payloads in normal logs or reports. Large raises the diagnostic panel and non-maximized main
+  window.
+- Gmail emits privacy-safe `message N of M` Guardrails progress. No hidden read limit was added:
+  selecting `maxMessages` or a non-zero Guardrails cap remains an explicit user choice because
+  it can omit messages from the report.
+- Release verification after this correction: `dotnet build OD.MyLocalAgent.sln --no-restore
+  --configuration Release -m:1` completed with zero warnings and errors; `dotnet test
+  OD.MyLocalAgent.sln --no-build --no-restore --configuration Release -m:1` completed with
+  260 passed, zero failed, and one intentionally skipped local Ollama integration test.
+
+#### Release 1.2.4 — 2026-08-01
+
+- Packages the post-release Tasks binding correction, interactive Runner Debug and Large
+  controls, private diagnostic protocol, and Gmail Guardrails progress as version 1.2.4.
+- The real Gmail task remains unchanged and was not used as a release verification fixture.

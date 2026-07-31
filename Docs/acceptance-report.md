@@ -217,3 +217,22 @@ Date: 2026-07-31
 - ⏳ Run the real daily Gmail workflow manually with a small explicit `maxMessages`, inspect the
   retained workflow context, and confirm the report content. This implementation pass did not
   execute or create that user task.
+
+## Post-release Tasks diagnostics correction
+
+Release: 1.2.4 (2026-08-01)
+
+| Checklist item | Status | Executed evidence |
+|---|---:|---|
+| Tasks page loads without a read-only binding incident. | ✅ | `DisplayedRunText` explicitly uses a OneWay binding. |
+| An operator can distinguish sequential Gmail screening from a loop. | ✅ | The observed run retrieved 40 messages, then issued 27 sequential Guardrails LLM calls before cancellation. Gmail now emits `message N of M` progress. |
+| Interactive detailed diagnostics are available without normal-log persistence. | ✅ | Debug protocol tests cover round-trip and malformed-line rejection. The opt-in child Runner trace includes LLM request/response messages and existing sanitized tool arguments, while Debug mode disables auto-scroll. |
+| Long diagnostic output is readable. | ✅ | Large mode expands the Runner panel and non-maximized window. |
+| Release verification is clean. | ✅ | Release build completed with zero warnings/errors; 260 tests passed, none failed, and one local Ollama integration test was intentionally skipped. |
+
+### Remaining operational choice
+
+The real task intentionally has no Gmail cap and `MaxGmailMessagesPerOperation` is configured
+as zero. That preserves complete daily coverage but makes local LLM Guardrails processing
+linear in the number of retrieved messages. Applying a `maxMessages` cap would trade coverage
+for runtime and requires explicit user direction; it was not silently changed.

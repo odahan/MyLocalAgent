@@ -149,3 +149,12 @@ remote resources.
 The published WPF UI was not launched during this pass. Pixel-level confirmation of AI Helper
 and AI Explain in both palettes, WebView2 rendering, focus states, keyboard traversal, and the
 minimum-size layout remains a human visual check rather than claimed evidence.
+
+## Post-release Tasks diagnostic controls
+
+The Tasks Runner header adds two themed standard checkboxes: Debug (next run) and Large. They
+reuse the existing Material checkbox, caption, focus, disabled, foreground, and background
+resources. Large adjusts the current non-maximized window height without introducing a new
+window surface. The WPF application was not launched for pixel-level verification; Dark/Light,
+keyboard focus, narrow layout, maximized-window, and long diagnostic payload behavior remain
+human visual checks.

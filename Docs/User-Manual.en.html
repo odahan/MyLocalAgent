@@ -2260,6 +2260,24 @@ ollama list</code></pre>
                     arguments and returned message, event, or result counts, plus Dropbox
                     names and sizes, without displaying configured secrets.
                 </p>
+                <h3>Runner Debug and large display</h3>
+                <p>
+                    Select <span class="ui-label">Debug (next run)</span> before
+                    <span class="ui-label">Run now</span> to display that execution’s LLM
+                    requests and responses, along with the tool calls and arguments already
+                    present in the traces. Automatic scrolling is suspended so the output stays
+                    readable. This content is ephemeral and is not added to reports or normal
+                    logs; it can nevertheless include task data, including email content. Keys
+                    and tokens are excluded. Select <span class="ui-label">Large</span> to make
+                    the panel and, when not maximized, the application window much taller.
+                </p>
+                <p>
+                    A Gmail read also reports Guardrails progress as <code>message N of M</code>.
+                    With a zero Gmail limit and no <code>maxMessages</code>, every retrieved
+                    message is screened sequentially by the local model. This can take several
+                    minutes without being an agent loop. Setting a limit is explicit: messages
+                    beyond it are reported as unprocessed.
+                </p>
                 <h3>Logs page</h3>
                 <ul class="check-list">
                     <li>The view is read-only and follows new entries automatically.</li>

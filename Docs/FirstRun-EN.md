@@ -226,3 +226,8 @@ For the first trial, use **Run now**. The output automatically follows new lines
 For a workflow, **Show workflow context** displays the outputs accumulated after
 each successful step and remains available until the next task starts. This
 context can contain data processed by the task.
+
+For one-off diagnosis, select **Debug (next run)** before starting: that run’s
+LLM requests/responses and tool arguments are visible only in Runner Output. The
+content can include task data and must not be shared; configured secrets remain
+excluded. **Large** expands the panel and window for easier reading.

@@ -33,6 +33,7 @@ public sealed class RunnerService : IRunnerService
         string taskId,
         Action<string>? outputLine,
         Action<string>? contextUpdated,
+        bool debugEnabled,
         CancellationToken cancellationToken)
     {
         ValidateId(taskId);
@@ -48,6 +49,7 @@ public sealed class RunnerService : IRunnerService
         startInfo.ArgumentList.Add("run");
         startInfo.ArgumentList.Add("--task");
         startInfo.ArgumentList.Add(taskId);
+        startInfo.Environment["ODMLA_RUNNER_DEBUG"] = debugEnabled ? "1" : "0";
 
         using var process = new Process { StartInfo = startInfo };
         if (!process.Start())
@@ -81,11 +83,13 @@ public sealed class RunnerService : IRunnerService
             process.StandardOutput,
             outputLine,
             contextUpdated,
+            debugEnabled,
             cancellationToken);
         var stderrTask = PumpAsync(
             process.StandardError,
             outputLine,
             contextUpdated,
+            debugEnabled,
             cancellationToken);
         await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
         await Task.WhenAll(stdoutTask, stderrTask).ConfigureAwait(false);
@@ -100,6 +104,7 @@ public sealed class RunnerService : IRunnerService
         StreamReader reader,
         Action<string>? outputLine,
         Action<string>? contextUpdated,
+        bool debugEnabled,
         CancellationToken cancellationToken)
     {
         while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
@@ -107,6 +112,12 @@ public sealed class RunnerService : IRunnerService
             if (RunnerContextProtocol.TryDecode(line, out var contextJson))
             {
                 contextUpdated?.Invoke(contextJson);
+            }
+            else if (debugEnabled &&
+                     RunnerDebugProtocol.TryDecode(line, out var diagnosticJson))
+            {
+                outputLine?.Invoke(
+                    $"[DEBUG]{Environment.NewLine}{diagnosticJson}");
             }
             else
             {

@@ -62,6 +62,12 @@ public sealed partial class TasksViewModel :
     private bool _isShowingRunContext;
 
     [ObservableProperty]
+    private bool _isDebugMode;
+
+    [ObservableProperty]
+    private bool _isLargeRunnerOutput;
+
+    [ObservableProperty]
     private string _statusText = "Task data has not been loaded.";
 
     /// <summary>
@@ -109,6 +115,11 @@ public sealed partial class TasksViewModel :
     public string RunContextButtonText => IsShowingRunContext
         ? "Show runner output"
         : "Show workflow context";
+
+    /// <summary>
+    /// Gets the current Runner diagnostic panel height.
+    /// </summary>
+    public double RunnerOutputHeight => IsLargeRunnerOutput ? 540 : 190;
 
     /// <inheritdoc />
     public void Activate()
@@ -385,6 +396,7 @@ public sealed partial class TasksViewModel :
                     item.Id,
                     AppendRunnerOutput,
                     UpdateRunContext,
+                    IsDebugMode,
                     cancellationToken)
                 .ConfigureAwait(true);
             AppendRunnerOutput($"Runner exited with code {exitCode}.");
@@ -450,6 +462,9 @@ public sealed partial class TasksViewModel :
         OnPropertyChanged(nameof(RunnerDisplayTitle));
         OnPropertyChanged(nameof(RunContextButtonText));
     }
+
+    partial void OnIsLargeRunnerOutputChanged(bool value) =>
+        OnPropertyChanged(nameof(RunnerOutputHeight));
 
     private void AppendRunnerOutput(string line)
     {

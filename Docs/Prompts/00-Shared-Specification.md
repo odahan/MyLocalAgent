@@ -1478,3 +1478,29 @@ termination, readable sanitized Gmail arguments and counts, Gmail and Calendar a
 mapping, workflow-context callbacks and protocol round-trip, and Light/Dark restricted HTML.
 The final gate remains a warning-clean Release build and deterministic test run with `-m:1`,
 plus standalone manual HTML validation and `git diff --check`.
+
+### 18.6 Interactive Runner Debug and progress
+
+The Tasks page adds two session-only Runner Output controls. **Debug (next run)** requests an
+ephemeral detailed child-Runner channel for the next interactive Run now execution. It renders
+sanitized Tool Map arguments already emitted by normal tool traces and the complete LLM request
+and response messages for `ai.prompt`, agent calls, and Guardrails calls. It can therefore
+contain task, Gmail, Calendar, or file data. It excludes credentials, tokens, and API keys and
+is transported through a Base64 one-line protocol to the UI only; it must not be added to the
+normal rolling logs or reports. Debug mode disables automatic scrolling so an operator can
+inspect a stable position.
+
+**Large** expands the Runner panel and, when the application is not maximized, raises the main
+window height for legible diagnostics. It is also session-only.
+
+Gmail progress logs after retrieval expose `message N of M` while Guardrails processes the
+bounded set. This distinguishes a finite sequential screening operation from an agent loop.
+With `MaxGmailMessagesPerOperation = 0` and no `maxMessages` argument, every retrieved message
+is screened serially; on a local model this can take several minutes. Choosing a non-zero
+per-task `maxMessages` or Guardrails processing limit is an explicit operator trade-off and is
+never silently imposed by the application.
+
+Release verification for this increment requires a zero-warning Release build, protocol
+round-trip/rejection coverage, the complete deterministic test suite, documentation review,
+and `git diff --check`. The real Gmail workflow remains user data and must not be created or
+executed as a verification fixture.

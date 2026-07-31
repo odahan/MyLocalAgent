@@ -2692,6 +2692,27 @@ ollama list</code></pre>
                     Dropbox, sans afficher les secrets configurés.
                 </p>
 
+                <h3>Debug et affichage large du Runner</h3>
+                <p>
+                    Cochez <span class="ui-label">Debug (next run)</span> avant
+                    <span class="ui-label">Run now</span> pour afficher les requêtes et réponses
+                    LLM de cette exécution, ainsi que les appels d’outils et leurs arguments
+                    déjà présents dans les traces. Le défilement automatique est alors suspendu
+                    pour permettre la lecture. Ce contenu est éphémère et n’est pas ajouté aux
+                    rapports ni aux logs ordinaires ; il peut néanmoins contenir les données de
+                    la tâche, y compris des contenus d’e-mails. Les clés et jetons sont exclus.
+                    Cochez <span class="ui-label">Large</span> pour agrandir fortement le panneau
+                    et la fenêtre lorsque celle-ci n’est pas maximisée.
+                </p>
+                <p>
+                    Une lecture Gmail affiche aussi sa progression Guardrails sous la forme
+                    <code>message N of M</code>. Avec une limite Gmail à zéro et sans
+                    <code>maxMessages</code>, chaque message remonté est contrôlé successivement
+                    par le modèle local : cela peut prendre plusieurs minutes sans constituer
+                    une boucle. Définir une limite est un choix explicite : les messages au-delà
+                    de cette limite sont signalés comme non traités.
+                </p>
+
                 <h3>Page Logs</h3>
                 <ul class="check-list">
                     <li>Le flux est en lecture seule et suit automatiquement les nouvelles entrées.</li>
