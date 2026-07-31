@@ -158,3 +158,7 @@ resources. Large adjusts the current non-maximized window height without introdu
 window surface. The WPF application was not launched for pixel-level verification; Dark/Light,
 keyboard focus, narrow layout, maximized-window, and long diagnostic payload behavior remain
 human visual checks.
+
+The Tasks page uses the existing themed vertical `ScrollViewer` treatment around its content.
+The task grid keeps a bounded height, while Large raises Runner Output to 620 pixels; the page
+can therefore scroll without introducing a new surface, palette color, or control template.

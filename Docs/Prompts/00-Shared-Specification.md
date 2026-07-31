@@ -522,6 +522,11 @@ is invalid. Context-window configuration is never valid in task or workflow JSON
   policy then applies).
 - `args` are bound to the target method's parameters with `System.Text.Json` (camelCase);
   a missing required arg fails the step with an error listing the expected parameter names.
+- User documentation must show both forms: for example, `"gmail.readToday"` calls the alias
+  without arguments, while `{ "step": "gmail.readRecent", "args": { "daysBack": 2,
+  "maxMessages": 15 } }` sends explicit Gmail arguments. It must also show a non-Gmail
+  parameterized call, such as `calendar.read` with `{ "period": "Week" }`, and explain the
+  no-argument `calendar.today` behavior.
 - Steps referencing a tool group absent from the task's `tools` whitelist fail validation.
 
 **Tool Map** — single source of truth (a static `ToolMap` definition in Core; consumed by
@@ -1491,7 +1496,9 @@ normal rolling logs or reports. Debug mode disables automatic scrolling so an op
 inspect a stable position.
 
 **Large** expands the Runner panel and, when the application is not maximized, raises the main
-window height for legible diagnostics. It is also session-only.
+window height for legible diagnostics. The Tasks page keeps a page-level vertical scroll viewer
+and a bounded task-grid height, so the task actions and Runner remain reachable on smaller
+displays. It is also session-only.
 
 Gmail progress logs after retrieval expose `message N of M` while Guardrails processes the
 bounded set. This distinguishes a finite sequential screening operation from an agent loop.

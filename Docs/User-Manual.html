@@ -2349,6 +2349,49 @@ ollama list</code></pre>
                     </div>
                 </details>
 
+                <h3>Passer des arguments dans un workflow</h3>
+                <p>
+                    Utilisez la forme objet d’une étape avec <code>step</code> et un objet
+                    <code>args</code>. Les noms des propriétés sont ceux de la référence
+                    détaillée, en camelCase, et les valeurs respectent la syntaxe JSON. Pour un
+                    alias sans argument, utilisez simplement sa forme texte
+                    <code>"&lt;alias&gt;"</code> : aucun objet <code>args</code> n’est transmis et
+                    le comportement par défaut de l’outil s’applique.
+                </p>
+                <h4>Exemple Gmail : période et limite explicites</h4>
+                <div class="code-block">
+                    <pre><code>[
+  {
+    "step": "gmail.readRecent",
+    "id": "recentMessages",
+    "args": { "daysBack": 2, "maxMessages": 15 }
+  }
+]</code></pre>
+                </div>
+                <p>
+                    Cette étape lit les messages reçus depuis le début du jour local situé deux
+                    jours avant aujourd’hui, avec au plus quinze messages demandés à Gmail. À
+                    l’inverse, <code>["gmail.readToday"]</code> n’envoie aucun
+                    paramètre et lit les messages reçus aujourd’hui, sans limite demandée ; une
+                    éventuelle limite Guardrails configurée reste signalée dans le résultat.
+                </p>
+                <h4>Exemple Calendar : sélectionner la semaine locale</h4>
+                <div class="code-block">
+                    <pre><code>[
+  {
+    "step": "calendar.read",
+    "id": "weekAgenda",
+    "args": { "period": "Week" }
+  }
+]</code></pre>
+                </div>
+                <p>
+                    La valeur <code>Week</code> demande les événements de la semaine locale en
+                    cours, du lundi au dimanche. Pour appeler Calendar sans paramètre, utilisez
+                    <code>["calendar.today"]</code> : l’outil retourne uniquement
+                    les événements du jour local courant.
+                </p>
+
                 <div class="callout">
                     <strong>Protection contre l’effet « disque rayé ».</strong>
                     Une étape <code>ai.prompt</code> ne peut jamais rappeler Gmail, Calendar,
@@ -2702,7 +2745,9 @@ ollama list</code></pre>
                     rapports ni aux logs ordinaires ; il peut néanmoins contenir les données de
                     la tâche, y compris des contenus d’e-mails. Les clés et jetons sont exclus.
                     Cochez <span class="ui-label">Large</span> pour agrandir fortement le panneau
-                    et la fenêtre lorsque celle-ci n’est pas maximisée.
+                    et la fenêtre lorsque celle-ci n’est pas maximisée. La page Tasks possède
+                    aussi son propre défilement vertical : les actions et la sortie restent donc
+                    accessibles même lorsque le panneau est très haut.
                 </p>
                 <p>
                     Une lecture Gmail affiche aussi sa progression Guardrails sous la forme

@@ -119,7 +119,7 @@ public sealed partial class TasksViewModel :
     /// <summary>
     /// Gets the current Runner diagnostic panel height.
     /// </summary>
-    public double RunnerOutputHeight => IsLargeRunnerOutput ? 540 : 190;
+    public double RunnerOutputHeight => IsLargeRunnerOutput ? 620 : 190;
 
     /// <inheritdoc />
     public void Activate()

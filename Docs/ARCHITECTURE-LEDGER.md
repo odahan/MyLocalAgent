@@ -1614,3 +1614,15 @@ Modified:
 - Packages the post-release Tasks binding correction, interactive Runner Debug and Large
   controls, private diagnostic protocol, and Gmail Guardrails progress as version 1.2.4.
 - The real Gmail task remains unchanged and was not used as a release verification fixture.
+
+#### Workflow argument documentation — 2026-08-01
+
+- The French and English user manuals now distinguish string-form no-argument steps from
+  object-form `args` steps. They include concrete Gmail `daysBack`/`maxMessages` and Calendar
+  `period` examples, and state the behavior of `gmail.readToday` and `calendar.today` when no
+  arguments are sent.
+
+#### Tasks large Runner scrolling — 2026-08-01
+
+- The Tasks page now has a global vertical scroll viewer with a bounded task-grid height. Large
+  Runner Output grows to 620 pixels while the actions and output remain reachable by scrolling.
