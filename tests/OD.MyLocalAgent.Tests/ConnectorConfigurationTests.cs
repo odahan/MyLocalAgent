@@ -19,7 +19,7 @@ public sealed class ConnectorConfigurationTests
     {
         var provider = new GoogleCredentialProvider(
             Options.Create(new GoogleOptions()),
-            CreateHttpClientFactory());
+            CreateHttpMessageHandlerFactory());
 
         var action = () => provider.GetCredentialSilentAsync(CancellationToken.None);
 
@@ -88,6 +88,12 @@ public sealed class ConnectorConfigurationTests
     private static IHttpClientFactory CreateHttpClientFactory()
     {
         return new StubHttpClientFactory(new StubHttpMessageHandler(
+            (_, _) => throw new InvalidOperationException("No HTTP call is expected.")));
+    }
+
+    private static IHttpMessageHandlerFactory CreateHttpMessageHandlerFactory()
+    {
+        return new StubHttpMessageHandlerFactory(new StubHttpMessageHandler(
             (_, _) => throw new InvalidOperationException("No HTTP call is expected.")));
     }
 }

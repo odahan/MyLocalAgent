@@ -19,23 +19,30 @@ public sealed class CalendarConnector : ICalendarConnector
     /// Initializes a new instance of the <see cref="CalendarConnector"/> class.
     /// </summary>
     /// <param name="credentialProvider">The silent Google credential provider.</param>
-    /// <param name="httpClientFactory">The managed HTTP client factory.</param>
+    /// <param name="httpMessageHandlerFactory">The managed HTTP handler factory.</param>
     /// <param name="timeProvider">The time source used to identify today's events.</param>
     public CalendarConnector(
         IGoogleCredentialProvider credentialProvider,
-        IHttpClientFactory httpClientFactory,
+        IHttpMessageHandlerFactory httpMessageHandlerFactory,
         TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(credentialProvider);
-        ArgumentNullException.ThrowIfNull(httpClientFactory);
+        ArgumentNullException.ThrowIfNull(httpMessageHandlerFactory);
         ArgumentNullException.ThrowIfNull(timeProvider);
         _credentialProvider = credentialProvider;
-        _googleHttpClientFactory = new GoogleHttpClientFactoryAdapter(httpClientFactory);
+        _googleHttpClientFactory =
+            new GoogleHttpClientFactoryAdapter(httpMessageHandlerFactory);
         _timeProvider = timeProvider;
     }
 
     /// <inheritdoc />
     public Task<IReadOnlyList<CalendarEventDto>> GetTodaysEventsAsync(
+        CancellationToken cancellationToken) =>
+        GetEventsAsync(CalendarPeriod.Day, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<CalendarEventDto>> GetEventsAsync(
+        CalendarPeriod period,
         CancellationToken cancellationToken)
     {
         return ExecuteApiOperationAsync(
@@ -43,18 +50,14 @@ public sealed class CalendarConnector : ICalendarConnector
             async () =>
             {
                 using var service = await CreateServiceAsync(cancellationToken).ConfigureAwait(false);
-                var now = _timeProvider.GetLocalNow();
-                var start = new DateTimeOffset(
-                    now.Year,
-                    now.Month,
-                    now.Day,
-                    0,
-                    0,
-                    0,
-                    now.Offset);
+                var today = DateOnly.FromDateTime(
+                    _timeProvider.GetLocalNow().DateTime);
+                var (startDate, endDate) = GetPeriodBounds(today, period);
+                var start = GetStartOfLocalDay(startDate);
+                var end = GetStartOfLocalDay(endDate);
                 var request = service.Events.List(PrimaryCalendar);
                 request.TimeMinDateTimeOffset = start;
-                request.TimeMaxDateTimeOffset = start.AddDays(1);
+                request.TimeMaxDateTimeOffset = end;
                 request.SingleEvents = true;
                 request.OrderBy = EventsResource.ListRequest.OrderByEnum.StartTime;
                 var events = await request.ExecuteAsync(cancellationToken).ConfigureAwait(false);
@@ -63,6 +66,44 @@ public sealed class CalendarConnector : ICalendarConnector
                     .ToArray();
             },
             cancellationToken);
+    }
+
+    private static (DateOnly Start, DateOnly End) GetPeriodBounds(
+        DateOnly today,
+        CalendarPeriod period)
+    {
+        return period switch
+        {
+            CalendarPeriod.Day => (today, today.AddDays(1)),
+            CalendarPeriod.Week => GetWeekBounds(today),
+            CalendarPeriod.Month =>
+                (today.AddDays(1 - today.Day),
+                 today.AddDays(1 - today.Day).AddMonths(1)),
+            CalendarPeriod.Year =>
+                (today.AddDays(1 - today.DayOfYear),
+                 today.AddDays(1 - today.DayOfYear).AddYears(1)),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(period),
+                period,
+                "Unsupported calendar period."),
+        };
+    }
+
+    private static (DateOnly Start, DateOnly End) GetWeekBounds(DateOnly today)
+    {
+        var daysSinceMonday = ((int)today.DayOfWeek + 6) % 7;
+        var start = today.AddDays(-daysSinceMonday);
+        return (start, start.AddDays(7));
+    }
+
+    private DateTimeOffset GetStartOfLocalDay(DateOnly date)
+    {
+        var localDateTime = date.ToDateTime(
+            TimeOnly.MinValue,
+            DateTimeKind.Unspecified);
+        return new DateTimeOffset(
+            localDateTime,
+            _timeProvider.LocalTimeZone.GetUtcOffset(localDateTime));
     }
 
     /// <inheritdoc />

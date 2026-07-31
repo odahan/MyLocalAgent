@@ -1465,6 +1465,10 @@ ollama list</code></pre>
                         <p>Dans l’installation standard, l’application trouve automatiquement le runner voisin.</p>
                     </li>
                     <li>
+                        <strong>Repérez les utilitaires de dossiers et de raccourci.</strong>
+                        <p>Les icônes de copie placent séparément les dossiers des rapports et de l’exécutable dans le presse-papiers. <span class="ui-label">Create desktop shortcut</span> crée ou actualise le raccourci de l’interface sur le Bureau Windows.</p>
+                    </li>
+                    <li>
                         <strong>Enregistrez avec <span class="ui-label">Save settings</span>.</strong>
                         <p>Attendez le message confirmant la sauvegarde et le rechargement.</p>
                     </li>
@@ -1602,7 +1606,7 @@ ollama list</code></pre>
                 <ol class="steps start-8" start="8">
                     <li>
                         <strong>Laissez la tâche activée et enregistrez.</strong>
-                        <p>Cliquez sur <span class="ui-label">Save task</span>. La syntaxe, les alias, les arguments et la liste blanche sont validés.</p>
+                        <p>Cliquez sur <span class="ui-label">Save task</span>. La syntaxe, les alias, les arguments et la liste blanche sont validés. Si la définition est incomplète ou invalide, une boîte de dialogue l’explique et aucune modification n’est enregistrée. <span class="ui-label">Back</span> demande confirmation avant d’abandonner un brouillon modifié.</p>
                     </li>
                     <li>
                         <strong>Exécutez-la immédiatement.</strong>
@@ -2103,7 +2107,8 @@ ollama list</code></pre>
                     Text est le mode de repli fiable. Rendered Markdown réutilise la même
                     réponse dans un document WebView2 restreint ; si le runtime manque, Text
                     reste disponible et seul un lien explicite vers la page Microsoft
-                    officielle est proposé.
+                    officielle est proposé. Toute la fenêtre, y compris le rendu Markdown,
+                    suit le thème clair ou sombre actuellement sélectionné.
                     L’explication et ses réparations utilisent également la politique interne
                     fixe Temperature 0 / Top P 1. L’explication décrit néanmoins les overrides
                     configurés et leur provenance effective.
@@ -2266,12 +2271,12 @@ ollama list</code></pre>
                         <tbody>
                             <tr>
                                 <td>Gmail</td>
-                                <td><code>gmail.readToday</code>, <code>gmail.readUnread</code>, <code>gmail.send</code></td>
+                                <td><code>gmail.readToday</code>, <code>gmail.readUnread</code>, <code>gmail.readRecent</code>, <code>gmail.send</code></td>
                                 <td><code>gmail.send</code> exige AllowSendEmail.</td>
                             </tr>
                             <tr>
                                 <td>Calendar</td>
-                                <td><code>calendar.today</code>, <code>calendar.create</code></td>
+                                <td><code>calendar.today</code>, <code>calendar.read</code>, <code>calendar.create</code></td>
                                 <td>Dates de création en ISO 8601.</td>
                             </tr>
                             <tr>
@@ -2312,10 +2317,12 @@ ollama list</code></pre>
                                     <tr><th>Alias</th><th>Arguments JSON</th><th>Remarque</th></tr>
                                 </thead>
                                 <tbody>
-                                    <tr><td><code>gmail.readToday</code></td><td>Aucun</td><td>Messages reçus aujourd’hui.</td></tr>
-                                    <tr><td><code>gmail.readUnread</code></td><td>Aucun</td><td>Messages non lus.</td></tr>
+                                    <tr><td><code>gmail.readToday</code></td><td><code>maxMessages</code> facultatif</td><td>Messages reçus aujourd’hui, avec limite positive facultative.</td></tr>
+                                    <tr><td><code>gmail.readUnread</code></td><td><code>maxMessages</code> facultatif</td><td>Messages non lus, avec limite positive facultative.</td></tr>
+                                    <tr><td><code>gmail.readRecent</code></td><td><code>daysBack</code>, <code>maxMessages</code> facultatif</td><td>Messages reçus depuis le début du jour local moins <code>daysBack</code> jours.</td></tr>
                                     <tr><td><code>gmail.send</code></td><td><code>to</code>, <code>subject</code>, <code>body</code></td><td>Exige AllowSendEmail.</td></tr>
                                     <tr><td><code>calendar.today</code></td><td>Aucun</td><td>Événements du jour.</td></tr>
+                                    <tr><td><code>calendar.read</code></td><td><code>period</code></td><td>Événements de la période locale <code>Day</code>, <code>Week</code>, <code>Month</code> ou <code>Year</code>.</td></tr>
                                     <tr><td><code>calendar.create</code></td><td><code>summary</code>, <code>start</code>, <code>end</code>, <code>description</code></td><td>Dates ISO 8601 explicites.</td></tr>
                                     <tr><td><code>dropbox.upload</code></td><td><code>localPath</code>, <code>dropboxPath</code></td><td>Le chemin local exige un accès en lecture.</td></tr>
                                     <tr><td><code>dropbox.download</code></td><td><code>dropboxPath</code>, <code>localPath</code></td><td>Écrit sous la racine autorisée.</td></tr>
@@ -2335,12 +2342,21 @@ ollama list</code></pre>
                                     <tr><td><code>ai.summarize</code></td><td><code>text</code> facultatif</td><td>Sans text, reçoit la sortie précédente.</td></tr>
                                     <tr><td><code>ai.extractActionItems</code></td><td><code>text</code> facultatif</td><td>Checklist Markdown des actions explicites avec responsable, échéance et source. Une information absente vaut <code>Not stated</code> et n’est jamais inventée.</td></tr>
                                     <tr><td><code>ai.classifyEmail</code></td><td><code>text</code> facultatif</td><td>Classe chaque message identifiable en <code>Urgent</code>, <code>ReplySoon</code>, <code>Waiting</code> ou <code>FYI</code>, puis retourne un tableau Markdown.</td></tr>
-                                    <tr><td><code>ai.prompt</code></td><td><code>prompt</code>, booléen <code>includeContext</code> facultatif</td><td>Prompt libre pouvant contenir des placeholders. L’ajout du contexte est volontaire car il peut être volumineux.</td></tr>
+                                    <tr><td><code>ai.prompt</code></td><td><code>prompt</code>, booléen <code>includeContext</code> facultatif</td><td>Appel direct au modèle, sans outils ni skills. Les placeholders et le contexte facultatif restent disponibles.</td></tr>
                                 </tbody>
                             </table>
                         </div>
                     </div>
                 </details>
+
+                <div class="callout">
+                    <strong>Protection contre l’effet « disque rayé ».</strong>
+                    Une étape <code>ai.prompt</code> ne peut jamais rappeler Gmail, Calendar,
+                    Dropbox, Web Search ou Filesystem. Pour les tâches agentiques qui disposent
+                    réellement d’outils, l’exécution s’arrête après huit tours, deux erreurs
+                    d’outil consécutives, ou dès la troisième demande strictement identique du
+                    même outil avec les mêmes arguments.
+                </div>
 
                 <h3>Renommer un fichier et changer son extension</h3>
                 <p>
@@ -2657,13 +2673,24 @@ ollama list</code></pre>
                     </article>
                     <article class="card">
                         <h3>Runner output</h3>
-                        <p class="muted">Montre en direct la sortie d’un <span class="ui-label">Run now</span> et permet son annulation.</p>
+                        <p class="muted">Montre en direct la sortie d’un <span class="ui-label">Run now</span>, suit automatiquement les nouvelles lignes et permet son annulation.</p>
                     </article>
                     <article class="card">
                         <h3>Reports</h3>
                         <p class="muted">Conserve un fichier Markdown par exécution et un index JSONL commun.</p>
                     </article>
                 </div>
+
+                <p>
+                    Pendant ou après un workflow lancé avec <span class="ui-label">Run now</span>,
+                    <span class="ui-label">Show workflow context</span> affiche le JSON accumulé
+                    après chaque étape réussie. Il reste consultable jusqu’au lancement de la
+                    tâche suivante. Utilisez-le comme donnée de diagnostic : il peut contenir
+                    des e-mails, événements, chemins ou autres contenus traités par la tâche.
+                    Les traces d’outils montrent des arguments JSON lisibles et indiquent les
+                    nombres de messages, événements ou résultats, ainsi que les noms et tailles
+                    Dropbox, sans afficher les secrets configurés.
+                </p>
 
                 <h3>Page Logs</h3>
                 <ul class="check-list">

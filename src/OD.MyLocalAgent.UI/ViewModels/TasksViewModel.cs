@@ -56,6 +56,12 @@ public sealed partial class TasksViewModel :
     private string _runnerOutput = "Select an enabled task and choose Run now.";
 
     [ObservableProperty]
+    private string _runContext = "No workflow context has been captured yet.";
+
+    [ObservableProperty]
+    private bool _isShowingRunContext;
+
+    [ObservableProperty]
     private string _statusText = "Task data has not been loaded.";
 
     /// <summary>
@@ -84,6 +90,25 @@ public sealed partial class TasksViewModel :
     /// Gets the task rows displayed by the management grid.
     /// </summary>
     public ObservableCollection<TaskListItem> Tasks { get; } = [];
+
+    /// <summary>
+    /// Gets the currently selected Runner diagnostic text.
+    /// </summary>
+    public string DisplayedRunText => IsShowingRunContext ? RunContext : RunnerOutput;
+
+    /// <summary>
+    /// Gets the current Runner diagnostic panel title.
+    /// </summary>
+    public string RunnerDisplayTitle => IsShowingRunContext
+        ? "Workflow context"
+        : "Runner output";
+
+    /// <summary>
+    /// Gets the context toggle button label.
+    /// </summary>
+    public string RunContextButtonText => IsShowingRunContext
+        ? "Show runner output"
+        : "Show workflow context";
 
     /// <inheritdoc />
     public void Activate()
@@ -350,11 +375,16 @@ public sealed partial class TasksViewModel :
             RunnerOutput =
                 $"Starting runner for '{item.Name}'…{Environment.NewLine}" +
                 $"Executable: {runnerPath}{Environment.NewLine}{Environment.NewLine}";
+            RunContext =
+                $"Task: {item.Name} ({item.Id}){Environment.NewLine}" +
+                "Waiting for the first successful workflow step…";
+            IsShowingRunContext = false;
             StatusText = $"Running '{item.Name}' in the child runner.";
             var exitCode = await _runnerService
                 .RunTaskAsync(
                     item.Id,
                     AppendRunnerOutput,
+                    UpdateRunContext,
                     cancellationToken)
                 .ConfigureAwait(true);
             AppendRunnerOutput($"Runner exited with code {exitCode}.");
@@ -394,6 +424,33 @@ public sealed partial class TasksViewModel :
     private bool CanRunNow() =>
         SelectedTask is { IsEnabled: true } && !IsRunning;
 
+    [RelayCommand]
+    private void ToggleRunContext() =>
+        IsShowingRunContext = !IsShowingRunContext;
+
+    partial void OnRunnerOutputChanged(string value)
+    {
+        if (!IsShowingRunContext)
+        {
+            OnPropertyChanged(nameof(DisplayedRunText));
+        }
+    }
+
+    partial void OnRunContextChanged(string value)
+    {
+        if (IsShowingRunContext)
+        {
+            OnPropertyChanged(nameof(DisplayedRunText));
+        }
+    }
+
+    partial void OnIsShowingRunContextChanged(bool value)
+    {
+        OnPropertyChanged(nameof(DisplayedRunText));
+        OnPropertyChanged(nameof(RunnerDisplayTitle));
+        OnPropertyChanged(nameof(RunContextButtonText));
+    }
+
     private void AppendRunnerOutput(string line)
     {
         var dispatcher = Application.Current?.Dispatcher;
@@ -405,6 +462,18 @@ public sealed partial class TasksViewModel :
 
         _ = dispatcher.BeginInvoke(
             () => RunnerOutput += line + Environment.NewLine);
+    }
+
+    private void UpdateRunContext(string contextJson)
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess())
+        {
+            RunContext = contextJson;
+            return;
+        }
+
+        _ = dispatcher.BeginInvoke(() => RunContext = contextJson);
     }
 
     private async Task SynchronizeRegistrationAsync(

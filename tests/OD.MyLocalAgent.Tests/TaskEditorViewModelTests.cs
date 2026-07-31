@@ -185,6 +185,74 @@ public sealed class TaskEditorViewModelTests
     }
 
     /// <summary>
+    /// Verifies an invalid task definition explains that Save did not persist anything.
+    /// </summary>
+    [Fact]
+    public async Task InvalidTaskSaveShowsErrorAndKeepsDraft()
+    {
+        var desktop = new Mock<IDesktopInteractionService>(MockBehavior.Strict);
+        desktop.Setup(
+                service => service.ShowError(
+                    "Task was not saved",
+                    It.Is<string>(message =>
+                        message.Contains("No changes were saved.", StringComparison.Ordinal))))
+            .Verifiable();
+        var viewModel = new TaskEditorViewModel(
+            Mock.Of<ITaskStore>(),
+            Mock.Of<ITaskSchedulerService>(),
+            Mock.Of<IIncidentReporter>(),
+            desktop.Object,
+            Mock.Of<IMessenger>(),
+            TimeProvider.System)
+        {
+            Name = "Incomplete task",
+        };
+
+        await viewModel.SaveCommand.ExecuteAsync(null);
+
+        viewModel.ValidationText.Should().NotBeEmpty();
+        viewModel.Name.Should().Be("Incomplete task");
+        viewModel.IsDirty.Should().BeTrue();
+        desktop.Verify();
+    }
+
+    /// <summary>
+    /// Verifies Back does not discard a changed task definition without confirmation.
+    /// </summary>
+    [Fact]
+    public void BackKeepsChangedDraftWhenDiscardIsCanceled()
+    {
+        var desktop = new Mock<IDesktopInteractionService>(MockBehavior.Strict);
+        desktop.Setup(
+                service => service.Confirm(
+                    "Discard unsaved task changes",
+                    "Discard the unsaved task definition and return to Tasks?"))
+            .Returns(false);
+        var messenger = new StrongReferenceMessenger();
+        var recipient = new object();
+        var navigatedToTasks = false;
+        messenger.Register<NavigateMessage>(
+            recipient,
+            (_, message) => navigatedToTasks = message.Route == PageRoute.Tasks);
+        var viewModel = new TaskEditorViewModel(
+            Mock.Of<ITaskStore>(),
+            Mock.Of<ITaskSchedulerService>(),
+            Mock.Of<IIncidentReporter>(),
+            desktop.Object,
+            messenger,
+            TimeProvider.System)
+        {
+            Name = "Unsaved draft",
+        };
+
+        viewModel.BackToTasksCommand.Execute(null);
+
+        navigatedToTasks.Should().BeFalse();
+        viewModel.Name.Should().Be("Unsaved draft");
+        desktop.VerifyAll();
+    }
+
+    /// <summary>
     /// Verifies helper Apply and one-level Undo atomically cover workflow, tools, and grants.
     /// </summary>
     [Fact]

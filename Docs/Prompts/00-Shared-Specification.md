@@ -1398,3 +1398,83 @@ and explanation integration, UI command state, and privacy-safe logging.
 
 The stage gate is a warning-clean Release build and complete deterministic test run. Restore,
 build, and test commands explicitly use MSBuild `-m:1`.
+
+## 18. Stage 15 addendum — Agent loop hardening and run observability
+
+This addendum is normative for the post-Stage-14 implementation. It supersedes the earlier
+`ai.prompt` agent-context wording in §§14.4 and 15.2, the Gmail/Calendar signatures and Tool
+Map rows in §§5.2 and 8.3, and the dark-only part of R6 for the AI Workflow Helper window.
+All credential, task-whitelist, filesystem, Guardrails, R9, and generation-policy rules remain
+unchanged.
+
+### 18.1 Tool-less prompt boundary and loop limits
+
+`ai.prompt` resolves its placeholders and optional `includeContext` snapshot as before, then
+performs one direct provider request with the step-effective generation policy. It receives no
+Tool Map functions, connector functions, or skills. The workflow context is data in its prompt,
+not an agent tool context.
+
+Agent-capable calls outside `ai.prompt` retain the task whitelist and execution context, but a
+single request is bounded by all of the following:
+
+- at most eight function-invocation rounds;
+- at most two consecutive tool errors;
+- unknown function calls terminate the request;
+- the same agent function with byte-equivalent serialized JSON arguments may execute twice;
+  its third request is not executed and raises the typed `AgentToolLoopException`.
+
+The repeated-call signature contains only the function name and the application's sanitized
+argument serialization. It must not add credential values to traces or reports.
+
+### 18.2 Extended Gmail and Calendar reads
+
+The Tool Map adds or updates these aliases:
+
+| Workflow alias | Agent function | Implementation | Arguments |
+|---|---|---|---|
+| `gmail.readToday` | `gmail_read_today` | `GmailTool.ReadTodayAsync` | optional positive integer `maxMessages` |
+| `gmail.readUnread` | `gmail_read_unread` | `GmailTool.ReadUnreadAsync` | optional positive integer `maxMessages` |
+| `gmail.readRecent` | `gmail_read_recent` | `GmailTool.ReadRecentAsync` | integer `daysBack` from 0 through 3650; optional positive integer `maxMessages` |
+| `calendar.today` | `calendar_today` | `CalendarTool.TodayAsync` | — |
+| `calendar.read` | `calendar_read` | `CalendarTool.ReadAsync` | enum string `period`: `Day`, `Week`, `Month`, or `Year` |
+
+`daysBack` starts at the beginning of the local day minus that many days. Calendar periods use
+local calendar boundaries and the correct local UTC offset at each boundary; Week starts on
+Monday. The optional Gmail request limit reduces API
+retrieval but does not weaken D9: `MaxGmailMessagesPerOperation` remains the independent
+Guardrails processing cap and still reports fetched, processed, skipped, and warning fields.
+
+### 18.3 Runner diagnostics and retained workflow context
+
+Tool start logs serialize sanitized arguments as ordinary compact JSON instead of a runtime
+anonymous-type descriptor. Successful completion logs add only bounded operational metadata:
+
+- Gmail: returned message count;
+- Calendar: returned event count;
+- Web Search: returned result count;
+- Dropbox: affected/listed item name and byte size, with list summaries bounded to ten items.
+
+Secrets and configured tokens are never logged.
+
+Interactive **Run now** output follows appended lines. The child Runner publishes the complete
+`WorkflowContext` after each successful step through a reserved Base64 one-line protocol that
+the UI consumes instead of displaying as ordinary runner output. **Show workflow context**
+toggles between that JSON and runner text. The most recent context remains in UI memory after
+completion and is replaced when the next task starts. It may contain task data and is therefore
+diagnostic content, not a public or secret-free log.
+
+### 18.4 AI Workflow Helper rendering and theme
+
+The whole AI Workflow Helper window, including AI Explain Text and Rendered Markdown tabs,
+uses the current application theme. Restricted Markdown emits Light or Dark local CSS from the
+active theme. `NavigateToString` internal navigation is allowed exactly as an internal render;
+subsequent external navigation, pop-ups, downloads, scripts, and remote resources remain
+blocked. WebView2 failure continues to expose the Text fallback.
+
+### 18.5 Required verification
+
+Automated coverage includes direct tool-less prompt execution, repeated identical tool-call
+termination, readable sanitized Gmail arguments and counts, Gmail and Calendar argument
+mapping, workflow-context callbacks and protocol round-trip, and Light/Dark restricted HTML.
+The final gate remains a warning-clean Release build and deterministic test run with `-m:1`,
+plus standalone manual HTML validation and `git diff --check`.

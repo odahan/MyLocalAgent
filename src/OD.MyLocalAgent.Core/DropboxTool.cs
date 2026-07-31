@@ -60,7 +60,8 @@ public sealed class DropboxTool : IDropboxTool
                     dropboxPath,
                     cancellationToken).ConfigureAwait(false);
                 return ToolJson.Serialize(item);
-            });
+            },
+            SummarizeDropboxResult);
 
     /// <inheritdoc />
     [Description("Downloads a Dropbox file into an authorized local path.")]
@@ -91,7 +92,8 @@ public sealed class DropboxTool : IDropboxTool
                     absoluteLocalPath,
                     cancellationToken).ConfigureAwait(false);
                 return ToolJson.Serialize(item);
-            });
+            },
+            SummarizeDropboxResult);
 
     /// <inheritdoc />
     [Description("Lists the immediate children of a Dropbox folder.")]
@@ -109,7 +111,45 @@ public sealed class DropboxTool : IDropboxTool
                 var items = await _connector.ListAsync(folderPath, cancellationToken)
                     .ConfigureAwait(false);
                 return ToolJson.Serialize(items);
-            });
+            },
+            SummarizeDropboxResult);
+
+    private static string? SummarizeDropboxResult(string json)
+    {
+        using var document = System.Text.Json.JsonDocument.Parse(json);
+        var root = document.RootElement;
+        if (root.ValueKind == System.Text.Json.JsonValueKind.Object)
+        {
+            return FormatDropboxItem(root);
+        }
+
+        if (root.ValueKind != System.Text.Json.JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        var items = root.EnumerateArray().ToArray();
+        var details = items
+            .Take(10)
+            .Select(FormatDropboxItem)
+            .Where(static value => !string.IsNullOrWhiteSpace(value));
+        var suffix = items.Length > 10 ? " …" : string.Empty;
+        return $"Returned {items.Length} Dropbox item(s): {string.Join(", ", details)}{suffix}";
+    }
+
+    private static string? FormatDropboxItem(System.Text.Json.JsonElement item)
+    {
+        if (!item.TryGetProperty("name", out var name))
+        {
+            return null;
+        }
+
+        var size = item.TryGetProperty("size", out var sizeElement) &&
+                   sizeElement.ValueKind == System.Text.Json.JsonValueKind.Number
+            ? $", {sizeElement.GetUInt64()} bytes"
+            : string.Empty;
+        return $"{name.GetString()}{size}";
+    }
 
     private static void ValidateDropboxPath(string path)
     {

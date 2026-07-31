@@ -47,15 +47,16 @@ public sealed class GoogleCredentialProvider : IGoogleCredentialProvider
     /// Initializes a new instance of the <see cref="GoogleCredentialProvider"/> class.
     /// </summary>
     /// <param name="options">The Google OAuth client configuration.</param>
-    /// <param name="httpClientFactory">The managed HTTP client factory.</param>
+    /// <param name="httpMessageHandlerFactory">The managed HTTP handler factory.</param>
     public GoogleCredentialProvider(
         IOptions<GoogleOptions> options,
-        IHttpClientFactory httpClientFactory)
+        IHttpMessageHandlerFactory httpMessageHandlerFactory)
     {
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentNullException.ThrowIfNull(httpClientFactory);
+        ArgumentNullException.ThrowIfNull(httpMessageHandlerFactory);
         _options = options;
-        _googleHttpClientFactory = new GoogleHttpClientFactoryAdapter(httpClientFactory);
+        _googleHttpClientFactory =
+            new GoogleHttpClientFactoryAdapter(httpMessageHandlerFactory);
     }
 
     /// <inheritdoc />

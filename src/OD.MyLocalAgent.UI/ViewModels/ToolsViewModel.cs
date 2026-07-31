@@ -18,6 +18,8 @@ public sealed partial class ToolsViewModel :
     ObservableObject,
     IActivatablePage
 {
+    private static readonly TimeSpan ConnectorTestTimeout = TimeSpan.FromSeconds(15);
+
     private readonly IGoogleCredentialProvider _googleCredentialProvider;
     private readonly IGmailConnector _gmailConnector;
     private readonly ICalendarConnector _calendarConnector;
@@ -482,19 +484,28 @@ public sealed partial class ToolsViewModel :
         GmailTestState = "Checking";
         GmailTestStatus = "Testing Gmail read access…";
         var started = _timeProvider.GetTimestamp();
+        using var timeoutSource =
+            CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutSource.CancelAfter(ConnectorTestTimeout);
         try
         {
-            var messages = await _gmailConnector
-                .GetUnreadMessagesAsync(cancellationToken)
+            await _gmailConnector
+                .CheckReadAccessAsync(timeoutSource.Token)
                 .ConfigureAwait(true);
             GmailTestState = "Healthy";
             GmailTestStatus =
-                $"Connected · {ElapsedMilliseconds(started):F0} ms · {messages.Count} unread message(s).";
+                $"Connected · {ElapsedMilliseconds(started):F0} ms";
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             GmailTestState = "Unknown";
             GmailTestStatus = "Test canceled.";
+        }
+        catch (OperationCanceledException)
+        {
+            GmailTestState = "Unhealthy";
+            GmailTestStatus =
+                $"Gmail read test timed out after {ConnectorTestTimeout.TotalSeconds:F0} seconds.";
         }
         catch (Exception exception)
         {

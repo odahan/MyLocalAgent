@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -21,6 +22,68 @@ public sealed class ConnectorToolTests : IDisposable
         Path.Combine(Path.GetTempPath(), "OD.MyLocalAgent.Tests", Guid.NewGuid().ToString("N"));
 
     /// <summary>
+    /// Verifies Gmail maximum and recent-day arguments reach the connector.
+    /// </summary>
+    [Fact]
+    public async Task GmailReadLimitsAndRecentPeriodMapToConnector()
+    {
+        var connector = new Mock<IGmailConnector>(MockBehavior.Strict);
+        connector.Setup(instance => instance.GetTodaysMessagesAsync(
+                3,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        connector.Setup(instance => instance.GetRecentMessagesAsync(
+                7,
+                12,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        var tool = new GmailTool(
+            connector.Object,
+            Options.Create(new SafetyOptions()),
+            new MutableOptionsMonitor<GuardrailsOptions>(new GuardrailsOptions()),
+            new StubContentTrustService(),
+            new StubIncidentReporter(),
+            NullLogger<GmailTool>.Instance,
+            TimeProvider.System);
+
+        _ = await tool.ReadTodayAsync(3, CancellationToken.None);
+        _ = await tool.ReadRecentAsync(7, 12, CancellationToken.None);
+
+        connector.VerifyAll();
+    }
+
+    /// <summary>
+    /// Verifies Gmail logs readable JSON arguments and the returned message count.
+    /// </summary>
+    [Fact]
+    public async Task GmailTraceUsesReadableArgumentsAndReturnedCount()
+    {
+        var connector = new Mock<IGmailConnector>(MockBehavior.Strict);
+        connector.Setup(instance => instance.GetTodaysMessagesAsync(
+                5,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        var logger = new RecordingLogger<GmailTool>();
+        var tool = new GmailTool(
+            connector.Object,
+            Options.Create(new SafetyOptions()),
+            new MutableOptionsMonitor<GuardrailsOptions>(new GuardrailsOptions()),
+            new StubContentTrustService(),
+            new StubIncidentReporter(),
+            logger,
+            TimeProvider.System);
+
+        _ = await tool.ReadTodayAsync(5, CancellationToken.None);
+
+        logger.Messages.Should().Contain(message =>
+            message.Contains("{\"maxMessages\":5}", StringComparison.Ordinal));
+        logger.Messages.Should().Contain(message =>
+            message.Contains("Returned 0 Gmail message(s).", StringComparison.Ordinal));
+        logger.Messages.Should().NotContain(message =>
+            message.Contains("$type", StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// Verifies Gmail reads and blocks sends while the safety flag is disabled.
     /// </summary>
     [Fact]
@@ -36,7 +99,9 @@ public sealed class ConnectorToolTests : IDisposable
             "Body",
             DateTimeOffset.Parse("2026-07-29T08:00:00Z"),
             true);
-        connector.Setup(instance => instance.GetTodaysMessagesAsync(It.IsAny<CancellationToken>()))
+        connector.Setup(instance => instance.GetTodaysMessagesAsync(
+                It.IsAny<int?>(),
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync([message]);
         var tool = new GmailTool(
             connector.Object,
@@ -47,7 +112,7 @@ public sealed class ConnectorToolTests : IDisposable
             NullLogger<GmailTool>.Instance,
             TimeProvider.System);
 
-        var json = await tool.ReadTodayAsync(CancellationToken.None);
+        var json = await tool.ReadTodayAsync(cancellationToken: CancellationToken.None);
         var send = () => tool.SendAsync(
             "to@example.com",
             "Subject",
@@ -119,6 +184,7 @@ public sealed class ConnectorToolTests : IDisposable
             DateTimeOffset.Parse("2026-07-29T08:00:00Z"),
             true);
         connector.Setup(instance => instance.GetUnreadMessagesAsync(
+                It.IsAny<int?>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync([message]);
         var trustService = new StubContentTrustService
@@ -142,7 +208,7 @@ public sealed class ConnectorToolTests : IDisposable
             NullLogger<GmailTool>.Instance,
             TimeProvider.System);
 
-        var json = await tool.ReadUnreadAsync(CancellationToken.None);
+        var json = await tool.ReadUnreadAsync(cancellationToken: CancellationToken.None);
 
         using var document = JsonDocument.Parse(json);
         var protectedMessage = document.RootElement
@@ -172,6 +238,7 @@ public sealed class ConnectorToolTests : IDisposable
     {
         var connector = new Mock<IGmailConnector>(MockBehavior.Strict);
         connector.Setup(instance => instance.GetTodaysMessagesAsync(
+                It.IsAny<int?>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(
             [
@@ -192,7 +259,7 @@ public sealed class ConnectorToolTests : IDisposable
             NullLogger<GmailTool>.Instance,
             TimeProvider.System);
 
-        var json = await tool.ReadTodayAsync(CancellationToken.None);
+        var json = await tool.ReadTodayAsync(cancellationToken: CancellationToken.None);
 
         using var document = JsonDocument.Parse(json);
         document.RootElement.GetProperty("totalFetched").GetInt32().Should().Be(2);
@@ -216,6 +283,7 @@ public sealed class ConnectorToolTests : IDisposable
         var connector = new Mock<IGmailConnector>(MockBehavior.Strict);
         var message = CreateMessage("large", new string('z', 1_000));
         connector.Setup(instance => instance.GetUnreadMessagesAsync(
+                It.IsAny<int?>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync([message]);
         var trustService = new StubContentTrustService
@@ -246,7 +314,7 @@ public sealed class ConnectorToolTests : IDisposable
             NullLogger<GmailTool>.Instance,
             TimeProvider.System);
 
-        var json = await tool.ReadUnreadAsync(CancellationToken.None);
+        var json = await tool.ReadUnreadAsync(cancellationToken: CancellationToken.None);
 
         using var document = JsonDocument.Parse(json);
         var result = document.RootElement.GetProperty("messages")[0];
@@ -270,6 +338,7 @@ public sealed class ConnectorToolTests : IDisposable
         var connector = new Mock<IGmailConnector>(MockBehavior.Strict);
         var message = CreateMessage("failed", "external body");
         connector.Setup(instance => instance.GetTodaysMessagesAsync(
+                It.IsAny<int?>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync([message]);
         var trustService = new StubContentTrustService
@@ -301,7 +370,7 @@ public sealed class ConnectorToolTests : IDisposable
             NullLogger<GmailTool>.Instance,
             TimeProvider.System);
 
-        var json = await tool.ReadTodayAsync(CancellationToken.None);
+        var json = await tool.ReadTodayAsync(cancellationToken: CancellationToken.None);
 
         reporter.Reports.Should().ContainSingle();
         using var document = JsonDocument.Parse(json);
@@ -349,6 +418,30 @@ public sealed class ConnectorToolTests : IDisposable
 
         JsonDocument.Parse(json).RootElement
             .GetProperty("id").GetString().Should().Be("e1");
+        connector.VerifyAll();
+    }
+
+    /// <summary>
+    /// Verifies calendar period reads map the selected period and return compact JSON.
+    /// </summary>
+    [Fact]
+    public async Task CalendarReadMapsSelectedPeriod()
+    {
+        var connector = new Mock<ICalendarConnector>(MockBehavior.Strict);
+        connector.Setup(instance => instance.GetEventsAsync(
+                CalendarPeriod.Month,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        var tool = new CalendarTool(
+            connector.Object,
+            NullLogger<CalendarTool>.Instance,
+            TimeProvider.System);
+
+        var json = await tool.ReadAsync(
+            CalendarPeriod.Month,
+            CancellationToken.None);
+
+        JsonDocument.Parse(json).RootElement.GetArrayLength().Should().Be(0);
         connector.VerifyAll();
     }
 
@@ -466,6 +559,24 @@ public sealed class ConnectorToolTests : IDisposable
         {
             Directory.Delete(_rootPath, recursive: true);
         }
+    }
+
+    private sealed class RecordingLogger<T> : ILogger<T>
+    {
+        public List<string> Messages { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Messages.Add(formatter(state, exception));
     }
 
     private static EmailMessageDto CreateMessage(string id, string body) =>

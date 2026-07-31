@@ -25,6 +25,7 @@ public sealed partial class SettingsViewModel :
     IActivatablePage
 {
     private const int ModelCatalogTimeoutSeconds = 10;
+    private const string ApplicationExecutableFileName = "OD.MyLocalAgent.UI.exe";
 
     private static readonly HashSet<string> EditablePropertyNames =
     [
@@ -280,6 +281,10 @@ public sealed partial class SettingsViewModel :
         ReportsFolder = Path.Combine(
             LocalAppPaths.ApplicationDataDirectory,
             "reports");
+        ExecutableFolder = Path.GetFullPath(AppContext.BaseDirectory);
+        ApplicationExecutablePath = Path.Combine(
+            ExecutableFolder,
+            ApplicationExecutableFileName);
         PropertyChanged += OnEditablePropertyChanged;
         IsActive = true;
     }
@@ -310,6 +315,11 @@ public sealed partial class SettingsViewModel :
     public string ReportsFolder { get; }
 
     /// <summary>
+    /// Gets the directory containing the running application executable.
+    /// </summary>
+    public string ExecutableFolder { get; }
+
+    /// <summary>
     /// Gets the current durable incident list, newest first.
     /// </summary>
     public ObservableCollection<IncidentRecord> Incidents { get; } = [];
@@ -335,6 +345,45 @@ public sealed partial class SettingsViewModel :
         _ = dispatcher.BeginInvoke(
             async () => await RefreshIncidentsAsync(CancellationToken.None)
                 .ConfigureAwait(true));
+    }
+
+    [RelayCommand]
+    private void CopyReportsFolder()
+    {
+        _desktopInteraction.CopyText(ReportsFolder);
+        _messenger.Send(
+            new SnackbarNotificationMessage(
+                "Reports folder copied to the clipboard."));
+    }
+
+    [RelayCommand]
+    private void CopyExecutableFolder()
+    {
+        _desktopInteraction.CopyText(ExecutableFolder);
+        _messenger.Send(
+            new SnackbarNotificationMessage(
+                "Application executable folder copied to the clipboard."));
+    }
+
+    [RelayCommand]
+    private async Task CreateDesktopShortcutAsync()
+    {
+        try
+        {
+            var shortcutPath = _desktopInteraction.CreateDesktopShortcut(
+                "OD.MyLocalAgent",
+                ApplicationExecutablePath);
+            _messenger.Send(
+                new SnackbarNotificationMessage(
+                    $"Desktop shortcut created: {shortcutPath}"));
+        }
+        catch (Exception exception)
+        {
+            await ReportAsync(
+                    exception,
+                    "Settings desktop shortcut creation")
+                .ConfigureAwait(true);
+        }
     }
 
     partial void OnIsOllamaProviderChanged(bool value)
@@ -922,6 +971,8 @@ public sealed partial class SettingsViewModel :
                 StringSplitOptions.RemoveEmptyEntries)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
+
+    private string ApplicationExecutablePath { get; }
 
     private static string FormatIncident(IncidentRecord incident) =>
         "Timestamp (UTC): " +

@@ -1,0 +1,92 @@
+<Window x:Class="OD.MyLocalAgent.UI.ConfirmationDialogWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
+        Title="{Binding ElementName=DialogTitle, Path=Text}"
+        Width="500"
+        MaxWidth="620"
+        MaxHeight="720"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        WindowStyle="None">
+    <Border Background="{DynamicResource CardBrush}"
+            BorderBrush="{DynamicResource DividerBrush}"
+            BorderThickness="1"
+            CornerRadius="10">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="44" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Border Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource DividerBrush}"
+                    BorderThickness="0,0,0,1"
+                    CornerRadius="10,10,0,0"
+                    MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <Grid>
+                    <TextBlock x:Name="DialogTitle"
+                               Margin="18,0,52,0"
+                               VerticalAlignment="Center"
+                               FontWeight="SemiBold" />
+                    <Button Width="42"
+                            Height="42"
+                            HorizontalAlignment="Right"
+                            IsCancel="True"
+                            Style="{StaticResource TitleBarButtonStyle}"
+                            ToolTip="Cancel">
+                        <iconPacks:PackIconMaterial Width="17"
+                                                   Height="17"
+                                                   Kind="Close" />
+                    </Button>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="1"
+                  Margin="24,24,24,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Width="42"
+                        Height="42"
+                        Margin="0,0,16,0"
+                        VerticalAlignment="Top"
+                        Background="{DynamicResource SurfaceBrush}"
+                        CornerRadius="21">
+                    <iconPacks:PackIconMaterial x:Name="StatusIcon"
+                                               Width="22"
+                                               Height="22"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource WarningBrush}"
+                                               Kind="AlertOutline" />
+                </Border>
+                <TextBlock x:Name="DialogMessage"
+                           Grid.Column="1"
+                           VerticalAlignment="Center"
+                           Foreground="{DynamicResource OnSurfaceBrush}"
+                           TextWrapping="Wrap" />
+            </Grid>
+
+            <StackPanel Grid.Row="2"
+                        Margin="24,16,14,22"
+                        HorizontalAlignment="Right"
+                        Orientation="Horizontal">
+                <Button x:Name="CancelButton"
+                        IsCancel="True"
+                        Content="Cancel" />
+                <Button x:Name="ConfirmButton"
+                        Click="ConfirmButton_Click"
+                        Content="Continue"
+                        IsDefault="True"
+                        Style="{StaticResource PrimaryButtonStyle}" />
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

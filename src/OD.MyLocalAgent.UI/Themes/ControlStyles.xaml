@@ -528,6 +528,23 @@
                 Value="{DynamicResource ErrorBrush}" />
     </Style>
 
+    <Style x:Key="AppIconButtonStyle"
+           TargetType="{x:Type Button}"
+           BasedOn="{StaticResource AppOutlinedButtonStyle}">
+        <Setter Property="Width"
+                Value="40" />
+        <Setter Property="Height"
+                Value="40" />
+        <Setter Property="MinWidth"
+                Value="40" />
+        <Setter Property="MinHeight"
+                Value="40" />
+        <Setter Property="Margin"
+                Value="0" />
+        <Setter Property="Padding"
+                Value="0" />
+    </Style>
+
     <Style x:Key="TitleBarButtonStyle"
            TargetType="{x:Type Button}"
            BasedOn="{StaticResource MaterialDesignFlatButton}">

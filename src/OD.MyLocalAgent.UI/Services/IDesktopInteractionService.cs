@@ -11,6 +11,11 @@ public interface IDesktopInteractionService
     bool Confirm(string title, string message);
 
     /// <summary>
+    /// Displays an error message that requires acknowledgement.
+    /// </summary>
+    void ShowError(string title, string message);
+
+    /// <summary>
     /// Lets the user select a destination file.
     /// </summary>
     string? SelectSavePath(
@@ -30,6 +35,14 @@ public interface IDesktopInteractionService
     /// Copies text to the Windows clipboard.
     /// </summary>
     void CopyText(string text);
+
+    /// <summary>
+    /// Creates or updates a Windows desktop shortcut to an executable.
+    /// </summary>
+    /// <param name="shortcutName">The shortcut file name without an extension.</param>
+    /// <param name="executablePath">The absolute executable path.</param>
+    /// <returns>The absolute shortcut path.</returns>
+    string CreateDesktopShortcut(string shortcutName, string executablePath);
 
     /// <summary>
     /// Opens a directory in the Windows shell.

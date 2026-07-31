@@ -136,3 +136,16 @@ keyboard traversal, and both Dark/Light palettes remain human visual follow-ups.
 This implementation pass did not launch the WPF application. Release compilation and
 ViewModel tests verify bindings, command state, culture-safe parsing, dirty tracking, reload,
 save, and displayed policy text; they are not claimed as pixel-level GUI evidence.
+
+## Stage 15 AI Helper theme and rendered document
+
+The AI Workflow Helper window now explicitly binds its background, foreground, font, cards,
+inputs, tabs, captions, warnings, and buttons through the live application resource graph.
+Restricted Markdown chooses Light or Dark local CSS from `IThemeService.CurrentTheme`; tests
+verify both palettes. The Rendered Markdown control permits its own `NavigateToString`
+navigation while continuing to block external navigation, pop-ups, downloads, scripts, and
+remote resources.
+
+The published WPF UI was not launched during this pass. Pixel-level confirmation of AI Helper
+and AI Explain in both palettes, WebView2 rendering, focus states, keyboard traversal, and the
+minimum-size layout remains a human visual check rather than claimed evidence.

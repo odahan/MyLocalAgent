@@ -4,41 +4,27 @@ namespace OD.MyLocalAgent.Connectors;
 
 internal sealed class GoogleHttpClientFactoryAdapter : Google.Apis.Http.IHttpClientFactory
 {
-    private readonly System.Net.Http.IHttpClientFactory _httpClientFactory;
+    private readonly System.Net.Http.IHttpMessageHandlerFactory _httpMessageHandlerFactory;
 
-    public GoogleHttpClientFactoryAdapter(System.Net.Http.IHttpClientFactory httpClientFactory)
+    public GoogleHttpClientFactoryAdapter(
+        System.Net.Http.IHttpMessageHandlerFactory httpMessageHandlerFactory)
     {
-        _httpClientFactory = httpClientFactory;
+        _httpMessageHandlerFactory = httpMessageHandlerFactory;
     }
 
     public ConfigurableHttpClient CreateHttpClient(CreateHttpClientArgs args)
     {
         ArgumentNullException.ThrowIfNull(args);
-        var forwardingHandler = new FactoryBackedHttpMessageHandler(_httpClientFactory);
-        var configurableHandler = new ConfigurableMessageHandler(forwardingHandler);
-        return new ConfigurableHttpClient(configurableHandler);
-    }
+        var managedHandler = _httpMessageHandlerFactory.CreateHandler(
+            ConnectorHttpClientNames.Google);
+        var configurableHandler = new ConfigurableMessageHandler(managedHandler);
+        var configurableClient = new ConfigurableHttpClient(configurableHandler);
 
-    private sealed class FactoryBackedHttpMessageHandler : HttpMessageHandler
-    {
-        private readonly System.Net.Http.IHttpClientFactory _httpClientFactory;
-
-        public FactoryBackedHttpMessageHandler(
-            System.Net.Http.IHttpClientFactory httpClientFactory)
+        foreach (var initializer in args.Initializers)
         {
-            _httpClientFactory = httpClientFactory;
+            initializer.Initialize(configurableClient);
         }
 
-        protected override async Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken)
-        {
-            using var client = _httpClientFactory.CreateClient(ConnectorHttpClientNames.Google);
-            client.Timeout = Timeout.InfiniteTimeSpan;
-            return await client.SendAsync(
-                request,
-                HttpCompletionOption.ResponseHeadersRead,
-                cancellationToken).ConfigureAwait(false);
-        }
+        return configurableClient;
     }
 }

@@ -12,10 +12,12 @@ public static class ToolMap
 
     private static readonly IReadOnlyList<ToolDefinition> Entries =
     [
-        Tool("gmail.readToday", "gmail_read_today", ToolGroups.Gmail, typeof(GmailTool), nameof(GmailTool.ReadTodayAsync)),
-        Tool("gmail.readUnread", "gmail_read_unread", ToolGroups.Gmail, typeof(GmailTool), nameof(GmailTool.ReadUnreadAsync)),
+        Tool("gmail.readToday", "gmail_read_today", ToolGroups.Gmail, typeof(GmailTool), nameof(GmailTool.ReadTodayAsync), ["maxMessages"], optionalArguments: ["maxMessages"]),
+        Tool("gmail.readUnread", "gmail_read_unread", ToolGroups.Gmail, typeof(GmailTool), nameof(GmailTool.ReadUnreadAsync), ["maxMessages"], optionalArguments: ["maxMessages"]),
+        Tool("gmail.readRecent", "gmail_read_recent", ToolGroups.Gmail, typeof(GmailTool), nameof(GmailTool.ReadRecentAsync), ["daysBack", "maxMessages"], optionalArguments: ["maxMessages"]),
         Tool("gmail.send", "gmail_send", ToolGroups.Gmail, typeof(GmailTool), nameof(GmailTool.SendAsync), ["to", "subject", "body"], "Safety:AllowSendEmail"),
         Tool("calendar.today", "calendar_today", ToolGroups.Calendar, typeof(CalendarTool), nameof(CalendarTool.TodayAsync)),
+        Tool("calendar.read", "calendar_read", ToolGroups.Calendar, typeof(CalendarTool), nameof(CalendarTool.ReadAsync), ["period"]),
         Tool("calendar.create", "calendar_create", ToolGroups.Calendar, typeof(CalendarTool), nameof(CalendarTool.CreateAsync), ["summary", "start", "end", "description"]),
         Tool("dropbox.upload", "dropbox_upload", ToolGroups.Dropbox, typeof(DropboxTool), nameof(DropboxTool.UploadAsync), ["localPath", "dropboxPath"],
             localPaths: [Path("localPath", LocalPathTargetKind.File, FileSystemAccessMode.ReadOnly)]),

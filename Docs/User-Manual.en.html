@@ -1144,6 +1144,10 @@ ollama list</code></pre>
                         <p>In the standard installation, the application locates the sibling runner automatically.</p>
                     </li>
                     <li>
+                        <strong>Locate the folder and shortcut utilities.</strong>
+                        <p>The copy icons place the reports and executable directories on the clipboard separately. <span class="ui-label">Create desktop shortcut</span> creates or refreshes the UI shortcut on the Windows desktop.</p>
+                    </li>
+                    <li>
                         <strong>Select <span class="ui-label">Save settings</span>.</strong>
                         <p>Wait for the message confirming that settings were saved and reloaded.</p>
                     </li>
@@ -1280,7 +1284,7 @@ ollama list</code></pre>
                 <ol class="steps start-8" start="8">
                     <li>
                         <strong>Keep the task enabled and save it.</strong>
-                        <p>Select <span class="ui-label">Save task</span>. Syntax, aliases, arguments, ids, and whitelist access are validated.</p>
+                        <p>Select <span class="ui-label">Save task</span>. Syntax, aliases, arguments, ids, and whitelist access are validated. If the definition is incomplete or invalid, a dialog explains that no changes were saved. <span class="ui-label">Back</span> asks for confirmation before discarding a changed draft.</p>
                     </li>
                     <li>
                         <strong>Run it immediately.</strong>
@@ -1756,7 +1760,9 @@ ollama list</code></pre>
                     permissions, Safety gates, effects, and likely failures. Text is the
                     dependable default. Rendered Markdown uses the same response in a restricted
                     WebView2 document; a missing runtime keeps Text functional and exposes only
-                    a user-initiated official Microsoft download-page link.
+                    a user-initiated official Microsoft download-page link. The complete
+                    window, including rendered Markdown, follows the currently selected Light
+                    or Dark theme.
                     Explanation and its repairs use the same fixed internal Temperature 0 /
                     Top P 1 policy, while the explanation still describes configured
                     overrides and their effective provenance.
@@ -1909,8 +1915,8 @@ ollama list</code></pre>
                     <table>
                         <thead><tr><th>Group</th><th>Available aliases</th><th>Special protection</th></tr></thead>
                         <tbody>
-                            <tr><td>Gmail</td><td><code>gmail.readToday</code>, <code>gmail.readUnread</code>, <code>gmail.send</code></td><td><code>gmail.send</code> needs AllowSendEmail.</td></tr>
-                            <tr><td>Calendar</td><td><code>calendar.today</code>, <code>calendar.create</code></td><td>Create uses explicit ISO 8601 dates.</td></tr>
+                            <tr><td>Gmail</td><td><code>gmail.readToday</code>, <code>gmail.readUnread</code>, <code>gmail.readRecent</code>, <code>gmail.send</code></td><td><code>gmail.send</code> needs AllowSendEmail.</td></tr>
+                            <tr><td>Calendar</td><td><code>calendar.today</code>, <code>calendar.read</code>, <code>calendar.create</code></td><td>Create uses explicit ISO 8601 dates.</td></tr>
                             <tr><td>Dropbox</td><td><code>dropbox.upload</code>, <code>dropbox.download</code>, <code>dropbox.list</code></td><td>Dropbox secrets use DPAPI.</td></tr>
                             <tr><td>File system</td><td><code>filesystem.list</code>, <code>read</code>, <code>write</code>, <code>move</code>, <code>rename</code>, <code>setExtension</code>, <code>delete</code>, <code>createDirectory</code></td><td>RootPath plus task-authorized locations; delete needs AllowFileDelete.</td></tr>
                             <tr><td>HTTP</td><td><code>http.get</code>, <code>http.getText</code>, <code>http.post</code></td><td>Host allowlist; post needs AllowHttpPost.</td></tr>
@@ -1927,10 +1933,12 @@ ollama list</code></pre>
                             <table>
                                 <thead><tr><th>Alias</th><th>JSON arguments</th><th>Notes</th></tr></thead>
                                 <tbody>
-                                    <tr><td><code>gmail.readToday</code></td><td>None</td><td>Messages received today.</td></tr>
-                                    <tr><td><code>gmail.readUnread</code></td><td>None</td><td>Unread messages.</td></tr>
+                                    <tr><td><code>gmail.readToday</code></td><td>Optional <code>maxMessages</code></td><td>Messages received today, with an optional positive limit.</td></tr>
+                                    <tr><td><code>gmail.readUnread</code></td><td>Optional <code>maxMessages</code></td><td>Unread messages, with an optional positive limit.</td></tr>
+                                    <tr><td><code>gmail.readRecent</code></td><td><code>daysBack</code>, optional <code>maxMessages</code></td><td>Messages received since the start of the local day minus <code>daysBack</code> days.</td></tr>
                                     <tr><td><code>gmail.send</code></td><td><code>to</code>, <code>subject</code>, <code>body</code></td><td>Requires AllowSendEmail.</td></tr>
                                     <tr><td><code>calendar.today</code></td><td>None</td><td>Today’s events.</td></tr>
+                                    <tr><td><code>calendar.read</code></td><td><code>period</code></td><td>Events in the local <code>Day</code>, <code>Week</code>, <code>Month</code>, or <code>Year</code> period.</td></tr>
                                     <tr><td><code>calendar.create</code></td><td><code>summary</code>, <code>start</code>, <code>end</code>, <code>description</code></td><td>Explicit ISO 8601 dates.</td></tr>
                                     <tr><td><code>dropbox.upload</code></td><td><code>localPath</code>, <code>dropboxPath</code></td><td>Local path requires read access.</td></tr>
                                     <tr><td><code>dropbox.download</code></td><td><code>dropboxPath</code>, <code>localPath</code></td><td>Writes under the allowed root.</td></tr>
@@ -1950,12 +1958,20 @@ ollama list</code></pre>
                                     <tr><td><code>ai.summarize</code></td><td>Optional <code>text</code></td><td>Without text, receives previous output.</td></tr>
                                     <tr><td><code>ai.extractActionItems</code></td><td>Optional <code>text</code></td><td>Markdown checklist of explicit actions with owner, due date, and source. Missing metadata is <code>Not stated</code>; details are never invented.</td></tr>
                                     <tr><td><code>ai.classifyEmail</code></td><td>Optional <code>text</code></td><td>Classifies every identifiable input email as <code>Urgent</code>, <code>ReplySoon</code>, <code>Waiting</code>, or <code>FYI</code> and returns a Markdown table.</td></tr>
-                                    <tr><td><code>ai.prompt</code></td><td><code>prompt</code>, optional boolean <code>includeContext</code></td><td>Free prompt that may include placeholders. Context inclusion is opt-in because it can be large.</td></tr>
+                                    <tr><td><code>ai.prompt</code></td><td><code>prompt</code>, optional boolean <code>includeContext</code></td><td>Direct model call without tools or skills. Placeholders and optional context remain available.</td></tr>
                                 </tbody>
                             </table>
                         </div>
                     </div>
                 </details>
+
+                <div class="callout">
+                    <strong>Broken-record loop protection.</strong> An <code>ai.prompt</code>
+                    step can never call Gmail, Calendar, Dropbox, Web Search, or Filesystem.
+                    Agent-capable tasks that genuinely have tools stop after eight rounds, two
+                    consecutive tool errors, or the third strictly identical request for the
+                    same tool with the same arguments.
+                </div>
 
                 <h3>Renaming a file and changing its extension</h3>
                 <p>
@@ -2228,13 +2244,22 @@ ollama list</code></pre>
                     </article>
                     <article class="card">
                         <h3>Runner output</h3>
-                        <p class="muted">Streams a <span class="ui-label">Run now</span> execution and supports cancellation.</p>
+                        <p class="muted">Streams a <span class="ui-label">Run now</span> execution, follows new lines automatically, and supports cancellation.</p>
                     </article>
                     <article class="card">
                         <h3>Reports</h3>
                         <p class="muted">Stores one Markdown file per execution plus the shared JSONL index.</p>
                     </article>
                 </div>
+                <p>
+                    During or after a workflow started with <span class="ui-label">Run now</span>,
+                    <span class="ui-label">Show workflow context</span> displays the JSON
+                    accumulated after every successful step. It remains available until the
+                    next task starts. Treat it as diagnostic data: it can contain email,
+                    events, paths, or other task content. Tool traces show readable JSON
+                    arguments and returned message, event, or result counts, plus Dropbox
+                    names and sizes, without displaying configured secrets.
+                </p>
                 <h3>Logs page</h3>
                 <ul class="check-list">
                     <li>The view is read-only and follows new entries automatically.</li>

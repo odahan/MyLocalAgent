@@ -52,6 +52,7 @@ internal static class RunnerCommandHandlers
             services,
             task,
             executeWorkflow: task.Workflow.Count > 0,
+            output,
             cancellationToken).ConfigureAwait(false);
         output.WriteLine(
             $"Task '{task.Id}' finished with status " +
@@ -136,6 +137,7 @@ internal static class RunnerCommandHandlers
             services,
             task,
             executeWorkflow: false,
+            output,
             cancellationToken).ConfigureAwait(false);
         output.Write(outcome.Report.Markdown);
         return outcome.Result.Success
@@ -235,6 +237,7 @@ internal static class RunnerCommandHandlers
         IServiceProvider services,
         ScheduledTask task,
         bool executeWorkflow,
+        TextWriter output,
         CancellationToken cancellationToken)
     {
         var timeProvider = services.GetRequiredService<TimeProvider>();
@@ -249,6 +252,7 @@ internal static class RunnerCommandHandlers
             var engine = services.GetRequiredService<IWorkflowEngine>();
             result = await engine.ExecuteAsync(
                 task,
+                context => output.WriteLine(RunnerContextProtocol.Encode(context)),
                 cancellationToken).ConfigureAwait(false);
             error = result.Steps
                 .LastOrDefault(

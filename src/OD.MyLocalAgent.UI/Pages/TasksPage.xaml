@@ -112,15 +112,22 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
-                <TextBlock Style="{StaticResource SectionTitleStyle}"
-                           Text="Runner output" />
-                <TextBox Grid.Row="1"
+                <Grid>
+                    <TextBlock Style="{StaticResource SectionTitleStyle}"
+                               Text="{Binding RunnerDisplayTitle}" />
+                    <Button HorizontalAlignment="Right"
+                            Command="{Binding ToggleRunContextCommand}"
+                            Content="{Binding RunContextButtonText}" />
+                </Grid>
+                <TextBox x:Name="RunnerOutputTextBox"
+                         Grid.Row="1"
                          Margin="0,10,0,0"
                          AcceptsReturn="True"
                          FontFamily="Consolas"
                          IsReadOnly="True"
-                         Text="{Binding RunnerOutput}"
+                         Text="{Binding DisplayedRunText}"
                          TextWrapping="Wrap"
+                         TextChanged="OnRunnerOutputTextChanged"
                          VerticalScrollBarVisibility="Auto" />
             </Grid>
         </materialDesign:Card>

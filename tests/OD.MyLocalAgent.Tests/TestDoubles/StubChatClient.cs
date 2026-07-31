@@ -33,6 +33,8 @@ internal sealed class StubChatClient : IChatClient
 
     public Exception? ExceptionToThrow { get; set; }
 
+    public Func<int, ChatResponse>? ResponseFactory { get; set; }
+
     public bool WaitForCancellation { get; set; }
 
     public async Task<ChatResponse> GetResponseAsync(
@@ -54,6 +56,11 @@ internal sealed class StubChatClient : IChatClient
         if (WaitForCancellation)
         {
             await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+        }
+
+        if (ResponseFactory is not null)
+        {
+            return ResponseFactory(CallCount);
         }
 
         var response = NextResponse();

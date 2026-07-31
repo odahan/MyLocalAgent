@@ -1,3 +1,5 @@
+using OD.MyLocalAgent.Connectors;
+
 namespace OD.MyLocalAgent.Core;
 
 /// <summary>
@@ -9,6 +11,13 @@ public interface ICalendarTool
     /// Reads today's events.
     /// </summary>
     Task<string> TodayAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Reads events in the current day, week, month, or year.
+    /// </summary>
+    Task<string> ReadAsync(
+        CalendarPeriod period,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Creates an event.

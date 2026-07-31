@@ -20,7 +20,7 @@ public sealed partial class MainWindowViewModel :
     IRecipient<NavigateMessage>,
     IRecipient<SnackbarNotificationMessage>
 {
-    private readonly IServiceProvider _serviceProvider;
+    private readonly Func<PageRoute, object> _pageResolver;
 
     [ObservableProperty]
     private object? _currentPage;
@@ -35,9 +35,22 @@ public sealed partial class MainWindowViewModel :
         IServiceProvider serviceProvider,
         IMessenger messenger,
         ISnackbarMessageQueue snackbarMessageQueue)
+        : this(
+            route => ResolvePage(serviceProvider, route),
+            messenger,
+            snackbarMessageQueue)
+    {
+        ArgumentNullException.ThrowIfNull(serviceProvider);
+    }
+
+    internal MainWindowViewModel(
+        Func<PageRoute, object> pageResolver,
+        IMessenger messenger,
+        ISnackbarMessageQueue snackbarMessageQueue)
         : base(messenger)
     {
-        _serviceProvider = serviceProvider;
+        ArgumentNullException.ThrowIfNull(pageResolver);
+        _pageResolver = pageResolver;
         SnackbarMessageQueue = snackbarMessageQueue;
         NavigationItems =
         [
@@ -99,7 +112,7 @@ public sealed partial class MainWindowViewModel :
     public void Receive(EditTaskMessage message)
     {
         SelectTasksNavigationItem();
-        var viewModel = _serviceProvider.GetRequiredService<TaskEditorViewModel>();
+        var viewModel = (TaskEditorViewModel)_pageResolver(PageRoute.TaskEditor);
         viewModel.Open(message.TaskId);
         CurrentPage = viewModel;
     }
@@ -108,7 +121,7 @@ public sealed partial class MainWindowViewModel :
     public void Receive(EditPromptMessage message)
     {
         SelectTasksNavigationItem();
-        var viewModel = _serviceProvider.GetRequiredService<PromptEditorViewModel>();
+        var viewModel = (PromptEditorViewModel)_pageResolver(PageRoute.PromptEditor);
         viewModel.Open(
             message.TaskId,
             message.GenerationOptions,
@@ -123,7 +136,10 @@ public sealed partial class MainWindowViewModel :
         if (!ReferenceEquals(item, SelectedNavigationItem))
         {
             SelectedNavigationItem = item;
+            return;
         }
+
+        NavigateTo(item.Route);
     }
 
     /// <inheritdoc />
@@ -164,36 +180,17 @@ public sealed partial class MainWindowViewModel :
             return;
         }
 
+        NavigateTo(value.Route);
+    }
+
+    private void NavigateTo(PageRoute route)
+    {
         if (CurrentPage is IDeactivatablePage deactivatablePage)
         {
             deactivatablePage.Deactivate();
         }
 
-        CurrentPage = value.Route switch
-        {
-            PageRoute.Dashboard =>
-                _serviceProvider.GetRequiredService<DashboardViewModel>(),
-            PageRoute.Tasks =>
-                _serviceProvider.GetRequiredService<TasksViewModel>(),
-            PageRoute.TaskEditor =>
-                _serviceProvider.GetRequiredService<TaskEditorViewModel>(),
-            PageRoute.PromptEditor =>
-                _serviceProvider.GetRequiredService<PromptEditorViewModel>(),
-            PageRoute.Logs =>
-                _serviceProvider.GetRequiredService<LogsViewModel>(),
-            PageRoute.Tools =>
-                _serviceProvider.GetRequiredService<ToolsViewModel>(),
-            PageRoute.ToolTester =>
-                _serviceProvider.GetRequiredService<ToolTesterViewModel>(),
-            PageRoute.AIPlayground =>
-                _serviceProvider.GetRequiredService<AIPlaygroundViewModel>(),
-            PageRoute.TrustFilter =>
-                _serviceProvider.GetRequiredService<TrustFilterViewModel>(),
-            PageRoute.Settings =>
-                _serviceProvider.GetRequiredService<SettingsViewModel>(),
-            _ => throw new InvalidOperationException(
-                $"Unsupported navigation route '{value.Route}'."),
-        };
+        CurrentPage = _pageResolver(route);
         if (CurrentPage is IActivatablePage activatablePage)
         {
             activatablePage.Activate();
@@ -223,5 +220,37 @@ public sealed partial class MainWindowViewModel :
         {
             SelectedNavigationItem = tasksItem;
         }
+    }
+
+    private static object ResolvePage(
+        IServiceProvider serviceProvider,
+        PageRoute route)
+    {
+        ArgumentNullException.ThrowIfNull(serviceProvider);
+        return route switch
+        {
+            PageRoute.Dashboard =>
+                serviceProvider.GetRequiredService<DashboardViewModel>(),
+            PageRoute.Tasks =>
+                serviceProvider.GetRequiredService<TasksViewModel>(),
+            PageRoute.TaskEditor =>
+                serviceProvider.GetRequiredService<TaskEditorViewModel>(),
+            PageRoute.PromptEditor =>
+                serviceProvider.GetRequiredService<PromptEditorViewModel>(),
+            PageRoute.Logs =>
+                serviceProvider.GetRequiredService<LogsViewModel>(),
+            PageRoute.Tools =>
+                serviceProvider.GetRequiredService<ToolsViewModel>(),
+            PageRoute.ToolTester =>
+                serviceProvider.GetRequiredService<ToolTesterViewModel>(),
+            PageRoute.AIPlayground =>
+                serviceProvider.GetRequiredService<AIPlaygroundViewModel>(),
+            PageRoute.TrustFilter =>
+                serviceProvider.GetRequiredService<TrustFilterViewModel>(),
+            PageRoute.Settings =>
+                serviceProvider.GetRequiredService<SettingsViewModel>(),
+            _ => throw new InvalidOperationException(
+                $"Unsupported navigation route '{route}'."),
+        };
     }
 }

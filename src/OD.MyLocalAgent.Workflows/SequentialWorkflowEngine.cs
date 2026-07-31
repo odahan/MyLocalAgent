@@ -50,6 +50,13 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
     /// <inheritdoc />
     public async Task<WorkflowResult> ExecuteAsync(
         ScheduledTask task,
+        CancellationToken cancellationToken) =>
+        await ExecuteAsync(task, null, cancellationToken).ConfigureAwait(false);
+
+    /// <inheritdoc />
+    public async Task<WorkflowResult> ExecuteAsync(
+        ScheduledTask task,
+        Action<string>? contextUpdated,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(task);
@@ -80,6 +87,7 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
             if (result.Status == WorkflowStepStatus.Success)
             {
                 context.RecordOutput(step.Id, result.Output ?? string.Empty);
+                contextUpdated?.Invoke(context.ToJson());
                 continue;
             }
 
@@ -286,10 +294,8 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                         context.ToJson());
                 }
 
-                var agentResult = await _agentService.RunPromptAsync(
+                var agentResult = await _agentService.RunPromptWithoutToolsAsync(
                     prompt,
-                    task.Tools,
-                    ToolExecutionContext.FromTask(task),
                     generationPolicy,
                     cancellationToken).ConfigureAwait(false);
                 return agentResult.Text;

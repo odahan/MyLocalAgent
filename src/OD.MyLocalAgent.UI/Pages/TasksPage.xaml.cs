@@ -14,4 +14,9 @@ public partial class TasksPage : UserControl
     {
         InitializeComponent();
     }
+
+    private void OnRunnerOutputTextChanged(
+        object sender,
+        TextChangedEventArgs e) =>
+        RunnerOutputTextBox.ScrollToEnd();
 }

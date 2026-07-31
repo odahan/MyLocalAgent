@@ -1531,3 +1531,54 @@ Modified:
 - Both standalone manuals passed the structural HTML gate: each has 22 balanced sections,
   30 unique ids, no duplicate id, and no missing internal anchor.
 - `git diff --check`: clean.
+
+### Stage 15 — Agent loop hardening and run observability — 2026-07-31
+
+#### Product decisions and specification alignment
+
+- Added normative §18 to `Docs/Prompts/00-Shared-Specification.md`. It explicitly supersedes
+  the former `ai.prompt` agent-tool behavior: deterministic workflow prompt steps are now one
+  direct, tool-less provider request after placeholder/context resolution.
+- The AI Workflow Helper follows the currently selected Light or Dark theme. This is an
+  explicit product-owner evolution from the original dark-only R6 while retaining the same
+  semantic resources, restricted rendering, and Text fallback.
+- Existing credential, R9, task whitelist, filesystem authorization, Guardrails, and
+  generation-policy boundaries remain unchanged.
+
+#### Runtime safety and connector surface
+
+- Agent-capable executions are limited to eight function rounds and two consecutive function
+  errors, terminate unknown calls, and raise `AgentToolLoopException` before executing a third
+  strictly identical function-and-arguments request.
+- Added `IMyLocalAgentService.RunPromptWithoutToolsAsync`; `SequentialWorkflowEngine` uses it
+  exclusively for `ai.prompt`, including the step-effective generation policy.
+- Gmail read aliases accept optional positive `maxMessages`; new `gmail.readRecent` accepts
+  `daysBack` (0–3650) and optional `maxMessages`. The connector stops pagination at the
+  requested limit while D9's independent Guardrails processing limit and explicit counts stay
+  intact.
+- Added `calendar.read(period)` with local `Day`, Monday-based `Week`, `Month`, and `Year`
+  boundaries while preserving `calendar.today`.
+
+#### Logs, Run now, and helper UI
+
+- `ToolCallLog` serializes sanitized arguments as readable compact JSON. Gmail, Calendar, and
+  Web Search completion messages include returned counts; Dropbox messages include bounded
+  item names and byte sizes. No configured key or token is added.
+- Runner/UI communication adds a reserved Base64 context line. Run now exposes **Show workflow
+  context**, refreshes after every successful step, retains the last context after completion,
+  replaces it at the next task start, and automatically scrolls runner output to new lines.
+- `SafeMarkdownView` now distinguishes its own `NavigateToString` navigation from blocked
+  external navigation, fixing the empty Rendered Markdown tab. Window resources and generated
+  restricted HTML follow the active theme.
+
+#### Verification
+
+- Release build: all eight projects succeeded with zero warnings and zero errors.
+- Deterministic tests: 256 passed, zero failed, one intentionally skipped local Ollama
+  integration test, 257 total.
+- All four sample JSON files parsed. Both standalone manuals retain 22 balanced sections and
+  30 unique ids with no duplicate id or missing internal anchor. `git diff --check` is clean.
+- `scripts/publish.ps1 -NoRestore` produced the self-contained `win-x64` UI and Runner in the
+  standard per-user installation. The published Runner `--help` smoke check exited with code 0.
+- The real Gmail task supplied as data was neither created nor executed. Live AI Helper theme,
+  WebView2, and real-workflow execution remain explicit human checks.

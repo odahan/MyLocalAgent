@@ -99,6 +99,12 @@ auto-resolution first checks beside the UI and then selects
 `..\Runner\OD.MyLocalAgent.Runner.exe` in the standard published layout. An explicit
 absolute override remains supported.
 
+Settings also exposes separate copy actions for the reports directory and the published UI
+executable directory. **Create desktop shortcut** creates or refreshes
+`OD.MyLocalAgent.lnk` on the current user's Windows desktop and targets the published UI
+executable. Application confirmation dialogs use the active Light or Dark theme; native
+file and folder pickers continue to use the Windows appearance.
+
 ## Google Cloud OAuth setup
 
 OD.MyLocalAgent requests these scopes:
@@ -616,7 +622,8 @@ Explanations default to deterministic Text. Rendered Markdown uses the same resp
 Markdig and a restricted in-memory WebView2 document with raw HTML disabled, no scripts or
 remote resources, and blocked navigation, pop-ups, and downloads. Missing or failed WebView2
 falls back to Text and offers only a user-initiated link to Microsoft's official runtime
-page; the application never downloads or installs it.
+page; the application never downloads or installs it. The complete helper window and the
+rendered document follow the currently selected Light or Dark application theme.
 
 Generated workflows can be semantically wrong even when their JSON is valid. Literal static
 analysis cannot predict every runtime path or value, model context and latency grow with
@@ -626,10 +633,12 @@ workflow size, and Markdown rendering is best-effort; Text remains the dependabl
 
 | Workflow alias | Agent function | Implementation | Arguments | Safety |
 |---|---|---|---|---|
-| `gmail.readToday` | `gmail_read_today` | `GmailTool.ReadTodayAsync` | none | — |
-| `gmail.readUnread` | `gmail_read_unread` | `GmailTool.ReadUnreadAsync` | none | — |
+| `gmail.readToday` | `gmail_read_today` | `GmailTool.ReadTodayAsync` | optional `maxMessages` | — |
+| `gmail.readUnread` | `gmail_read_unread` | `GmailTool.ReadUnreadAsync` | optional `maxMessages` | — |
+| `gmail.readRecent` | `gmail_read_recent` | `GmailTool.ReadRecentAsync` | `daysBack`, optional `maxMessages` | — |
 | `gmail.send` | `gmail_send` | `GmailTool.SendAsync` | `to`, `subject`, `body` | `Safety:AllowSendEmail` |
 | `calendar.today` | `calendar_today` | `CalendarTool.TodayAsync` | none | — |
+| `calendar.read` | `calendar_read` | `CalendarTool.ReadAsync` | `period`: `Day`, `Week`, `Month`, or `Year` | — |
 | `calendar.create` | `calendar_create` | `CalendarTool.CreateAsync` | `summary`, `start`, `end`, `description` | — |
 | `dropbox.upload` | `dropbox_upload` | `DropboxTool.UploadAsync` | `localPath`, `dropboxPath` | — |
 | `dropbox.download` | `dropbox_download` | `DropboxTool.DownloadAsync` | `dropboxPath`, `localPath` | — |
@@ -655,6 +664,10 @@ An `ai.prompt` step always records the model response as its named output. Set
 `"includeContext": true` to append a JSON snapshot of all completed step outputs to the
 prompt. The snapshot is explicitly labeled as data rather than instructions. The default is
 `false`, preserving existing workflow behavior and avoiding unnecessary context growth.
+`ai.prompt` is a direct, tool-less model call: it cannot select a connector or a skill, even
+when the containing task whitelists them. Agent-capable prompt-only tasks retain their
+whitelisted tools, but stop after eight tool rounds, two consecutive tool errors, or a third
+strictly identical tool-and-arguments request.
 
 `ai.extractActionItems` and `ai.classifyEmail` are tool-less LLM skills. With no
 `args.text`, they consume the previous step output; when first, they consume the task prompt.
@@ -962,7 +975,15 @@ Tests       -> all projects
 ```
 
 The UI **Run now** action starts the published runner instead of executing a separate
-in-process path. Scheduled and interactive runs therefore share the same behavior.
+in-process path. Scheduled and interactive runs therefore share the same behavior. Runner
+output follows appended lines automatically. **Show workflow context** displays the JSON
+outputs accumulated after each successful workflow step; it remains available after the run
+ends and is replaced only when another task starts. This context can contain task data and is
+kept in UI memory rather than added to ordinary runner log lines.
+
+Tool start traces serialize readable JSON arguments. Completion traces include the number of
+Gmail messages, Calendar events, or Web Search results returned, and Dropbox item names and
+sizes. Credentials and configured tokens remain excluded.
 
 ## Provider switching
 

@@ -86,6 +86,7 @@ public sealed class ToolMapTests : IDisposable
         tools.Select(static tool => tool.Name).Should().BeEquivalentTo(
             "gmail_read_today",
             "gmail_read_unread",
+            "gmail_read_recent",
             "gmail_send");
         tools.Should().OnlyContain(static tool => tool is AIFunction);
     }

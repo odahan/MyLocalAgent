@@ -9,6 +9,8 @@ namespace OD.MyLocalAgent.UI.Controls;
 /// </summary>
 public sealed class SafeMarkdownView : WebView2
 {
+    private bool _internalNavigationPending;
+
     /// <summary>
     /// Identifies the <see cref="Html"/> dependency property.
     /// </summary>
@@ -94,14 +96,21 @@ public sealed class SafeMarkdownView : WebView2
     {
         if (CoreWebView2 is not null && !string.IsNullOrEmpty(Html))
         {
+            _internalNavigationPending = true;
             CoreWebView2.NavigateToString(Html);
         }
     }
 
-    private static void OnNavigationStarting(
+    private void OnNavigationStarting(
         object? sender,
         CoreWebView2NavigationStartingEventArgs e)
     {
+        if (_internalNavigationPending)
+        {
+            _internalNavigationPending = false;
+            return;
+        }
+
         if (!string.Equals(e.Uri, "about:blank", StringComparison.OrdinalIgnoreCase))
         {
             e.Cancel = true;

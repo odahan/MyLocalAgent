@@ -42,7 +42,26 @@ public sealed class CalendarTool : ICalendarTool
                 var events = await _connector.GetTodaysEventsAsync(cancellationToken)
                     .ConfigureAwait(false);
                 return ToolJson.Serialize(events);
-            });
+            },
+            SummarizeReadResult);
+
+    /// <inheritdoc />
+    [Description("Reads Google Calendar events for the current local day, week, month, or year.")]
+    public Task<string> ReadAsync(
+        [Description("Calendar period: Day, Week, Month, or Year.")] CalendarPeriod period,
+        CancellationToken cancellationToken = default) =>
+        ToolCallLog.ExecuteAsync(
+            _logger,
+            _timeProvider,
+            "calendar.read",
+            new { period },
+            async () =>
+            {
+                var events = await _connector.GetEventsAsync(period, cancellationToken)
+                    .ConfigureAwait(false);
+                return ToolJson.Serialize(events);
+            },
+            SummarizeReadResult);
 
     /// <inheritdoc />
     [Description("Creates a Google Calendar event.")]
@@ -81,5 +100,13 @@ public sealed class CalendarTool : ICalendarTool
                     cancellationToken).ConfigureAwait(false);
                 return ToolJson.Serialize(calendarEvent);
             });
+    }
+
+    private static string? SummarizeReadResult(string json)
+    {
+        using var document = System.Text.Json.JsonDocument.Parse(json);
+        return document.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array
+            ? $"Returned {document.RootElement.GetArrayLength()} calendar event(s)."
+            : null;
     }
 }

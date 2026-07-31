@@ -65,6 +65,33 @@ public sealed class WorkflowEngineTests
     }
 
     /// <summary>
+    /// Verifies the observable workflow context is refreshed after every successful step.
+    /// </summary>
+    [Fact]
+    public async Task PublishesWorkflowContextAfterEverySuccessfulStep()
+    {
+        var registry = new RecordingToolRegistry(
+            (alias, _, _) => Task.FromResult($"output:{alias}"));
+        var engine = CreateEngine(registry);
+        var task = CreateTask(
+            [
+                Step("filesystem.list", "first", "{}"),
+                Step("filesystem.list", "second", "{}"),
+            ]);
+        var contexts = new List<string>();
+
+        var result = await engine.ExecuteAsync(
+            task,
+            contexts.Add,
+            CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        contexts.Should().HaveCount(2);
+        contexts[0].Should().Contain("first").And.NotContain("second");
+        contexts[1].Should().Contain("first").And.Contain("second");
+    }
+
+    /// <summary>
     /// Verifies an unknown placeholder fails the current step.
     /// </summary>
     [Fact]
@@ -322,11 +349,8 @@ public sealed class WorkflowEngineTests
             (_, _, _) => Task.FromResult("tool-output"));
         var agent = new Mock<IMyLocalAgentService>(MockBehavior.Strict);
         agent.Setup(
-                service => service.RunPromptAsync(
+                service => service.RunPromptWithoutToolsAsync(
                     "tool-output for Workflow test",
-                    It.IsAny<IEnumerable<string>>(),
-                    It.Is<ToolExecutionContext>(
-                        context => context.TaskId == "workflow-test"),
                     It.IsAny<EffectiveGenerationPolicy>(),
                     It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AgentRunResult("prompt-output", "Test"));
@@ -401,14 +425,12 @@ public sealed class WorkflowEngineTests
                 """{"path":"inbox/source.txt","content":"Bonjour"}"""));
         var agent = new Mock<IMyLocalAgentService>(MockBehavior.Strict);
         agent.Setup(
-                service => service.RunPromptAsync(
+                service => service.RunPromptWithoutToolsAsync(
                     It.Is<string>(
                         prompt =>
                             prompt.StartsWith("Translate into English.") &&
                             prompt.Contains("\"source\"") &&
                             prompt.Contains("\"content\": \"Bonjour\"")),
-                    It.IsAny<IEnumerable<string>>(),
-                    It.IsAny<ToolExecutionContext>(),
                     It.IsAny<EffectiveGenerationPolicy>(),
                     It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AgentRunResult("Hello", "Test"));
@@ -632,30 +654,23 @@ public sealed class WorkflowEngineTests
     }
 
     /// <summary>
-    /// Verifies ai.prompt receives its step-effective policy with task context and whitelist intact.
+    /// Verifies ai.prompt receives its step-effective policy without exposing task tools.
     /// </summary>
     [Fact]
-    public async Task AiPromptReceivesStepEffectivePolicyAndTaskContext()
+    public async Task AiPromptReceivesStepEffectivePolicyWithoutTools()
     {
         EffectiveGenerationPolicy? capturedPolicy = null;
         var agent = new Mock<IMyLocalAgentService>(MockBehavior.Strict);
         agent.Setup(
-                service => service.RunPromptAsync(
+                service => service.RunPromptWithoutToolsAsync(
                     "Draft the report.",
-                    It.Is<IEnumerable<string>>(
-                        tools => tools.SequenceEqual(
-                            new[] { ToolGroups.FileSystem })),
-                    It.Is<ToolExecutionContext>(
-                        context => context.TaskId == "workflow-test"),
                     It.IsAny<EffectiveGenerationPolicy>(),
                     It.IsAny<CancellationToken>()))
             .Callback<
                 string,
-                IEnumerable<string>,
-                ToolExecutionContext,
                 EffectiveGenerationPolicy,
                 CancellationToken>(
-                (_, _, _, policy, _) => capturedPolicy = policy)
+                (_, policy, _) => capturedPolicy = policy)
             .ReturnsAsync(new AgentRunResult("draft", "Test"));
         var options = new MutableOptionsMonitor<AIOptions>(
             new AIOptions

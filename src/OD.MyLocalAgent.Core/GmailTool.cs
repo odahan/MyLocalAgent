@@ -53,19 +53,51 @@ public sealed class GmailTool : IGmailTool
 
     /// <inheritdoc />
     [Description("Reads Gmail messages received today.")]
-    public Task<string> ReadTodayAsync(CancellationToken cancellationToken) =>
+    public Task<string> ReadTodayAsync(
+        [Description("Optional maximum number of messages to return.")] int? maxMessages = null,
+        CancellationToken cancellationToken = default) =>
         ReadAsync(
             "gmail.readToday",
             _connector.GetTodaysMessagesAsync,
+            maxMessages,
             cancellationToken);
 
     /// <inheritdoc />
     [Description("Reads unread Gmail messages.")]
-    public Task<string> ReadUnreadAsync(CancellationToken cancellationToken) =>
+    public Task<string> ReadUnreadAsync(
+        [Description("Optional maximum number of messages to return.")] int? maxMessages = null,
+        CancellationToken cancellationToken = default) =>
         ReadAsync(
             "gmail.readUnread",
             _connector.GetUnreadMessagesAsync,
+            maxMessages,
             cancellationToken);
+
+    /// <inheritdoc />
+    [Description("Reads Gmail messages since the start of the local day a number of days ago.")]
+    public Task<string> ReadRecentAsync(
+        [Description("Number of local calendar days before today to include; zero means today only.")] int daysBack,
+        [Description("Optional maximum number of messages to return.")] int? maxMessages = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (daysBack < 0 || daysBack > 3650)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(daysBack),
+                daysBack,
+                "Days back must be between 0 and 3650.");
+        }
+
+        return ReadAsync(
+            "gmail.readRecent",
+            (maximum, token) => _connector.GetRecentMessagesAsync(
+                daysBack,
+                maximum,
+                token),
+            maxMessages,
+            cancellationToken,
+            new { daysBack, maxMessages });
+    }
 
     /// <inheritdoc />
     [Description("Sends a plain-text Gmail message when Safety:AllowSendEmail is enabled.")]
@@ -106,16 +138,29 @@ public sealed class GmailTool : IGmailTool
 
     private Task<string> ReadAsync(
         string alias,
-        Func<CancellationToken, Task<IReadOnlyList<EmailMessageDto>>> read,
-        CancellationToken cancellationToken) =>
+        Func<int?, CancellationToken, Task<IReadOnlyList<EmailMessageDto>>> read,
+        int? maxMessages,
+        CancellationToken cancellationToken,
+        object? logArguments = null)
+    {
+        if (maxMessages is <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(maxMessages),
+                maxMessages,
+                "Maximum messages must be greater than zero when supplied.");
+        }
+
+        return
         ToolCallLog.ExecuteAsync(
             _logger,
             _timeProvider,
             alias,
-            new { },
+            logArguments ?? new { maxMessages },
             async () =>
             {
-                var fetched = await read(cancellationToken).ConfigureAwait(false);
+                var fetched = await read(maxMessages, cancellationToken)
+                    .ConfigureAwait(false);
                 var options = _guardrailsOptions.CurrentValue;
                 var limit = options.MaxGmailMessagesPerOperation;
                 var processedCount = limit == 0
@@ -144,11 +189,31 @@ public sealed class GmailTool : IGmailTool
                         messages = protectedMessages,
                         totalFetched = fetched.Count,
                         processed = processedCount,
+                        requestedMaxMessages = maxMessages,
                         skippedBecauseOfLimit = skipped,
                         limitApplied,
                         warning,
                     });
-            });
+            },
+            SummarizeReadResult);
+    }
+
+    private static string? SummarizeReadResult(string json)
+    {
+        using var document = System.Text.Json.JsonDocument.Parse(json);
+        var root = document.RootElement;
+        if (!root.TryGetProperty("totalFetched", out var fetched) ||
+            !root.TryGetProperty("processed", out var processed))
+        {
+            return null;
+        }
+
+        var fetchedCount = fetched.GetInt32();
+        var processedCount = processed.GetInt32();
+        return fetchedCount == processedCount
+            ? $"Returned {processedCount} Gmail message(s)."
+            : $"Fetched {fetchedCount} Gmail message(s); returned {processedCount} after the Guardrails limit.";
+    }
 
     private async Task<ProtectedGmailMessage> ProtectMessageAsync(
         EmailMessageDto message,

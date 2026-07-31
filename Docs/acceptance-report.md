@@ -184,3 +184,36 @@ Date: 2026-07-30
 - ⏳ The WPF application was not launched in this implementation pass. Automated binding,
   ViewModel, serialization, runtime propagation, provider-option, build, and test evidence is
   complete, but no manual GUI or live-provider result is claimed.
+
+## Stage 15 agent loop hardening and run observability
+
+Date: 2026-07-31
+
+| Checklist item | Status | Executed evidence |
+|---|---:|---|
+| `ai.prompt` cannot enter an agent/tool loop. | ✅ | The workflow engine uses one direct tool-less model call. A deterministic service test verifies one request and an empty tool list. |
+| Agent-capable calls cannot repeat forever. | ✅ | Requests stop after eight rounds, two consecutive errors, unknown calls, or before the third identical tool-and-arguments execution. A test verifies the typed loop exception and that the tool ran only twice. |
+| Gmail and Calendar expose bounded/period reads. | ✅ | Tool Map and connector tests cover optional Gmail maximums, `gmail.readRecent(daysBack)`, and `calendar.read` period mapping. |
+| Runner traces and context aid diagnosis without exposing configured credentials. | ✅ | Tests cover readable sanitized JSON arguments, returned Gmail count, per-step context callbacks, and Base64 context protocol rejection/round-trip. Run output is wired to auto-scroll and retains the last context until the next run. |
+| AI Explain rendering follows the current theme and no longer blocks its own document navigation. | ✅ | Light/Dark CSS tests pass; internal `NavigateToString` is distinguished from blocked external navigation. WebView2 Text fallback remains unchanged. |
+| Documentation and deployment are complete. | ✅ | README, shared specification §18, FR/EN manuals, First Run guides, theme audit, Ledger, and this report are updated. Both manuals validate structurally, all sample JSON parses, Release publish succeeds, and the published Runner help command exits successfully. |
+
+### Stage 15 final evidence
+
+- `dotnet build OD.MyLocalAgent.sln -m:1 --no-restore --configuration Release`: zero warnings,
+  zero errors.
+- `dotnet test OD.MyLocalAgent.sln -m:1 --no-build --no-restore --configuration Release`:
+  256 passed, zero failed, one intentionally skipped local Ollama integration test.
+- Self-contained `win-x64` UI and Runner published successfully to the standard per-user
+  installation; published Runner `--help` returned exit code 0.
+- Each standalone manual has 22 balanced sections, 30 unique ids, no duplicate id, and no
+  missing internal anchor. Four sample JSON files parsed successfully. `git diff --check` is
+  clean.
+
+### Stage 15 human follow-up
+
+- ⏳ Launch the published UI and exercise AI Helper/AI Explain in both Light and Dark, including
+  Rendered Markdown with the installed WebView2 runtime.
+- ⏳ Run the real daily Gmail workflow manually with a small explicit `maxMessages`, inspect the
+  retained workflow context, and confirm the report content. This implementation pass did not
+  execute or create that user task.

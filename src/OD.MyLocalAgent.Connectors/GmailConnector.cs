@@ -21,45 +21,96 @@ public sealed class GmailConnector : IGmailConnector
     /// Initializes a new instance of the <see cref="GmailConnector"/> class.
     /// </summary>
     /// <param name="credentialProvider">The silent Google credential provider.</param>
-    /// <param name="httpClientFactory">The managed HTTP client factory.</param>
+    /// <param name="httpMessageHandlerFactory">The managed HTTP handler factory.</param>
     /// <param name="timeProvider">The time source used to identify today's messages.</param>
     public GmailConnector(
         IGoogleCredentialProvider credentialProvider,
-        IHttpClientFactory httpClientFactory,
+        IHttpMessageHandlerFactory httpMessageHandlerFactory,
         TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(credentialProvider);
-        ArgumentNullException.ThrowIfNull(httpClientFactory);
+        ArgumentNullException.ThrowIfNull(httpMessageHandlerFactory);
         ArgumentNullException.ThrowIfNull(timeProvider);
         _credentialProvider = credentialProvider;
-        _googleHttpClientFactory = new GoogleHttpClientFactoryAdapter(httpClientFactory);
+        _googleHttpClientFactory =
+            new GoogleHttpClientFactoryAdapter(httpMessageHandlerFactory);
         _timeProvider = timeProvider;
     }
 
     /// <inheritdoc />
+    public async Task CheckReadAccessAsync(CancellationToken cancellationToken)
+    {
+        await ExecuteApiOperationAsync(
+            "CheckReadAccess",
+            async () =>
+            {
+                using var service = await CreateServiceAsync(cancellationToken).ConfigureAwait(false);
+                var request = service.Users.Messages.List(CurrentUser);
+                request.MaxResults = 1;
+                request.Fields = "messages/id";
+                await request.ExecuteAsync(cancellationToken).ConfigureAwait(false);
+                return true;
+            },
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public Task<IReadOnlyList<EmailMessageDto>> GetTodaysMessagesAsync(
+        int? maxMessages,
         CancellationToken cancellationToken)
     {
-        var now = _timeProvider.GetLocalNow();
-        var start = new DateTimeOffset(
-            now.Year,
-            now.Month,
-            now.Day,
-            0,
-            0,
-            0,
-            now.Offset);
+        var today = DateOnly.FromDateTime(_timeProvider.GetLocalNow().DateTime);
+        var start = GetStartOfLocalDay(today);
         return GetMessagesAsync(
             $"after:{start.ToUnixTimeSeconds()}",
             "GetToday'sMessages",
+            maxMessages,
             cancellationToken);
     }
 
     /// <inheritdoc />
     public Task<IReadOnlyList<EmailMessageDto>> GetUnreadMessagesAsync(
+        int? maxMessages,
         CancellationToken cancellationToken)
     {
-        return GetMessagesAsync("is:unread", "GetUnreadMessages", cancellationToken);
+        return GetMessagesAsync(
+            "is:unread",
+            "GetUnreadMessages",
+            maxMessages,
+            cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<EmailMessageDto>> GetRecentMessagesAsync(
+        int daysBack,
+        int? maxMessages,
+        CancellationToken cancellationToken)
+    {
+        if (daysBack < 0 || daysBack > 3650)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(daysBack),
+                daysBack,
+                "Days back must be between 0 and 3650.");
+        }
+
+        var today = DateOnly.FromDateTime(_timeProvider.GetLocalNow().DateTime);
+        var start = GetStartOfLocalDay(today.AddDays(-daysBack));
+        return GetMessagesAsync(
+            $"after:{start.ToUnixTimeSeconds()}",
+            "GetRecentMessages",
+            maxMessages,
+            cancellationToken);
+    }
+
+    private DateTimeOffset GetStartOfLocalDay(DateOnly date)
+    {
+        var localDateTime = date.ToDateTime(
+            TimeOnly.MinValue,
+            DateTimeKind.Unspecified);
+        return new DateTimeOffset(
+            localDateTime,
+            _timeProvider.LocalTimeZone.GetUtcOffset(localDateTime));
     }
 
     /// <inheritdoc />
@@ -96,8 +147,10 @@ public sealed class GmailConnector : IGmailConnector
     private Task<IReadOnlyList<EmailMessageDto>> GetMessagesAsync(
         string query,
         string operation,
+        int? maxMessages,
         CancellationToken cancellationToken)
     {
+        ValidateMaximum(maxMessages);
         return ExecuteApiOperationAsync(
             operation,
             async () =>
@@ -111,9 +164,18 @@ public sealed class GmailConnector : IGmailConnector
                     var listRequest = service.Users.Messages.List(CurrentUser);
                     listRequest.Q = query;
                     listRequest.PageToken = pageToken;
+                    if (maxMessages is { } maximum)
+                    {
+                        listRequest.MaxResults = Math.Min(500, maximum - messages.Count);
+                    }
                     var page = await listRequest.ExecuteAsync(cancellationToken).ConfigureAwait(false);
                     foreach (var messageReference in page.Messages ?? [])
                     {
+                        if (maxMessages is { } limit && messages.Count >= limit)
+                        {
+                            break;
+                        }
+
                         if (string.IsNullOrWhiteSpace(messageReference.Id))
                         {
                             continue;
@@ -127,11 +189,23 @@ public sealed class GmailConnector : IGmailConnector
 
                     pageToken = page.NextPageToken;
                 }
-                while (!string.IsNullOrWhiteSpace(pageToken));
+                while (!string.IsNullOrWhiteSpace(pageToken) &&
+                       (maxMessages is null || messages.Count < maxMessages.Value));
 
                 return (IReadOnlyList<EmailMessageDto>)messages;
             },
             cancellationToken);
+    }
+
+    private static void ValidateMaximum(int? maxMessages)
+    {
+        if (maxMessages is <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(maxMessages),
+                maxMessages,
+                "Maximum messages must be greater than zero when supplied.");
+        }
     }
 
     private async Task<GmailService> CreateServiceAsync(CancellationToken cancellationToken)

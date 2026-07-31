@@ -457,6 +457,10 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
                 JsonException)
         {
             ValidationText = AddAliasSuggestion(exception.Message);
+            _desktopInteraction.ShowError(
+                "Task was not saved",
+                "The task definition is incomplete or invalid. No changes were saved.\n\n" +
+                ValidationText);
         }
         catch (Exception exception)
         {
@@ -486,6 +490,14 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
     [RelayCommand]
     private void BackToTasks()
     {
+        if (IsDirty &&
+            !_desktopInteraction.Confirm(
+                "Discard unsaved task changes",
+                "Discard the unsaved task definition and return to Tasks?"))
+        {
+            return;
+        }
+
         ClearAIUndo();
         _messenger.Send(new NavigateMessage(PageRoute.Tasks));
     }

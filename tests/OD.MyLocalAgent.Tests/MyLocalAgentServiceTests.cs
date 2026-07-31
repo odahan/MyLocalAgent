@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.Extensions.AI;
 using Moq;
 using OD.MyLocalAgent.Core;
 using OD.MyLocalAgent.Ollama;
@@ -12,6 +13,95 @@ namespace OD.MyLocalAgent.Tests;
 /// </summary>
 public sealed class MyLocalAgentServiceTests
 {
+    /// <summary>
+    /// Verifies direct prompt generation never exposes task tools.
+    /// </summary>
+    [Fact]
+    public async Task PromptWithoutToolsUsesOneDirectModelCall()
+    {
+        var provider = new StubLlmClientService("Generated report.");
+        var factory = new Mock<ILlmClientFactory>(MockBehavior.Strict);
+        factory.Setup(instance => instance.Create()).Returns(provider);
+        var registry = new Mock<IToolRegistry>(MockBehavior.Strict);
+        var service = new MyLocalAgentService(
+            factory.Object,
+            registry.Object,
+            [],
+            Mock.Of<IIncidentReporter>(),
+            TimeProvider.System);
+        var policy = new EffectiveGenerationPolicy(
+            0.1,
+            1,
+            8192,
+            GenerationOptionSource.Step,
+            GenerationOptionSource.Settings);
+
+        var result = await service.RunPromptWithoutToolsAsync(
+            "Generate the report from supplied context.",
+            policy,
+            CancellationToken.None);
+
+        result.Text.Should().Be("Generated report.");
+        provider.Client.CallCount.Should().Be(1);
+        provider.Client.LastOptions!.Tools.Should().BeNullOrEmpty();
+        registry.VerifyNoOtherCalls();
+    }
+
+    /// <summary>
+    /// Verifies identical tool calls are stopped before an agent can loop indefinitely.
+    /// </summary>
+    [Fact]
+    public async Task RepeatedIdenticalToolCallTriggersLoopProtection()
+    {
+        var toolInvocationCount = 0;
+        var function = AIFunctionFactory.Create(
+            (string value) =>
+            {
+                toolInvocationCount++;
+                return $"same:{value}";
+            },
+            "repeat_tool");
+        var client = new StubChatClient("unused")
+        {
+            ResponseFactory = call => new ChatResponse(
+                new ChatMessage(
+                    ChatRole.Assistant,
+                    [
+                        new FunctionCallContent(
+                            $"call-{call}",
+                            "repeat_tool",
+                            new Dictionary<string, object?>
+                            {
+                                ["value"] = "unchanged",
+                            }),
+                    ])),
+        };
+        var provider = new StubLlmClientService(client, "Stub");
+        var factory = new Mock<ILlmClientFactory>(MockBehavior.Strict);
+        factory.Setup(instance => instance.Create()).Returns(provider);
+        var registry = new Mock<IToolRegistry>(MockBehavior.Strict);
+        registry.Setup(instance => instance.GetAgentTools(
+                It.IsAny<IEnumerable<string>>(),
+                It.IsAny<ToolExecutionContext>()))
+            .Returns([function]);
+        var service = new MyLocalAgentService(
+            factory.Object,
+            registry.Object,
+            [],
+            Mock.Of<IIncidentReporter>(),
+            TimeProvider.System);
+
+        var action = () => service.RunPromptAsync(
+            "Use the tool.",
+            [ToolGroups.FileSystem],
+            CancellationToken.None);
+
+        await action.Should().ThrowAsync<AgentToolLoopException>()
+            .WithMessage("*repeat_tool*identical arguments*");
+        toolInvocationCount.Should().Be(2);
+        client.CallCount.Should().Be(3);
+    }
+
     /// <summary>
     /// Verifies factory configuration failures are reported and surfaced with a friendly message.
     /// </summary>

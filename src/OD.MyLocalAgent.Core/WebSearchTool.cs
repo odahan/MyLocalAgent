@@ -147,7 +147,21 @@ public sealed class WebSearchTool : IWebSearchTool
                 }
 
                 return ToolJson.Serialize(output);
-            });
+            },
+            SummarizeSearchResult);
+    }
+
+    private static string? SummarizeSearchResult(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        if (!root.TryGetProperty("count", out var delivered) ||
+            !root.TryGetProperty("providerCount", out var provider))
+        {
+            return null;
+        }
+
+        return $"Returned {delivered.GetInt32()} web result(s) from {provider.GetInt32()} provider result(s).";
     }
 
     private async Task<ContentTrustResult> ScreenWithFallbackAsync(

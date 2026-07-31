@@ -11,6 +11,9 @@ namespace OD.MyLocalAgent.Core;
 /// </summary>
 public sealed class MyLocalAgentService : IMyLocalAgentService
 {
+    private const int MaximumToolIterations = 8;
+    private const int MaximumConsecutiveToolErrors = 2;
+
     /// <summary>
     /// Gets the stable agent name.
     /// </summary>
@@ -59,6 +62,43 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
             allowSkills: false,
             ResolveGlobalPolicy(),
             cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<AgentRunResult> RunPromptWithoutToolsAsync(
+        string prompt,
+        EffectiveGenerationPolicy generationPolicy,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
+        ArgumentNullException.ThrowIfNull(generationPolicy);
+
+        try
+        {
+            var provider = _clientFactory.Create();
+            var policyClient = new GenerationPolicyChatClient(
+                provider.ChatClient,
+                generationPolicy,
+                provider.ProviderName);
+            var response = await policyClient.GetResponseAsync(
+                [
+                    new ChatMessage(
+                        ChatRole.System,
+                        BuildSystemPrompt(_timeProvider.GetLocalNow())),
+                    new ChatMessage(ChatRole.User, prompt),
+                ],
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+            return new AgentRunResult(response.Text, provider.ProviderName);
+        }
+        catch (LlmConfigurationException exception)
+        {
+            var correlationId = await _incidentReporter.ReportAsync(
+                exception,
+                nameof(MyLocalAgentService),
+                IncidentSeverity.Error,
+                cancellationToken).ConfigureAwait(false);
+            throw new AgentExecutionException(correlationId, exception);
+        }
+    }
 
     /// <inheritdoc />
     public Task<AgentRunResult> RunPromptAsync(
@@ -116,7 +156,7 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
         ArgumentNullException.ThrowIfNull(executionContext);
         ArgumentNullException.ThrowIfNull(generationPolicy);
 
-        var (provider, agent) = await CreateAgentAsync(
+        var (provider, agent, loopGuard) = await CreateAgentAsync(
             enabledTools,
             executionContext,
             allowSkills,
@@ -125,6 +165,7 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
         var response = await agent.RunAsync(
             prompt,
             cancellationToken: cancellationToken).ConfigureAwait(false);
+        loopGuard.ThrowIfRepeatedCallDetected();
         return new AgentRunResult(response.Text, provider.ProviderName);
     }
 
@@ -212,7 +253,7 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
         ArgumentNullException.ThrowIfNull(executionContext);
         ArgumentNullException.ThrowIfNull(generationPolicy);
 
-        var (_, agent) = await CreateAgentAsync(
+        var (_, agent, loopGuard) = await CreateAgentAsync(
             enabledTools,
             executionContext,
             allowSkills,
@@ -227,9 +268,11 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
                 yield return update.Text;
             }
         }
+
+        loopGuard.ThrowIfRepeatedCallDetected();
     }
 
-    private async Task<(ILlmClientService Provider, ChatClientAgent Agent)> CreateAgentAsync(
+    private async Task<(ILlmClientService Provider, ChatClientAgent Agent, AgentToolLoopGuard LoopGuard)> CreateAgentAsync(
         IEnumerable<string> enabledTools,
         ToolExecutionContext executionContext,
         bool allowSkills,
@@ -250,11 +293,19 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
                 provider.ChatClient,
                 generationPolicy,
                 provider.ProviderName);
-            var agent = policyClient.AsAIAgent(
+            var loopGuard = new AgentToolLoopGuard();
+            var functionClient = new FunctionInvokingChatClient(policyClient)
+            {
+                MaximumIterationsPerRequest = MaximumToolIterations,
+                MaximumConsecutiveErrorsPerRequest = MaximumConsecutiveToolErrors,
+                TerminateOnUnknownCalls = true,
+                FunctionInvoker = loopGuard.InvokeAsync,
+            };
+            var agent = functionClient.AsAIAgent(
                 instructions: instructions,
                 name: AgentName,
                 tools: tools);
-            return (provider, agent);
+            return (provider, agent, loopGuard);
         }
         catch (LlmConfigurationException exception)
         {
@@ -322,5 +373,62 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
             string text,
             CancellationToken cancellationToken) =>
             _skill.ExecuteAsync(text, _policy, cancellationToken);
+    }
+
+    private sealed class AgentToolLoopGuard
+    {
+        private const int MaximumIdenticalInvocations = 2;
+        private readonly object _syncRoot = new();
+        private readonly Dictionary<string, int> _invocations =
+            new(StringComparer.Ordinal);
+
+        public string? RepeatedCallMessage { get; private set; }
+
+        public ValueTask<object?> InvokeAsync(
+            FunctionInvocationContext context,
+            CancellationToken cancellationToken)
+        {
+            var orderedArguments = context.Arguments
+                .OrderBy(static pair => pair.Key, StringComparer.Ordinal)
+                .ToDictionary(
+                    static pair => pair.Key,
+                    static pair => pair.Value,
+                    StringComparer.Ordinal);
+            var argumentsJson = System.Text.Json.JsonSerializer.Serialize(
+                orderedArguments,
+                ToolJson.Options);
+            var signature = $"{context.Function.Name}:{argumentsJson}";
+            lock (_syncRoot)
+            {
+                _invocations.TryGetValue(signature, out var count);
+                count++;
+                _invocations[signature] = count;
+                if (count > MaximumIdenticalInvocations)
+                {
+                    context.Terminate = true;
+                    RepeatedCallMessage =
+                        $"Agent execution stopped after tool '{context.Function.Name}' was requested more than {MaximumIdenticalInvocations} times with identical arguments.";
+                    return ValueTask.FromResult<object?>(RepeatedCallMessage);
+                }
+            }
+
+            return context.Function.InvokeAsync(
+                context.Arguments,
+                cancellationToken);
+        }
+
+        public void ThrowIfRepeatedCallDetected()
+        {
+            string? message;
+            lock (_syncRoot)
+            {
+                message = RepeatedCallMessage;
+            }
+
+            if (message is not null)
+            {
+                throw new AgentToolLoopException(message);
+            }
+        }
     }
 }

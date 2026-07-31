@@ -243,6 +243,28 @@ public sealed class WorkflowAssistantServiceTests
     }
 
     /// <summary>
+    /// Verifies rendered Markdown follows the live application theme.
+    /// </summary>
+    [Theory]
+    [InlineData(AppTheme.Light, "color-scheme:light", "background:#fafafa")]
+    [InlineData(AppTheme.Dark, "color-scheme:dark", "background:#1e1e24")]
+    public void MarkdownRendererFollowsCurrentTheme(
+        AppTheme theme,
+        string expectedColorScheme,
+        string expectedBackground)
+    {
+        var themeService = new Mock<IThemeService>(MockBehavior.Strict);
+        themeService.SetupGet(instance => instance.CurrentTheme).Returns(theme);
+        var renderer = new MarkdownRenderingService(themeService.Object);
+
+        var html = renderer.ToRestrictedHtml("# Theme test");
+
+        html.Should().Contain(expectedColorScheme)
+            .And.Contain(expectedBackground);
+        themeService.VerifyAll();
+    }
+
+    /// <summary>
     /// Verifies a missing runtime keeps Text available and exposes only the official explicit link.
     /// </summary>
     [Fact]

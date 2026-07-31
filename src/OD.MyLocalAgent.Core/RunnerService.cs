@@ -32,6 +32,7 @@ public sealed class RunnerService : IRunnerService
     public async Task<int> RunTaskAsync(
         string taskId,
         Action<string>? outputLine,
+        Action<string>? contextUpdated,
         CancellationToken cancellationToken)
     {
         ValidateId(taskId);
@@ -79,10 +80,12 @@ public sealed class RunnerService : IRunnerService
         var stdoutTask = PumpAsync(
             process.StandardOutput,
             outputLine,
+            contextUpdated,
             cancellationToken);
         var stderrTask = PumpAsync(
             process.StandardError,
             outputLine,
+            contextUpdated,
             cancellationToken);
         await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
         await Task.WhenAll(stdoutTask, stderrTask).ConfigureAwait(false);
@@ -96,11 +99,19 @@ public sealed class RunnerService : IRunnerService
     private static async Task PumpAsync(
         StreamReader reader,
         Action<string>? outputLine,
+        Action<string>? contextUpdated,
         CancellationToken cancellationToken)
     {
         while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
         {
-            outputLine?.Invoke(line);
+            if (RunnerContextProtocol.TryDecode(line, out var contextJson))
+            {
+                contextUpdated?.Invoke(contextJson);
+            }
+            else
+            {
+                outputLine?.Invoke(line);
+            }
         }
     }
 

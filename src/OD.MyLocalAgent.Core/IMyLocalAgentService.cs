@@ -8,6 +8,18 @@ using OD.MyLocalAgent.Ollama;
 public interface IMyLocalAgentService
 {
     /// <summary>
+    /// Generates one model response without exposing any tool or entering a tool-call loop.
+    /// </summary>
+    /// <param name="prompt">The complete prompt.</param>
+    /// <param name="generationPolicy">The immutable effective generation policy.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The model result.</returns>
+    Task<AgentRunResult> RunPromptWithoutToolsAsync(
+        string prompt,
+        EffectiveGenerationPolicy generationPolicy,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Runs a prompt and returns the final concise report.
     /// </summary>
     /// <param name="prompt">The task prompt.</param>

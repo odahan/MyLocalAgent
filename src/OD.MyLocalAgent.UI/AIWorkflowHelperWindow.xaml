@@ -9,7 +9,11 @@
         MinWidth="900"
         MinHeight="620"
         WindowStartupLocation="CenterOwner"
-        ShowInTaskbar="False">
+        ShowInTaskbar="False"
+        Background="{DynamicResource AppBackgroundBrush}"
+        FontFamily="{DynamicResource MaterialDesign.Font}"
+        TextElement.FontSize="14"
+        TextElement.Foreground="{DynamicResource OnBackgroundBrush}">
     <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
