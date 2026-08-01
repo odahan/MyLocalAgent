@@ -323,7 +323,7 @@
                                 Command="{Binding AddWorkflowStepCommand}"
                                 Content="Add step" />
                         <WrapPanel Grid.Column="2"
-                                   HorizontalAlignment="Right">
+                                   HorizontalAlignment="Right" VerticalAlignment="Center">
                             <Button Command="{Binding OpenAIHelperCommand}"
                                     Content="AI Helper" />
                             <Button Command="{Binding OpenAIExplainCommand}"

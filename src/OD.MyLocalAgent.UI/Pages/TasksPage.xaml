@@ -80,8 +80,8 @@
                 </materialDesign:Card>
 
                 <Grid Grid.Row="3"
-                      Margin="0,14,0,0">
-                    <StackPanel Orientation="Horizontal">
+                      Margin="0,10,0,10">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <Button Command="{Binding NewTaskCommand}"
                                 Content="New"
                                 Style="{StaticResource PrimaryButtonStyle}" />
