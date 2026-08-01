@@ -89,7 +89,7 @@
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
-                    <TextBlock HorizontalAlignment="Center"
+                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
                                FontSize="20"
                                FontWeight="Bold"
                                Text="{Binding TrustScore, TargetNullValue=—}" />
