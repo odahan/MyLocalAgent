@@ -133,7 +133,12 @@ public partial class App : Application
         services.AddSingleton<IWebView2AvailabilityService, WebView2AvailabilityService>();
         services.AddSingleton<IAIWorkflowHelperDialogService, AIWorkflowHelperDialogService>();
         services.AddSingleton<IncidentMessengerBridge>();
+#if !DEBUG
+        // Debug builds skip the automatic startup resync so a debugging session never
+        // rewrites Task Scheduler registrations that point at the deployed runner. The
+        // Dashboard "Resync schedules" button remains available as an explicit action.
         services.AddHostedService<SchedulerStartupService>();
+#endif
 
         services.AddSingleton<MainWindowViewModel>();
         services.AddSingleton<DashboardViewModel>();

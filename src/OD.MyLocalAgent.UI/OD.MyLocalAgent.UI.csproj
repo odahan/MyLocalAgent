@@ -35,4 +35,25 @@
           Link="appsettings.json"
           CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+
+  <!-- Debug-only: builds the runner with the UI so F5 debugging finds it. -->
+  <ItemGroup Condition="'$(Configuration)' == 'Debug'">
+    <ProjectReference Include="..\OD.MyLocalAgent.Runner\OD.MyLocalAgent.Runner.csproj"
+                      ReferenceOutputAssembly="false"
+                      SkipGetTargetFrameworkProperties="true"
+                      Private="false" />
+  </ItemGroup>
+
+  <!-- Debug-only: mirrors the published UI/Runner sibling layout inside bin so
+       RunnerPathResolver's ..\Runner probe succeeds during Visual Studio debugging. -->
+  <Target Name="CopyRunnerBesideUi"
+          AfterTargets="Build"
+          Condition="'$(Configuration)' == 'Debug'">
+    <ItemGroup>
+      <RunnerFiles Include="..\OD.MyLocalAgent.Runner\bin\$(Configuration)\net10.0\win-x64\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(RunnerFiles)"
+          DestinationFolder="$(TargetDir)..\Runner\%(RecursiveDir)"
+          SkipUnchangedFiles="true" />
+  </Target>
 </Project>

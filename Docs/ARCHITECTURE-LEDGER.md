@@ -1645,3 +1645,17 @@ Modified:
   (190 → 490 → 190 → 490 → 190) without moving or resizing the application window.
 - Final Release verification completed with zero warnings and errors; 261 tests passed, zero
   failed, and one local Ollama integration test was intentionally skipped (262 total).
+
+#### Visual Studio debug runner layout — 2026-08-01
+
+- Debug builds of the UI now mirror the published sibling layout inside `bin`: a
+  Debug-only `ProjectReference` (`ReferenceOutputAssembly=false`) builds the runner with
+  the UI, and a Debug-only `CopyRunnerBesideUi` target copies its output to
+  `$(TargetDir)..\Runner\`. `RunnerPathResolver` finds the runner through its existing
+  `..\Runner` probe, so F5, Run now, and registration work with no code or configuration
+  change. Release builds and `scripts/publish.ps1` are untouched.
+- `SchedulerStartupService` is registered only in Release (`#if !DEBUG`). A debugging
+  session therefore never rewrites Task Scheduler registrations that point at the deployed
+  runner. Saving a task while debugging still registers it against the Debug runner, and the
+  next deployed-UI start resynchronizes it to production; the Dashboard Resync schedules
+  button remains available in Debug as an explicit action.

@@ -1116,3 +1116,26 @@ dotnet test OD.MyLocalAgent.sln -m:1 --no-build --no-restore --configuration Rel
 ```
 
 Warnings are errors. All public APIs require English XML documentation.
+
+## Debugging in Visual Studio
+
+Debug builds of the UI project reproduce the published sibling layout inside `bin`. A
+Debug-only project reference builds the runner together with the UI, and a Debug-only
+MSBuild target copies its output to:
+
+```text
+src\OD.MyLocalAgent.UI\bin\Debug\net10.0-windows\Runner\
+```
+
+`RunnerPathResolver` therefore finds the runner through its existing
+`..\Runner\OD.MyLocalAgent.Runner.exe` probe: F5 debugging, **Run now**, and task
+registration work without configuration. Release builds and `scripts/publish.ps1` are
+unaffected.
+
+Debug builds also skip the automatic startup schedule resynchronization
+(`SchedulerStartupService` is only registered in Release). This protects existing Task
+Scheduler registrations that point at the deployed runner: starting a debugging session
+never rewrites them. Tasks created or edited while debugging register against the Debug
+runner; the next start of the deployed UI resynchronizes them back to the production
+runner. The Dashboard **Resync schedules** button stays available in Debug as an explicit,
+intentional action.
