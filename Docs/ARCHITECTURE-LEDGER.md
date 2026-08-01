@@ -1599,8 +1599,8 @@ Modified:
 - Tasks adds session-only **Debug (next run)** and **Large** controls. Debug routes full LLM
   request/response payloads through a private child-Runner-to-UI channel alongside the normal
   sanitized tool-argument traces; it disables automatic scrolling and never persists those
-  payloads in normal logs or reports. Large raises the diagnostic panel and non-maximized main
-  window.
+  payloads in normal logs or reports. Large raises only the diagnostic panel by 300 pixels and
+  never changes the main window.
 - Gmail emits privacy-safe `message N of M` Guardrails progress. No hidden read limit was added:
   selecting `maxMessages` or a non-zero Guardrails cap remains an explicit user choice because
   it can omit messages from the report.
@@ -1625,4 +1625,23 @@ Modified:
 #### Tasks large Runner scrolling — 2026-08-01
 
 - The Tasks page now has a global vertical scroll viewer with a bounded task-grid height. Large
-  Runner Output grows to 620 pixels while the actions and output remain reachable by scrolling.
+  changes Runner Output from 190 to 490 pixels while the actions and output remain reachable by
+  scrolling; clearing it returns to 190 pixels without changing the application window.
+
+#### AI Explain and Runner display corrections — 2026-08-01
+
+- AI Explain keeps the completed Text view identical to the streamed Markdown, initializes the
+  restricted WebView2 document after its tab loads, and uses an application-owned `TabItem`
+  template so the selected-state background and foreground cannot be replaced by a framework
+  white-on-white default. The header stays centered while the response content stretches to
+  the complete surface before the first streamed token.
+- Tasks adds an enabled-by-default Auto-scroll control. Scrolling is deferred until after WPF
+  text layout, can be paused and resumed, and returns to the latest line when re-enabled.
+- Large remains repeatable by deriving the panel height from its boolean state: 190 pixels in
+  normal mode and 490 pixels when selected. It never resizes or repositions the window.
+- A separate local Release build visually verified AI Explain in Dark and Light, raw Markdown
+  retention after completion, actual WebView2-rendered headings/lists/bold/code/separators, and
+  the full-size empty response surface. The same build completed two full Large cycles
+  (190 → 490 → 190 → 490 → 190) without moving or resizing the application window.
+- Final Release verification completed with zero warnings and errors; 261 tests passed, zero
+  failed, and one local Ollama integration test was intentionally skipped (262 total).

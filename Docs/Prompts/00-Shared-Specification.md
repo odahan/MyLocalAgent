@@ -1177,9 +1177,9 @@ Stage 13 permits exactly two new centrally pinned packages: `Markdig` 1.3.2 and
 `workflow-generation-v1` and `workflow-explanation-v1`; the shared placeholder catalog is
 version 1. Exact versions and justifications are recorded in the architecture ledger.
 
-Markdig converts the single explanation response to HTML; plain text is a deterministic
-projection of the same parsed Markdown. Raw HTML is disabled or escaped. WebView2 receives an
-in-memory dark document with no scripts and a Content Security Policy blocking remote
+Markdig converts the single explanation response to HTML; Text preserves the exact streamed
+Markdown source after completion. Raw HTML is disabled or escaped. WebView2 receives an
+in-memory theme-matched document with no scripts and a Content Security Policy blocking remote
 connections, resources, frames, media, fonts, and images. Navigation, pop-ups, downloads, and
 new-window requests are intercepted and blocked.
 
@@ -1486,19 +1486,22 @@ plus standalone manual HTML validation and `git diff --check`.
 
 ### 18.6 Interactive Runner Debug and progress
 
-The Tasks page adds two session-only Runner Output controls. **Debug (next run)** requests an
+The Tasks page adds three session-only Runner Output controls. **Debug (next run)** requests an
 ephemeral detailed child-Runner channel for the next interactive Run now execution. It renders
 sanitized Tool Map arguments already emitted by normal tool traces and the complete LLM request
 and response messages for `ai.prompt`, agent calls, and Guardrails calls. It can therefore
 contain task, Gmail, Calendar, or file data. It excludes credentials, tokens, and API keys and
 is transported through a Base64 one-line protocol to the UI only; it must not be added to the
-normal rolling logs or reports. Debug mode disables automatic scrolling so an operator can
-inspect a stable position.
+normal rolling logs or reports.
 
-**Large** expands the Runner panel and, when the application is not maximized, raises the main
-window height for legible diagnostics. The Tasks page keeps a page-level vertical scroll viewer
-and a bounded task-grid height, so the task actions and Runner remain reachable on smaller
-displays. It is also session-only.
+**Auto-scroll** is enabled by default. It follows appended Runner lines after WPF has completed
+the text and layout update. Clearing it preserves the current reading position; selecting it
+again immediately moves to the latest line and resumes following new output.
+
+**Large** adds exactly 300 pixels to the Runner panel and clearing it removes exactly the same
+amount. It never changes the main-window size or position. The Tasks page keeps a page-level
+vertical scroll viewer and a bounded task-grid height, so the task actions and Runner remain
+reachable on smaller displays. It is also session-only.
 
 Gmail progress logs after retrieval expose `message N of M` while Guardrails processes the
 bounded set. This distinguishes a finite sequential screening operation from an agent loop.

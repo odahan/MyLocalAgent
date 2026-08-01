@@ -2302,18 +2302,21 @@ ollama list</code></pre>
                     arguments and returned message, event, or result counts, plus Dropbox
                     names and sizes, without displaying configured secrets.
                 </p>
-                <h3>Runner Debug and large display</h3>
+                <h3>Runner Debug, scrolling, and large display</h3>
                 <p>
                     Select <span class="ui-label">Debug (next run)</span> before
                     <span class="ui-label">Run now</span> to display that execution’s LLM
                     requests and responses, along with the tool calls and arguments already
-                    present in the traces. Automatic scrolling is suspended so the output stays
-                    readable. This content is ephemeral and is not added to reports or normal
-                    logs; it can nevertheless include task data, including email content. Keys
-                    and tokens are excluded. Select <span class="ui-label">Large</span> to make
-                    the panel and, when not maximized, the application window much taller. The
-                    Tasks page also has its own vertical scrolling, so the actions and output
-                    remain reachable when the panel is very tall.
+                    present in the traces. This content is ephemeral and is not added to reports
+                    or normal logs; it can nevertheless include task data, including email
+                    content. Keys and tokens are excluded. <span class="ui-label">Auto-scroll</span>
+                    is selected by default and follows new lines. Clear it to keep a stable
+                    reading position; select it again to return immediately to the latest line
+                    and resume following output. Select <span class="ui-label">Large</span> to
+                    add 300 pixels to the panel. Clearing it removes the same amount. This never
+                    changes the application-window size or position. The Tasks page has its own
+                    vertical scrolling, so the actions and output remain reachable when the
+                    panel is taller.
                 </p>
                 <p>
                     A Gmail read also reports Guardrails progress as <code>message N of M</code>.

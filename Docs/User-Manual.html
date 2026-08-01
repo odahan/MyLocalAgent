@@ -2735,19 +2735,23 @@ ollama list</code></pre>
                     Dropbox, sans afficher les secrets configurés.
                 </p>
 
-                <h3>Debug et affichage large du Runner</h3>
+                <h3>Debug, défilement et affichage large du Runner</h3>
                 <p>
                     Cochez <span class="ui-label">Debug (next run)</span> avant
                     <span class="ui-label">Run now</span> pour afficher les requêtes et réponses
                     LLM de cette exécution, ainsi que les appels d’outils et leurs arguments
-                    déjà présents dans les traces. Le défilement automatique est alors suspendu
-                    pour permettre la lecture. Ce contenu est éphémère et n’est pas ajouté aux
-                    rapports ni aux logs ordinaires ; il peut néanmoins contenir les données de
-                    la tâche, y compris des contenus d’e-mails. Les clés et jetons sont exclus.
-                    Cochez <span class="ui-label">Large</span> pour agrandir fortement le panneau
-                    et la fenêtre lorsque celle-ci n’est pas maximisée. La page Tasks possède
-                    aussi son propre défilement vertical : les actions et la sortie restent donc
-                    accessibles même lorsque le panneau est très haut.
+                    déjà présents dans les traces. Ce contenu est éphémère et n’est pas ajouté
+                    aux rapports ni aux logs ordinaires ; il peut néanmoins contenir les données
+                    de la tâche, y compris des contenus d’e-mails. Les clés et jetons sont exclus.
+                    <span class="ui-label">Auto-scroll</span> est cochée par défaut et suit les
+                    nouvelles lignes. Décochez-la pour garder une position de lecture stable ;
+                    recochez-la pour revenir immédiatement à la dernière ligne et reprendre le
+                    suivi.
+                    Cochez <span class="ui-label">Large</span> pour ajouter 300 pixels au panneau ;
+                    décochez-la pour retirer exactement la même hauteur. La taille et la position
+                    de la fenêtre ne changent jamais. La page Tasks possède aussi son propre
+                    défilement vertical : les actions et la sortie restent donc accessibles
+                    lorsque le panneau est plus haut.
                 </p>
                 <p>
                     Une lecture Gmail affiche aussi sa progression Guardrails sous la forme

@@ -5,149 +5,157 @@
     <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                   VerticalScrollBarVisibility="Auto">
         <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="360" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="360" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
 
-        <Grid>
-            <StackPanel>
-                <TextBlock Style="{StaticResource PageTitleStyle}"
-                           Text="Tasks" />
-                <TextBlock Margin="0,5,0,0"
-                           Foreground="{DynamicResource MutedTextBrush}"
-                           Text="Create, schedule, register, and run local AI workflows." />
-            </StackPanel>
-            <Button HorizontalAlignment="Right"
-                    VerticalAlignment="Top"
-                    Command="{Binding RefreshCommand}"
-                    Content="Refresh" />
-        </Grid>
-
-        <ProgressBar Grid.Row="1"
-                     Height="3"
-                     Margin="0,16,0,0"
-                     IsIndeterminate="True"
-                     Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
-
-        <materialDesign:Card Grid.Row="2"
-                             Margin="0,18,0,0"
-                             Padding="0">
-            <DataGrid AutoGenerateColumns="False"
-                      CanUserAddRows="False"
-                      CanUserDeleteRows="False"
-                      IsReadOnly="True"
-                      ItemsSource="{Binding Tasks}"
-                      SelectedItem="{Binding SelectedTask, Mode=TwoWay}"
-                      SelectionMode="Single">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Width="2*"
-                                        Binding="{Binding Name}"
-                                        Header="Name" />
-                    <DataGridTextColumn Width="1.35*"
-                                        Binding="{Binding Schedule}"
-                                        Header="Cron" />
-                    <DataGridTextColumn Width="1.7*"
-                                        Binding="{Binding NextRun}"
-                                        Header="Next run" />
-                    <DataGridTextColumn Width="1.7*"
-                                        Binding="{Binding LastRun}"
-                                        Header="Last run" />
-                    <DataGridTextColumn Width="*"
-                                        Binding="{Binding LastStatus}"
-                                        Header="Status" />
-                    <DataGridTemplateColumn Width="85"
-                                            Header="Enabled">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <CheckBox HorizontalAlignment="Center"
-                                          VerticalAlignment="Center"
-                                          Command="{Binding DataContext.ToggleEnabledCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
-                                          CommandParameter="{Binding}"
-                                          IsChecked="{Binding IsEnabled, Mode=OneWay}"
-                                          ToolTip="Enable or disable this task" />
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                    <DataGridCheckBoxColumn Width="95"
-                                            Binding="{Binding IsRegistered}"
-                                            Header="Registered" />
-                </DataGrid.Columns>
-            </DataGrid>
-        </materialDesign:Card>
-
-        <Grid Grid.Row="3"
-              Margin="0,14,0,14">
-            <StackPanel Orientation="Horizontal">
-                <Button Command="{Binding NewTaskCommand}"
-                        Content="New"
-                        Style="{StaticResource PrimaryButtonStyle}" />
-                <Button Command="{Binding EditTaskCommand}"
-                        Content="Edit" />
-                <Button Command="{Binding EditPromptCommand}"
-                        Content="Prompt" />
-                <Button Command="{Binding DeleteTaskCommand}"
-                        Content="Delete"
-                        Style="{StaticResource DangerButtonStyle}" />
-                <Button Command="{Binding RegisterOrUnregisterCommand}"
-                        Content="{Binding SelectedTask.RegistrationAction, FallbackValue=Register}" />
-                <Button Command="{Binding RunNowCommand}"
-                        Content="Run now" />
-                <Button Command="{Binding RunNowCancelCommand}"
-                        Content="Cancel run"
-                        Style="{StaticResource DangerButtonStyle}"
-                        Visibility="{Binding IsRunning, Converter={StaticResource BooleanToVisibilityConverter}}" />
-            </StackPanel>
-
-            <TextBlock HorizontalAlignment="Right"
-                       VerticalAlignment="Center"
-                       Foreground="{DynamicResource MutedTextBrush}"
-                       Text="{Binding StatusText}" />
-        </Grid>
-
-        <materialDesign:Card Grid.Row="4"
-                             Height="{Binding RunnerOutputHeight}">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
                 <Grid>
-                    <TextBlock Style="{StaticResource SectionTitleStyle}"
-                               Text="{Binding RunnerDisplayTitle}" />
-                    <StackPanel HorizontalAlignment="Right"
-                                Orientation="Horizontal">
-                        <CheckBox Margin="0,0,14,0"
-                                  VerticalAlignment="Center"
-                                  Content="Debug (next run)"
-                                  IsChecked="{Binding IsDebugMode, Mode=TwoWay}"
-                                  ToolTip="Shows ephemeral LLM request and response details. This may include task and email content." />
-                        <CheckBox Margin="0,0,14,0"
-                                  VerticalAlignment="Center"
-                                  Content="Large"
-                                  IsChecked="{Binding IsLargeRunnerOutput, Mode=TwoWay}"
-                                  Checked="OnLargeRunnerOutputModeChanged"
-                                  Unchecked="OnLargeRunnerOutputModeChanged"
-                                  ToolTip="Makes the Runner panel and application window taller." />
-                        <Button Command="{Binding ToggleRunContextCommand}"
-                                Content="{Binding RunContextButtonText}" />
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource PageTitleStyle}"
+                                   Text="Tasks" />
+                        <TextBlock Margin="0,5,0,0"
+                                   Foreground="{DynamicResource MutedTextBrush}"
+                                   Text="Create, schedule, register, and run local AI workflows." />
                     </StackPanel>
+                    <Button HorizontalAlignment="Right"
+                            VerticalAlignment="Top"
+                            Command="{Binding RefreshCommand}"
+                            Content="Refresh" />
                 </Grid>
-                <TextBox x:Name="RunnerOutputTextBox"
-                         Grid.Row="1"
-                         Margin="0,10,0,0"
-                         AcceptsReturn="True"
-                         FontFamily="Consolas"
-                         IsReadOnly="True"
-                         Text="{Binding DisplayedRunText, Mode=OneWay}"
-                         TextWrapping="Wrap"
-                         TextChanged="OnRunnerOutputTextChanged"
-                         VerticalScrollBarVisibility="Auto" />
-            </Grid>
-        </materialDesign:Card>
+
+                <ProgressBar Grid.Row="1"
+                             Height="3"
+                             Margin="0,16,0,0"
+                             IsIndeterminate="True"
+                             Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
+
+                <materialDesign:Card Grid.Row="2"
+                                     Margin="0,18,0,0"
+                                     Padding="0">
+                    <DataGrid AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              IsReadOnly="True"
+                              ItemsSource="{Binding Tasks}"
+                              SelectedItem="{Binding SelectedTask, Mode=TwoWay}"
+                              SelectionMode="Single">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Width="2*"
+                                                Binding="{Binding Name}"
+                                                Header="Name" />
+                            <DataGridTextColumn Width="1.35*"
+                                                Binding="{Binding Schedule}"
+                                                Header="Cron" />
+                            <DataGridTextColumn Width="1.7*"
+                                                Binding="{Binding NextRun}"
+                                                Header="Next run" />
+                            <DataGridTextColumn Width="1.7*"
+                                                Binding="{Binding LastRun}"
+                                                Header="Last run" />
+                            <DataGridTextColumn Width="*"
+                                                Binding="{Binding LastStatus}"
+                                                Header="Status" />
+                            <DataGridTemplateColumn Width="85"
+                                                    Header="Enabled">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
+                                                  Command="{Binding DataContext.ToggleEnabledCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
+                                                  CommandParameter="{Binding}"
+                                                  IsChecked="{Binding IsEnabled, Mode=OneWay}"
+                                                  ToolTip="Enable or disable this task" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridCheckBoxColumn Width="95"
+                                                    Binding="{Binding IsRegistered}"
+                                                    Header="Registered" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </materialDesign:Card>
+
+                <Grid Grid.Row="3"
+                      Margin="0,14,0,0">
+                    <StackPanel Orientation="Horizontal">
+                        <Button Command="{Binding NewTaskCommand}"
+                                Content="New"
+                                Style="{StaticResource PrimaryButtonStyle}" />
+                        <Button Command="{Binding EditTaskCommand}"
+                                Content="Edit" />
+                        <Button Command="{Binding EditPromptCommand}"
+                                Content="Prompt" />
+                        <Button Command="{Binding DeleteTaskCommand}"
+                                Content="Delete"
+                                Style="{StaticResource DangerButtonStyle}" />
+                        <Button Command="{Binding RegisterOrUnregisterCommand}"
+                                Content="{Binding SelectedTask.RegistrationAction, FallbackValue=Register}" />
+                        <Button Command="{Binding RunNowCommand}"
+                                Content="Run now" />
+                        <Button Command="{Binding RunNowCancelCommand}"
+                                Content="Cancel run"
+                                Style="{StaticResource DangerButtonStyle}"
+                                Visibility="{Binding IsRunning, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    </StackPanel>
+
+                    <TextBlock HorizontalAlignment="Right"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="{Binding StatusText}" />
+                </Grid>
+
+                <materialDesign:Card x:Name="RunnerOutputCard"
+                                     Grid.Row="4"
+                                     Height="{Binding RunnerOutputHeight}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Grid>
+                            <TextBlock Style="{StaticResource SectionTitleStyle}"
+                                       Text="{Binding RunnerDisplayTitle}" />
+                            <StackPanel HorizontalAlignment="Right"
+                                        Orientation="Horizontal">
+                                <CheckBox Margin="0,0,14,0"
+                                          VerticalAlignment="Center"
+                                          Content="Debug (next run)"
+                                          IsChecked="{Binding IsDebugMode, Mode=TwoWay}"
+                                          ToolTip="Shows ephemeral LLM request and response details. This may include task and email content." />
+                                <CheckBox x:Name="RunnerAutoScrollCheckBox"
+                                          Margin="0,0,14,0"
+                                          VerticalAlignment="Center"
+                                          Checked="OnRunnerAutoScrollModeChanged"
+                                          Content="Auto-scroll"
+                                          IsChecked="{Binding IsRunnerAutoScrollEnabled, Mode=TwoWay}"
+                                          Unchecked="OnRunnerAutoScrollModeChanged"
+                                          ToolTip="Follows new Runner output lines. Clear this to inspect a stable position." />
+                                <CheckBox Margin="0,0,14,0"
+                                          VerticalAlignment="Center"
+                                          Content="Large"
+                                          IsChecked="{Binding IsLargeRunnerOutput, Mode=TwoWay}"
+                                          ToolTip="Adds 300 pixels to the Runner output panel." />
+                                <Button Command="{Binding ToggleRunContextCommand}"
+                                        Content="{Binding RunContextButtonText}" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBox x:Name="RunnerOutputTextBox"
+                                 Grid.Row="1"
+                                 Margin="0,10,0,0"
+                                 AcceptsReturn="True"
+                                 FontFamily="Consolas"
+                                 IsReadOnly="True"
+                                 Text="{Binding DisplayedRunText, Mode=OneWay}"
+                                 TextWrapping="Wrap"
+                                 ScrollViewer.ScrollChanged="OnRunnerOutputScrollChanged"
+                                 TextChanged="OnRunnerOutputTextChanged"
+                                 VerticalScrollBarVisibility="Auto" />
+                    </Grid>
+                </materialDesign:Card>
         </Grid>
     </ScrollViewer>
 </UserControl>

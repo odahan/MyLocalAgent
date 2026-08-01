@@ -306,8 +306,8 @@ Save command succeeds.
 Store the model explanation as Markdown. The selector changes presentation without another
 LLM call:
 
-- **Text** uses a deterministic plain-text projection of the parsed Markdown and is the
-  default and universal fallback.
+- **Text** preserves the exact streamed Markdown source after completion and is the default and
+  universal fallback.
 - **Rendered Markdown** converts through Markdig and displays through the WPF WebView2
   control.
 

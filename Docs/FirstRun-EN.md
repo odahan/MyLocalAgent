@@ -222,12 +222,15 @@ In **Tools**, verify that each required connector displays `Connected`:
 The first task can then be created with only the tool groups and permissions
 needed for its purpose.
 
-For the first trial, use **Run now**. The output automatically follows new lines.
-For a workflow, **Show workflow context** displays the outputs accumulated after
+For the first trial, use **Run now**. The output follows new lines while
+**Auto-scroll** remains selected. Clear it to keep the current reading position,
+then select it again to return to the latest line. For a workflow,
+**Show workflow context** displays the outputs accumulated after
 each successful step and remains available until the next task starts. This
 context can contain data processed by the task.
 
 For one-off diagnosis, select **Debug (next run)** before starting: that run’s
 LLM requests/responses and tool arguments are visible only in Runner Output. The
 content can include task data and must not be shared; configured secrets remain
-excluded. **Large** expands the panel and window for easier reading.
+excluded. **Large** adds 300 pixels to the panel for easier reading and does not resize the
+application window.

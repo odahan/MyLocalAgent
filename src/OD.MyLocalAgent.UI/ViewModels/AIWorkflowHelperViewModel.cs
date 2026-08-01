@@ -61,7 +61,7 @@ public sealed partial class AIWorkflowHelperViewModel : ObservableObject
     private string _renderedHtml = string.Empty;
 
     [ObservableProperty]
-    private bool _showRenderedMarkdown;
+    private int _selectedExplanationTabIndex;
 
     [ObservableProperty]
     private bool _isRenderedAvailable;
@@ -430,6 +430,8 @@ public sealed partial class AIWorkflowHelperViewModel : ObservableObject
             State = AIWorkflowHelperState.Generating;
             StatusText = $"Streaming explanation attempt {attempt} of {MaximumAttempts}…";
             ResponseText = string.Empty;
+            PlainTextExplanation = string.Empty;
+            RenderedHtml = string.Empty;
             var userMessage = attempt == 1
                 ? baseMessage
                 : BuildCorrectionMessage(baseMessage, previousResponse, errors);
@@ -453,7 +455,7 @@ public sealed partial class AIWorkflowHelperViewModel : ObservableObject
                     continue;
                 }
 
-                PlainTextExplanation = _markdown.ToPlainText(previousResponse);
+                PlainTextExplanation = previousResponse;
                 RenderedHtml = _markdown.ToRestrictedHtml(previousResponse);
                 State = AIWorkflowHelperState.Ready;
                 StatusText = "Explanation complete. Text and Rendered Markdown use the same response.";
@@ -778,7 +780,7 @@ public sealed partial class AIWorkflowHelperViewModel : ObservableObject
         OnPropertyChanged(nameof(IsRenderedUnavailable));
         if (!value)
         {
-            ShowRenderedMarkdown = false;
+            SelectedExplanationTabIndex = 0;
         }
     }
 

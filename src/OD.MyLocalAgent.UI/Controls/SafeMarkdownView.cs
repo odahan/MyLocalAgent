@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 
@@ -9,7 +10,10 @@ namespace OD.MyLocalAgent.UI.Controls;
 /// </summary>
 public sealed class SafeMarkdownView : WebView2
 {
-    private bool _internalNavigationPending;
+    private Task? _initializationTask;
+    private string? _lastNavigatedHtml;
+    private bool _internalNavigationRequested;
+    private ulong? _internalNavigationId;
 
     /// <summary>
     /// Identifies the <see cref="Html"/> dependency property.
@@ -30,7 +34,8 @@ public sealed class SafeMarkdownView : WebView2
             typeof(SafeMarkdownView),
             new FrameworkPropertyMetadata(
                 true,
-                FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+                FrameworkPropertyMetadataOptions.BindsTwoWayByDefault,
+                OnRuntimeAvailabilityChanged));
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SafeMarkdownView"/> class.
@@ -58,28 +63,23 @@ public sealed class SafeMarkdownView : WebView2
         set => SetValue(IsRuntimeAvailableProperty, value);
     }
 
-    private async void OnLoaded(object sender, RoutedEventArgs e)
+    private async void OnLoaded(object sender, RoutedEventArgs e) =>
+        await InitializeAndNavigateAsync().ConfigureAwait(true);
+
+    private async Task InitializeAndNavigateAsync()
     {
-        if (!IsRuntimeAvailable || CoreWebView2 is not null)
+        if (!IsLoaded || !IsRuntimeAvailable)
         {
             return;
         }
 
         try
         {
-            await EnsureCoreWebView2Async().ConfigureAwait(true);
-            var core = CoreWebView2 ??
-                throw new InvalidOperationException(
-                    "WebView2 initialization did not provide a browser instance.");
-            core.Settings.AreBrowserAcceleratorKeysEnabled = false;
-            core.Settings.AreDefaultContextMenusEnabled = false;
-            core.Settings.AreDevToolsEnabled = false;
-            core.Settings.AreHostObjectsAllowed = false;
-            core.Settings.IsStatusBarEnabled = false;
-            core.NavigationStarting += OnNavigationStarting;
-            core.NewWindowRequested += OnNewWindowRequested;
-            core.DownloadStarting += OnDownloadStarting;
-            Navigate();
+            _initializationTask ??= InitializeCoreAsync();
+            await _initializationTask.ConfigureAwait(true);
+            await Dispatcher.InvokeAsync(
+                Navigate,
+                DispatcherPriority.Loaded);
         }
         catch (Exception)
         {
@@ -87,17 +87,60 @@ public sealed class SafeMarkdownView : WebView2
         }
     }
 
-    private static void OnHtmlChanged(
+    private async Task InitializeCoreAsync()
+    {
+        await EnsureCoreWebView2Async().ConfigureAwait(true);
+        var core = CoreWebView2 ??
+            throw new InvalidOperationException(
+                "WebView2 initialization did not provide a browser instance.");
+        core.Settings.AreBrowserAcceleratorKeysEnabled = false;
+        core.Settings.AreDefaultContextMenusEnabled = false;
+        core.Settings.AreDevToolsEnabled = false;
+        core.Settings.AreHostObjectsAllowed = false;
+        core.Settings.IsStatusBarEnabled = false;
+        core.NavigationStarting += OnNavigationStarting;
+        core.NavigationCompleted += OnNavigationCompleted;
+        core.NewWindowRequested += OnNewWindowRequested;
+        core.DownloadStarting += OnDownloadStarting;
+    }
+
+    private static async void OnHtmlChanged(
         DependencyObject dependencyObject,
         DependencyPropertyChangedEventArgs e) =>
-        ((SafeMarkdownView)dependencyObject).Navigate();
+        await ((SafeMarkdownView)dependencyObject)
+            .InitializeAndNavigateAsync()
+            .ConfigureAwait(true);
+
+    private static async void OnRuntimeAvailabilityChanged(
+        DependencyObject dependencyObject,
+        DependencyPropertyChangedEventArgs e)
+    {
+        if (e.NewValue is true)
+        {
+            await ((SafeMarkdownView)dependencyObject)
+                .InitializeAndNavigateAsync()
+                .ConfigureAwait(true);
+        }
+    }
 
     private void Navigate()
     {
-        if (CoreWebView2 is not null && !string.IsNullOrEmpty(Html))
+        if (CoreWebView2 is not null &&
+            !string.IsNullOrWhiteSpace(Html) &&
+            !string.Equals(Html, _lastNavigatedHtml, StringComparison.Ordinal))
         {
-            _internalNavigationPending = true;
-            CoreWebView2.NavigateToString(Html);
+            _lastNavigatedHtml = Html;
+            _internalNavigationRequested = true;
+            try
+            {
+                CoreWebView2.NavigateToString(Html);
+            }
+            catch
+            {
+                _internalNavigationRequested = false;
+                _lastNavigatedHtml = null;
+                throw;
+            }
         }
     }
 
@@ -105,16 +148,33 @@ public sealed class SafeMarkdownView : WebView2
         object? sender,
         CoreWebView2NavigationStartingEventArgs e)
     {
-        if (_internalNavigationPending)
+        if (_internalNavigationRequested)
         {
-            _internalNavigationPending = false;
+            _internalNavigationRequested = false;
+            _internalNavigationId = e.NavigationId;
             return;
         }
 
-        if (!string.Equals(e.Uri, "about:blank", StringComparison.OrdinalIgnoreCase))
+        e.Cancel = true;
+    }
+
+    private void OnNavigationCompleted(
+        object? sender,
+        CoreWebView2NavigationCompletedEventArgs e)
+    {
+        if (_internalNavigationId != e.NavigationId)
         {
-            e.Cancel = true;
+            return;
         }
+
+        _internalNavigationId = null;
+        if (e.IsSuccess)
+        {
+            return;
+        }
+
+        _lastNavigatedHtml = null;
+        IsRuntimeAvailable = false;
     }
 
     private static void OnNewWindowRequested(

@@ -109,15 +109,17 @@ confirmation in both supported palettes.
 The reusable modal window adds application-themed multiline description/refinement inputs,
 read-only streamed JSON/Markdown panes, indeterminate progress, validation and cancellation
 states, explicit proposal checkboxes, warning text, Text/Rendered Markdown tabs, WebView2
-surface, Apply/Retry/Copy/Close commands, and the missing-runtime fallback card. It uses only
-palette resources and the existing implicit control styles.
+surface, Apply/Retry/Copy/Close commands, and the missing-runtime fallback card. The tabs use
+an application-owned `TabItem` template so the system or Material selected-state template
+cannot replace the semantic background and foreground brushes with a white-on-white state.
 
 Automated build and ViewModel tests cover state/command enablement, proposal refusal and
 acceptance, cancellation, Text/HTML projection, raw-HTML disabling, and restricted-document
-content. Human visual follow-up remains required for both palettes, keyboard traversal,
-long descriptions/errors/paths, narrow minimum size, WebView2 initialization failure, and
-actual rendered Markdown. No Stage 13 GUI or WebView2 runtime flow was manually exercised in
-this implementation pass.
+content. A local Release build was subsequently exercised in both palettes: the selected tab
+kept readable contrast, the response surface filled its card before the first token, completed
+Text preserved the streamed Markdown exactly, and the installed WebView2 runtime displayed the
+same response as headings, lists, bold/code text, and separators. Keyboard traversal, long
+errors/paths, narrow minimum size, and WebView2 initialization failure remain human follow-ups.
 
 ## Stage 14 hierarchical AI generation settings
 
@@ -140,25 +142,32 @@ save, and displayed policy text; they are not claimed as pixel-level GUI evidenc
 ## Stage 15 AI Helper theme and rendered document
 
 The AI Workflow Helper window now explicitly binds its background, foreground, font, cards,
-inputs, tabs, captions, warnings, and buttons through the live application resource graph.
+inputs, tabs, captions, warnings, and buttons through the live application resource graph. Its
+application-owned tab template binds the selected header directly to the semantic action and
+on-action brushes, while tab content is stretched independently from the centered header.
 Restricted Markdown chooses Light or Dark local CSS from `IThemeService.CurrentTheme`; tests
 verify both palettes. The Rendered Markdown control permits its own `NavigateToString`
 navigation while continuing to block external navigation, pop-ups, downloads, scripts, and
 remote resources.
 
-The published WPF UI was not launched during this pass. Pixel-level confirmation of AI Helper
-and AI Explain in both palettes, WebView2 rendering, focus states, keyboard traversal, and the
-minimum-size layout remains a human visual check rather than claimed evidence.
+A separate local Release UI was launched and AI Explain was inspected in both Dark and Light.
+The selected Text and Rendered Markdown headers remained legible in each palette, the empty
+response host occupied its full width and height immediately, and WebView2 rendered the
+completed document in each palette. Focus states, keyboard traversal, the minimum-size layout,
+and the missing-WebView2 fallback remain human visual checks.
 
 ## Post-release Tasks diagnostic controls
 
-The Tasks Runner header adds two themed standard checkboxes: Debug (next run) and Large. They
-reuse the existing Material checkbox, caption, focus, disabled, foreground, and background
-resources. Large adjusts the current non-maximized window height without introducing a new
-window surface. The WPF application was not launched for pixel-level verification; Dark/Light,
-keyboard focus, narrow layout, maximized-window, and long diagnostic payload behavior remain
-human visual checks.
+The Tasks Runner header adds three themed standard checkboxes: Debug (next run), Auto-scroll,
+and Large. They reuse the existing Material checkbox, caption, focus, disabled, foreground, and
+background resources. Large changes only the existing Runner card height by 300 pixels and does
+not resize or reposition the application window. A local Release build completed two full
+normal/large cycles (190 → 490 → 190 → 490 → 190 pixels); the application window stayed fixed
+and the lower output remained reachable through page scrolling. Keyboard focus, narrow layout,
+maximized-window, live auto-scroll with a long-running Runner, and long diagnostic payload
+behavior remain human visual checks.
 
 The Tasks page uses the existing themed vertical `ScrollViewer` treatment around its content.
-The task grid keeps a bounded height, while Large raises Runner Output to 620 pixels; the page
-can therefore scroll without introducing a new surface, palette color, or control template.
+The task grid keeps a bounded height, while Large changes Runner Output from 190 to 490 pixels;
+the page can therefore scroll without introducing a new surface, palette color, control
+template, or window resize.

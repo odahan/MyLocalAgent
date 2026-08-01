@@ -195,7 +195,7 @@ Date: 2026-07-31
 | Agent-capable calls cannot repeat forever. | ✅ | Requests stop after eight rounds, two consecutive errors, unknown calls, or before the third identical tool-and-arguments execution. A test verifies the typed loop exception and that the tool ran only twice. |
 | Gmail and Calendar expose bounded/period reads. | ✅ | Tool Map and connector tests cover optional Gmail maximums, `gmail.readRecent(daysBack)`, and `calendar.read` period mapping. |
 | Runner traces and context aid diagnosis without exposing configured credentials. | ✅ | Tests cover readable sanitized JSON arguments, returned Gmail count, per-step context callbacks, and Base64 context protocol rejection/round-trip. Run output is wired to auto-scroll and retains the last context until the next run. |
-| AI Explain rendering follows the current theme and no longer blocks its own document navigation. | ✅ | Light/Dark CSS tests pass; internal `NavigateToString` is distinguished from blocked external navigation. WebView2 Text fallback remains unchanged. |
+| AI Explain rendering follows the current theme and no longer blocks its own document navigation. | ✅ | Light/Dark CSS tests pass; internal `NavigateToString` is distinguished from blocked external navigation. A local Release build rendered the same completed response through installed WebView2 in both palettes, with readable selected tabs and a full-size response host from the first frame. WebView2 Text fallback remains unchanged. |
 | Documentation and deployment are complete. | ✅ | README, shared specification §18, FR/EN manuals, First Run guides, theme audit, Ledger, and this report are updated. Both manuals validate structurally, all sample JSON parses, Release publish succeeds, and the published Runner help command exits successfully. |
 
 ### Stage 15 final evidence
@@ -212,8 +212,11 @@ Date: 2026-07-31
 
 ### Stage 15 human follow-up
 
-- ⏳ Launch the published UI and exercise AI Helper/AI Explain in both Light and Dark, including
-  Rendered Markdown with the installed WebView2 runtime.
+- ✅ A local Release UI exercised AI Explain in both Light and Dark, including completed raw
+  Markdown and Rendered Markdown with the installed WebView2 runtime. The selected tabs stayed
+  readable and the response host occupied its full surface before streaming began.
+- ⏳ Exercise AI Helper Author/Apply/Undo, keyboard traversal, the minimum-size layout, and the
+  missing-WebView2 fallback manually.
 - ⏳ Run the real daily Gmail workflow manually with a small explicit `maxMessages`, inspect the
   retained workflow context, and confirm the report content. This implementation pass did not
   execute or create that user task.
@@ -226,9 +229,9 @@ Release: 1.2.4 (2026-08-01)
 |---|---:|---|
 | Tasks page loads without a read-only binding incident. | ✅ | `DisplayedRunText` explicitly uses a OneWay binding. |
 | An operator can distinguish sequential Gmail screening from a loop. | ✅ | The observed run retrieved 40 messages, then issued 27 sequential Guardrails LLM calls before cancellation. Gmail now emits `message N of M` progress. |
-| Interactive detailed diagnostics are available without normal-log persistence. | ✅ | Debug protocol tests cover round-trip and malformed-line rejection. The opt-in child Runner trace includes LLM request/response messages and existing sanitized tool arguments, while Debug mode disables auto-scroll. |
-| Long diagnostic output is readable. | ✅ | Large mode expands the Runner panel and non-maximized window. |
-| Release verification is clean. | ✅ | Release build completed with zero warnings/errors; 260 tests passed, none failed, and one local Ollama integration test was intentionally skipped. |
+| Interactive detailed diagnostics are available without normal-log persistence. | ✅ | Debug protocol tests cover round-trip and malformed-line rejection. The opt-in child Runner trace includes LLM request/response messages and existing sanitized tool arguments; the independent Auto-scroll control can pause or resume following output. |
+| Long diagnostic output is readable. | ✅ | Large repeatedly changes only the Runner panel from 190 to 490 pixels; the application window is untouched and the page remains scrollable. A local Release build completed two full check/clear cycles with those exact heights and no window movement. |
+| Release verification is clean. | ✅ | Release build completed with zero warnings/errors; 261 tests passed, none failed, and one local Ollama integration test was intentionally skipped. |
 
 ### Remaining operational choice
 

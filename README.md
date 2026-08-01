@@ -618,8 +618,9 @@ fail.
 only **Save task** persists or schedules it. **Undo AI changes** restores the immediately
 preceding values until Save, reload, navigation away, or another helper application.
 
-Explanations default to deterministic Text. Rendered Markdown uses the same response through
-Markdig and a restricted in-memory WebView2 document with raw HTML disabled, no scripts or
+Explanations default to Text, which preserves the exact streamed Markdown source after the
+response completes. Rendered Markdown uses the same response through Markdig and a restricted
+in-memory WebView2 document with raw HTML disabled, no scripts or
 remote resources, and blocked navigation, pop-ups, and downloads. Missing or failed WebView2
 falls back to Text and offers only a user-initiated link to Microsoft's official runtime
 page; the application never downloads or installs it. The complete helper window and the
@@ -976,7 +977,9 @@ Tests       -> all projects
 
 The UI **Run now** action starts the published runner instead of executing a separate
 in-process path. Scheduled and interactive runs therefore share the same behavior. Runner
-output follows appended lines automatically. **Show workflow context** displays the JSON
+output follows appended lines while **Auto-scroll** is selected (the default). Clear it to
+inspect a stable position; selecting it again immediately returns to the latest line.
+**Show workflow context** displays the JSON
 outputs accumulated after each successful workflow step; it remains available after the run
 ends and is replaced only when another task starts. This context can contain task data and is
 kept in UI memory rather than added to ordinary runner log lines.
@@ -984,10 +987,10 @@ kept in UI memory rather than added to ordinary runner log lines.
 For a one-off interactive diagnosis, **Debug (next run)** shows that run's full LLM requests
 and responses in Runner Output alongside the normal tool traces and arguments. It can include
 task data, does not persist the detailed payloads, and excludes configured credentials and
-tokens. Debug output does not auto-scroll. **Large** increases the Runner Output panel and,
-when the window is not maximized, the main window height. Gmail logs `message N of M` while
-Guardrails screens the retrieved messages, making a long finite screening pass distinguishable
-from an agent tool loop.
+tokens. **Large** adds 300 pixels to the Runner Output panel only; clearing it removes the same
+300 pixels and never changes the application window. Gmail logs
+`message N of M` while Guardrails screens the retrieved messages, making a long finite
+screening pass distinguishable from an agent tool loop.
 
 Tool start traces serialize readable JSON arguments. Completion traces include the number of
 Gmail messages, Calendar events, or Web Search results returned, and Dropbox item names and

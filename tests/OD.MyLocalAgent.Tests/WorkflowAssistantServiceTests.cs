@@ -174,7 +174,10 @@ public sealed class WorkflowAssistantServiceTests
     [Fact]
     public async Task ExplainUsesOneResponseForTextAndRenderedMarkdown()
     {
-        var chat = new StubChatClient("# Purpose\nReads today's mail.");
+        const string explanation =
+            "# Purpose\n\nReads today's **mail**.\n\n" +
+            "## Steps\n\n1. Read messages.\n2. Produce a summary.";
+        var chat = new StubChatClient(explanation);
         var viewModel = CreateViewModel(chat, out _);
         viewModel.Initialize(
             CreateRequest() with
@@ -188,9 +191,10 @@ public sealed class WorkflowAssistantServiceTests
 
         chat.CallCount.Should().Be(1);
         viewModel.State.Should().Be(AIWorkflowHelperState.Ready);
-        viewModel.PlainTextExplanation.Should().Contain("Purpose")
-            .And.Contain("Reads today's mail.");
+        viewModel.ResponseText.Should().Be(explanation);
+        viewModel.PlainTextExplanation.Should().Be(explanation);
         viewModel.RenderedHtml.Should().Contain("<h1")
+            .And.Contain("<ol>")
             .And.Contain("default-src 'none'");
         chat.LastMessages[1].Text.Should().Contain("Canonical workflow")
             .And.Contain("Deterministic application analysis");
@@ -285,7 +289,13 @@ public sealed class WorkflowAssistantServiceTests
 
         viewModel.IsRenderedAvailable.Should().BeFalse();
         viewModel.IsRenderedUnavailable.Should().BeTrue();
-        viewModel.ShowRenderedMarkdown.Should().BeFalse();
+        viewModel.SelectedExplanationTabIndex.Should().Be(0);
+
+        viewModel.IsRenderedAvailable = true;
+        viewModel.SelectedExplanationTabIndex = 1;
+        viewModel.IsRenderedAvailable = false;
+
+        viewModel.SelectedExplanationTabIndex.Should().Be(0);
 
         viewModel.OpenWebView2DownloadPageCommand.Execute(null);
 

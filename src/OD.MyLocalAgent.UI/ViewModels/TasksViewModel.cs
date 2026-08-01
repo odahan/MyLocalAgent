@@ -20,6 +20,9 @@ public sealed partial class TasksViewModel :
     IActivatablePage,
     IRecipient<TaskSavedMessage>
 {
+    private const double NormalRunnerOutputHeight = 190;
+    private const double LargeRunnerOutputHeightDelta = 300;
+
     private static readonly JsonSerializerOptions ReportJsonOptions =
         new(JsonSerializerDefaults.Web)
         {
@@ -66,6 +69,9 @@ public sealed partial class TasksViewModel :
 
     [ObservableProperty]
     private bool _isLargeRunnerOutput;
+
+    [ObservableProperty]
+    private bool _isRunnerAutoScrollEnabled = true;
 
     [ObservableProperty]
     private string _statusText = "Task data has not been loaded.";
@@ -117,9 +123,11 @@ public sealed partial class TasksViewModel :
         : "Show workflow context";
 
     /// <summary>
-    /// Gets the current Runner diagnostic panel height.
+    /// Gets the current Runner panel height without changing the application window.
     /// </summary>
-    public double RunnerOutputHeight => IsLargeRunnerOutput ? 620 : 190;
+    public double RunnerOutputHeight =>
+        NormalRunnerOutputHeight +
+        (IsLargeRunnerOutput ? LargeRunnerOutputHeightDelta : 0);
 
     /// <inheritdoc />
     public void Activate()

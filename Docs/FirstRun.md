@@ -226,7 +226,9 @@ La création de la première tâche peut alors se faire en n’activant que les
 groupes d’outils et les permissions nécessaires à son objectif.
 
 Pour le premier essai, utilisez **Run now**. La sortie suit automatiquement les
-nouvelles lignes. Pour un workflow, **Show workflow context** affiche les sorties
+nouvelles lignes tant que **Auto-scroll** reste cochée. Décochez-la pour conserver
+la position de lecture, puis recochez-la pour revenir à la dernière ligne. Pour un
+workflow, **Show workflow context** affiche les sorties
 accumulées après chaque étape réussie et reste consultable jusqu’au lancement de
 la tâche suivante. Ce contexte peut contenir les données traitées par la tâche.
 
@@ -234,4 +236,4 @@ Pour un diagnostic ponctuel, cochez **Debug (next run)** avant l’exécution : 
 requêtes/réponses LLM et les arguments d’outils de cette exécution sont visibles
 uniquement dans le Runner Output. Ce contenu peut inclure les données de la tâche
 et ne doit pas être partagé ; les secrets configurés restent exclus. **Large**
-agrandit le panneau et la fenêtre pour faciliter la lecture.
+ajoute 300 pixels au panneau pour faciliter la lecture, sans redimensionner la fenêtre.
