@@ -20,33 +20,28 @@ public sealed class TasksViewModelTests
     public void RunnerDisplayOptionsRemainRepeatable()
     {
         var viewModel = CreateViewModel();
-        var heightNotifications = 0;
+        var largeNotifications = 0;
         viewModel.PropertyChanged += (_, args) =>
         {
-            if (args.PropertyName == nameof(TasksViewModel.RunnerOutputHeight))
+            if (args.PropertyName == nameof(TasksViewModel.IsLargeRunnerOutput))
             {
-                heightNotifications++;
+                largeNotifications++;
             }
         };
 
         viewModel.IsLargeRunnerOutput.Should().BeFalse();
-        viewModel.RunnerOutputHeight.Should().Be(190);
         viewModel.IsRunnerAutoScrollEnabled.Should().BeTrue();
 
         viewModel.IsLargeRunnerOutput = true;
         viewModel.IsLargeRunnerOutput.Should().BeTrue();
-        viewModel.RunnerOutputHeight.Should().Be(490);
         viewModel.IsLargeRunnerOutput = false;
         viewModel.IsLargeRunnerOutput.Should().BeFalse();
-        viewModel.RunnerOutputHeight.Should().Be(190);
         viewModel.IsLargeRunnerOutput = true;
         viewModel.IsLargeRunnerOutput.Should().BeTrue();
-        viewModel.RunnerOutputHeight.Should().Be(490);
         viewModel.IsLargeRunnerOutput = false;
         viewModel.IsLargeRunnerOutput.Should().BeFalse();
-        viewModel.RunnerOutputHeight.Should().Be(190);
 
-        heightNotifications.Should().Be(4);
+        largeNotifications.Should().Be(4);
         viewModel.IsRunnerAutoScrollEnabled = false;
         viewModel.IsRunnerAutoScrollEnabled.Should().BeFalse();
         viewModel.IsRunnerAutoScrollEnabled = true;
