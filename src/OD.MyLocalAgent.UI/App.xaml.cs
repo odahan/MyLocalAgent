@@ -146,6 +146,7 @@ public partial class App : Application
         services.AddSingleton<AIPlaygroundViewModel>();
         services.AddSingleton<TrustFilterViewModel>();
         services.AddSingleton<SettingsViewModel>();
+        services.AddSingleton<AboutViewModel>();
 
         services.AddTransient<DashboardPage>();
         services.AddTransient<TasksPage>();
@@ -157,6 +158,7 @@ public partial class App : Application
         services.AddTransient<AIPlaygroundPage>();
         services.AddTransient<TrustFilterPage>();
         services.AddTransient<SettingsPage>();
+        services.AddTransient<AboutPage>();
         services.AddSingleton(
             serviceProvider =>
             {

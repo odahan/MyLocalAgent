@@ -54,4 +54,9 @@ public enum PageRoute
     /// Application settings and diagnostics.
     /// </summary>
     Settings,
+
+    /// <summary>
+    /// Application identity, version, and copyright.
+    /// </summary>
+    About,
 }

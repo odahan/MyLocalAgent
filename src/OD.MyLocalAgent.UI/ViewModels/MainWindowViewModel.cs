@@ -86,6 +86,10 @@ public sealed partial class MainWindowViewModel :
                 "Settings",
                 PackIconMaterialKind.CogOutline,
                 PageRoute.Settings),
+            new(
+                "About",
+                PackIconMaterialKind.InformationOutline,
+                PageRoute.About),
         ];
         IsActive = true;
         SelectedNavigationItem = NavigationItems[0];
@@ -249,6 +253,8 @@ public sealed partial class MainWindowViewModel :
                 serviceProvider.GetRequiredService<TrustFilterViewModel>(),
             PageRoute.Settings =>
                 serviceProvider.GetRequiredService<SettingsViewModel>(),
+            PageRoute.About =>
+                serviceProvider.GetRequiredService<AboutViewModel>(),
             _ => throw new InvalidOperationException(
                 $"Unsupported navigation route '{route}'."),
         };
