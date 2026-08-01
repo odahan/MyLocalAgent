@@ -377,10 +377,21 @@ public sealed partial class TasksViewModel :
             return;
         }
 
+        string runnerPath;
+        try
+        {
+            runnerPath = _runnerService.RunnerPath;
+        }
+        catch (Exception exception)
+        {
+            StatusText = exception.Message;
+            await ReportAsync(exception, "Task Run now").ConfigureAwait(true);
+            return;
+        }
+
         IsRunning = true;
         try
         {
-            var runnerPath = _runnerService.RunnerPath;
             RunnerOutput =
                 $"Starting runner for '{item.Name}'…{Environment.NewLine}" +
                 $"Executable: {runnerPath}{Environment.NewLine}{Environment.NewLine}";
