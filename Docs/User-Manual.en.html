@@ -1623,7 +1623,7 @@ ollama list</code></pre>
                 <p class="section-kicker">Daily reference</p>
                 <h2>Understand every application page</h2>
                 <p class="section-intro">
-                    The left rail exposes eight main pages. Task and prompt editors open from
+                    The left rail exposes nine main pages. Task and prompt editors open from
                     <span class="ui-label">Tasks</span>.
                 </p>
                 <div class="page-map">
@@ -1638,6 +1638,10 @@ ollama list</code></pre>
                     <article class="page-item">
                         <strong>Logs</strong>
                         <p>Live read-only events, filterable by level, source, and task id.</p>
+                    </article>
+                    <article class="page-item">
+                        <strong>Runs</strong>
+                        <p>History of runner executions (scheduled and Run now), live following of an in-progress run, and log export.</p>
                     </article>
                     <article class="page-item">
                         <strong>Tools</strong>
@@ -2332,6 +2336,48 @@ ollama list</code></pre>
                     <li>Source filters by component or context.</li>
                     <li>Task id limits the view to one task.</li>
                 </ul>
+
+                <h3>Runs page</h3>
+                <p>
+                    Scheduled executions now run without any visible window. Instead, every
+                    runner execution — triggered by Windows Task Scheduler or by
+                    <span class="ui-label">Run now</span> — writes a complete log to disk,
+                    line by line. The <span class="ui-label">Runs</span> page builds on those
+                    logs:
+                </p>
+                <ul class="check-list">
+                    <li>The left list shows each execution with its task id, local start time,
+                        and status: <span class="status good">Success</span>,
+                        <span class="status bad">Failed (code)</span>, or
+                        <span class="status warn">In progress</span>.</li>
+                    <li>Select an in-progress run to follow it live. The page can join a run
+                        mid-execution: the log is replayed from its beginning, so no line is
+                        lost even when the page opens after the run started.</li>
+                    <li>Select a past run to replay and inspect its complete output.</li>
+                    <li><span class="ui-label">Line limit</span> bounds only the display
+                        (2,000 lines by default); the file keeps everything.</li>
+                    <li><span class="ui-label">Clear display</span> empties only the screen;
+                        selecting the run again reloads the log.</li>
+                    <li><span class="ui-label">Save as…</span> exports the selected run as
+                        plain text; <span class="ui-label">Open folder</span> opens the
+                        run-log folder.</li>
+                    <li><span class="ui-label">Auto-scroll</span> follows new lines and can be
+                        paused, like on the Tasks page.</li>
+                </ul>
+                <p>
+                    Logs are kept under
+                    <code>%LOCALAPPDATA%\OD.MyLocalAgent\logs\runs\&lt;taskId&gt;\</code>
+                    (50 files per task by default, adjustable via
+                    <code>Logging:MaxRunLogsPerTask</code>). They contain the same output as
+                    the runner console: treat them as private diagnostic data, exactly like
+                    reports. The ephemeral context and debug channels are never persisted
+                    there.
+                </p>
+                <p>
+                    When you invoke the runner manually from PowerShell, output still prints in
+                    the calling console; it may interleave with the prompt — press Enter to get
+                    a fresh prompt line.
+                </p>
                 <div class="callout">
                     Investigate a <span class="status bad">Failure</span> in this order: runner
                     output, task report, Logs page, then any incident with its correlation id.
@@ -2488,6 +2534,7 @@ ollama list</code></pre></div>
                             <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\reports\&lt;taskId&gt;\</code></td><td>Per-task Markdown reports.</td></tr>
                             <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\reports\index.jsonl</code></td><td>Index of all executions.</td></tr>
                             <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\logs\</code></td><td>Application logs and incidents.</td></tr>
+                            <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\logs\runs\&lt;taskId&gt;\</code></td><td>Runner output logs, one file per execution (Runs page).</td></tr>
                         </tbody>
                     </table>
                 </div>

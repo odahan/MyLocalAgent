@@ -67,6 +67,10 @@ public sealed partial class MainWindowViewModel :
                 PackIconMaterialKind.TextBoxSearchOutline,
                 PageRoute.Logs),
             new(
+                "Runs",
+                PackIconMaterialKind.History,
+                PageRoute.Runs),
+            new(
                 "Tools",
                 PackIconMaterialKind.Tools,
                 PageRoute.Tools),
@@ -243,6 +247,8 @@ public sealed partial class MainWindowViewModel :
                 serviceProvider.GetRequiredService<PromptEditorViewModel>(),
             PageRoute.Logs =>
                 serviceProvider.GetRequiredService<LogsViewModel>(),
+            PageRoute.Runs =>
+                serviceProvider.GetRequiredService<RunMonitorViewModel>(),
             PageRoute.Tools =>
                 serviceProvider.GetRequiredService<ToolsViewModel>(),
             PageRoute.ToolTester =>

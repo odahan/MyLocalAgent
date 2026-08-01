@@ -214,6 +214,7 @@ The process working directory is never used to locate configuration.
 | `%LOCALAPPDATA%\OD.MyLocalAgent\reports\<taskId>\*.md` | Per-run Markdown reports |
 | `%LOCALAPPDATA%\OD.MyLocalAgent\reports\index.jsonl` | Append-only execution index |
 | `%LOCALAPPDATA%\OD.MyLocalAgent\logs\application-<date>.log` | Rolling application logs, retained for 14 files |
+| `%LOCALAPPDATA%\OD.MyLocalAgent\logs\runs\<taskId>\*.jsonl` | Per-execution runner output logs (`Logging:MaxRunLogsPerTask` retained per task, default 50) |
 | `%LOCALAPPDATA%\OD.MyLocalAgent\logs\incidents.jsonl` | Durable incidents with correlation ids |
 | `%LOCALAPPDATA%\OD.MyLocalAgent\logs\archive\<timestamp>\` | Log copies created by Diagnostics Reset |
 
@@ -435,6 +436,16 @@ complete Google consent in the UI first. The scheduled task must run as the same
 account because `%LOCALAPPDATA%`, Google tokens, and DPAPI secrets are user-specific.
 
 ## Runner CLI
+
+The runner is a **windowless executable**: a scheduled execution never opens or flashes a
+console window. Every `run --task <id>` execution is instead recorded as a per-run JSONL log
+under `%LOCALAPPDATA%\OD.MyLocalAgent\logs\runs\<taskId>\`, flushed line by line and readable
+while the run executes. The UI **Runs** page lists past and in-progress executions, follows a
+live run (including one already started), and can export any run as plain text.
+
+Manual shell invocations still print: the runner attaches to the parent console when its
+standard streams are not redirected. Output may interleave with the prompt; press Enter to
+get a fresh prompt line. Redirection (`> file.txt`) and piping work unchanged.
 
 ```powershell
 $runner = Join-Path $env:LOCALAPPDATA `
@@ -1028,6 +1039,13 @@ rolling logs to a timestamped archive, and truncates the active rolling files.
 All handled failures enter one incident pipeline. Each JSONL record contains a UTC timestamp,
 severity, source page or task id, message, full stack trace, and correlation id. The UI shows
 the correlation id in a non-blocking snackbar and remains usable.
+
+The **Runs** page complements the live **Logs** page with persisted runner output. It lists
+every recorded execution (scheduled and Run now) with task id, local start time, and status,
+streams the selected run live with a configurable display line limit, auto-scroll, a
+display-only clear, plain-text export, and a shortcut to the run-log folder. Run logs contain
+the same sanitized content as the runner console; the private workflow-context and debug
+channels are never persisted.
 
 ## Troubleshooting
 

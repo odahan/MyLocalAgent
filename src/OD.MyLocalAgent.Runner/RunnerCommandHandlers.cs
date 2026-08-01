@@ -32,6 +32,72 @@ internal static class RunnerCommandHandlers
             return RunnerExitCodes.TaskFailure;
         }
 
+        var runLogHolder = services.GetService<RunLogSessionHolder>();
+        var runLogSession = await TryStartRunLogAsync(
+            services,
+            taskId,
+            cancellationToken).ConfigureAwait(false);
+        if (runLogHolder is not null)
+        {
+            runLogHolder.Session = runLogSession;
+        }
+
+        var exitCode = RunnerExitCodes.TaskFailure;
+        try
+        {
+            exitCode = await RunCoreAsync(
+                services,
+                taskId,
+                output,
+                error,
+                cancellationToken).ConfigureAwait(false);
+            return exitCode;
+        }
+        finally
+        {
+            if (runLogHolder is not null)
+            {
+                runLogHolder.Session = null;
+            }
+
+            runLogSession?.Complete(exitCode);
+            runLogSession?.Dispose();
+        }
+    }
+
+    private static async Task<RunLogSession?> TryStartRunLogAsync(
+        IServiceProvider services,
+        string taskId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return RunLogSession.Start(
+                taskId,
+                services
+                    .GetRequiredService<IOptions<LoggingOptions>>()
+                    .Value.MaxRunLogsPerTask,
+                services.GetRequiredService<TimeProvider>());
+        }
+        catch (Exception exception) when (
+            exception is not OperationCanceledException)
+        {
+            // Run logging is best-effort (§19.3); the task still executes.
+            _ = await AppExceptionHandlers.HandleAsync(
+                exception,
+                taskId,
+                cancellationToken).ConfigureAwait(false);
+            return null;
+        }
+    }
+
+    private static async Task<int> RunCoreAsync(
+        IServiceProvider services,
+        string taskId,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
         var taskStore = services.GetRequiredService<ITaskStore>();
         var task = await taskStore.GetAsync(
             taskId,

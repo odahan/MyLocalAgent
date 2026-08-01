@@ -2,10 +2,13 @@ namespace OD.MyLocalAgent.Runner;
 
 internal static class Program
 {
-    private static Task<int> Main(string[] args) =>
-        RunnerApplication.RunAsync(
+    private static Task<int> Main(string[] args)
+    {
+        var (output, error) = ConsoleStreams.Acquire();
+        return RunnerApplication.RunAsync(
             args,
-            Console.Out,
-            Console.Error,
+            output,
+            error,
             CancellationToken.None);
+    }
 }

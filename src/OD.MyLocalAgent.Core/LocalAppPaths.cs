@@ -32,6 +32,12 @@ public static class LocalAppPaths
         Path.Combine(LogsDirectory, "incidents.jsonl");
 
     /// <summary>
+    /// Gets the per-execution runner output log directory.
+    /// </summary>
+    public static string RunLogsDirectory =>
+        Path.Combine(LogsDirectory, "runs");
+
+    /// <summary>
     /// Gets the DPAPI-protected secret-store path.
     /// </summary>
     public static string SecretsPath =>

@@ -32,6 +32,9 @@
             <DataTemplate DataType="{x:Type viewModels:LogsViewModel}">
                 <pages:LogsPage />
             </DataTemplate>
+            <DataTemplate DataType="{x:Type viewModels:RunMonitorViewModel}">
+                <pages:RunMonitorPage />
+            </DataTemplate>
             <DataTemplate DataType="{x:Type viewModels:ToolsViewModel}">
                 <pages:ToolsPage />
             </DataTemplate>

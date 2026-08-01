@@ -19,4 +19,9 @@ public sealed class LoggingOptions
     /// Gets or sets the maximum number of events retained by the observable in-memory sink.
     /// </summary>
     public int InMemoryCapacity { get; set; } = 2_000;
+
+    /// <summary>
+    /// Gets or sets the number of per-execution runner log files retained per task.
+    /// </summary>
+    public int MaxRunLogsPerTask { get; set; } = 50;
 }

@@ -21,6 +21,10 @@ internal static class RunnerApplication
         ArgumentNullException.ThrowIfNull(output);
         ArgumentNullException.ThrowIfNull(error);
 
+        var runLogHolder = new RunLogSessionHolder();
+        output = new RunLogTeeWriter(output, runLogHolder, RunLogStream.Output);
+        error = new RunLogTeeWriter(error, runLogHolder, RunLogStream.Error);
+
         IHost? host = null;
         var hostStarted = false;
         var rootCommand = RunnerCommandFactory.CreateRootCommand(
@@ -53,8 +57,10 @@ internal static class RunnerApplication
                     ContentRootPath = AppContext.BaseDirectory,
                 });
             builder.AddODServices(
-                static loggerConfiguration =>
-                    loggerConfiguration.WriteTo.Console());
+                loggerConfiguration =>
+                    loggerConfiguration.WriteTo.Sink(
+                        new RunnerTextWriterSink(output)));
+            builder.Services.AddSingleton(runLogHolder);
             if (IsInteractiveDebugEnabled())
             {
                 builder.Services.Replace(

@@ -111,6 +111,7 @@ public static class HostApplicationBuilderExtensions
         builder.Services.AddSingleton<ITaskSchedulerService, WindowsTaskSchedulerService>();
         builder.Services.AddSingleton<IMyLocalAgentService, MyLocalAgentService>();
         builder.Services.AddSingleton<IRunnerService, RunnerService>();
+        builder.Services.AddSingleton<IRunLogCatalog, RunLogCatalog>();
         return builder;
     }
 
@@ -153,11 +154,12 @@ public static class HostApplicationBuilderExtensions
             .Validate(
                 static options =>
                     options.InMemoryCapacity > 0 &&
+                    options.MaxRunLogsPerTask > 0 &&
                     Enum.TryParse<LogEventLevel>(
                         options.MinimumLevel,
                         ignoreCase: true,
                         out _),
-                "Logging minimum level or in-memory capacity is invalid.");
+                "Logging minimum level, in-memory capacity, or run-log retention is invalid.");
     }
 
     private static void ConfigureLogging(

@@ -1659,3 +1659,64 @@ Modified:
   runner. Saving a task while debugging still registers it against the Debug runner, and the
   next deployed-UI start resynchronizes it to production; the Dashboard Resync schedules
   button remains available in Debug as an explicit action.
+
+### Stage 16 — Windowless runner and run monitor — 2026-08-01
+
+#### Product decisions and specification alignment
+
+- Added normative §19 to `Docs/Prompts/00-Shared-Specification.md` and the stage prompt
+  `Docs/Prompts/16-Stage16-WindowlessRunnerAndRunMonitor.md`. §19 supersedes the §7.5 console
+  subsystem wording: the runner is now `WinExe`, so scheduled Task Scheduler executions never
+  open or flash a console window.
+- Observability moves from an ephemeral console to persistent per-execution JSONL run logs
+  plus a dedicated UI **Runs** page, deliberately file-based (S16-D4): no named pipe, socket,
+  or other IPC. A monitor opened mid-run replays the file from the beginning, so joining a
+  running execution loses nothing, and past runs remain inspectable and exportable.
+- The private `ODMLA_CONTEXT:` / `ODMLA_DEBUG:` channels keep flowing to stdout for the
+  interactive Run now consumer but are never persisted in run logs (S16-D5), preserving the
+  Stage 15 rule that debug payloads stay out of durable logs.
+
+#### Core and runner
+
+- New Core public surface: `RunLogStream`, `RunLogLine`, `RunLogRunInfo`, `RunLogReadResult`,
+  `RunLogSession` (flushed shareable JSONL writer with per-task retention pruning),
+  `RunLogSessionHolder`, `RunLogTeeWriter` (line-buffering tee that filters the private
+  protocol prefixes), `IRunLogCatalog`/`RunLogCatalog` (newest-first enumeration reading the
+  head record plus an 8 KB tail probe; offset-based incremental `ReadLines` tolerating a
+  truncated trailing record), `LocalAppPaths.RunLogsDirectory`, and
+  `LoggingOptions.MaxRunLogsPerTask` (default 50, validated positive). Session and catalog
+  accept an optional root override for tests; production uses `%LOCALAPPDATA%` paths.
+- The runner project is `WinExe` with `AllowUnsafeBlocks` enabled solely for the
+  `LibraryImport` source generator behind `AttachConsole(ATTACH_PARENT_PROCESS)`.
+  `ConsoleStreams.Acquire` keeps redirected streams as provided (UI Run now is byte-for-byte
+  unchanged) and attaches to a parent shell console otherwise, so manual CLI use still prints.
+- `RunnerApplication` wraps output and error in `RunLogTeeWriter`s around one
+  `RunLogSessionHolder`, and the Serilog runner sink is now the in-project
+  `RunnerTextWriterSink` writing console-formatted events through the tee; the
+  `Serilog.Sinks.Console` package reference was removed from the runner (the pinned version
+  remains in `Directory.Packages.props`). `RunnerCommandHandlers.RunAsync` opens the session
+  once the task id is known and completes it with the final exit code in a `finally` block;
+  session failures report an incident and degrade to an unlogged run without affecting the
+  exit code (best-effort rule, §19.3).
+
+#### UI
+
+- New `PageRoute.Runs` between Logs and Tools, resolved to a singleton
+  `RunMonitorViewModel` rendered by `RunMonitorPage`. The view model reconciles the run list
+  in place (preserving selection), tails the selected run with catch-up-then-incremental
+  reads on a 1 s `DispatcherTimer` started by `Activate` and stopped by `Deactivate` (list
+  reconciliation every fifth tick), and honors a display line limit (500–10 000, default
+  2 000) that trims oldest rendered lines without touching the file. Clear empties only the
+  display; Save as exports `HH:mm:ss.fff [out|err] text` lines through
+  `IDesktopInteractionService.SelectSavePath`; Open folder shells into the run-log root.
+  Auto-scroll follows appended lines and can be paused, mirroring the Tasks panel semantics.
+
+#### Verification
+
+- Release build: all eight projects succeeded with zero warnings and zero errors (`-m:1`).
+- Deterministic tests: 269 passed, zero failed, one intentionally skipped local Ollama
+  integration test (270 total), including new coverage for run-log round-trip and
+  incremental tailing, tee protocol filtering, retention pruning, malformed trailing-line
+  tolerance, and Runs view-model reconciliation, line limit, clear, and export.
+- Manual checks remaining for the operator: a scheduled task fires without any visible
+  window, and the Runs page follows a live execution joined mid-run.

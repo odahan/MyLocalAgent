@@ -1957,7 +1957,7 @@ ollama list</code></pre>
                 <p class="section-kicker">Référence quotidienne</p>
                 <h2>Comprendre chaque page</h2>
                 <p class="section-intro">
-                    Le rail gauche donne accès aux huit pages principales. L’éditeur de tâche et
+                    Le rail gauche donne accès aux neuf pages principales. L’éditeur de tâche et
                     l’éditeur de prompt s’ouvrent depuis <span class="ui-label">Tasks</span>.
                 </p>
                 <div class="page-map">
@@ -1972,6 +1972,10 @@ ollama list</code></pre>
                     <article class="page-item">
                         <strong>Logs</strong>
                         <p>Événements en direct, lecture seule, avec filtres par niveau, source et id de tâche.</p>
+                    </article>
+                    <article class="page-item">
+                        <strong>Runs</strong>
+                        <p>Historique des exécutions du runner (planifiées et Run now), suivi en direct d’une exécution en cours et export du journal.</p>
                     </article>
                     <article class="page-item">
                         <strong>Tools</strong>
@@ -2770,6 +2774,50 @@ ollama list</code></pre>
                     <li>Task id limite l’affichage à une tâche précise.</li>
                 </ul>
 
+                <h3>Page Runs</h3>
+                <p>
+                    Les exécutions planifiées se déroulent désormais sans aucune fenêtre visible.
+                    À la place, chaque exécution du runner — déclenchée par le Planificateur
+                    Windows ou par <span class="ui-label">Run now</span> — écrit un journal
+                    complet sur disque, ligne par ligne. La page
+                    <span class="ui-label">Runs</span> exploite ces journaux :
+                </p>
+                <ul class="check-list">
+                    <li>La liste de gauche montre chaque exécution avec l’id de tâche, l’heure
+                        de début locale et le statut : <span class="status good">Success</span>,
+                        <span class="status bad">Failed (code)</span> ou
+                        <span class="status warn">In progress</span>.</li>
+                    <li>Sélectionnez une exécution en cours pour la suivre en direct. La page
+                        peut « prendre le train en marche » : le journal est relu depuis le
+                        début, aucune ligne n’est perdue même si la page est ouverte après le
+                        lancement.</li>
+                    <li>Sélectionnez une exécution passée pour rejouer et inspecter tout son
+                        déroulé.</li>
+                    <li><span class="ui-label">Line limit</span> borne uniquement l’affichage
+                        (2 000 lignes par défaut) ; le fichier conserve tout.</li>
+                    <li><span class="ui-label">Clear display</span> vide seulement l’écran ;
+                        resélectionner l’exécution recharge le journal.</li>
+                    <li><span class="ui-label">Save as…</span> exporte l’exécution sélectionnée
+                        en texte brut ; <span class="ui-label">Open folder</span> ouvre le
+                        dossier des journaux.</li>
+                    <li><span class="ui-label">Auto-scroll</span> suit les nouvelles lignes et
+                        peut être suspendue, comme sur la page Tasks.</li>
+                </ul>
+                <p>
+                    Les journaux sont conservés sous
+                    <code>%LOCALAPPDATA%\OD.MyLocalAgent\logs\runs\&lt;taskId&gt;\</code>
+                    (50 fichiers par tâche par défaut, réglable via
+                    <code>Logging:MaxRunLogsPerTask</code>). Ils contiennent la même sortie que
+                    la console du runner : traitez-les comme des données de diagnostic privées,
+                    au même titre que les rapports. Les canaux de contexte et de debug
+                    éphémères n’y sont jamais enregistrés.
+                </p>
+                <p>
+                    Pour lancer manuellement le runner depuis PowerShell, la sortie s’affiche
+                    toujours dans la console appelante ; elle peut s’entrelacer avec l’invite —
+                    appuyez sur Entrée pour retrouver une invite propre.
+                </p>
+
                 <div class="callout">
                     Une tâche marquée <span class="status bad">Failure</span> doit être examinée dans
                     cet ordre : sortie du runner, rapport de la tâche, page Logs, puis incident
@@ -2951,6 +2999,7 @@ ollama list</code></pre>
                             <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\reports\&lt;taskId&gt;\</code></td><td>Rapports Markdown de la tâche.</td></tr>
                             <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\reports\index.jsonl</code></td><td>Index de toutes les exécutions.</td></tr>
                             <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\logs\</code></td><td>Journaux applicatifs et incidents.</td></tr>
+                            <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\logs\runs\&lt;taskId&gt;\</code></td><td>Journaux de sortie du runner, un fichier par exécution (page Runs).</td></tr>
                         </tbody>
                     </table>
                 </div>

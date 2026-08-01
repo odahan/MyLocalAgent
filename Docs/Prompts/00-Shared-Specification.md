@@ -1514,3 +1514,82 @@ Release verification for this increment requires a zero-warning Release build, p
 round-trip/rejection coverage, the complete deterministic test suite, documentation review,
 and `git diff --check`. The real Gmail workflow remains user data and must not be created or
 executed as a verification fixture.
+
+## 19. Stage 16 addendum — Windowless runner and run monitor
+
+This addendum is normative for the post-Stage-15 implementation. It supersedes the console
+subsystem wording of §7.5 (the runner is no longer a visible console application) and extends
+run observability with a persistent, per-execution runner output log and a dedicated UI page.
+All credential, task-whitelist, filesystem, Guardrails, R9, and generation-policy rules remain
+unchanged.
+
+### 19.1 Locked product decisions
+
+| # | Decision |
+|---|---|
+| S16-D1 | **Windowless runner.** `OD.MyLocalAgent.Runner` builds with `<OutputType>WinExe</OutputType>`. A scheduled execution never creates or flashes a console window, regardless of the logon type. |
+| S16-D2 | **CLI compatibility.** When the runner starts with non-redirected standard streams, it attempts `AttachConsole(ATTACH_PARENT_PROCESS)` and rebinds `Console.Out` / `Console.Error` to the parent console so manual invocations (`list`, `test-prompt`, …) from a shell keep printing. When standard streams are redirected (UI Run now, pipes, `>` redirection), no attach occurs and the streams are used as provided. |
+| S16-D3 | **Per-run JSONL log.** Every `run --task <id>` execution appends its complete user-facing runner output to `%LOCALAPPDATA%\OD.MyLocalAgent\logs\runs\<taskId>\<yyyyMMdd-HHmmss-fff>.jsonl`, flushed line by line, readable while the run executes (`FileShare.Read`). Other commands do not create run logs. |
+| S16-D4 | **File-based, no IPC.** The UI observes runs exclusively by reading these files (catch-up plus incremental tail). No named pipe, socket, or memory-mapped channel is introduced. A monitor opened mid-run replays the file from its beginning, so no output is lost. |
+| S16-D5 | **Private channels stay private.** `ODMLA_CONTEXT:` and `ODMLA_DEBUG:` protocol lines pass through to standard output for the interactive Run now consumer but are **never written** to the run log file. Run logs contain the same sanitized content as the visible runner console; credentials, tokens, and API keys remain excluded. |
+| S16-D6 | **Retention.** `Logging:MaxRunLogsPerTask` (positive integer, default `50`) bounds retained run-log files per task; the oldest files are pruned when a new run session starts. Retention never deletes the file of the run being started. |
+| S16-D7 | **Runs page.** The UI adds a top-level **Runs** destination listing past and in-progress executions (task id, local start time, status, exit code) and streaming the selected run's lines live. It offers a display line limit, a display clear action, plain-text export (save as), an auto-scroll toggle enabled by default, and an action opening the run-logs folder. |
+| S16-D8 | **Unified history.** Interactive Run now child executions produce the same run logs as scheduled executions and appear in the same Runs list. The existing Tasks Run now panel is unchanged. |
+| S16-D9 | **Diagnostic content classification.** Run logs may contain task, Gmail, Calendar, or file data rendered by the runner's normal output. They are user-private diagnostic files, treated like reports, never uploaded or transmitted. |
+
+### 19.2 Run-log contract
+
+One UTF-8 JSONL file per execution; records in file order:
+
+```jsonl
+{"kind":"start","taskId":"daily-brief","startedUtc":"2026-08-01T06:00:00.123Z","processId":4242,"version":"1.2.5"}
+{"kind":"line","timestampUtc":"2026-08-01T06:00:01.000Z","stream":"out","text":"Task 'daily-brief' started."}
+{"kind":"line","timestampUtc":"2026-08-01T06:00:05.400Z","stream":"err","text":"..."}
+{"kind":"end","endedUtc":"2026-08-01T06:01:10.000Z","exitCode":0}
+```
+
+- `stream` is `out` or `err`. `text` is one line without its terminator.
+- A file without an `end` record represents an execution in progress (or one interrupted by
+  process termination; the UI labels both "In progress / interrupted" until refreshed after
+  the process exit).
+- Writers hold the file with `FileShare.Read`; readers open with
+  `FileShare.ReadWrite | FileShare.Delete` and perform incremental offset-based reads so a
+  monitor can join mid-run and follow appended lines.
+- Malformed or truncated trailing lines (a crash mid-write) are skipped by readers without
+  raising incidents.
+
+### 19.3 Runner behavior
+
+- `RunnerApplication` wraps its `output` and `error` writers with a tee that forwards every
+  character unchanged to the original writer and mirrors completed lines into the active run
+  session, filtering the §19.1 S16-D5 protocol lines. The runner Serilog sink writes through
+  the same tee (`WriteTo.TextWriter`) instead of a direct console sink, so scheduled runs keep
+  full Serilog output in the run log.
+- The run session opens in the `run` command handler once the task id is known and closes with
+  the command's exit code in a `finally` block. Session open/close failures degrade to normal
+  execution without run logging and report an incident; they never fail the task itself.
+- The rolling application log, incident log, reports, and report index are unchanged.
+
+### 19.4 Runs page
+
+- Route `Runs` sits between Logs and Tools in the navigation list.
+- The run list is built by enumerating `logs\runs\*\*.jsonl` (newest first) and reading each
+  file's `start`/`end` records. While the page is active, a polling refresh (~1 s) updates
+  the list and appends new lines of the selected run; polling stops when the page deactivates.
+- The display line limit (default 2 000) bounds only the rendered collection: older rendered
+  lines are dropped first; the underlying file is never modified by the limit, clear, or
+  export actions.
+- Export writes the currently selected run as plain text (`timestamp [stream] text`) through
+  the standard save dialog. Clear empties only the display; selecting the run again reloads
+  the full file within the line limit.
+- Auto-scroll follows appended lines after layout, may be paused, and resumes to the latest
+  line when re-enabled (same semantics as the Tasks Runner panel).
+
+### 19.5 Required verification
+
+Automated coverage includes run-log start/line/end round-trip, protocol-line exclusion,
+mid-run incremental reads (catch-up then tail), retention pruning boundaries, malformed
+trailing-line tolerance, and Runs view-model list/tail/limit/clear/export behaviors. The final
+gate remains a warning-clean Release build and the deterministic test run with `-m:1`, plus
+`git diff --check`. Manual checks: a scheduled execution shows no window, and the Runs page
+follows a live execution joined mid-run.

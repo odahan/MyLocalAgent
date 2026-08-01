@@ -31,6 +31,11 @@ public enum PageRoute
     Logs,
 
     /// <summary>
+    /// Persisted runner execution monitoring.
+    /// </summary>
+    Runs,
+
+    /// <summary>
     /// Connector and tool configuration.
     /// </summary>
     Tools,

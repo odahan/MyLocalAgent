@@ -146,6 +146,7 @@ public partial class App : Application
         services.AddSingleton<TaskEditorViewModel>();
         services.AddSingleton<PromptEditorViewModel>();
         services.AddSingleton<LogsViewModel>();
+        services.AddSingleton<RunMonitorViewModel>();
         services.AddSingleton<ToolsViewModel>();
         services.AddSingleton<ToolTesterViewModel>();
         services.AddSingleton<AIPlaygroundViewModel>();
@@ -158,6 +159,7 @@ public partial class App : Application
         services.AddTransient<TaskEditorPage>();
         services.AddTransient<PromptEditorPage>();
         services.AddTransient<LogsPage>();
+        services.AddTransient<RunMonitorPage>();
         services.AddTransient<ToolsPage>();
         services.AddTransient<ToolTesterPage>();
         services.AddTransient<AIPlaygroundPage>();
