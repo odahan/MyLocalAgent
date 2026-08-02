@@ -234,3 +234,29 @@ LLM requests/responses and tool arguments are visible only in Runner Output. The
 content can include task data and must not be shared; configured secrets remain
 excluded. **Large** adds 300 pixels to the panel for easier reading and does not resize the
 application window.
+
+## 11. Authoring a workflow without starting from scratch
+
+The **Workflow JSON** card of the task editor offers three aids. The first two are
+entirely deterministic: they call no model, tool, file, or network.
+
+- **Tool catalog**: the searchable reference of every Tool Map alias, with its
+  description, typed arguments, examples, allowed values, and placeholders.
+  Selecting an entry previews it, then **Insert** inserts it at the caret position
+  and keeps the window open so several steps can be accumulated. **Cancel**
+  discards the whole session. If the JSON cannot be parsed, the snippet is
+  inserted verbatim with a manual-repair warning.
+- **Edit prompts**: the prompt editor lists the `ai.prompt` steps and lets you
+  write a multiline prompt comfortably, together with the `includeContext`
+  option. **Apply** writes every change at once. A prompt that is empty or only
+  whitespace is rejected.
+- **AI Helper**: model-assisted generation, best reserved for cases where an
+  English description is faster than writing the workflow directly.
+
+A step coming from a tool group that the task does not allow shows a warning and
+an **unchecked** box: authorization is never widened silently. Safety settings are
+displayed read-only.
+
+**Undo assisted change** reverts the last assisted application in one operation,
+whatever its origin, until save or reload. As with any editor change, only
+**Save task** persists the result.

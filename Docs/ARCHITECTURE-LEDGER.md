@@ -1720,3 +1720,133 @@ Modified:
   tolerance, and Runs view-model reconciliation, line limit, clear, and export.
 - Manual checks remaining for the operator: a scheduled task fires without any visible
   window, and the Runs page follows a live execution joined mid-run.
+
+### Stage 17 — Workflow authoring aids — 2026-08-02
+
+#### Product decisions and specification alignment
+
+- Implemented from `Docs/Prompts/17-Stage17-WorkflowAuthoringAids.V2.md`; the original
+  `Docs/Prompts/OldSpecs/17-Stage17-WorkflowAuthoringAids.md` is retained as historical
+  specification. §20 of `Docs/Prompts/00-Shared-Specification.md` was rewritten to match the V2,
+  extending the locked decisions to S17-D21.
+- Two deterministic, memory-only authoring aids were added to the existing Task editor workflow
+  card: a **Tool catalog** dialog and a **Workflow prompt editor** dialog. Neither calls a
+  model, an agent, a tool, a skill, the filesystem, or the network. No persisted task field,
+  file, setting, page, workflow model, or migration was introduced, and no package was added.
+- Five V2 corrections over the V1 specification are now normative: the sequential caret rule
+  (inside an element inserts after it), the synthetic `ai` group is not whitelistable,
+  `includeContext` is an independent option never driven by the generic optional-arguments
+  toggle, prompt working text is LF-canonical, and a missing, null, non-string, empty, or
+  whitespace-only `ai.prompt` prompt is invalid in every validation path.
+- No automatic context inference: a direct prior-output placeholder combined with
+  `includeContext` true raises a non-blocking duplication warning and changes neither value.
+
+#### Core
+
+- New public surface: `WorkflowArgumentKind` (`String`, `Integer`, `Number`, `Boolean`,
+  `Enumeration`), `ToolArgumentDefinition(Name, Kind, IsRequired, Description)` with optional
+  `Example`, `AllowedValues`, and `SupportsPlaceholders`, plus `ToolDefinition.Description` and
+  `ToolDefinition.ArgumentDefinitions`. `Arguments` and `OptionalArguments` remain as
+  projections of that metadata and keep their existing values, so `ToolRegistry`, the workflow
+  engine, the validator, and the Stage 13 analyzer are unaffected. `ToolGroups.Ai` and
+  `SafetyOptions.IsEnabled` were centralized to remove duplicated literals.
+- `WorkflowSnippetBuilder` and `WorkflowSnippetOptions` build one object-form
+  `WorkflowStepDefinition` with a unique id, required arguments always present, optional
+  arguments only on request, typed placeholder defaults, an explicit `includeContext` for
+  `ai.prompt`, and error-policy/generation-option blocks that apply to AI steps only.
+- `WorkflowCaretInsertionService` and `WorkflowCaretInsertionResult` clamp the caret to the text
+  length, move it off a UTF-16 surrogate pair boundary, map the character offset to a byte
+  offset over top-level element spans computed with `Utf8JsonReader`, and insert structurally.
+  Unparseable JSON falls back to a verbatim snippet at the clamped caret with an explicit repair
+  warning.
+- `WorkflowPromptEditingService`, `WorkflowPromptEntry`, and `WorkflowPromptEdit` extract the
+  ordered `ai.prompt` entries keyed by declaration position, normalize prompt text to LF, flag
+  repair cases and normalized line endings, and rewrite only the `prompt` and `includeContext`
+  arguments while preserving every unrelated argument. `ReferencesWorkflowOutput` detects
+  `workflow.context`, `previous.output`, and prior-step output placeholders for the duplication
+  warning. Position keying makes duplicate step ids unambiguous.
+- `WorkflowPromptPreviewProjection` renders a display-only single-line preview: line feeds and
+  tabs become visible markers, remaining C0 controls and DEL use their Unicode control picture,
+  and truncation at 120 text elements never splits a grapheme cluster. The projection is never
+  written back to prompt text.
+- `ScheduledTaskValidator` was tightened: an `ai.prompt` `prompt` must be a non-empty,
+  non-whitespace string, carriage returns are rejected, duplicate argument names are rejected
+  case-insensitively, and argument optionality now derives solely from Tool Map metadata.
+
+#### UI
+
+- `TextBoxSelectionBinding` is a reusable attached behavior exposing `CaretIndex`,
+  `SelectionStart`, and `SelectionLength` with a reentrancy guard and length clamping. All id
+  generation, snippet construction, offset mapping, insertion, extraction, rewriting, and
+  preview projection stay in non-WPF classes.
+- Tool catalog: `WorkflowToolCatalogViewModel`, `WorkflowToolCatalogWindow`,
+  `IWorkflowToolCatalogDialogService`/`WorkflowToolCatalogDialogService`, and the
+  `WorkflowToolCatalogRequest`/`WorkflowToolCatalogResult`/`WorkflowToolCatalogInsertion`
+  contracts. The session accumulates into a working copy: Insert keeps the dialog open, Insert
+  and close returns the accumulated result, Close returns it only when an effective change
+  exists, Cancel discards the session, and closing with pending insertions requires an explicit
+  confirmation. Missing non-AI groups require an unchecked opt-in; the `ai` group never appears
+  in an accepted-group result.
+- Workflow prompt editor: `WorkflowPromptEditorViewModel`, `WorkflowPromptEditorItem`,
+  `WorkflowPromptEditorWindow`,
+  `IWorkflowPromptEditorDialogService`/`WorkflowPromptEditorDialogService`, and the
+  `WorkflowPromptEditorRequest`/`WorkflowPromptEditorResult`/`WorkflowPromptEditorChange`
+  contracts. Apply is enabled only when an effective change exists and no prompt is blank; it
+  validates, writes every pending edit at once and closes. Revert step restores one entry,
+  Cancel discards the session, and there is deliberately no Close command. The result carries
+  positions and effective ids but never prompt content.
+- `TaskEditorViewModel` gained `WorkflowCaretIndex`, `OpenToolCatalogCommand`, and
+  `OpenWorkflowPromptEditorCommand`, and delegates `DeserializeWorkflow` to
+  `WorkflowDefinitionSerializer` instead of a divergent private parser. The Stage 13 snapshot
+  became the single assisted-change snapshot shared by the AI Helper, the catalog, and the
+  prompt editor; its members were renamed to `HasAssistedUndoSnapshot`,
+  `UndoAssistedChangeCommand`, `UndoAssistedChange`, `CanUndoAssistedChange`,
+  `_assistedUndoSnapshot`, and `ClearAssistedUndo`, and the button is now
+  **Undo assisted change**.
+
+#### Privacy
+
+- Workflow JSON, prompt text, argument values, paths, selections, and dialog working copies are
+  never logged, incident-reported, placed in telemetry, or persisted. The only outbound copy is
+  the explicit Copy placeholder action in the catalog. `WorkflowPromptEditorResult` reports
+  counts, positions, and effective ids, never prompt content.
+
+#### Verification
+
+- Release build: zero warnings and zero errors (`-m:1`).
+- Deterministic tests: 367 passed, zero failed, one intentionally skipped local Ollama
+  integration test (368 total). New coverage spans Tool Map metadata consistency and projection
+  stability, snippet building for every argument shape, structured insertion at every array
+  position including empty arrays and in-string carets, invalid-JSON fallback, catalog session
+  accumulate/cancel semantics, tool-group opt-in, the non-whitelistable `ai` group, prompt
+  extraction ordering, LF normalization, multiline round-trip losslessness, targeted-only
+  rewriting, blocked Apply cases, the non-blocking duplication warning, and grapheme-safe
+  preview truncation.
+
+#### Residual risks
+
+- **The assistant generation prompt was not rebuilt from the new metadata.** §20.2 requires
+  `WorkflowAssistantPromptBuilder` to consume `Description` and `ArgumentDefinitions` and to
+  increment its version; it still reads `Arguments`/`OptionalArguments` and
+  `GenerationVersion` remains `workflow-generation-v1`. The Stage 13 assistant therefore does
+  not yet benefit from the enriched descriptions. This is a known, unaddressed gap.
+- **No GUI verification was performed.** Both dialogs were validated by build and unit tests
+  only. Neither window has been opened, so layout, keyboard traversal, minimum size, long
+  prompts and paths, and Light/Dark rendering remain unverified human checks.
+- Canonical re-serialization intentionally discards manual formatting on every successful
+  structured insertion and prompt application, which is visible to a user who hand-formatted
+  the workflow array.
+- Structured insertion positions a snippet relative to top-level elements only; a caret inside
+  a deeply nested value still resolves to its enclosing top-level element.
+
+#### Release 1.2.7 — 2026-08-02
+
+- Packages the Stage 17 deterministic workflow authoring aids as version 1.2.7, set in
+  `Directory.Build.props`.
+- The release also carries the full Stage 17 documentation pass: shared specification §20,
+  this ledger entry, `README.md`, both HTML user manuals, both FirstRun guides,
+  `Docs/theme-audit.md`, `Docs/acceptance-report.md`, and the Stage 17 row of
+  `Docs/Prompts/README.md`.
+- Verification is build and unit tests only. GUI checks for both new dialogs are recorded as
+  outstanding in `Docs/theme-audit.md` and `Docs/acceptance-report.md` and are not claimed as
+  release evidence.

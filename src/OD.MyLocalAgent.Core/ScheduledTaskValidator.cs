@@ -254,13 +254,22 @@ public static partial class ScheduledTaskValidator
                     $"Workflow step '{step.Step}' has a negative retry backoff.");
             }
 
-            if (string.Equals(step.Step, ToolMap.PromptAlias, StringComparison.OrdinalIgnoreCase) &&
-                (step.Args.ValueKind != JsonValueKind.Object ||
-                 !step.Args.TryGetProperty("prompt", out var prompt) ||
-                 prompt.ValueKind != JsonValueKind.String))
+            if (string.Equals(step.Step, ToolMap.PromptAlias, StringComparison.OrdinalIgnoreCase))
             {
-                throw new WorkflowValidationException(
-                    "Workflow alias 'ai.prompt' requires string argument 'prompt'.");
+                if (step.Args.ValueKind != JsonValueKind.Object ||
+                    !step.Args.TryGetProperty("prompt", out var prompt) ||
+                    prompt.ValueKind != JsonValueKind.String ||
+                    string.IsNullOrWhiteSpace(prompt.GetString()))
+                {
+                    throw new WorkflowValidationException(
+                        "Workflow alias 'ai.prompt' requires a non-empty string argument 'prompt'.");
+                }
+
+                if (prompt.GetString()!.Contains('\r', StringComparison.Ordinal))
+                {
+                    throw new WorkflowValidationException(
+                        "Workflow argument 'prompt' must use LF line endings without carriage returns.");
+                }
             }
 
             if (string.Equals(step.Step, ToolMap.PromptAlias, StringComparison.OrdinalIgnoreCase) &&
@@ -284,8 +293,15 @@ public static partial class ScheduledTaskValidator
         var supplied = step.Args.ValueKind == JsonValueKind.Object
             ? step.Args.EnumerateObject().ToArray()
             : [];
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var property in supplied)
         {
+            if (!seen.Add(property.Name))
+            {
+                throw new WorkflowValidationException(
+                    $"Workflow alias '{step.Step}' declares argument '{property.Name}' more than once.");
+            }
+
             if (!definition.Arguments.Contains(
                     property.Name,
                     StringComparer.OrdinalIgnoreCase))
@@ -299,12 +315,7 @@ public static partial class ScheduledTaskValidator
         {
             var optional = definition.OptionalArguments.Contains(
                 argument,
-                StringComparer.OrdinalIgnoreCase) ||
-                (definition.IsAiStep &&
-                 !string.Equals(
-                     definition.Alias,
-                     ToolMap.PromptAlias,
-                     StringComparison.OrdinalIgnoreCase));
+                StringComparer.OrdinalIgnoreCase);
             if (!optional &&
                 !supplied.Any(
                     property => string.Equals(

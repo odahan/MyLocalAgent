@@ -1755,8 +1755,11 @@ ollama list</code></pre>
                     warnings rather than automatic changes. <span class="ui-label">Apply</span>
                     updates workflow, tools, and locations together in the editor; only
                     <span class="ui-label">Save task</span> persists them.
-                    <span class="ui-label">Undo AI changes</span> restores the prior editor
-                    values until save, reload, navigation, or a later Apply.
+                    <span class="ui-label">Undo assisted change</span> is the single one-level
+                    undo shared by the AI Helper, the Tool catalog, and the Workflow prompt
+                    editor: it atomically restores the preceding workflow JSON, tool selections,
+                    and authorized locations until save, reload, navigation, or a later assisted
+                    application replaces the snapshot.
                 </p>
                 <p>
                     <span class="ui-label">AI Explain</span> validates locally before calling
@@ -1779,6 +1782,85 @@ ollama list</code></pre>
                     endpoint. Valid JSON can still be semantically wrong, and static analysis
                     cannot predict every runtime path or value. Cancel preserves incomplete
                     output but cannot Apply it.
+                </div>
+
+                <h3>Tool catalog</h3>
+                <p>
+                    <span class="ui-label">Tool catalog</span> is a searchable reference of every
+                    Tool Map alias, grouped by tool group, with its description, typed arguments,
+                    required/optional flags, examples, allowed values, and a placeholders tab.
+                    The dialog is entirely deterministic: it calls no model, tool, file, or
+                    network. Selecting an entry previews the exact snippet that will be inserted.
+                </p>
+                <p>
+                    <span class="ui-label">Insert</span> applies the snippet and keeps the window
+                    open, so several steps can be accumulated in one session;
+                    <span class="ui-label">Insert and close</span> applies and closes;
+                    <span class="ui-label">Close</span> returns the accumulated result only when
+                    at least one effective change exists; <span class="ui-label">Cancel</span>
+                    discards the whole session. Closing with pending insertions asks for
+                    confirmation.
+                </p>
+                <p>
+                    The caret decides the position: inside an element inserts after it, between
+                    two elements inserts after the element on the left, before the first inserts
+                    at index 0, and after the last appends. If the JSON cannot be parsed, the
+                    snippet is still inserted verbatim at the caret with the caret line's
+                    indentation, plus an explicit warning that separators must be fixed manually.
+                </p>
+                <div class="callout warn">
+                    <strong>Authorizations.</strong>
+                    A step whose tool group is not on the task whitelist produces a warning and an
+                    <em>unchecked</em> opt-in that you must accept explicitly. The built-in
+                    <code>ai</code> group is only a grouping label: it is never whitelistable and
+                    never appears in an accepted-group result. Safety settings are displayed
+                    read-only and are never modified.
+                </div>
+
+                <h3>Workflow prompt editor</h3>
+                <p>
+                    <span class="ui-label">Edit prompts</span> lists every <code>ai.prompt</code>
+                    step in declaration order and edits only its <code>prompt</code> text and its
+                    <code>includeContext</code> option. No step is added, deleted, reordered,
+                    renamed, or re-typed, and no id, error policy, retry, generation option, or
+                    other argument is touched. Steps are keyed by position, so duplicate ids stay
+                    unambiguous.
+                </p>
+                <p>
+                    Prompts are edited with real line breaks. The working text is LF-canonical:
+                    CRLF and lone CR are normalized to LF and flagged, and nothing else about your
+                    whitespace changes. Because line breaks are written as <code>\n</code>
+                    escapes, each prompt still occupies one physical JSON line, and a round trip
+                    without an edit is lossless. Each row shows a single-line preview in which
+                    line feeds and tabs become visible markers.
+                </p>
+                <p>
+                    <code>includeContext</code> is an independent option, enabled by default on a
+                    newly built <code>ai.prompt</code> step. It is never driven by the generic
+                    optional-arguments toggle. You can deliberately turn it off and reference a
+                    single prior-output placeholder to send only selected data. If a prompt
+                    already references prior output or accumulated context while
+                    <code>includeContext</code> is on, a <strong>duplication warning</strong>
+                    appears: it is informational, changes no value automatically, and does not
+                    block <span class="ui-label">Apply</span>.
+                </p>
+                <p>
+                    Several prompts may be edited in one session.
+                    <span class="ui-label">Apply</span> validates everything, writes every change
+                    at once, and closes; it is enabled only when an effective change exists and no
+                    prompt is blank. <span class="ui-label">Revert step</span> restores a single
+                    entry and <span class="ui-label">Cancel</span> discards the session. This
+                    dialog deliberately has no Close command, and closing it with pending edits
+                    asks for confirmation.
+                </p>
+                <div class="callout warn">
+                    <strong>Non-empty prompts and reformatting.</strong>
+                    An <code>ai.prompt</code> <code>prompt</code> that is missing, null,
+                    non-string, empty, or whitespace-only is rejected everywhere: Save, Validate,
+                    AI Helper validation, and prompt editor Apply. Every successful structured
+                    insertion or prompt application re-serializes the array canonically, so manual
+                    formatting of the workflow is normalized. Workflow JSON, prompts, argument
+                    values, and paths are never logged or persisted by these dialogs.
                 </div>
 
                 <h3>Task shape</h3>

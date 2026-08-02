@@ -1593,3 +1593,315 @@ trailing-line tolerance, and Runs view-model list/tail/limit/clear/export behavi
 gate remains a warning-clean Release build and the deterministic test run with `-m:1`, plus
 `git diff --check`. Manual checks: a scheduled execution shows no window, and the Runs page
 follows a live execution joined mid-run.
+
+## 20. Stage 17 addendum — Workflow authoring aids
+
+This addendum extends §7.6, §8.3, §15.3, and §16. It adds two deterministic authoring aids to
+the existing Task editor workflow card and enriches the Tool Map with documentation metadata.
+It changes no persisted contract, no execution semantics, no authorization rule, and no Safety
+behavior, and it introduces no LLM call and no package.
+
+### 20.1 Locked product decisions
+
+| # | Decision |
+|---|---|
+| S17-D1 | **Deterministic aids only.** The Tool catalog and the Prompt editor never call a model, an agent, a tool, a skill, the filesystem, or the network. Their content derives from Tool Map metadata, `WorkflowPlaceholderCatalog`, and the current editor text. |
+| S17-D2 | **JSON remains the source of truth.** Both aids only produce a new `WorkflowText` value, plus an optional set of tool groups to enable for the catalog. No new persisted field, file, setting, or page. |
+| S17-D3 | **One catalog, in Core.** `ToolMap` carries the English description of each alias and structured per-argument metadata; the Stage 13 assistant prompt builder consumes the same metadata. A UI-only alias or argument table is forbidden. |
+| S17-D4 | **Caret plumbing is view-only.** The workflow `TextBox` exposes caret and selection through an attached behavior; snippet building, offset mapping, insertion, and prompt rewriting live in unit-testable non-UI classes. |
+| S17-D5 | **Structured insertion first.** Parseable JSON is inserted through the parsed array at the caret's step position and re-serialized canonically; unparseable JSON receives verbatim snippet text at the clamped caret plus an explicit repair warning. |
+| S17-D6 | **Sequential caret rule.** A caret inside an element inserts after that element; between two elements it inserts after the element on the left; before the first element it inserts at index 0; after the last element it appends. |
+| S17-D7 | **Repeatable modal catalog.** Insert accumulates and keeps the window open, Insert and close applies and closes, Close returns the accumulated working copy only when at least one effective change exists, Cancel discards every insertion of the session. |
+| S17-D8 | **Warn, never silently widen.** Only non-AI tool groups can be proposed for task whitelisting; a missing group produces a warning and an unchecked opt-in; a referenced disabled Safety flag is a warning only. Global Safety settings are never modified by an aid. |
+| S17-D9 | **Built-in AI is not whitelistable.** The synthetic `ai` group exists for catalog grouping only. AI entries never display a missing-whitelist lock and `ai` never appears in an accepted-group result. |
+| S17-D10 | **Workflow Prompt Editor scope.** Only `ai.prompt` steps are listed, in declaration order, keyed by position; only their `prompt` and `includeContext` arguments are edited. No step is added, deleted, reordered, renamed, or re-typed, and no id, policy, retry, generation option, or unrelated argument is changed. |
+| S17-D11 | **Explicit context choice.** `includeContext` is an independent AI-prompt option, defaulted to `true` for a newly built `ai.prompt` step. It is never controlled by the generic Include optional arguments option. |
+| S17-D12 | **No automatic context inference.** A direct prior-output placeholder may be used with `includeContext` false to send only selected data. When a direct output placeholder and `includeContext` true coexist, a duplication warning is shown but neither value is changed automatically. |
+| S17-D13 | **Canonical LF prompts.** Workflow prompt working text uses LF line endings; CRLF and lone CR are normalized to LF. No other whitespace, wrapping, indentation, or trailing whitespace is changed. |
+| S17-D14 | **Non-empty prompts everywhere.** An `ai.prompt` prompt that is missing, null, non-string, empty, or whitespace-only is invalid in Save, Validate, AI Helper validation, and Workflow Prompt Editor Apply. |
+| S17-D15 | **Lossless multiline round trip.** Prompts are edited with real line breaks and stored with real line breaks; `System.Text.Json` writes them as `\n` escapes, so each prompt still occupies one physical JSON line. No lossy flattening. |
+| S17-D16 | **Batch edit, single apply.** Several prompt/`includeContext` pairs may be edited in one session; Apply validates, rewrites them all at once and closes, Cancel discards them all, and closing with pending edits requires confirmation. This dialog has no Close command. |
+| S17-D17 | **One shared one-level undo.** The Stage 13 editor snapshot becomes the single assisted-change snapshot of the AI Helper, the catalog, and the prompt editor, exposed as **Undo assisted change** and restoring workflow JSON, tool selections, and authorized locations atomically. |
+| S17-D18 | **Canonical formatting is accepted.** Every successful structured insertion or prompt application re-serializes the array with `ScheduledTaskSerializer.Options`, normalizing manual formatting. |
+| S17-D19 | **Active application theme.** Both dialogs follow the current Light or Dark application theme. They introduce no additional theme and no theme switcher. |
+| S17-D20 | **Privacy.** Prompt text, argument values, workflow JSON, paths, selections, and dialog working copies are never logged, incident-reported, cached, or copied except through an explicit user Copy action. |
+| S17-D21 | **No new packages.** Existing WPF, Material Design, and MVVM Toolkit capabilities are sufficient. |
+
+### 20.2 Tool Map documentation metadata
+
+`ToolDefinition` gains `Description` (one English sentence covering behavior and output) and an
+ordered `ArgumentDefinitions` collection of
+`ToolArgumentDefinition(Name, Kind, IsRequired, Description)` with optional `Example`,
+`AllowedValues`, and `SupportsPlaceholders`. `Kind` is `String`, `Integer`, `Number`, `Boolean`,
+or `Enumeration`. `Arguments` and `OptionalArguments` become projections of the new metadata and
+keep their existing values, so `ToolRegistry`, the workflow engine, the validator, and the
+Stage 13 analyzer are unaffected. The §7.7 Tool Map reflection test additionally enforces
+descriptions, one argument definition per real parameter, kind/CLR-type compatibility, required
+flags, and enumeration values equal to the parameter type's names. The assistant generation
+prompt is rebuilt from this metadata and its version is incremented.
+
+### 20.3 Snippet contract and insertion algorithm
+
+A snippet is one object-form `WorkflowStepDefinition` with the exact Tool Map alias, an id built
+by the existing uniqueness algorithm, required arguments always present and optional arguments
+only on request, in Tool Map order. Placeholder values are `""`, `0`, `false`, or the first
+accepted enumeration value; `ai.prompt` keeps the editor's default prompt sentence and
+`includeContext` default. An optional error-policy block carries the task's current policy with
+`retryCount` 1 and `retryBackoffSeconds` 2; optional `generationOptions` apply to AI steps only
+and never contain context-window properties (§17).
+
+Insertion maps the caret character offset to a byte offset over the array's top-level element
+spans, computed with `Utf8JsonReader`. The caret is first clamped to the text length and moved
+off a UTF-16 surrogate pair boundary. A caret inside an element inserts after that element; a
+caret between two elements inserts after the element on the left; index 0 applies before the
+first element and an append applies after the last. Insertion returns the canonical text and a
+caret index at the start of the inserted element. The fallback path returns the verbatim
+canonical snippet inserted at the clamped caret with the caret line's indentation and a warning
+that separators must be fixed manually.
+
+### 20.4 Prompt round trip
+
+Extraction returns the ordered `ai.prompt` entries with position, explicit id, effective id,
+decoded prompt text normalized to LF, `includeContext`, the effective ids declared before the
+step, and display metadata including the repair-case and line-ending-normalization flags.
+Application replaces only the `prompt` and `includeContext` arguments of the entries edited,
+keyed by position so duplicate ids are unambiguous, promotes a string-form or `prompt`-less step
+to object form, preserves every unrelated argument, and re-serializes canonically.
+Extract → apply → extract without an edit is lossless. Empty or whitespace-only prompts and
+placeholders rejected by the shared validation block Apply with an error naming the step
+position and id. A prompt that already references prior output or accumulated context while
+`includeContext` is true raises a non-blocking duplication warning; neither value is changed
+automatically.
+
+### 20.5 Required verification
+
+Automated coverage includes Tool Map metadata consistency and projection stability, assistant
+prompt-version increment, snippet building for every argument shape, structured insertion at
+every array position including empty arrays and in-string carets, fallback insertion on invalid
+JSON, catalog session accumulate/cancel semantics, tool-group opt-in and Safety read-only
+behavior, the non-whitelistable `ai` group, prompt extraction ordering and decoding, LF
+normalization, multiline round-trip losslessness, single-physical-line output, targeted-only
+rewriting, blocked Apply cases including whitespace-only prompts, the non-blocking duplication
+warning, single-line preview projection including grapheme-cluster safety, command enablement,
+shared snapshot and atomic undo, and the absence of any provider, tool, filesystem, or network
+call. The final gate remains a warning-clean Release build and the deterministic test run with
+`-m:1`, plus `git diff --check`. Manual checks that remain the operator's responsibility:
+insertion at the caret, invalid-JSON fallback, tool-group opt-in, a multiline prompt edited,
+applied, and reopened unchanged, and both dialogs inspected in the Light and Dark themes.
+
+## 21. Stage 18 addendum — Compact external-content Guardrails
+
+This addendum supersedes §12 D5, D7, D9, D10 and §§12.4–12.5 only for Gmail reads,
+`http.get`, and `http.getText`. The legacy complete-source reducer remains available to direct
+callers and Trust filter keeps its singleton behavior. Web Search, `http.post`, Dropbox,
+filesystem, Calendar, Gmail attachments, outbound content, authorization, and Safety behavior
+are unchanged.
+
+### 21.1 Locked product decisions
+
+| # | Decision |
+|---|---|
+| S18-D1 | **Configured LLM only.** Guardrails continues to use the active `ILlmClientFactory` provider and model. No guard-specific model, runtime, conversion, download, provider override, lifecycle management, model UI, or new package is introduced. |
+| S18-D2 | **Minimize before LLM.** Gmail and HTTP create bounded deterministic projections before any LLM call. Omitted text is not screened because it is never sent to any later LLM, agent, tool result, workflow context, prompt, or report. Every omission is explicit in metadata or a marker. |
+| S18-D3 | **Guard before summary.** Compact source text is screened first. Sources below `CautionThreshold`, or with disabled/failed screening, are never summarized. |
+| S18-D4 | **Tool-less isolation.** Screening and summarization are direct, fixed-policy `IChatClient` calls without tools, skills, agent loop, workflow context, memory, filesystem, or side effects. |
+| S18-D5 | **Bounded batches.** Independent items from one tool invocation may share a request while retaining opaque ids and separate nonce-delimited payloads/results. Batches never cross tasks, users, invocations, or phases; no background queue exists. |
+| S18-D6 | **Fail closed per batch.** Timeout, provider failure, malformed/incomplete response, id mismatch, or snapshot change fails only that batch phase, reports one sanitized incident, skips singleton replay, and continues later batches. Caller cancellation propagates immediately. |
+| S18-D7 | **Gmail summary-only delivery.** Success delivers bounded canonical headers plus a labeled protected factual summary; Snippet, Body, quoted history, and omitted suffixes never enter workflow context. |
+| S18-D8 | **Stable batching replaces sequential Gmail.** Retrieval/output order stays stable, but Gmail LLM work is batched and no longer completes all calls for message N before message N+1. |
+| S18-D9 | **Distinct HTTP contracts.** `http.getText` delivers a protected summary of readable compact text. `http.get` delivers one protected media-aware compact raw prefix without summarization. |
+| S18-D10 | **No recursive Gmail/HTTP reduction.** Gmail reads and both HTTP GET aliases no longer call the Stage 7 complete-source reducer; deterministic projection is their only size-reduction path. |
+| S18-D11 | **Per-item trust.** Delivered-summary trust is the minimum compact-source/final-summary score. Thresholds, encoding, withholding, indicator union, and cache identity remain per item, never per batch. |
+| S18-D12 | **Compatible shapes, no duplication.** Tool aliases, arguments, root shapes, limits, authorization, and established trust fields remain; projection metadata is additive and raw content fields are not reintroduced. |
+| S18-D13 | **Existing cache and snapshot model.** The per-item 24-hour in-memory cache remains. One provider/model snapshot covers a top-level batch operation; no persistent cache is added. |
+| S18-D14 | **No speculative scope.** Stage 18 adds only the compact pipeline described here. No dormant feature, generic plug-in system, unrelated extension point, setting, task field, workflow option, Tool Map alias, page, or migration belongs to it. |
+
+### 21.2 Batch processing contract
+
+`IContentTrustService` gains one ordered batch operation over compact items with unique opaque ids,
+content no longer than `MaxContentChars`, and a per-item maximum summary size. Existing singleton
+operations remain compatible. Inputs are greedily partitioned without reordering at 12 items or
+six times `MaxContentChars`, whichever boundary comes first.
+
+Each uncached batch performs at most one source-screen call, one eligible-only summary call, and
+one final-summary-screen call. Empty phases make no call. Dedicated versioned batch screener and
+summarizer templates use per-item nonce delimiters and strict JSON arrays; every expected id
+must occur exactly once and unknown, duplicate, or missing ids invalidate the phase. Singleton
+prompt schemas remain separate. Results are restored to caller order. Fixed internal
+temperature/top-p, provider-neutral APIs, prompt-versioning, no-tool rules, and per-item cache
+keys remain binding. Summary calls use a program-owned output-token bound sized for their JSON
+envelope and requested per-item maxima, independent of workflow/report output ceilings; a
+truncated or overlong response fails closed and no partial result is delivered.
+
+A failed source phase conservatively fails screening for all current-batch items and summarizes
+none. A failed summary or final-screen phase delivers no generated text. The batch result
+returns one content-free failure descriptor for the Gmail/HTTP caller to report exactly once;
+the sanitized incident contains phase, provider/model, item count, timing, and correlation id
+only. Later batches continue; there is no singleton retry cascade. Cancellation stops
+immediately without incident or fallback generation.
+
+### 21.3 Gmail projection and delivery
+
+Guardrails validation now requires `MaxContentChars >= 2_048`; its shipped default remains 8,000.
+Every Gmail read alias projects, before LLM use, canonical `From`, `To`, `Subject`, `Received`,
+`Snippet`, and `Body` fields in that order. Normalize controls and line endings; cap From and To
+at 512 characters each, Subject at 1,000, Snippet at 1,500, and Body to the remaining
+`MaxContentChars` budget including labels/markers. Each omission has an application-authored
+character-count marker. Conservatively remove quoted-history suffixes only at recognized
+line-start Gmail/English/French reply boundaries; preserve the current signature and visible
+facts. Attachments and links are not inspected.
+
+Projection metadata contains original/projected/omitted counts and truncation/history flags,
+never omitted text. Gmail processes projections through the batch contract with per-item summary
+maximum `Math.Min(800, MaxSummaryChars)`. Success delivers protected bounded headers plus a labeled
+summary and does not repeat Snippet or Body. Low trust, disabled/failed screening, summary
+failure, or final-screen failure builds bounded projected headers plus a Gmail-review marker and
+applies the existing source-trust delivery policy: low trust withholds the block and
+disabled/failed screening marks it as Base64.
+The existing root shape, limits, order, trust fields, and single protected `content` property
+remain; projection metadata is additive. Progress is batch-oriented and content-free.
+
+### 21.4 HTTP projections and delivery
+
+`http.get` builds a media-aware prefix no longer than `MaxContentChars`: parseable JSON is
+minified, textual XML/plain text is normalized, HTML uses readable extraction, and unsupported
+media receives a marker. It screens once, never summarizes, and delivers the protected prefix in
+`body` with original/projected/omitted counts.
+
+`http.getText` removes non-content HTML nodes, prefers `main`, then `article`, then `body`, and
+preserves useful block boundaries while decoding entities and compacting whitespace. Its exact
+readable projection is capped at `MaxContentChars`, processed as a one-item batch with summary
+maximum `Math.Min(2_000, MaxSummaryChars)`, and only the protected summary is delivered in `text`.
+Failures deliver bounded source-specific review markers and continue the workflow. URL
+validation, host allowlists, request caps, response metadata, and Safety behavior are unchanged.
+
+### 21.5 Observability, privacy, and verification
+
+Sanitized metrics may include alias, provider/model, aggregate item/call/cache counts, phase and
+total timings, and aggregate original/projected/omitted character counts. They never include
+external ids, addresses, subjects, URLs with queries, source/projection/summary text, model
+output, nonces, or hashes. Runner final protected output remains governed by the Stage 16 private
+diagnostic policy.
+
+Automated coverage includes deterministic Gmail/HTTP projection and bounds, quoted-history and
+HTML rules, stable batch partitioning/order/id correlation, eligible-only phases, effective
+per-item trust, cache behavior independent of batches, malformed/timeout/snapshot failures,
+cancellation, sanitized incidents/logs, unchanged out-of-scope callers, and exact call counts:
+1–12 fitting eligible Gmail items use three calls, 13 use six, all-low-trust batches omit summary
+phases, and fully cached input uses zero. The final gate remains a warning-clean Release build
+and deterministic tests with `-m:1`, plus `git diff --check`.
+
+## 22. Stage 19 addendum — SQLite Tool
+
+This addendum extends §7.6, §8.1–§8.3, §14, §16, §20, and §21 with one local SQLite tool group.
+The standalone `Docs/Prompts/19-Stage19-SQLiteTool.md` prompt is the complete implementation
+contract. Stage 19 adds no general database abstraction, ORM, remote connector, caller-supplied
+connection string, saved connection, or database session.
+
+### 22.1 Locked product decisions
+
+| # | Decision |
+|---|---|
+| S19-D1 | **Four aliases in one group.** Add `sqlite.listObjects`, `sqlite.describeTable`, `sqlite.query`, and `sqlite.execute` in the whitelist group `sqlite`. |
+| S19-D2 | **Microsoft provider only.** Pin `Microsoft.Data.Sqlite` 10.0.10 in the central package file and reference it from Core. No EF Core, Dapper, System.Data.SQLite, migration framework, or second SQLite bundle. |
+| S19-D3 | **Paths only.** Every alias accepts `databasePath`, resolved by the existing sandbox. Connection strings, URI filenames, memory databases, passwords, VFS selection, attached databases, extension loading, and encryption are out of scope. |
+| S19-D4 | **Independent authorization.** Read aliases require ReadOnly access. `sqlite.execute` requires the `sqlite` group, ReadWrite path access, and global `Safety:AllowSqliteWrite=true`, shipped false. |
+| S19-D5 | **One statement.** Query and execute each accept exactly one prepared statement. Query requires a result-producing native-read-only statement; execute requires a non-result-producing modifying statement and runs in one application-owned transaction. |
+| S19-D6 | **Layered SQL confinement.** Native preparation/read-only classification is combined with token-aware denial of ATTACH/DETACH, PRAGMA, VACUUM, extension loading, caller transaction control, virtual-table creation, TEMP creation, and executable tails. Neither a prefix check nor `sqlite3_stmt_readonly` alone is sufficient. |
+| S19-D7 | **Explicit creation.** Only `sqlite.execute(createIfMissing: true)` may create a missing database. It never creates the parent directory and cleans up only a new file exclusively owned by the failed call. |
+| S19-D8 | **Private bounded calls.** Every invocation owns one private non-pooled connection. Writes enable foreign keys. The tool never changes journal mode or enables WAL. |
+| S19-D9 | **JSON parameter object.** Named scalar parameters are a real JSON object. Add `Object` to `WorkflowArgumentKind`; snippets emit `{}` and nested string values retain recursive placeholder resolution. |
+| S19-D10 | **Bounded ordered output.** Query returns ordered column metadata and array rows, preserving duplicate names. Row/object count, complete result characters, SQL characters, and BLOB bytes obey validated SQLite settings and truncate only at complete boundaries. |
+| S19-D11 | **Saved task choice.** `ScheduledTask.SqliteGuardrailsEnabled` is an explicitly serialized boolean. Missing legacy input defaults true. `SQLite:GuardrailsEnabledByDefault` is copied into new tasks and used by taskless tools only; it never live-controls a saved task. |
+| S19-D12 | **Screen, do not summarize.** When task SQLite Guardrails are enabled, list/describe/query serialize their complete bounded logical payload, split it into Guardrails-sized chunks, batch-screen every chunk, and apply one minimum-trust disposition to the complete payload. SQLite results never enter Guardrails summarization. |
+| S19-D13 | **Visible opt-out and fail-closed opt-in.** A task may explicitly disable SQLite Guardrails and receive labeled unscreened plaintext. When protection is requested, disabled/failed screening exposes no raw structured payload; low trust withholds the whole payload and caution protects the whole payload. |
+| S19-D14 | **Native cancellation.** Synchronous SQLite work runs away from the WPF dispatcher and caller cancellation uses `sqlite3_interrupt` through the open connection handle. `SqliteCommand.Cancel` and nominal async ADO.NET calls are not treated as effective cancellation. |
+| S19-D15 | **One Settings section.** Settings groups Allow SQLite writes, new-task Guardrails default, default/max rows, result characters, BLOB bytes, SQL characters, and command timeout in one SQLite section. |
+| S19-D16 | **Privacy.** SQL, parameter names/values, paths, schema identifiers, database values, BLOBs, protected payloads, Guardrails chunks, model output, and raw SQLite exception messages never enter logs, incidents, or telemetry. |
+
+### 22.2 Configuration and task contract
+
+`SQLiteOptions` binds section `SQLite` with shipped values:
+
+```json
+{
+  "DefaultMaxRows": 100,
+  "MaxRows": 1000,
+  "MaxResultCharacters": 64000,
+  "MaxBlobBytes": 4096,
+  "MaxSqlCharacters": 16000,
+  "CommandTimeoutSeconds": 30,
+  "GuardrailsEnabledByDefault": true
+}
+```
+
+Validation requires default rows within the configured maximum; maximum rows 1–10,000; result
+characters 4,096–1,000,000; BLOB bytes 0–1,000,000; SQL characters 256–1,000,000; and command
+timeout 1–300 seconds. `SafetyOptions.AllowSqliteWrite` is independent and false by default.
+Every value is editable in the SQLite Settings section and saved through existing atomic user
+settings persistence.
+
+`ScheduledTask` adds `sqliteGuardrailsEnabled`, always written. New-task creation snapshots the
+current SQLite default. Existing tasks load only their saved choice; a missing pre-Stage-19
+property becomes true. `ToolExecutionContext.FromTask` carries the value immutably. Taskless Tool
+tester and AI Playground calls use the current new-task default.
+
+### 22.3 Tool Map
+
+| Alias | Agent function | Ordered arguments | Optional | Path / Safety |
+|---|---|---|---|---|
+| `sqlite.listObjects` | `sqlite_list_objects` | `databasePath`, `objectType`, `namePattern`, `maxResults` | last three | ReadOnly |
+| `sqlite.describeTable` | `sqlite_describe_table` | `databasePath`, `tableName` | — | ReadOnly |
+| `sqlite.query` | `sqlite_query` | `databasePath`, `sql`, `parameters`, `maxRows` | last two | ReadOnly |
+| `sqlite.execute` | `sqlite_execute` | `databasePath`, `sql`, `parameters`, `createIfMissing` | last two | ReadWrite / `Safety:AllowSqliteWrite` |
+
+`SQLiteObjectType` values are `All`, `Table`, `View`, `Index`, and `Trigger`. Parameters accept
+only named `$`, `:`, or `@` native parameters whose supplied JSON values are null, boolean,
+Int64, finite real, or string. Arrays, nested objects, positional parameters, input BLOBs,
+missing parameters, and unused parameters fail before execution.
+
+The Stage 17 catalog group order inserts sqlite after filesystem and before http. Object snippets
+emit `{}`. Tool Map metadata continues to drive runtime registry, helper prompts, authoring,
+whitelist proposals, local-path proposals, and Safety warnings.
+
+### 22.4 Results and Guardrails
+
+Query logical data contains ordered `columns`, array `rows`, delivered/effective counts,
+`hasMoreRows`, and explicit truncation. SQLite NULL/INTEGER/REAL/TEXT map directly to JSON. A BLOB
+within the configured maximum is Base64 in a typed object; a larger BLOB is wholly omitted with
+its byte count. Do not infer dates, booleans, JSON, GUIDs, or encodings from SQLite affinity.
+
+The complete outer read envelope is bounded by `MaxResultCharacters` and contains exactly one of
+structured `data` or string `protectedData`. When protection is effective, row/object admission
+reserves worst-case marked Base64 expansion so a caution/failure disposition cannot overflow the
+limit. Explicit task opt-out returns structured data with
+`screened=false`. Enabled protection chunks the complete compact logical data at Unicode scalar
+boundaries no longer than Guardrails `MaxContentChars` and uses a new screen-only batch operation
+that reuses Stage 18 id correlation, provider/model snapshot, cache, partition, failure, and
+cancellation semantics without summary phases. All clean chunks reconstruct structured data;
+any caution protects the complete data; low trust withholds it; disabled/failed screening fails
+closed. A program-owned 36-chunk ceiling reduces the logical admission budget at row/object
+boundaries when necessary and bounds a read to six full-size screening provider calls. Execute
+returns application-authored acknowledgement metadata and is not screened.
+
+### 22.5 Runtime and verification
+
+`SqliteTool` is context-bound through `IContextualToolFactory<SqliteTool>`. Each call builds its
+connection string only from the resolved sandbox path, uses private cache and no pooling, and
+closes every command/reader/transaction/connection/native handle. Write calls enable foreign
+keys and commit once. Busy timeout is not described as a CPU deadline. Caller/task cancellation
+interrupts the native connection and rolls back writes.
+
+Task editor adds the SQLite group, task Guardrails checkbox, and SQLite-aware Authorized
+locations visibility. Settings adds the complete SQLite section. Tool tester, AI Playground,
+Tool catalog, helper generation/explanation, validation, manuals, samples, and group counts are
+updated from shared metadata. The helper generation prompt advances from
+`workflow-generation-v2` to `workflow-generation-v3`.
+
+Automated coverage includes package/native publish resolution, Tool Map reflection, settings and
+task defaults/round trips, authorization and create races, statement-token/native classification,
+every forbidden construct, scalar binding, ordered/type-safe bounded output, BLOB omission,
+Guardrails chunking/dispositions/call counts, native interruption, rollback, concurrency, and
+privacy canaries. The gate runs restore, Release build/test, UI and Runner publish, JSON/manual
+validation, native published-output smoke tests, and `git diff --check`, with `-m:1` on every
+dotnet command.

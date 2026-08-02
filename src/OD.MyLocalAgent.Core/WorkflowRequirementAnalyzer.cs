@@ -310,13 +310,7 @@ public static partial class WorkflowRequirementAnalyzer
     }
 
     private static bool IsSafetyEnabled(string key, SafetyOptions safety) =>
-        key switch
-        {
-            "Safety:AllowSendEmail" => safety.AllowSendEmail,
-            "Safety:AllowFileDelete" => safety.AllowFileDelete,
-            "Safety:AllowHttpPost" => safety.AllowHttpPost,
-            _ => false,
-        };
+        safety.IsEnabled(key);
 
     [GeneratedRegex(@"%[^%]+%", RegexOptions.CultureInvariant)]
     private static partial Regex EnvironmentVariablePattern();

@@ -2100,9 +2100,11 @@ ollama list</code></pre>
                     les réglages Safety restent globaux et ne sont jamais modifiés.
                     <span class="ui-label">Apply</span> met à jour ensemble le JSON, les outils
                     et les emplacements ; seul <span class="ui-label">Save task</span> persiste
-                    ces valeurs. <span class="ui-label">Undo AI changes</span> restaure l’état
-                    précédent jusqu’à la sauvegarde, au rechargement, à la navigation ou à une
-                    application ultérieure.
+                    ces valeurs. <span class="ui-label">Undo assisted change</span> est l’unique
+                    annulation à un niveau partagée par l’AI Helper, le Tool catalog et le
+                    Workflow prompt editor : elle restaure d’un seul geste le JSON, les outils
+                    et les emplacements précédents, jusqu’à la sauvegarde, au rechargement, à la
+                    navigation ou à une application assistée ultérieure.
                 </p>
                 <p>
                     <span class="ui-label">AI Explain</span> valide d’abord le workflow
@@ -2126,6 +2128,94 @@ ollama list</code></pre>
                     sémantiquement et l’analyse statique ne prévoit pas tous les chemins ou
                     valeurs d’exécution. Cancel conserve la sortie partielle, sans permettre
                     Apply.
+                </div>
+
+                <h3>Tool catalog</h3>
+                <p>
+                    <span class="ui-label">Tool catalog</span> est une référence consultable de
+                    tous les alias du Tool Map, groupés par groupe d’outils, avec leur
+                    description, leurs arguments typés, les indicateurs requis/optionnel, les
+                    exemples, les valeurs autorisées et un onglet de placeholders. La fenêtre est
+                    entièrement déterministe : elle n’appelle aucun modèle, aucun outil, aucun
+                    fichier et aucun réseau. Sélectionner une entrée affiche l’aperçu exact du
+                    snippet qui sera inséré.
+                </p>
+                <p>
+                    <span class="ui-label">Insert</span> insère et garde la fenêtre ouverte, ce
+                    qui permet d’accumuler plusieurs étapes dans une même session ;
+                    <span class="ui-label">Insert and close</span> insère puis ferme ;
+                    <span class="ui-label">Close</span> ne renvoie le résultat accumulé que si au
+                    moins une modification effective existe ; <span class="ui-label">Cancel</span>
+                    abandonne toute la session. Fermer avec des insertions en attente demande
+                    confirmation.
+                </p>
+                <p>
+                    Le curseur détermine la position : à l’intérieur d’un élément l’insertion se
+                    fait après celui-ci, entre deux éléments après celui de gauche, avant le
+                    premier à l’index 0, après le dernier en ajout final. Si le JSON n’est pas
+                    analysable, le snippet est tout de même inséré tel quel au curseur, avec
+                    l’indentation de la ligne et un avertissement explicite indiquant que les
+                    séparateurs doivent être corrigés à la main.
+                </p>
+                <div class="callout warn">
+                    <strong>Autorisations.</strong>
+                    Une étape dont le groupe d’outils n’est pas dans la liste blanche de la tâche
+                    produit un avertissement et une case d’acceptation <em>décochée</em> que vous
+                    devez valider explicitement. Le groupe intégré <code>ai</code> n’est qu’une
+                    étiquette de regroupement : il n’est jamais autorisable et n’apparaît jamais
+                    dans un résultat d’acceptation. Les réglages Safety sont affichés en lecture
+                    seule et ne sont jamais modifiés.
+                </div>
+
+                <h3>Workflow prompt editor</h3>
+                <p>
+                    <span class="ui-label">Edit prompts</span> liste toutes les étapes
+                    <code>ai.prompt</code> dans l’ordre de déclaration et modifie uniquement leur
+                    texte <code>prompt</code> et leur option <code>includeContext</code>. Aucune
+                    étape n’est ajoutée, supprimée, réordonnée, renommée ni retypée ; aucun id,
+                    politique d’erreur, tentative, option de génération ou autre argument n’est
+                    touché. Les étapes sont identifiées par leur position, si bien que des ids
+                    dupliqués restent sans ambiguïté.
+                </p>
+                <p>
+                    Les prompts s’écrivent avec de vrais retours à la ligne. Le texte de travail
+                    est canonique LF : les CRLF et CR isolés sont normalisés en LF et signalés,
+                    et rien d’autre dans vos espaces n’est modifié. Comme les retours à la ligne
+                    sont écrits en échappements <code>\n</code>, chaque prompt occupe toujours une
+                    seule ligne physique du JSON, et un aller-retour sans modification est sans
+                    perte. Chaque ligne de la liste affiche un aperçu sur une ligne où les sauts
+                    de ligne et tabulations deviennent des marqueurs visibles.
+                </p>
+                <p>
+                    <code>includeContext</code> est une option indépendante, activée par défaut
+                    sur une nouvelle étape <code>ai.prompt</code>. Elle n’est jamais pilotée par
+                    l’option générique d’arguments optionnels. Vous pouvez délibérément la
+                    désactiver et référencer un unique placeholder de sortie antérieure pour
+                    n’envoyer que des données choisies. Si un prompt référence déjà une sortie
+                    antérieure ou le contexte accumulé alors que <code>includeContext</code> est
+                    actif, un <strong>avertissement de duplication</strong> apparaît : il est
+                    informatif, ne modifie automatiquement aucune valeur et ne bloque pas
+                    <span class="ui-label">Apply</span>.
+                </p>
+                <p>
+                    Plusieurs prompts peuvent être modifiés dans une même session.
+                    <span class="ui-label">Apply</span> valide l’ensemble, écrit toutes les
+                    modifications en une fois et ferme ; il n’est actif que si une modification
+                    effective existe et qu’aucun prompt n’est vide.
+                    <span class="ui-label">Revert step</span> restaure une seule entrée et
+                    <span class="ui-label">Cancel</span> abandonne la session. Cette fenêtre n’a
+                    volontairement pas de commande Close, et la fermer avec des modifications en
+                    attente demande confirmation.
+                </p>
+                <div class="callout warn">
+                    <strong>Prompts non vides et reformatage.</strong>
+                    Un <code>prompt</code> d’<code>ai.prompt</code> absent, nul, non textuel, vide
+                    ou composé uniquement d’espaces est refusé partout : Save, Validate,
+                    validation de l’AI Helper et Apply de l’éditeur de prompts. Chaque insertion
+                    structurée ou application de prompt réussie resérialise le tableau au format
+                    canonique : un formatage manuel du workflow est donc normalisé. Le JSON, les
+                    prompts, les valeurs d’arguments et les chemins ne sont jamais journalisés ni
+                    persistés par ces fenêtres.
                 </div>
 
                 <h3>Forme d’une tâche</h3>

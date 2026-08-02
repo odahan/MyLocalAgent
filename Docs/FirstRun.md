@@ -237,3 +237,30 @@ requêtes/réponses LLM et les arguments d’outils de cette exécution sont vis
 uniquement dans le Runner Output. Ce contenu peut inclure les données de la tâche
 et ne doit pas être partagé ; les secrets configurés restent exclus. **Large**
 ajoute 300 pixels au panneau pour faciliter la lecture, sans redimensionner la fenêtre.
+
+## 11. Écrire un workflow sans partir de zéro
+
+La carte **Workflow JSON** de l’éditeur de tâche propose trois aides. Les deux
+premières sont entièrement déterministes : elles n’appellent aucun modèle, aucun
+outil, aucun fichier et aucun réseau.
+
+- **Tool catalog** : la référence consultable de tous les alias du Tool Map, avec
+  description, arguments typés, exemples, valeurs autorisées et placeholders.
+  Sélectionner une entrée en affiche l’aperçu, puis **Insert** l’insère à la
+  position du curseur en gardant la fenêtre ouverte pour accumuler plusieurs
+  étapes. **Cancel** abandonne toute la session. Si le JSON n’est pas analysable,
+  le snippet est inséré tel quel avec un avertissement de correction manuelle.
+- **Edit prompts** : l’éditeur de prompts liste les étapes `ai.prompt` et permet
+  d’écrire un prompt multiligne confortablement, avec l’option `includeContext`.
+  **Apply** écrit toutes les modifications en une fois. Un prompt vide ou composé
+  uniquement d’espaces est refusé.
+- **AI Helper** : génération assistée par le modèle, à réserver aux cas où une
+  description en anglais est plus rapide qu’une écriture directe.
+
+Une étape provenant d’un groupe d’outils non autorisé pour la tâche affiche un
+avertissement et une case **décochée** : l’autorisation n’est jamais élargie
+silencieusement. Les réglages Safety sont affichés en lecture seule.
+
+**Undo assisted change** annule d’un seul geste la dernière application assistée,
+quelle qu’en soit l’origine, jusqu’à la sauvegarde ou au rechargement. Comme pour
+toute modification de l’éditeur, seul **Save task** persiste le résultat.

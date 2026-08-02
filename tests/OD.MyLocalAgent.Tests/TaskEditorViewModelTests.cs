@@ -294,14 +294,14 @@ public sealed class TaskEditorViewModelTests
             """[{"step":"filesystem.list","args":{"path":"."}}]""");
         viewModel.UseFileSystem.Should().BeTrue();
         viewModel.AuthorizedLocations.Should().ContainSingle();
-        viewModel.HasAIUndoSnapshot.Should().BeTrue();
+        viewModel.HasAssistedUndoSnapshot.Should().BeTrue();
 
-        viewModel.UndoAIChangesCommand.Execute(null);
+        viewModel.UndoAssistedChangeCommand.Execute(null);
 
         viewModel.WorkflowText.Should().Be("[]");
         viewModel.UseFileSystem.Should().BeFalse();
         viewModel.AuthorizedLocations.Should().BeEmpty();
-        viewModel.HasAIUndoSnapshot.Should().BeFalse();
+        viewModel.HasAssistedUndoSnapshot.Should().BeFalse();
         dialog.VerifyAll();
     }
 

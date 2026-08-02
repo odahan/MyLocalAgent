@@ -14,20 +14,48 @@ public static partial class WorkflowPlaceholderCatalog
     public const string Version = "1";
 
     /// <summary>
+    /// Gets the structured placeholder templates shared by validation, execution, and authoring.
+    /// </summary>
+    public static IReadOnlyList<WorkflowPlaceholderDefinition> Entries { get; } =
+    [
+        new("{{task.id}}", "current task id"),
+        new("{{task.name}}", "current task name"),
+        new("{{task.prompt}}", "current task prompt"),
+        new("{{previous.output}}", "previous successful step output")
+        {
+            SupportsStructuredSelector = true,
+        },
+        new("{{stepId.output}}", "a prior named step output")
+        {
+            RequiresPriorStepId = true,
+        },
+        new("{{stepId.output.property}}", "structured JSON selection")
+        {
+            DisplayText = "{{stepId.output.property}} and {{stepId.output.items[0].name}}",
+            RequiresPriorStepId = true,
+            SupportsStructuredSelector = true,
+        },
+        new("{{workflow.context}}", "ordered successful outputs before the current step"),
+        new("{{Today}}", "local date")
+        {
+            DisplayText = "{{Today}} or {{Today[custom .NET format]}}",
+        },
+        new("{{Now}}", "local date and time")
+        {
+            DisplayText = "{{Now}} or {{Now[custom .NET format]}}",
+        },
+    ];
+
+    /// <summary>
     /// Gets deterministic placeholder documentation for model context and user assistance.
     /// </summary>
+    /// <remarks>
+    /// This is the ordered text projection of <see cref="Entries"/>. The user interface never
+    /// parses these sentences to recover placeholder text.
+    /// </remarks>
     public static IReadOnlyList<string> Definitions { get; } =
-    [
-        "{{task.id}} - current task id",
-        "{{task.name}} - current task name",
-        "{{task.prompt}} - current task prompt",
-        "{{previous.output}} - previous successful step output",
-        "{{stepId.output}} - a prior named step output",
-        "{{stepId.output.property}} and {{stepId.output.items[0].name}} - structured JSON selection",
-        "{{workflow.context}} - ordered successful outputs before the current step",
-        "{{Today}} or {{Today[custom .NET format]}} - local date",
-        "{{Now}} or {{Now[custom .NET format]}} - local date and time",
-    ];
+        [.. Entries.Select(static entry => $"{entry.DisplayText} - {entry.Description}")];
+
 
     /// <summary>
     /// Replaces every placeholder in a string through the supplied resolver.

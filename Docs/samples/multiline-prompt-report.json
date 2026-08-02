@@ -1,0 +1,37 @@
+{
+  "id": "multiline-prompt-report",
+  "name": "Multiline prompt report",
+  "schedule": "0 18 * * 1-5",
+  "prompt": "",
+  "tools": [
+    "filesystem"
+  ],
+  "fileSystemAccess": [],
+  "workflow": [
+    {
+      "step": "filesystem.read",
+      "id": "notes",
+      "args": {
+        "path": "inbox/notes.md"
+      }
+    },
+    {
+      "step": "ai.prompt",
+      "id": "review",
+      "args": {
+        "prompt": "You are reviewing the working notes of the day.\n\nRules:\n- Use only the supplied context; never invent a fact.\n- Write British English.\n- Keep every section, even when it is empty.\n\nProduce exactly these sections:\n1. Summary (three sentences at most).\n2. Decisions taken (bullet list, or \"None recorded\").\n3. Open questions (bullet list, or \"None recorded\").\n4. Next actions (owner, action, due date; use \"Not stated\" for a missing value).",
+        "includeContext": true
+      }
+    },
+    {
+      "step": "filesystem.write",
+      "id": "save",
+      "args": {
+        "path": "reports/daily-review-{{Today}}.md",
+        "content": "{{review.output}}"
+      }
+    }
+  ],
+  "enabled": false,
+  "errorPolicy": "StopOnError"
+}

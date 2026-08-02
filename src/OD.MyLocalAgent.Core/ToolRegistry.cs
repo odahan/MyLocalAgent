@@ -183,8 +183,7 @@ public sealed class ToolRegistry : IToolRegistry
                 BindingFlags.Instance | BindingFlags.Public)
                 ?? throw new InvalidOperationException(
                     $"Tool Map method '{definition.DeclaringType.Name}.{definition.MethodName}' does not exist.");
-            var description = method.GetCustomAttribute<DescriptionAttribute>()?.Description
-                ?? $"Invokes workflow alias {definition.Alias}.";
+            var description = definition.Description;
             functions.Add(
                 definition.Alias,
                 AIFunctionFactory.Create(

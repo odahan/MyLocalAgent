@@ -27,6 +27,21 @@ public sealed record ToolDefinition(
     public IReadOnlyList<string> OptionalArguments { get; init; } = [];
 
     /// <summary>
+    /// Gets one English sentence describing the operation and its output.
+    /// </summary>
+    public string Description { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the ordered runtime argument metadata shared by authoring aids and tests.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Arguments"/> is the ordered projection of the names declared here and
+    /// <see cref="OptionalArguments"/> is the ordered projection of the names that are not
+    /// required. Both projections are asserted by the Tool Map metadata tests.
+    /// </remarks>
+    public IReadOnlyList<ToolArgumentDefinition> ArgumentDefinitions { get; init; } = [];
+
+    /// <summary>
     /// Gets the local-path argument semantics used by deterministic authorization analysis.
     /// </summary>
     public IReadOnlyList<LocalPathArgumentDefinition> LocalPathArguments { get; init; } = [];

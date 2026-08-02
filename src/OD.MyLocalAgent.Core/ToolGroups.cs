@@ -36,6 +36,15 @@ public static class ToolGroups
     public const string Web = "web";
 
     /// <summary>
+    /// Gets the synthetic built-in AI group name.
+    /// </summary>
+    /// <remarks>
+    /// This group exists only to group AI entries in authoring aids. It is never a task
+    /// whitelist group and is deliberately excluded from <see cref="All"/>.
+    /// </remarks>
+    public const string Ai = "ai";
+
+    /// <summary>
     /// Gets all supported tool-group names.
     /// </summary>
     public static IReadOnlySet<string> All { get; } = new HashSet<string>(

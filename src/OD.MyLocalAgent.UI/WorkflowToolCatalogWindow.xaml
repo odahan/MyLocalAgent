@@ -1,0 +1,267 @@
+<Window x:Class="OD.MyLocalAgent.UI.WorkflowToolCatalogWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        Title="Tool catalog"
+        Width="1180"
+        Height="800"
+        MinWidth="960"
+        MinHeight="640"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="{DynamicResource AppBackgroundBrush}"
+        FontFamily="{DynamicResource MaterialDesign.Font}"
+        TextElement.FontSize="14"
+        TextElement.Foreground="{DynamicResource OnBackgroundBrush}">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel>
+            <TextBlock Style="{StaticResource PageTitleStyle}"
+                       Text="Tool catalog" />
+            <TextBlock Margin="0,5,0,0"
+                       Style="{StaticResource CaptionTextStyle}"
+                       Text="Every value shown comes from the Tool Map and the current draft. Inserting a step never changes global Safety settings or task authorization rules."
+                       TextWrapping="Wrap" />
+        </StackPanel>
+
+        <TabControl Grid.Row="1"
+                    Margin="0,16,0,0"
+                    SelectedIndex="{Binding SelectedTabIndex}">
+            <TabItem Header="Steps">
+                <Grid Margin="0,12,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="340" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <DockPanel>
+                        <TextBox DockPanel.Dock="Top"
+                                 Margin="0,0,12,10"
+                                 materialDesign:HintAssist.Hint="Search alias, group, description, argument"
+                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                        <ListBox Margin="0,0,12,0"
+                                 ItemsSource="{Binding ItemsView}"
+                                 SelectedItem="{Binding SelectedItem}"
+                                 VirtualizingPanel.IsVirtualizing="True"
+                                 VirtualizingPanel.VirtualizationMode="Recycling"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListBox.GroupStyle>
+                                <GroupStyle>
+                                    <GroupStyle.HeaderTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Margin="0,8,0,4"
+                                                       FontWeight="Bold"
+                                                       Text="{Binding Name}" />
+                                        </DataTemplate>
+                                    </GroupStyle.HeaderTemplate>
+                                </GroupStyle>
+                            </ListBox.GroupStyle>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Margin="0,4">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock FontWeight="SemiBold"
+                                                       Text="{Binding Alias}" />
+                                            <TextBlock Margin="8,0,0,0"
+                                                       Foreground="{DynamicResource ErrorBrush}"
+                                                       Text="Safety"
+                                                       Visibility="{Binding RequiresSafetyFlag, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                            <TextBlock Margin="8,0,0,0"
+                                                       Text="Not allowed"
+                                                       Visibility="{Binding ShowsMissingWhitelistLock, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                            <TextBlock Margin="8,0,0,0"
+                                                       Text="No permission needed"
+                                                       Visibility="{Binding IsBuiltInAi, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                        </StackPanel>
+                                        <TextBlock Style="{StaticResource CaptionTextStyle}"
+                                                   Text="{Binding Description}"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </DockPanel>
+
+                    <ScrollViewer Grid.Column="1"
+                                  VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <materialDesign:Card>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SectionTitleStyle}"
+                                               Text="{Binding SelectedItem.Alias}" />
+                                    <TextBlock Margin="0,6,0,0"
+                                               Text="{Binding SelectedItem.Description}"
+                                               TextWrapping="Wrap" />
+                                    <TextBlock Margin="0,6,0,0"
+                                               Style="{StaticResource CaptionTextStyle}"
+                                               Text="{Binding SelectedFunctionName}" />
+                                    <TextBlock Margin="0,6,0,0"
+                                               Text="{Binding SelectedSafetyText}"
+                                               TextWrapping="Wrap" />
+                                    <TextBlock Margin="0,6,0,0"
+                                               Text="{Binding SelectedWhitelistText}"
+                                               TextWrapping="Wrap" />
+                                    <CheckBox Margin="0,10,0,0"
+                                              Content="Enable this tool group for the task"
+                                              IsChecked="{Binding EnableMissingToolGroup}"
+                                              Visibility="{Binding ShowsToolGroupOptIn, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                </StackPanel>
+                            </materialDesign:Card>
+
+                            <materialDesign:Card Margin="0,14,0,0">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SectionTitleStyle}"
+                                               Text="Arguments" />
+                                    <DataGrid Margin="0,10,0,0"
+                                              AutoGenerateColumns="False"
+                                              CanUserAddRows="False"
+                                              HeadersVisibility="Column"
+                                              IsReadOnly="True"
+                                              ItemsSource="{Binding SelectedArguments}">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Binding="{Binding Name}"
+                                                                Header="Name" />
+                                            <DataGridTextColumn Binding="{Binding Kind}"
+                                                                Header="Kind" />
+                                            <DataGridTextColumn Binding="{Binding Requirement}"
+                                                                Header="Requirement" />
+                                            <DataGridTextColumn Binding="{Binding Description}"
+                                                                Header="Description" />
+                                            <DataGridTextColumn Binding="{Binding Example}"
+                                                                Header="Example" />
+                                            <DataGridTextColumn Binding="{Binding AllowedValues}"
+                                                                Header="Allowed values" />
+                                            <DataGridTextColumn Binding="{Binding PlaceholderSupport}"
+                                                                Header="Placeholders" />
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </StackPanel>
+                            </materialDesign:Card>
+
+                            <materialDesign:Card Margin="0,14,0,0">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SectionTitleStyle}"
+                                               Text="Local authorization" />
+                                    <TextBlock Margin="0,8,0,0"
+                                               Text="{Binding SelectedLocalPathText}"
+                                               TextWrapping="Wrap" />
+                                    <TextBlock Margin="0,8,0,0"
+                                               Style="{StaticResource CaptionTextStyle}"
+                                               Text="Relative paths use the configured sandbox. An absolute path may require a task authorization rule."
+                                               TextWrapping="Wrap" />
+                                    <TextBlock Margin="0,10,0,0"
+                                               Style="{StaticResource CaptionTextStyle}"
+                                               Text="Current task authorization rules (read-only context):" />
+                                    <ItemsControl Margin="0,4,0,0"
+                                                  ItemsSource="{Binding AuthorizationContext}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Path}" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </materialDesign:Card>
+
+                            <materialDesign:Card Margin="0,14,0,0">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SectionTitleStyle}"
+                                               Text="Insertion options" />
+                                    <CheckBox Margin="0,10,0,0"
+                                              Content="Include optional arguments"
+                                              IsChecked="{Binding IncludeOptionalArguments}" />
+                                    <CheckBox Margin="0,6,0,0"
+                                              Content="Include error policy block"
+                                              IsChecked="{Binding IncludeErrorPolicy}" />
+                                    <CheckBox Margin="0,6,0,0"
+                                              Content="Include generation options"
+                                              IsChecked="{Binding IncludeGenerationOptions}"
+                                              IsEnabled="{Binding IsGenerationOptionsEnabled}" />
+                                    <CheckBox Margin="0,6,0,0"
+                                              Content="Include accumulated workflow context"
+                                              IsChecked="{Binding IncludeAccumulatedContext}"
+                                              IsEnabled="{Binding IsAccumulatedContextEnabled}" />
+                                    <TextBlock Margin="0,12,0,0"
+                                               Style="{StaticResource CaptionTextStyle}"
+                                               Text="Snippet preview" />
+                                    <TextBox Margin="0,6,0,0"
+                                             MinHeight="150"
+                                             AcceptsReturn="True"
+                                             FontFamily="Consolas"
+                                             IsReadOnly="True"
+                                             Text="{Binding SnippetPreview, Mode=OneWay}"
+                                             TextWrapping="NoWrap"
+                                             HorizontalScrollBarVisibility="Auto"
+                                             VerticalScrollBarVisibility="Auto" />
+                                </StackPanel>
+                            </materialDesign:Card>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Placeholders">
+                <ItemsControl Margin="0,12,0,0"
+                              ItemsSource="{Binding Placeholders}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="300" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock FontFamily="Consolas"
+                                           Text="{Binding DisplayText}"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1"
+                                           Margin="12,0,0,0"
+                                           Text="{Binding Description}"
+                                           TextWrapping="Wrap"
+                                           VerticalAlignment="Center" />
+                                <Button Grid.Column="2"
+                                        Command="{Binding DataContext.CopyPlaceholderCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding}"
+                                        Content="Copy" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </TabItem>
+        </TabControl>
+
+        <Border Grid.Row="2"
+                Margin="0,14,0,0"
+                Padding="12"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource DividerBrush}"
+                BorderThickness="1"
+                CornerRadius="7">
+            <TextBlock Text="{Binding StatusText}"
+                       TextWrapping="Wrap" />
+        </Border>
+
+        <Grid Grid.Row="3"
+              Margin="0,16,0,0">
+            <Button HorizontalAlignment="Left"
+                    Command="{Binding CancelCommand}"
+                    Content="Cancel" />
+            <StackPanel HorizontalAlignment="Right"
+                        Orientation="Horizontal">
+                <Button Command="{Binding CloseCommand}"
+                        Content="Close" />
+                <Button Command="{Binding InsertCommand}"
+                        Content="Insert" />
+                <Button Command="{Binding InsertAndCloseCommand}"
+                        Content="Insert and close"
+                        Style="{StaticResource PrimaryButtonStyle}" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

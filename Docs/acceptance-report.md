@@ -239,3 +239,45 @@ The real task intentionally has no Gmail cap and `MaxGmailMessagesPerOperation` 
 as zero. That preserves complete daily coverage but makes local LLM Guardrails processing
 linear in the number of retrieved messages. Applying a `maxMessages` cap would trade coverage
 for runtime and requires explicit user direction; it was not silently changed.
+
+## Stage 17 workflow authoring aids
+
+Release: 1.2.7 (2026-08-02)
+
+| Checklist item | Status | Executed evidence |
+|---|---:|---|
+| The Tool catalog exposes every Tool Map alias with typed argument metadata. | ✅ | Catalog projection tests assert the alias set, argument kinds, allowed values, and placeholder metadata resolved from the Tool Map. |
+| Snippet insertion is deterministic and calls no model, tool, file, or network. | ✅ | `WorkflowSnippetBuilder` and `WorkflowCaretInsertionService` are pure and unit-tested; no provider or tool dependency is injected. |
+| Sequential inserts land at the advancing caret position. | ✅ | Caret insertion tests cover empty documents, mid-array insertion, trailing positions, and repeated sequential inserts. |
+| Unparsable workflow JSON still inserts the snippet verbatim with a warning. | ✅ | Tests cover the malformed-document path and assert verbatim insertion plus the manual-repair warning. |
+| A tool group not authorized by the task is proposed unchecked. | ✅ | Projection tests assert the missing-group entries start unchecked; the built-in `ai` group is never proposed for whitelisting. |
+| The prompt editor round-trips `ai.prompt` steps without collateral edits. | ✅ | `WorkflowPromptEditingService` tests assert LF-canonical text, independent `includeContext`, ordered projection, and that untouched steps are re-serialized unchanged. |
+| An empty or whitespace-only prompt is rejected. | ✅ | Validator tests cover empty, whitespace-only, and valid prompt text. |
+| Undo assisted change reverts the last assisted application. | ✅ | The shared undo snapshot is exercised for catalog inserts and prompt applies alike. |
+| Release verification is clean. | ✅ | `dotnet build -c Release` completed with zero warnings and zero errors; 367 tests passed, 1 skipped (local Ollama integration), 0 failed. |
+
+### Stage 17 human follow-up
+
+⏳ No local Release UI session was launched for this stage. The following acceptance items are
+therefore **not verified in the GUI** and remain open human checks:
+
+- ⏳ Open the Tool catalog from the Workflow JSON card, search, select an alias, and confirm the
+  detail pane and snippet preview render correctly in Light and Dark.
+- ⏳ Verify Insert, Insert and close, Close, and Cancel behave as specified, including that
+  Cancel discards an accumulated multi-insert session.
+- ⏳ Verify the caret actually advances between consecutive inserts in the live editor.
+- ⏳ Open the Workflow prompt editor, edit a multiline prompt, toggle `includeContext`, and
+  confirm Apply, Revert, and Cancel behave as specified.
+- ⏳ Confirm the duplicate-step warning banner and the read-only Safety summary are displayed as
+  described.
+- ⏳ Confirm Undo assisted change restores the previous editor value and that only Save task
+  persists the result.
+- ⏳ Check keyboard traversal, focus visuals, minimum-size and maximized layouts for both
+  windows.
+
+### Residual implementation gap
+
+The assistant prompt builder was not rebuilt from the new argument metadata. The AI Helper
+therefore still describes tools from its previous prompt source while the Tool catalog uses
+the richer typed metadata. This divergence is intentional for this pass and is recorded in the
+ledger rather than silently reconciled.

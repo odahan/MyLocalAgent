@@ -48,11 +48,13 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
     private readonly IMessenger _messenger;
     private readonly TimeProvider _timeProvider;
     private readonly IAIWorkflowHelperDialogService? _workflowHelperDialog;
+    private readonly IWorkflowToolCatalogDialogService? _toolCatalogDialog;
+    private readonly IWorkflowPromptEditorDialogService? _promptEditorDialog;
     private readonly IOptionsMonitor<SafetyOptions>? _safetyOptions;
     private readonly IOptionsMonitor<AIOptions>? _aiOptions;
     private string? _requestedTaskId;
     private string? _originalTaskId;
-    private AIEditorSnapshot? _aiUndoSnapshot;
+    private AIEditorSnapshot? _assistedUndoSnapshot;
     private bool _isLoading;
 
     [ObservableProperty]
@@ -151,11 +153,14 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
     private string _workflowText = "[]";
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(UndoAIChangesCommand))]
-    private bool _hasAIUndoSnapshot;
+    [NotifyCanExecuteChangedFor(nameof(UndoAssistedChangeCommand))]
+    private bool _hasAssistedUndoSnapshot;
 
     [ObservableProperty]
     private ToolDefinition? _selectedWorkflowAlias;
+
+    [ObservableProperty]
+    private int _workflowCaretIndex;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(OpenPromptCommand))]
@@ -194,6 +199,8 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
         IMessenger messenger,
         TimeProvider timeProvider,
         IAIWorkflowHelperDialogService? workflowHelperDialog = null,
+        IWorkflowToolCatalogDialogService? toolCatalogDialog = null,
+        IWorkflowPromptEditorDialogService? promptEditorDialog = null,
         IOptionsMonitor<SafetyOptions>? safetyOptions = null,
         IOptionsMonitor<AIOptions>? aiOptions = null)
     {
@@ -204,6 +211,8 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
         _messenger = messenger;
         _timeProvider = timeProvider;
         _workflowHelperDialog = workflowHelperDialog;
+        _toolCatalogDialog = toolCatalogDialog;
+        _promptEditorDialog = promptEditorDialog;
         _safetyOptions = safetyOptions;
         _aiOptions = aiOptions;
         ErrorPolicies = Enum.GetValues<WorkflowErrorPolicy>();
@@ -253,7 +262,7 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
     }
 
     void IDeactivatablePage.Deactivate() =>
-        ClearAIUndo();
+        ClearAssistedUndo();
 
     partial void OnScheduleChanged(string value) =>
         UpdateCronPreview();
@@ -288,6 +297,15 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
     partial void OnTopPOverrideTextChanged(string value) =>
         UpdateGenerationState();
 
+    partial void OnWorkflowTextChanged(string value)
+    {
+        WorkflowCaretIndex = WorkflowCaretInsertionService.ClampCaret(
+            value,
+            WorkflowCaretIndex);
+        OpenToolCatalogCommand.NotifyCanExecuteChanged();
+        OpenWorkflowPromptEditorCommand.NotifyCanExecuteChanged();
+    }
+
     [RelayCommand]
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
@@ -307,7 +325,7 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
             }
 
             _originalTaskId = task?.Id;
-            ClearAIUndo();
+            ClearAssistedUndo();
             EditorTitle = task is null ? "New task" : $"Edit task · {task.Name}";
             Id = task?.Id ?? string.Empty;
             Name = task?.Name ?? string.Empty;
@@ -437,7 +455,7 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
             await SynchronizeRegistrationAsync(task, cancellationToken)
                 .ConfigureAwait(true);
             _originalTaskId = task.Id;
-            ClearAIUndo();
+            ClearAssistedUndo();
             Id = task.Id;
             IsIdReadOnly = true;
             EditorTitle = $"Edit task · {task.Name}";
@@ -498,7 +516,7 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
             return;
         }
 
-        ClearAIUndo();
+        ClearAssistedUndo();
         _messenger.Send(new NavigateMessage(PageRoute.Tasks));
     }
 
@@ -514,56 +532,15 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
         try
         {
             var workflow = DeserializeWorkflow(WorkflowText).ToList();
-            var idBase = SelectedWorkflowAlias.Alias.Replace('.', '-');
-            var id = idBase;
-            var suffix = 2;
-            while (workflow.Any(
-                       step => string.Equals(
-                           step.EffectiveId,
-                           id,
-                           StringComparison.OrdinalIgnoreCase)))
-            {
-                id = $"{idBase}-{suffix++}";
-            }
-
-            var arguments = new Dictionary<string, object?>();
-            foreach (var argument in SelectedWorkflowAlias.Arguments)
-            {
-                if (SelectedWorkflowAlias.OptionalArguments.Contains(
-                        argument,
-                        StringComparer.OrdinalIgnoreCase) ||
-                    (SelectedWorkflowAlias.IsAiStep &&
-                     !string.Equals(
-                         SelectedWorkflowAlias.Alias,
-                         ToolMap.PromptAlias,
-                         StringComparison.OrdinalIgnoreCase)))
-                {
-                    continue;
-                }
-
-                arguments[argument] = argument == "prompt"
-                    ? "Use the workflow context to complete this step."
-                    : string.Empty;
-            }
-
-            if (string.Equals(
-                    SelectedWorkflowAlias.Alias,
-                    ToolMap.PromptAlias,
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                arguments["includeContext"] = true;
-            }
-
-            workflow.Add(
-                new WorkflowStepDefinition
-                {
-                    Step = SelectedWorkflowAlias.Alias,
-                    Id = id,
-                    Args = JsonSerializer.SerializeToElement(arguments),
-                });
-            WorkflowText = JsonSerializer.Serialize(
+            var step = WorkflowSnippetBuilder.Create(
+                SelectedWorkflowAlias,
+                new WorkflowSnippetOptions(),
                 workflow,
-                ScheduledTaskSerializer.Options);
+                SelectedErrorPolicy,
+                temperature: 0,
+                topP: 0);
+            workflow.Add(step);
+            WorkflowText = WorkflowDefinitionSerializer.Serialize(workflow);
             ValidationText =
                 $"Step '{SelectedWorkflowAlias.Alias}' added. Complete its arguments.";
         }
@@ -662,10 +639,64 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
             "Translation example loaded. Adapt the source and destination paths.";
     }
 
+    [RelayCommand(CanExecute = nameof(CanOpenToolCatalog))]
+    private void OpenToolCatalog()
+    {
+        if (_toolCatalogDialog is null)
+        {
+            ValidationText = "Tool catalog is unavailable.";
+            return;
+        }
+
+        var effective = GenerationPolicyResolver.Resolve(
+            CurrentGenerationDefaults,
+            TryCreateGenerationOptions(out var overrides) ? overrides : null);
+        var result = _toolCatalogDialog.Show(
+            new WorkflowToolCatalogRequest(
+                WorkflowText,
+                WorkflowCaretIndex,
+                GetSelectedToolGroups().ToArray(),
+                AuthorizedLocations.Select(static item => item.ToRule()).ToArray(),
+                _safetyOptions?.CurrentValue ?? new SafetyOptions(),
+                SelectedErrorPolicy,
+                effective.Temperature,
+                effective.TopP));
+        if (result is not null)
+        {
+            ApplyToolCatalogResult(result);
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanOpenWorkflowPromptEditor))]
+    private void OpenWorkflowPromptEditor()
+    {
+        if (_promptEditorDialog is null)
+        {
+            ValidationText = "Workflow prompt editor is unavailable.";
+            return;
+        }
+
+        WorkflowPromptEditorResult? result;
+        try
+        {
+            result = _promptEditorDialog.Show(new WorkflowPromptEditorRequest(WorkflowText));
+        }
+        catch (WorkflowValidationException exception)
+        {
+            ValidationText =
+                $"The workflow must be valid JSON before editing prompts. {exception.Message}";
+            return;
+        }
+
+        if (result is not null)
+        {
+            ApplyPromptEditorResult(result);
+        }
+    }
+
     [RelayCommand]
     private void OpenAIHelper()
-    {
-        if (_workflowHelperDialog is null)
+    {        if (_workflowHelperDialog is null)
         {
             ValidationText = "AI Workflow Helper is unavailable.";
             return;
@@ -721,25 +752,25 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
         }
     }
 
-    [RelayCommand(CanExecute = nameof(CanUndoAIChanges))]
-    private void UndoAIChanges()
+    [RelayCommand(CanExecute = nameof(CanUndoAssistedChange))]
+    private void UndoAssistedChange()
     {
-        if (_aiUndoSnapshot is null)
+        if (_assistedUndoSnapshot is null)
         {
             return;
         }
 
-        WorkflowText = _aiUndoSnapshot.WorkflowText;
-        SetSelectedToolGroups(_aiUndoSnapshot.ToolGroups);
+        WorkflowText = _assistedUndoSnapshot.WorkflowText;
+        SetSelectedToolGroups(_assistedUndoSnapshot.ToolGroups);
         AuthorizedLocations.Clear();
-        foreach (var rule in _aiUndoSnapshot.FileSystemAccess)
+        foreach (var rule in _assistedUndoSnapshot.FileSystemAccess)
         {
             AuthorizedLocations.Add(
                 new FileSystemAccessItem(rule.Path, rule.Access));
         }
 
-        ClearAIUndo();
-        ValidationText = "AI workflow changes were undone.";
+        ClearAssistedUndo();
+        ValidationText = "The last assisted workflow change was undone.";
     }
 
     [RelayCommand]
@@ -870,7 +901,11 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
         !string.IsNullOrWhiteSpace(WorkflowText) &&
         !string.Equals(WorkflowText.Trim(), "[]", StringComparison.Ordinal);
 
-    private bool CanUndoAIChanges() => HasAIUndoSnapshot;
+    private bool CanUndoAssistedChange() => HasAssistedUndoSnapshot;
+
+    private bool CanOpenToolCatalog() => _toolCatalogDialog is not null;
+
+    private bool CanOpenWorkflowPromptEditor() => _promptEditorDialog is not null;
 
     private AIWorkflowHelperRequest CreateHelperRequest(
         AIWorkflowHelperMode mode,
@@ -918,10 +953,7 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
 
     private void ApplyAIResult(AIWorkflowHelperResult result)
     {
-        _aiUndoSnapshot = new AIEditorSnapshot(
-            WorkflowText,
-            GetSelectedToolGroups().ToArray(),
-            AuthorizedLocations.Select(static item => item.ToRule()).ToArray());
+        CaptureAssistedUndoSnapshot();
         WorkflowText = result.WorkflowJson;
         SetSelectedToolGroups(result.ToolGroups);
         AuthorizedLocations.Clear();
@@ -931,10 +963,54 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
                 new FileSystemAccessItem(rule.Path, rule.Access));
         }
 
-        HasAIUndoSnapshot = true;
+        HasAssistedUndoSnapshot = true;
         ValidationText =
             "AI workflow changes applied to the editor. Save the task to persist them.";
     }
+
+    private void ApplyToolCatalogResult(WorkflowToolCatalogResult result)
+    {
+        CaptureAssistedUndoSnapshot();
+        WorkflowText = result.WorkflowText;
+        WorkflowCaretIndex = WorkflowCaretInsertionService.ClampCaret(
+            result.WorkflowText,
+            result.CaretIndex);
+        if (result.AcceptedToolGroups.Count > 0)
+        {
+            SetSelectedToolGroups(
+                GetSelectedToolGroups().Concat(result.AcceptedToolGroups));
+        }
+
+        HasAssistedUndoSnapshot = true;
+        var message = result.Insertions.Count == 1
+            ? "1 step inserted from the Tool catalog."
+            : $"{result.Insertions.Count} steps inserted from the Tool catalog.";
+        ValidationText = result.Warnings.Count == 0
+            ? message
+            : $"{message} {string.Join(" ", result.Warnings)}";
+    }
+
+    private void ApplyPromptEditorResult(WorkflowPromptEditorResult result)
+    {
+        CaptureAssistedUndoSnapshot();
+        WorkflowText = result.WorkflowText;
+        WorkflowCaretIndex = WorkflowCaretInsertionService.ClampCaret(
+            result.WorkflowText,
+            WorkflowCaretIndex);
+        HasAssistedUndoSnapshot = true;
+        var message = result.ModifiedSteps.Count == 1
+            ? "1 prompt step updated from the Workflow prompt editor."
+            : $"{result.ModifiedSteps.Count} prompt steps updated from the Workflow prompt editor.";
+        ValidationText = result.Warnings.Count == 0
+            ? message
+            : $"{message} {string.Join(" ", result.Warnings)}";
+    }
+
+    private void CaptureAssistedUndoSnapshot() =>
+        _assistedUndoSnapshot = new AIEditorSnapshot(
+            WorkflowText,
+            GetSelectedToolGroups().ToArray(),
+            AuthorizedLocations.Select(static item => item.ToRule()).ToArray());
 
     private void SetSelectedToolGroups(IEnumerable<string> toolGroups)
     {
@@ -949,10 +1025,10 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
         UseWeb = groups.Contains(ToolGroups.Web);
     }
 
-    private void ClearAIUndo()
+    private void ClearAssistedUndo()
     {
-        _aiUndoSnapshot = null;
-        HasAIUndoSnapshot = false;
+        _assistedUndoSnapshot = null;
+        HasAssistedUndoSnapshot = false;
     }
 
     private static IReadOnlyList<WorkflowStepDefinition> DeserializeWorkflow(
@@ -963,11 +1039,7 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
             return [];
         }
 
-        return JsonSerializer.Deserialize<WorkflowStepDefinition[]>(
-                workflowText,
-                ScheduledTaskSerializer.Options)
-            ?? throw new WorkflowValidationException(
-                "Workflow JSON must contain an array.");
+        return WorkflowDefinitionSerializer.Deserialize(workflowText);
     }
 
     private static string NormalizeDirectoryPath(string path)

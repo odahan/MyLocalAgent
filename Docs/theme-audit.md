@@ -171,3 +171,28 @@ The Tasks page uses the existing themed vertical `ScrollViewer` treatment around
 The task grid keeps a bounded height, while Large changes Runner Output from 190 to 490 pixels;
 the page can therefore scroll without introducing a new surface, palette color, control
 template, or window resize.
+
+## Stage 17 workflow authoring aids
+
+The Tool catalog and the Workflow prompt editor are two new modal windows opened from the
+Workflow JSON card. Both reuse the existing Material window chrome, `DynamicResource` palette
+brushes, caption and body typography, button styles, list and text-box templates, and the
+shared scroll treatment. Neither introduces a new palette color, control template, custom
+brush, or hard-coded color, and neither resizes or repositions the application window. Both
+windows resolve their palette from `IThemeService.CurrentTheme` in the same way as the
+existing AI Helper and AI Explain windows, so switching Light/Dark applies to them through
+the same mechanism.
+
+The Tool catalog hosts a search box, an alias list, a read-only detail pane with the typed
+argument table, a read-only snippet preview, and the Insert / Insert and close / Close /
+Cancel commands. The Workflow prompt editor hosts the ordered `ai.prompt` list, a multiline
+prompt text box, the `includeContext` checkbox, the read-only Safety summary, the duplication
+warning banner, and the Apply / Revert / Cancel commands. Warning banners reuse the existing
+warning callout resources rather than literal colors.
+
+⏳ **Not verified in the GUI.** No local Release UI session was launched for Stage 17, so the
+following remain unchecked human visual verifications: Light and Dark rendering of both
+windows, legibility of the argument table and snippet preview, the warning banner contrast,
+keyboard focus states and traversal order, the minimum-size and narrow layouts, the
+maximized-window layout, the long-alias and long-prompt overflow behavior, and live theme
+switching while either window is open.

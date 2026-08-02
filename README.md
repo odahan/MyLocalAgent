@@ -26,6 +26,7 @@ its own navigation, search, styles, and scripts in one file.
 | 6 | Hardening, self-contained packaging, documentation, acceptance | Complete with documented human checks |
 | 7 | Prompt-injection trust filter for Gmail and HTTP GET content | Complete with documented manual UI/provider checks |
 | 8 | Ollama cloud Web Search with mandatory Guardrails protection | Complete with documented live-key/UI checks |
+| 17 | Deterministic workflow authoring aids: Tool catalog and Workflow prompt editor | Complete with documented human GUI checks |
 
 See [Docs/acceptance-report.md](Docs/acceptance-report.md) for the executed acceptance
 evidence and any remaining environment-dependent checks.
@@ -626,8 +627,10 @@ are warnings only and are never changed. A disabled gate can still make the late
 fail.
 
 **Apply** updates workflow JSON, tool groups, and authorized locations as one editor operation;
-only **Save task** persists or schedules it. **Undo AI changes** restores the immediately
-preceding values until Save, reload, navigation away, or another helper application.
+only **Save task** persists or schedules it. **Undo assisted change** is the single one-level
+undo shared by the AI Helper, the Tool catalog, and the Workflow prompt editor: it restores the
+immediately preceding workflow JSON, tool selections, and authorized locations atomically,
+until Save, reload, navigation away, or another assisted application replaces the snapshot.
 
 Explanations default to Text, which preserves the exact streamed Markdown source after the
 response completes. Rendered Markdown uses the same response through Markdig and a restricted
@@ -640,6 +643,61 @@ rendered document follow the currently selected Light or Dark application theme.
 Generated workflows can be semantically wrong even when their JSON is valid. Literal static
 analysis cannot predict every runtime path or value, model context and latency grow with
 workflow size, and Markdown rendering is best-effort; Text remains the dependable fallback.
+
+### Tool catalog and Workflow prompt editor
+
+The workflow card adds two further aids that are entirely deterministic: they never call a
+model, an agent, a tool, a skill, the filesystem, or the network. Everything they display comes
+from Tool Map metadata, the shared placeholder catalog, current configuration snapshots, and
+the current editor text. Both edit a working copy and return only a new workflow JSON value.
+
+**Tool catalog** is a searchable reference of every Tool Map alias, grouped by tool group, with
+its English description, typed arguments, required/optional flags, examples, allowed values,
+and a placeholders tab. Selecting an entry previews the exact snippet that will be inserted.
+
+- **Insert** applies the snippet and keeps the dialog open, so several steps can be accumulated
+  in one session; **Insert and close** applies and closes; **Close** returns the accumulated
+  result only when at least one effective change exists; **Cancel** discards the whole session.
+  Closing with pending insertions asks for confirmation.
+- Parseable JSON is modified as a parsed top-level array and re-serialized canonically. The
+  caret decides the position: inside an element inserts after it, between two elements inserts
+  after the element on the left, before the first inserts at index 0, after the last appends.
+- Unparseable JSON still works: the snippet is inserted verbatim at the caret with the caret
+  line's indentation, plus an explicit warning that separators must be fixed manually.
+- A step whose tool group is not on the task whitelist produces a warning and an **unchecked**
+  opt-in that you must accept explicitly. The built-in `ai` group is a grouping label only: it
+  is never whitelistable and never appears in an accepted-group result. Safety flags are shown
+  read-only and are never modified.
+
+**Workflow prompt editor** lists every `ai.prompt` step in declaration order and edits only its
+`prompt` text and its `includeContext` option. It never adds, deletes, reorders, renames, or
+re-types a step, and never touches ids, error policies, retries, generation options, or any
+other argument.
+
+- Steps are keyed by declaration position, so duplicate ids stay unambiguous. Each row shows a
+  single-line preview in which line feeds and tabs become visible markers.
+- Prompts are edited with real line breaks. Working text is LF-canonical: CRLF and lone CR are
+  normalized to LF and flagged, and nothing else about your whitespace is changed. Because
+  `System.Text.Json` writes line breaks as `\n` escapes, each prompt still occupies one
+  physical JSON line, and extract → apply → extract without an edit is lossless.
+- `includeContext` is an independent option, defaulted to `true` on a newly built `ai.prompt`
+  step. It is never driven by the generic optional-arguments toggle. You can deliberately set
+  it to false and reference a single prior output placeholder to send only selected data.
+- If a prompt already references prior output or accumulated context while `includeContext` is
+  true, a **duplication warning** appears. It is informational: neither value is changed
+  automatically, and Apply is not blocked.
+- Several prompts may be edited in one session. **Apply** validates everything, writes every
+  change at once, and closes; it is enabled only when an effective change exists and no prompt
+  is blank. **Revert step** restores one entry, **Cancel** discards the session. There is no
+  Close command, and closing with pending edits asks for confirmation.
+
+An `ai.prompt` prompt that is missing, null, non-string, empty, or whitespace-only is rejected
+everywhere: Save, Validate, AI Helper validation, and prompt editor Apply. Every successful
+structured insertion or prompt application re-serializes the array with the canonical writer
+options, so manual formatting of the workflow array is normalized.
+
+Workflow JSON, prompt text, argument values, and paths are never logged, incident-reported, or
+persisted by these dialogs; the only outbound copy is the explicit Copy placeholder action.
 
 ### Tool Map
 
@@ -931,6 +989,27 @@ the brief inside the filesystem sandbox:
 
 The ready-to-copy file is
 [`Docs/samples/web-daily-brief.json`](Docs/samples/web-daily-brief.json).
+
+### Multiline prompt sample
+
+A JSON string holds a long `ai.prompt` text on a single physical line, with real line breaks
+written as `\n` escapes. The prompt below therefore reaches the model as several lines even
+though the file shows one line:
+
+```json
+{
+  "step": "ai.prompt",
+  "id": "review",
+  "args": {
+    "prompt": "You are reviewing the working notes of the day.\n\nRules:\n- Use only the supplied context; never invent a fact.\n\nProduce a summary and the next actions.",
+    "includeContext": true
+  }
+}
+```
+
+The ready-to-copy file is
+[`Docs/samples/multiline-prompt-report.json`](Docs/samples/multiline-prompt-report.json). It is
+disabled by default: enable it after checking its paths against `FileSystem:RootPath`.
 
 ### OAuth-free acceptance sample
 

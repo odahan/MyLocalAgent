@@ -79,6 +79,11 @@ public sealed class WorkflowAssistantCoreTests
     [InlineData("""[{"step":"filesystem.write","args":{"path":"out.txt","content":"{{future.output}}"}}]""")]
     [InlineData("""[{"step":"filesystem.write","args":{"path":"out.txt","content":"{{}}"}}]""")]
     [InlineData("""[{"step":"ai.prompt","args":{"prompt":"x","includeContext":"yes"}}]""")]
+    [InlineData("""[{"step":"ai.prompt","args":{"prompt":""}}]""")]
+    [InlineData("""[{"step":"ai.prompt","args":{"prompt":"   \n  "}}]""")]
+    [InlineData("""[{"step":"ai.prompt","args":{"prompt":"a\r\nb"}}]""")]
+    [InlineData("""[{"step":"ai.prompt","args":{"prompt":"a","prompt":"b"}}]""")]
+    [InlineData("""[{"step":"ai.prompt","args":{"prompt":"a","PROMPT":"b"}}]""")]
     public void SharedValidationRejectsInvalidWorkflowDefinitions(string json)
     {
         var workflow = WorkflowDefinitionSerializer.Deserialize(json);

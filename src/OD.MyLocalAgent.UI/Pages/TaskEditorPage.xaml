@@ -1,6 +1,7 @@
 <UserControl x:Class="OD.MyLocalAgent.UI.Pages.TaskEditorPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:behaviors="clr-namespace:OD.MyLocalAgent.UI.Behaviors"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
     <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                   VerticalScrollBarVisibility="Auto">
@@ -324,13 +325,17 @@
                                 Content="Add step" />
                         <WrapPanel Grid.Column="2"
                                    HorizontalAlignment="Right" VerticalAlignment="Center">
+                            <Button Command="{Binding OpenToolCatalogCommand}"
+                                    Content="Tool catalog" />
+                            <Button Command="{Binding OpenWorkflowPromptEditorCommand}"
+                                    Content="Edit prompts" />
                             <Button Command="{Binding OpenAIHelperCommand}"
                                     Content="AI Helper" />
                             <Button Command="{Binding OpenAIExplainCommand}"
                                     Content="AI Explain" />
-                            <Button Command="{Binding UndoAIChangesCommand}"
-                                    Content="Undo AI changes"
-                                    Visibility="{Binding HasAIUndoSnapshot, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            <Button Command="{Binding UndoAssistedChangeCommand}"
+                                    Content="Undo assisted change"
+                                    Visibility="{Binding HasAssistedUndoSnapshot, Converter={StaticResource BooleanToVisibilityConverter}}" />
                             <Button Command="{Binding LoadTranslationExampleCommand}"
                                     Content="Translation example" />
                             <Button Command="{Binding FormatWorkflowCommand}"
@@ -339,10 +344,13 @@
                                     Content="Validate" />
                         </WrapPanel>
                     </Grid>
-                    <TextBox MinHeight="270"
+                    <TextBox x:Name="WorkflowEditor"
+                             MinHeight="270"
                              AcceptsReturn="True"
                              AcceptsTab="True"
                              FontFamily="Consolas"
+                             behaviors:TextBoxSelectionBinding.Attach="True"
+                             behaviors:TextBoxSelectionBinding.CaretIndex="{Binding WorkflowCaretIndex, Mode=TwoWay}"
                              Text="{Binding WorkflowText, UpdateSourceTrigger=PropertyChanged}"
                              TextWrapping="NoWrap"
                              HorizontalScrollBarVisibility="Auto"
