@@ -188,6 +188,9 @@ public sealed class WorkflowToolCatalogViewModelTests
 
     private sealed class StubDesktopInteractionService : IDesktopInteractionService
     {
+        public UnsavedChangesChoice PromptUnsavedChanges() =>
+            UnsavedChangesChoice.Stay;
+
         public bool Confirm(string title, string message) => true;
 
         public void ShowError(string title, string message)

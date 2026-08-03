@@ -9,6 +9,24 @@ namespace OD.MyLocalAgent.UI.Services;
 
 internal sealed class DesktopInteractionService : IDesktopInteractionService
 {
+    public UnsavedChangesChoice PromptUnsavedChanges()
+    {
+        var dialog = CreateDialog(
+            "Unsaved settings",
+            "Save your changes before leaving Settings?",
+            requiresConfirmation: true,
+            primaryButtonText: "Save and leave",
+            cancelButtonText: "Stay on settings",
+            secondaryButtonText: "Leave without saving");
+        _ = dialog.ShowDialog();
+        return dialog.Action switch
+        {
+            ConfirmationDialogAction.Primary => UnsavedChangesChoice.Save,
+            ConfirmationDialogAction.Secondary => UnsavedChangesChoice.Discard,
+            _ => UnsavedChangesChoice.Stay,
+        };
+    }
+
     public bool Confirm(string title, string message)
     {
         var dialog = CreateDialog(title, message, requiresConfirmation: true);
@@ -24,12 +42,18 @@ internal sealed class DesktopInteractionService : IDesktopInteractionService
     private static ConfirmationDialogWindow CreateDialog(
         string title,
         string message,
-        bool requiresConfirmation)
+        bool requiresConfirmation,
+        string? primaryButtonText = null,
+        string? cancelButtonText = null,
+        string? secondaryButtonText = null)
     {
         var dialog = new ConfirmationDialogWindow(
             title,
             message,
-            requiresConfirmation);
+            requiresConfirmation,
+            primaryButtonText,
+            cancelButtonText,
+            secondaryButtonText);
         var owner = Application.Current?.Windows
             .OfType<Window>()
             .FirstOrDefault(static window => window.IsActive) ??

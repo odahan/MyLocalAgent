@@ -13,7 +13,7 @@ using Xunit;
 namespace OD.MyLocalAgent.Tests;
 
 /// <summary>
-/// Verifies Settings utilities for clipboard paths and the desktop shortcut.
+/// Verifies Settings utilities and unsaved-change interactions.
 /// </summary>
 public sealed class SettingsUtilityCommandTests
 {
@@ -59,6 +59,42 @@ public sealed class SettingsUtilityCommandTests
         await viewModel.CreateDesktopShortcutCommand.ExecuteAsync(null);
 
         desktop.VerifyAll();
+    }
+
+    /// <summary>
+    /// Verifies that staying on Settings preserves the edited state.
+    /// </summary>
+    [Fact]
+    public async Task NavigationCanBeCanceledWithUnsavedChanges()
+    {
+        var desktop = new Mock<IDesktopInteractionService>();
+        desktop.Setup(static service => service.PromptUnsavedChanges())
+            .Returns(UnsavedChangesChoice.Stay);
+        var viewModel = CreateViewModel(desktop.Object);
+        viewModel.OllamaModel = "edited-model";
+
+        var canNavigate = await viewModel.CanNavigateAwayAsync();
+
+        canNavigate.Should().BeFalse();
+        viewModel.IsDirty.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Verifies that explicitly abandoning edits permits navigation and clears dirty state.
+    /// </summary>
+    [Fact]
+    public async Task NavigationCanDiscardUnsavedChanges()
+    {
+        var desktop = new Mock<IDesktopInteractionService>();
+        desktop.Setup(static service => service.PromptUnsavedChanges())
+            .Returns(UnsavedChangesChoice.Discard);
+        var viewModel = CreateViewModel(desktop.Object);
+        viewModel.OllamaModel = "edited-model";
+
+        var canNavigate = await viewModel.CanNavigateAwayAsync();
+
+        canNavigate.Should().BeTrue();
+        viewModel.IsDirty.Should().BeFalse();
     }
 
     private static SettingsViewModel CreateViewModel(

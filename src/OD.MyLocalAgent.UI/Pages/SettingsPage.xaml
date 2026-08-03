@@ -4,8 +4,14 @@
              xmlns:behaviors="clr-namespace:OD.MyLocalAgent.UI.Behaviors"
              xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
-    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
-                  VerticalScrollBarVisibility="Auto">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <ScrollViewer Grid.Row="0"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
         <StackPanel>
             <Grid>
                 <StackPanel>
@@ -455,36 +461,6 @@
                         </Grid>
                     </Grid>
 
-                    <Grid Margin="0,22,0,0">
-                        <Button HorizontalAlignment="Left"
-                                Command="{Binding SaveCommand}"
-                                Content="Save settings"
-                                Style="{StaticResource PrimaryButtonStyle}" />
-                        <StackPanel HorizontalAlignment="Right"
-                                    Orientation="Horizontal">
-                            <Ellipse Width="9"
-                                     Height="9"
-                                     Margin="0,0,8,0"
-                                     VerticalAlignment="Center">
-                                <Ellipse.Style>
-                                    <Style TargetType="{x:Type Ellipse}">
-                                        <Setter Property="Fill"
-                                                Value="{DynamicResource SuccessBrush}" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsDirty}"
-                                                         Value="True">
-                                                <Setter Property="Fill"
-                                                        Value="{DynamicResource WarningBrush}" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Ellipse.Style>
-                            </Ellipse>
-                            <TextBlock VerticalAlignment="Center"
-                                       Foreground="{DynamicResource MutedTextBrush}"
-                                       Text="{Binding SaveStatus}" />
-                        </StackPanel>
-                    </Grid>
                 </StackPanel>
             </materialDesign:Card>
 
@@ -600,6 +576,44 @@
                             ToolTip="Throws deliberately through the normal command and incident pipeline" />
                 </StackPanel>
             </materialDesign:Card>
-        </StackPanel>
-    </ScrollViewer>
+            </StackPanel>
+        </ScrollViewer>
+
+        <materialDesign:Card Grid.Row="1"
+                             Margin="0,12,0,0"
+                             Padding="18"
+                             Visibility="{Binding IsDirty, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center"
+                            Orientation="Horizontal">
+                    <Ellipse Width="10"
+                             Height="10"
+                             Margin="0,0,10,0"
+                             Fill="{DynamicResource WarningBrush}" />
+                    <StackPanel>
+                        <TextBlock FontWeight="SemiBold"
+                                   Text="Unsaved changes" />
+                        <TextBlock Margin="0,3,0,0"
+                                   Foreground="{DynamicResource MutedTextBrush}"
+                                   Text="{Binding SaveStatus}" />
+                    </StackPanel>
+                </StackPanel>
+                <StackPanel Grid.Column="1"
+                            Margin="24,0,0,0"
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal">
+                    <Button Command="{Binding DiscardChangesCommand}"
+                            Content="Discard" />
+                    <Button Command="{Binding SaveCommand}"
+                            Content="Save settings"
+                            IsDefault="True"
+                            Style="{StaticResource PrimaryButtonStyle}" />
+                </StackPanel>
+            </Grid>
+        </materialDesign:Card>
+    </Grid>
 </UserControl>

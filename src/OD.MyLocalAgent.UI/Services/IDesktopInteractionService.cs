@@ -6,6 +6,11 @@ namespace OD.MyLocalAgent.UI.Services;
 public interface IDesktopInteractionService
 {
     /// <summary>
+    /// Asks how unsaved settings changes should be handled before leaving the page.
+    /// </summary>
+    UnsavedChangesChoice PromptUnsavedChanges();
+
+    /// <summary>
     /// Requests confirmation for a potentially destructive operation.
     /// </summary>
     bool Confirm(string title, string message);

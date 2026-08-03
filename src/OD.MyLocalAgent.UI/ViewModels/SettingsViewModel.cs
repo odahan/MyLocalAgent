@@ -22,7 +22,8 @@ namespace OD.MyLocalAgent.UI.ViewModels;
 public sealed partial class SettingsViewModel :
     ObservableRecipient,
     IRecipient<IncidentNotificationMessage>,
-    IActivatablePage
+    IActivatablePage,
+    IAsyncNavigationGuard
 {
     private const int ModelCatalogTimeoutSeconds = 10;
     private const string ApplicationExecutableFileName = "OD.MyLocalAgent.UI.exe";
@@ -87,6 +88,7 @@ public sealed partial class SettingsViewModel :
     private readonly TimeProvider _timeProvider;
     private bool _isLoading;
     private bool _hasLoaded;
+    private string _savedTheme = AppThemeCatalog.DarkName;
 
     [ObservableProperty]
     private bool _isOllamaProvider = true;
@@ -208,10 +210,13 @@ public sealed partial class SettingsViewModel :
     private string _selectedTheme = AppThemeCatalog.DarkName;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(DiscardChangesCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     private bool _isDirty;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    [NotifyCanExecuteChangedFor(nameof(DiscardChangesCommand))]
     private bool _isBusy;
 
     [ObservableProperty]
@@ -330,6 +335,27 @@ public sealed partial class SettingsViewModel :
         if (!_hasLoaded && !LoadCommand.IsRunning)
         {
             LoadCommand.Execute(null);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> CanNavigateAwayAsync()
+    {
+        if (!IsDirty)
+        {
+            return true;
+        }
+
+        switch (_desktopInteraction.PromptUnsavedChanges())
+        {
+            case UnsavedChangesChoice.Save:
+                await SaveAsync(CancellationToken.None).ConfigureAwait(true);
+                return !IsDirty;
+            case UnsavedChangesChoice.Discard:
+                DiscardChangesCore();
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -505,6 +531,7 @@ public sealed partial class SettingsViewModel :
             await RefreshIncidentsAsync(cancellationToken).ConfigureAwait(true);
             SaveStatus = "Settings are loaded from the active configuration.";
             IsDirty = false;
+            _savedTheme = SelectedTheme;
             _hasLoaded = true;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -518,6 +545,18 @@ public sealed partial class SettingsViewModel :
         {
             _isLoading = false;
             IsBusy = false;
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanDiscardChanges))]
+    private async Task DiscardChangesAsync()
+    {
+        if (_desktopInteraction.Confirm(
+                "Discard settings changes",
+                "Discard all changes made since Settings was last saved?"))
+        {
+            DiscardChangesCore();
+            await LoadAsync(CancellationToken.None).ConfigureAwait(true);
         }
     }
 
@@ -586,6 +625,7 @@ public sealed partial class SettingsViewModel :
             ApiKeyReplacement = string.Empty;
             _isLoading = false;
             IsDirty = false;
+            _savedTheme = SelectedTheme;
             ResolvedRunnerPath = RunnerPathResolver.Resolve(
                 new SchedulerOptions
                 {
@@ -848,12 +888,35 @@ public sealed partial class SettingsViewModel :
             EditablePropertyNames.Contains(e.PropertyName))
         {
             IsDirty = true;
-            SaveStatus = "Unsaved changes.";
+            SaveStatus = HasGenerationValidationError
+                ? "Fix the validation errors before saving."
+                : "Unsaved changes.";
         }
     }
 
     private bool CanSave() =>
-        !IsBusy && TryGetGenerationDefaults(out _);
+        IsDirty && !IsBusy && TryGetGenerationDefaults(out _);
+
+    private bool CanDiscardChanges() => IsDirty && !IsBusy;
+
+    private void DiscardChangesCore()
+    {
+        _isLoading = true;
+        try
+        {
+            IsDirty = false;
+            SaveStatus = "Changes discarded.";
+            _hasLoaded = false;
+            if (AppThemeCatalog.TryParse(_savedTheme, out var theme))
+            {
+                _themeService.ApplyTheme(theme);
+            }
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
 
     private void UpdateGenerationValidation()
     {

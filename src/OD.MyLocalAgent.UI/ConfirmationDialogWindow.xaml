@@ -81,6 +81,10 @@
                 <Button x:Name="CancelButton"
                         IsCancel="True"
                         Content="Cancel" />
+                <Button x:Name="SecondaryButton"
+                        Click="SecondaryButton_Click"
+                        Content="Discard"
+                        Visibility="Collapsed" />
                 <Button x:Name="ConfirmButton"
                         Click="ConfirmButton_Click"
                         Content="Continue"

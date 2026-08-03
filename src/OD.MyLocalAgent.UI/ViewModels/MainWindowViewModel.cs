@@ -21,6 +21,8 @@ public sealed partial class MainWindowViewModel :
     IRecipient<SnackbarNotificationMessage>
 {
     private readonly Func<PageRoute, object> _pageResolver;
+    private NavigationItemViewModel? _activeNavigationItem;
+    private bool _isRestoringNavigationSelection;
 
     [ObservableProperty]
     private object? _currentPage;
@@ -147,7 +149,7 @@ public sealed partial class MainWindowViewModel :
             return;
         }
 
-        NavigateTo(item.Route);
+        _ = NavigateToAsync(item.Route);
     }
 
     /// <inheritdoc />
@@ -180,19 +182,50 @@ public sealed partial class MainWindowViewModel :
         SystemCommands.CloseWindow(window);
     }
 
-    partial void OnSelectedNavigationItemChanged(
+    async partial void OnSelectedNavigationItemChanged(
         NavigationItemViewModel? value)
     {
-        if (value is null)
+        if (value is null || _isRestoringNavigationSelection)
         {
             return;
         }
 
-        NavigateTo(value.Route);
+        var previousItem = _activeNavigationItem;
+        if (await NavigateToAsync(value.Route).ConfigureAwait(true))
+        {
+            _activeNavigationItem = value;
+            return;
+        }
+
+        _isRestoringNavigationSelection = true;
+        try
+        {
+            SelectedNavigationItem = previousItem;
+        }
+        finally
+        {
+            _isRestoringNavigationSelection = false;
+        }
     }
 
-    private void NavigateTo(PageRoute route)
+    /// <summary>
+    /// Confirms whether the application window may close.
+    /// </summary>
+    /// <returns><see langword="true"/> when closing may continue.</returns>
+    public async Task<bool> CanCloseAsync()
     {
+        return CurrentPage is not IAsyncNavigationGuard guard ||
+               await guard.CanNavigateAwayAsync().ConfigureAwait(true);
+    }
+
+    internal async Task<bool> NavigateToAsync(PageRoute route)
+    {
+        if (CurrentPage is IAsyncNavigationGuard guard &&
+            !await guard.CanNavigateAwayAsync().ConfigureAwait(true))
+        {
+            return false;
+        }
+
         if (CurrentPage is IDeactivatablePage deactivatablePage)
         {
             deactivatablePage.Deactivate();
@@ -203,6 +236,8 @@ public sealed partial class MainWindowViewModel :
         {
             activatablePage.Activate();
         }
+
+        return true;
     }
 
     private void Enqueue(string message)

@@ -326,6 +326,8 @@ public sealed class GenerationSurfaceViewModelTests
             Mock.Of<IMessenger>(),
             TimeProvider.System);
 
+        viewModel.SaveCommand.CanExecute(null).Should().BeFalse();
+
         viewModel.GenerationTemperatureText = "NaN";
 
         viewModel.HasGenerationValidationError.Should().BeTrue();

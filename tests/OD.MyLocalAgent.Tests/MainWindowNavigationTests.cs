@@ -36,4 +36,59 @@ public sealed class MainWindowNavigationTests
         viewModel.CurrentPage.Should().BeSameAs(pages[PageRoute.Tasks]);
         viewModel.SelectedNavigationItem.Should().BeSameAs(tasksItem);
     }
+
+    /// <summary>
+    /// Verifies that a page guard can keep the current page active.
+    /// </summary>
+    [Fact]
+    public async Task NavigationGuardCanCancelNavigation()
+    {
+        var guardedPage = new GuardedPage(canNavigateAway: false);
+        var pages = Enum.GetValues<PageRoute>()
+            .ToDictionary(static route => route, static _ => new object());
+        var viewModel = new MainWindowViewModel(
+            route => pages[route],
+            new WeakReferenceMessenger(),
+            Mock.Of<ISnackbarMessageQueue>())
+        {
+            CurrentPage = guardedPage,
+        };
+
+        var navigated = await viewModel.NavigateToAsync(PageRoute.Logs);
+
+        navigated.Should().BeFalse();
+        viewModel.CurrentPage.Should().BeSameAs(guardedPage);
+    }
+
+    /// <summary>
+    /// Verifies that window closing uses the same navigation guard.
+    /// </summary>
+    [Fact]
+    public async Task WindowCloseUsesCurrentPageNavigationGuard()
+    {
+        var guardedPage = new GuardedPage(canNavigateAway: false);
+        var viewModel = new MainWindowViewModel(
+            static _ => new object(),
+            new WeakReferenceMessenger(),
+            Mock.Of<ISnackbarMessageQueue>())
+        {
+            CurrentPage = guardedPage,
+        };
+
+        var canClose = await viewModel.CanCloseAsync();
+
+        canClose.Should().BeFalse();
+        guardedPage.CallCount.Should().Be(1);
+    }
+
+    private sealed class GuardedPage(bool canNavigateAway) : IAsyncNavigationGuard
+    {
+        public int CallCount { get; private set; }
+
+        public Task<bool> CanNavigateAwayAsync()
+        {
+            CallCount++;
+            return Task.FromResult(canNavigateAway);
+        }
+    }
 }
