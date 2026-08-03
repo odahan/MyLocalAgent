@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace OD.MyLocalAgent.Core;
@@ -93,12 +92,35 @@ public static partial class WorkflowPlaceholderCatalog
     /// <returns>The normalized .NET custom format.</returns>
     public static string NormalizeDateTimeFormat(string format)
     {
-        ArgumentNullException.ThrowIfNull(format);
-        return format
-            .Replace("YYYY", "yyyy", StringComparison.Ordinal)
-            .Replace("YY", "yy", StringComparison.Ordinal)
-            .Replace("DD", "dd", StringComparison.Ordinal)
-            .Replace("hh", "HH", StringComparison.Ordinal);
+        return DateTimePlaceholderFormatter.NormalizeFormat(format);
+    }
+
+    /// <summary>
+    /// Determines whether a marker is valid workflow-only data in a prompt-only context.
+    /// </summary>
+    /// <param name="placeholder">The trimmed placeholder body.</param>
+    /// <returns><see langword="true"/> for workflow-only task, context, or output markers.</returns>
+    public static bool IsWorkflowOnlyAgentMarker(string placeholder)
+    {
+        ArgumentNullException.ThrowIfNull(placeholder);
+        if (placeholder.Equals("task.prompt", StringComparison.OrdinalIgnoreCase) ||
+            placeholder.Equals("workflow.context", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        const string outputMarker = ".output";
+        var markerIndex = placeholder.IndexOf(
+            outputMarker,
+            StringComparison.OrdinalIgnoreCase);
+        if (markerIndex <= 0 ||
+            !WorkflowIdPattern().IsMatch(placeholder[..markerIndex]))
+        {
+            return false;
+        }
+
+        var suffix = placeholder[(markerIndex + outputMarker.Length)..];
+        return suffix.Length == 0 || StructuredSelectorPattern().IsMatch(suffix);
     }
 
     /// <summary>
@@ -125,29 +147,15 @@ public static partial class WorkflowPlaceholderCatalog
             return true;
         }
 
-        if (DateTimePlaceholderPattern().IsMatch(placeholder))
+        var dateTime = DateTimePlaceholderFormatter.Resolve(
+            placeholder,
+            DateTimeOffset.UnixEpoch);
+        if (dateTime.Status != DateTimePlaceholderStatus.NotRecognized)
         {
-            var open = placeholder.IndexOf('[');
-            if (open >= 0)
+            if (dateTime.Status == DateTimePlaceholderStatus.InvalidFormat)
             {
-                var format = placeholder[(open + 1)..^1];
-                if (string.IsNullOrWhiteSpace(format) || format.Length > 100)
-                {
-                    error = $"Placeholder '{{{{{placeholder}}}}}' has an invalid date/time format.";
-                    return false;
-                }
-
-                try
-                {
-                    _ = DateTimeOffset.UnixEpoch.ToString(
-                        NormalizeDateTimeFormat(format),
-                        CultureInfo.InvariantCulture);
-                }
-                catch (FormatException)
-                {
-                    error = $"Placeholder '{{{{{placeholder}}}}}' has an invalid date/time format.";
-                    return false;
-                }
+                error = $"Placeholder '{{{{{placeholder}}}}}' has an invalid date/time format.";
+                return false;
             }
 
             error = null;
@@ -218,12 +226,10 @@ public static partial class WorkflowPlaceholderCatalog
     private static partial Regex PlaceholderPattern();
 
     [GeneratedRegex(
-        @"^(Today|Now)(?:\[[^\[\]]+\])?$",
-        RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
-    private static partial Regex DateTimePlaceholderPattern();
-
-    [GeneratedRegex(
         @"^(?:(?:\.[A-Za-z_][A-Za-z0-9_-]*)|(?:\[[0-9]+\]))+$",
         RegexOptions.CultureInvariant)]
     private static partial Regex StructuredSelectorPattern();
+
+    [GeneratedRegex("^[A-Za-z0-9._-]+$", RegexOptions.CultureInvariant)]
+    private static partial Regex WorkflowIdPattern();
 }

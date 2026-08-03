@@ -1830,9 +1830,12 @@ Modified:
   increment its version; it still reads `Arguments`/`OptionalArguments` and
   `GenerationVersion` remains `workflow-generation-v1`. The Stage 13 assistant therefore does
   not yet benefit from the enriched descriptions. This is a known, unaddressed gap.
-- **No GUI verification was performed.** Both dialogs were validated by build and unit tests
-  only. Neither window has been opened, so layout, keyboard traversal, minimum size, long
-  prompts and paths, and Light/Dark rendering remain unverified human checks.
+- **GUI verification was completed after the implementation pass.** Both dialogs were first
+  validated by build and unit tests only; a later manual operator session covered layout,
+  keyboard traversal, minimum size, long prompts and paths, and Light/Dark rendering. That
+  session produced three corrections, all shipped and covered by tests: the Insert commands are
+  hidden on the Placeholders tab, the prompt text box wraps with the horizontal scroll bar
+  disabled, and Validate raises a short snackbar notification in addition to the status line.
 - Canonical re-serialization intentionally discards manual formatting on every successful
   structured insertion and prompt application, which is visible to a user who hand-formatted
   the workflow array.
@@ -1850,3 +1853,83 @@ Modified:
 - Verification is build and unit tests only. GUI checks for both new dialogs are recorded as
   outstanding in `Docs/theme-audit.md` and `Docs/acceptance-report.md` and are not claimed as
   release evidence.
+
+### Stage 20 — Agent prompt placeholders — 2026-08-03
+
+#### Scope and pre-Stage-18/19 integration decision
+
+- Implemented `Docs/Prompts/20-Stage20-AgentPromptPlaceholders.md` directly on the completed
+  Stage 17 code line at the product owner’s request. Stage 18 compact Guardrails and Stage 19
+  SQLite remain deliberately unimplemented and no Stage 20 code, test, package, setting, task
+  field, tool group, Safety flag, migration, or documentation example depends on them.
+- Expansion is selected only by task-owned prompt-only boundaries: Runner `run` when
+  `Workflow.Count == 0`, Runner `test-prompt`, UI Run now through the same child Runner, and
+  Prompt editor Test over its current unsaved prompt. Workflow precedence remains unchanged;
+  AI Playground, helper/explanation, Guardrails, direct skills, Tool tester, workflow
+  `ai.prompt`, and health calls retain their existing raw/taskless behavior.
+
+#### Core placeholder contracts
+
+- Added the pure `AgentPromptPlaceholderResolver.Resolve(prompt, taskId, taskName, localNow)`.
+  It scans the original UTF-16 source once, performs no I/O or logging, never rescans inserted
+  task identity, preserves all unresolved spans exactly, and returns the original string
+  instance when no replacement is required.
+- Added immutable public result surface `AgentPromptPlaceholderResult`,
+  `AgentPromptPlaceholderOccurrence`, and `AgentPromptPlaceholderWarningKind` with the closed
+  categories `Unknown`, `WorkflowOnly`, `InvalidDateTimeFormat`, and `MalformedBraces`.
+  Occurrences retain source offsets and lengths only; they never retain raw marker bodies.
+- Added `AgentPromptPlaceholderCatalog.Forms`/`HelpText` for Prompt editor authoring and
+  `AgentPromptPlaceholderWarning.Code`/`FormatSummary` for content-free aggregate feedback.
+  The durable code is `AGENT_PROMPT_PLACEHOLDERS_UNRESOLVED`.
+- Moved the shared `Today`/`Now` parsing, invariant formatting, 100-character format validation,
+  and ordinal filename alias normalization into Core `DateTimePlaceholderFormatter`, with typed
+  `DateTimePlaceholderResult`/`DateTimePlaceholderStatus`. `WorkflowPlaceholderCatalog` and
+  `WorkflowPlaceholderResolver` both consume it; the workflow layer retains strict exceptions.
+
+#### Runner, report, and UI integration
+
+- `RunnerCommandHandlers.ExecutePromptOnlyAsync` is the shared prompt path used beneath both
+  `run` and `test-prompt`. It captures one `TimeProvider.GetLocalNow()` value, resolves before
+  `IMyLocalAgentService.RunPromptAsync`, writes one content-free warning line, retains the
+  existing tools, immutable `ToolExecutionContext`, generation policy, cancellation, and agent
+  loop limits, and carries warnings even when the later provider/tool operation fails.
+- Added `ExecutionWarning(Code, Message, OccurrenceCount)` and
+  `WorkflowResult.Warnings`, defaulting to an empty collection without changing existing
+  constructors. `MarkdownReportWriter` emits `## Warnings` only when needed. The final output
+  and report-index shape/status remain unchanged; warnings cannot convert success to failure.
+- Prompt editor now receives `TimeProvider`, resolves current unsaved text with the loaded task
+  id/name before streaming, displays help from the Core catalog and an aggregate memory-only
+  warning callout, and keeps warnings separate from model output/chunk count. Feedback is
+  cleared on edit, load, or the next test and remains after completion or cancellation. Prompt
+  Save no longer trims the source, preserving the entered template exactly.
+- Prompt editor help/warnings use only semantic `MutedTextBrush`, `SurfaceBrush`, and
+  `WarningBrush` resources, so Light and Dark use the active application palette without inline
+  colors or a new theme.
+
+#### Privacy and verification
+
+- Durable warning output contains only the stable code, program-owned category labels, total,
+  and per-category counts. It excludes prompts, marker bodies, task names, replacements,
+  source spans, and expanded paths and never calls `IIncidentReporter`. Exact marker projection
+  was intentionally omitted from the UI because aggregate feedback satisfies the authoring need
+  with a smaller memory/privacy surface.
+- Deterministic coverage includes defaults, offsets, invariant custom formats, aliases,
+  whitespace/case behavior, one supplied snapshot, Unicode task identity, non-recursion,
+  unknown/workflow-only/invalid/malformed preservation, source ordering, repeated counts,
+  pathological braces, unchanged Unicode/line endings, concurrency, safe summaries, Runner
+  propagation/privacy, Prompt editor unsaved text and warning lifecycle, report warnings, and
+  unchanged workflow date behavior.
+- Release build completed with zero warnings and zero errors. The test suite completed with
+  404 passed, zero failed, and one intentionally skipped local Ollama integration test.
+- Both manuals were updated in structural EN/FR parity with copyable dated/timestamp/identity/
+  unknown/workflow-only examples. Automated structural validation is recorded in the Stage 20
+  acceptance report. The WPF application was not launched in this implementation pass, so live
+  Prompt editor warning/help rendering in Light and Dark remains a manual follow-up rather than
+  claimed evidence.
+
+#### Release 1.2.8 — 2026-08-03
+
+- Packages the Stage 20 agent prompt placeholder implementation as version 1.2.8, set in
+  `Directory.Build.props`.
+- Includes the Tasks page `Open Folder` action for opening the task storage directory.
+- Stage 18 compact Guardrails and Stage 19 SQLite remain intentionally deferred.

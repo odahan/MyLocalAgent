@@ -28,7 +28,7 @@ dans MyLocalAgent.
 Depuis la racine du dépôt (`E:\OD.MyLocalAgent`) :
 
 ```powershell
-dotnet restore
+dotnet restore OD.MyLocalAgent.sln -m:1
 dotnet build OD.MyLocalAgent.sln -m:1 --no-restore --configuration Release
 dotnet test OD.MyLocalAgent.sln -m:1 --no-build --no-restore --configuration Release
 ```
@@ -264,3 +264,29 @@ silencieusement. Les réglages Safety sont affichés en lecture seule.
 **Undo assisted change** annule d’un seul geste la dernière application assistée,
 quelle qu’en soit l’origine, jusqu’à la sauvegarde ou au rechargement. Comme pour
 toute modification de l’éditeur, seul **Save task** persiste le résultat.
+
+## 12. Écrire une tâche sans workflow avec un nom daté
+
+Pour une tâche enregistrée sans workflow, MyLocalAgent peut remplacer `{{Today}}`, `{{Now}}`,
+`{{task.id}}` et `{{task.name}}` juste avant que le prompt atteigne l’agent. Exemple :
+
+```text
+Create the Markdown report with the filesystem tool at:
+C:\Reports\Sort-{{Today[yyyyMMdd]}}.md
+```
+
+À l’heure locale d’exécution `2026-08-03T14:30:25+02:00`, le chemin devient
+`C:\Reports\Sort-20260803.md`. La sauvegarde et l’enregistrement du planning conservent le
+modèle intact ; c’est l’heure d’exécution qui fournit la date. `{{Now[yyyyMMdd-HHmmss]}}`
+permet d’ajouter les secondes lorsque plusieurs exécutions sont possibles le même jour.
+
+La même expansion s’applique à `run` planifié/CLI, **Run now**, `test-prompt` et **Test the
+prompt** dans l’éditeur, y compris au texte courant non sauvegardé. Le remplacement se fait en
+une seule passe. Un marqueur inconnu ou réservé aux workflows reste inchangé avec un warning
+non bloquant ; `{{previous.output}}` s’utilise uniquement dans un workflow. Les warnings
+durables conservent les catégories et compteurs, jamais le prompt ou le marqueur brut. L’AI
+Playground et les autres surfaces sans tâche restent inchangés.
+
+Un chemin absolu résolu exige toujours le groupe File system de la tâche, un emplacement
+autorisé en lecture-écriture et les droits Windows. L’expansion ne garantit ni que le modèle
+choisira l’outil, ni que l’opération réussira.

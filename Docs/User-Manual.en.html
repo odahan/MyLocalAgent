@@ -1802,6 +1802,15 @@ ollama list</code></pre>
                     confirmation.
                 </p>
                 <p>
+                    <span class="ui-label">Insert</span> and
+                    <span class="ui-label">Insert and close</span> apply to the
+                    <span class="ui-label">Steps</span> tab only and are therefore hidden on the
+                    <span class="ui-label">Placeholders</span> tab, where a placeholder is obtained
+                    with <span class="ui-label">Copy</span> to the clipboard. On that tab,
+                    <span class="ui-label">Close</span> is the only exit that keeps the insertions
+                    already accumulated.
+                </p>
+                <p>
                     The caret decides the position: inside an element inserts after it, between
                     two elements inserts after the element on the left, before the first inserts
                     at index 0, and after the last appends. If the JSON cannot be parsed, the
@@ -1928,7 +1937,98 @@ ollama list</code></pre>
 ]</code></pre>
                 </div>
 
-                <h3>Outputs and placeholders</h3>
+                <h3>Agent prompt placeholders (tasks without a workflow)</h3>
+                <p>
+                    For a saved task whose workflow is empty, MyLocalAgent expands exactly
+                    <code>{{Today}}</code>, <code>{{Now}}</code>, <code>{{task.id}}</code>, and
+                    <code>{{task.name}}</code> before the prompt reaches the model. This applies to
+                    scheduled/CLI <code>run</code>, <span class="ui-label">Run now</span>,
+                    <code>test-prompt</code>, and <span class="ui-label">Test the prompt</span> in
+                    Prompt editor—including its current unsaved text. Date/time comes from one
+                    injected Windows local-clock snapshot captured at execution time.
+                </p>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Prompt-only form</th><th>Resolved value</th></tr></thead>
+                        <tbody>
+                            <tr><td><code>{{Today}}</code> / <code>{{Today[format]}}</code></td><td>Local date, default <code>yyyy-MM-dd</code>, or invariant custom .NET format.</td></tr>
+                            <tr><td><code>{{Now}}</code> / <code>{{Now[format]}}</code></td><td>Local date/time, default <code>yyyy-MM-ddTHH:mm:sszzz</code>, or invariant custom .NET format.</td></tr>
+                            <tr><td><code>{{task.id}}</code></td><td>Exact saved task id.</td></tr>
+                            <tr><td><code>{{task.name}}</code></td><td>Exact saved task name.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h4>Dated report filename</h4>
+                <div class="code-block">
+                    <pre><code>Create the Markdown report with the filesystem tool at:
+C:\Reports\Sort-{{Today[yyyyMMdd]}}.md
+
+At 2026-08-03T14:30:25+02:00, MyLocalAgent sends:
+C:\Reports\Sort-20260803.md</code></pre>
+                </div>
+
+                <h4>Collision-resistant filename</h4>
+                <div class="code-block">
+                    <pre><code>Write the report to reports/Sort-{{Now[yyyyMMdd-HHmmss]}}.md.
+
+At 2026-08-03T14:30:25+02:00, the name is:
+Sort-20260803-143025.md</code></pre>
+                </div>
+
+                <h4>Task identity</h4>
+                <div class="code-block">
+                    <pre><code>Include task id {{task.id}} and task name {{task.name}} in the report heading.</code></pre>
+                </div>
+
+                <h4>Unknown marker: preserved with a warning</h4>
+                <div class="code-block">
+                    <pre><code>Create a greeting for {{customer_name}}.</code></pre>
+                </div>
+                <p>
+                    MyLocalAgent sends <code>{{customer_name}}</code> unchanged and continues with a
+                    non-failing warning. The model may interpret that unresolved text unpredictably;
+                    preservation describes only what the application sent. Durable warnings contain
+                    a program-owned code, categories, and aggregate counts—not the raw marker, prompt,
+                    task name, replacement, or expanded path.
+                </p>
+
+                <h4><code>{{previous.output}}</code> belongs to workflows</h4>
+                <div class="code-block">
+                    <pre><code>Summarize {{previous.output}}.</code></pre>
+                </div>
+                <p>
+                    In a prompt-only task this marker stays unchanged with a workflow-only warning.
+                    The equivalent valid concept is an ordered workflow in which a preceding step has
+                    produced an output:
+                </p>
+                <div class="code-block">
+                    <pre><code>[
+  "gmail.readToday",
+  {
+    "step": "ai.prompt",
+    "args": { "prompt": "Summarize {{previous.output}}." }
+  }
+]</code></pre>
+                </div>
+                <p>
+                    Save time stores the original template, schedule-registration time also leaves it
+                    untouched, and only execution time supplies identity and the local date/time.
+                    Substitution is one pass and non-recursive: if the saved task name itself contains
+                    <code>{{Today}}</code>, that inserted text stays literal. A resolved filesystem path
+                    still needs the task’s tool whitelist, a matching read-write authorization, Windows
+                    access, and any independent Safety gate. Successful expansion is independent of the
+                    model selecting a tool and of that tool succeeding.
+                </p>
+                <p>
+                    Workflows retain the larger data-bearing placeholder set shown below and strict
+                    failure behavior. A task with a non-empty workflow does not pre-expand its saved
+                    prompt. AI Playground, Tool tester, AI Workflow Helper/Explain, Guardrails, skills,
+                    workflow <code>ai.prompt</code>, and other taskless surfaces do not receive this
+                    prompt-only expansion.
+                </p>
+
+                <h3>Workflow outputs and placeholders</h3>
                 <p>
                     String-form steps have no explicit arguments. Object-form steps accept
                     <code>step</code>, <code>id</code>, <code>args</code>, and error behavior.

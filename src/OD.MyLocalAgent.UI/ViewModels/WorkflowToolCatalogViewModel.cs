@@ -101,6 +101,16 @@ public sealed partial class WorkflowToolCatalogViewModel : ObservableObject
         WorkflowPlaceholderCatalog.Entries;
 
     /// <summary>
+    /// Gets a value indicating whether the Steps tab is active.
+    /// </summary>
+    /// <remarks>
+    /// Insertion only applies to workflow steps. The Placeholders tab exposes explicit clipboard
+    /// copy instead, so the insertion commands are hidden there and Close becomes the primary
+    /// dismissal.
+    /// </remarks>
+    public bool IsStepsTabSelected => SelectedTabIndex == 0;
+
+    /// <summary>
     /// Gets the ordered argument rows of the selected entry.
     /// </summary>
     public ObservableCollection<WorkflowToolArgumentRow> SelectedArguments { get; } = [];
@@ -241,6 +251,14 @@ public sealed partial class WorkflowToolCatalogViewModel : ObservableObject
     }
 
     partial void OnSearchTextChanged(string value) => ItemsView?.Refresh();
+
+    partial void OnSelectedTabIndexChanged(int value)
+    {
+        OnPropertyChanged(nameof(IsStepsTabSelected));
+        StatusText = IsStepsTabSelected
+            ? "Select a workflow step. Insert accumulates without closing the dialog."
+            : "Placeholders are copied to the clipboard with Copy. Insertion applies to steps only.";
+    }
 
     partial void OnSelectedItemChanged(WorkflowToolCatalogItem? value)
     {

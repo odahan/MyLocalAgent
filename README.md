@@ -26,6 +26,14 @@ its own navigation, search, styles, and scripts in one file.
 | 6 | Hardening, self-contained packaging, documentation, acceptance | Complete with documented human checks |
 | 7 | Prompt-injection trust filter for Gmail and HTTP GET content | Complete with documented manual UI/provider checks |
 | 8 | Ollama cloud Web Search with mandatory Guardrails protection | Complete with documented live-key/UI checks |
+| 9 | Not implemented |
+| 10 | Not implemented |
+| 11 | PER-TASK FILE-SYSTEM AUTHORIZATION |
+| 12 | Sequential workflow context & guided JSON authoring |
+| 13 | AI Workflow Helper |
+| 14 | Hierarchical AI Generation Settings |
+| 15 | Not Implemented |
+| 16 | Windowless Runner and Run Monitor |
 | 17 | Deterministic workflow authoring aids: Tool catalog and Workflow prompt editor | Complete with documented human GUI checks |
 
 See [Docs/acceptance-report.md](Docs/acceptance-report.md) for the executed acceptance
@@ -521,6 +529,44 @@ Listing, reading, and Dropbox upload need read access. Writing, moving, director
 deletion, and Dropbox download need read-write access. Delete also requires
 `Safety:AllowFileDelete`. A declared location never grants NTFS rights, and a network path
 can still fail in S4U.
+
+### Agent prompt placeholders
+
+A saved task that runs its prompt without a workflow can use exactly these application-resolved
+values:
+
+- `{{Today}}` or `{{Today[format]}}`;
+- `{{Now}}` or `{{Now[format]}}`;
+- `{{task.id}}`;
+- `{{task.name}}`.
+
+MyLocalAgent expands them immediately before the prompt reaches the agent in scheduled/CLI
+`run`, UI **Run now**, CLI `test-prompt`, and Prompt editor **Test the prompt**. One Windows
+local-time snapshot is used for the whole prompt. Formats are invariant .NET custom date/time
+formats; `YYYY`, `YY`, `DD`, and `hh` keep the workflow aliases `yyyy`, `yy`, `dd`, and 24-hour
+`HH`.
+
+```text
+Write the report to C:\Reports\Sort-{{Today[yyyyMMdd]}}.md.
+Write a collision-resistant copy to reports/Sort-{{Now[yyyyMMdd-HHmmss]}}.md.
+Include task {{task.id}} — {{task.name}} in the heading.
+```
+
+At local time `2026-08-03T14:30:25+02:00`, the first two names become
+`Sort-20260803.md` and `Sort-20260803-143025.md`. The source template is preserved at Save and
+schedule-registration time; execution time supplies the date. Substitution is single-pass, so a
+task name containing `{{Today}}` inserts that literal text without resolving it again.
+
+Unknown, malformed, invalid-format, and workflow-only markers such as `{{customer_name}}` or
+`{{previous.output}}` are sent unchanged and produce a non-failing warning. A model may still
+interpret them unpredictably. Durable logs and reports include only the warning code/category and
+aggregate counts, never the raw marker or prompt. `{{previous.output}}` belongs in a workflow,
+where the larger placeholder set remains strict and an unavailable value fails the step.
+
+Resolved paths receive no new permission: filesystem operations still need the task whitelist,
+the global root or a matching authorized location, Windows access, and any independent Safety
+gate. Successful expansion also does not prove that the model will call a tool or that the tool
+will succeed. AI Playground and all other taskless surfaces do not perform this expansion.
 
 String form is for steps without explicit arguments:
 

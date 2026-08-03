@@ -70,6 +70,7 @@ public sealed class TasksViewModelTests
             Mock.Of<ITaskStore>(),
             Mock.Of<ITaskSchedulerService>(),
             runnerService.Object,
+            Mock.Of<IRunLogCatalog>(),
             incidentReporter.Object,
             Mock.Of<IDesktopInteractionService>(),
             new WeakReferenceMessenger())
@@ -93,11 +94,97 @@ public sealed class TasksViewModelTests
         viewModel.IsRunning.Should().BeFalse();
     }
 
+    /// <summary>
+    /// Verifies the task grid uses the unified runner logs for its latest-run
+    /// time and status instead of the legacy workflow report index.
+    /// </summary>
+    [Fact]
+    public async Task RefreshUsesLatestUnifiedRunLogForTaskHistory()
+    {
+        var taskStore = new Mock<ITaskStore>();
+        taskStore
+            .Setup(store => store.GetAllAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(
+            [
+                new ScheduledTask
+                {
+                    Id = "demo-task",
+                    Name = "Demo task",
+                    Schedule = "0 9 * * *",
+                    Enabled = false,
+                },
+            ]);
+        var latestStarted = new DateTimeOffset(
+            2026,
+            8,
+            3,
+            10,
+            30,
+            0,
+            TimeSpan.Zero);
+        var runLogCatalog = new Mock<IRunLogCatalog>();
+        runLogCatalog
+            .Setup(static catalog => catalog.GetRuns())
+            .Returns(
+            [
+                new RunLogRunInfo(
+                    @"C:\logs\demo-task\latest.jsonl",
+                    "demo-task",
+                    latestStarted,
+                    latestStarted.AddMinutes(2),
+                    5),
+                new RunLogRunInfo(
+                    @"C:\logs\demo-task\older.jsonl",
+                    "demo-task",
+                    latestStarted.AddDays(-1),
+                    latestStarted.AddDays(-1).AddMinutes(1),
+                    0),
+            ]);
+        var viewModel = new TasksViewModel(
+            taskStore.Object,
+            Mock.Of<ITaskSchedulerService>(),
+            Mock.Of<IRunnerService>(),
+            runLogCatalog.Object,
+            Mock.Of<IIncidentReporter>(),
+            Mock.Of<IDesktopInteractionService>(),
+            new WeakReferenceMessenger());
+
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+
+        viewModel.Tasks.Should().ContainSingle();
+        viewModel.Tasks[0].LastRun.Should().NotBe("Never");
+        viewModel.Tasks[0].LastStatus.Should().Be("Failed (5)");
+    }
+
+    /// <summary>
+    /// Verifies Open folder opens the canonical task-store directory.
+    /// </summary>
+    [Fact]
+    public void OpenFolderUsesCanonicalTasksDirectory()
+    {
+        var desktop = new Mock<IDesktopInteractionService>(MockBehavior.Strict);
+        desktop
+            .Setup(service => service.OpenFolder(LocalAppPaths.TasksDirectory));
+        var viewModel = new TasksViewModel(
+            Mock.Of<ITaskStore>(),
+            Mock.Of<ITaskSchedulerService>(),
+            Mock.Of<IRunnerService>(),
+            Mock.Of<IRunLogCatalog>(),
+            Mock.Of<IIncidentReporter>(),
+            desktop.Object,
+            new WeakReferenceMessenger());
+
+        viewModel.OpenTasksFolderCommand.Execute(null);
+
+        desktop.VerifyAll();
+    }
+
     private static TasksViewModel CreateViewModel() =>
         new(
             Mock.Of<ITaskStore>(),
             Mock.Of<ITaskSchedulerService>(),
             Mock.Of<IRunnerService>(),
+            Mock.Of<IRunLogCatalog>(),
             Mock.Of<IIncidentReporter>(),
             Mock.Of<IDesktopInteractionService>(),
             new WeakReferenceMessenger());

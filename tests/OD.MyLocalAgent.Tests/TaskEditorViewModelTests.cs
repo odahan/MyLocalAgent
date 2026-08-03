@@ -437,4 +437,36 @@ public sealed class TaskEditorViewModelTests
         store.VerifyAll();
     }
 
+    /// <summary>
+    /// Verifies workflow validation raises a short snackbar notification in addition to the
+    /// detailed status line, so the outcome stays visible when the status line is scrolled out.
+    /// </summary>
+    [Theory]
+    [InlineData("[ { \"step\": \"ai.prompt\", \"id\": \"s1\", \"args\": { \"prompt\": \"x\" } } ]", "Validation OK.")]
+    [InlineData("not json", "Invalid workflow.")]
+    public void ValidateWorkflowRaisesAShortNotification(string workflowText, string expected)
+    {
+        var messenger = new StrongReferenceMessenger();
+        var recipient = new object();
+        var notifications = new List<string>();
+        messenger.Register<SnackbarNotificationMessage>(
+            recipient,
+            (_, message) => notifications.Add(message.Message));
+        var viewModel = new TaskEditorViewModel(
+            Mock.Of<ITaskStore>(),
+            Mock.Of<ITaskSchedulerService>(),
+            Mock.Of<IIncidentReporter>(),
+            Mock.Of<IDesktopInteractionService>(),
+            messenger,
+            TimeProvider.System)
+        {
+            WorkflowText = workflowText,
+        };
+
+        viewModel.ValidateWorkflowCommand.Execute(null);
+
+        notifications.Should().ContainSingle().Which.Should().Be(expected);
+        viewModel.ValidationText.Should().NotBeNullOrWhiteSpace();
+    }
+
 }

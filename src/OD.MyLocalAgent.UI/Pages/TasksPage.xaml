@@ -50,11 +50,13 @@
                 <materialDesign:Card Grid.Row="2"
                                      Margin="0,18,0,0"
                                      Padding="0">
-                    <DataGrid AutoGenerateColumns="False"
+                    <DataGrid x:Name="TasksGrid"
+                              AutoGenerateColumns="False"
                               CanUserAddRows="False"
                               CanUserDeleteRows="False"
                               IsReadOnly="True"
                               ItemsSource="{Binding Tasks}"
+                              MouseDoubleClick="OnTasksGridMouseDoubleClick"
                               SelectedItem="{Binding SelectedTask, Mode=TwoWay}"
                               SelectionMode="Single">
                         <DataGrid.Columns>
@@ -104,6 +106,8 @@
                                 Content="Edit" />
                         <Button Command="{Binding EditPromptCommand}"
                                 Content="Prompt" />
+                        <Button Command="{Binding OpenTasksFolderCommand}"
+                                Content="Open Folder" />
                         <Button Command="{Binding DeleteTaskCommand}"
                                 Content="Delete"
                                 Style="{StaticResource DangerButtonStyle}" />

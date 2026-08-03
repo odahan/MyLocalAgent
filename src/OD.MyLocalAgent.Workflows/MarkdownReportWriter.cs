@@ -122,6 +122,22 @@ public sealed class MarkdownReportWriter : IReportWriter
             AppendIndented(builder, result.ErrorMessage);
         }
 
+        if (result.Warnings.Count > 0)
+        {
+            builder.AppendLine();
+            builder.AppendLine("## Warnings");
+            builder.AppendLine();
+            foreach (var warning in result.Warnings)
+            {
+                builder.Append("- `");
+                builder.Append(EscapeInline(warning.Code));
+                builder.Append("` (");
+                builder.Append(warning.OccurrenceCount);
+                builder.Append("): ");
+                builder.AppendLine(EscapeInline(warning.Message));
+            }
+        }
+
         builder.AppendLine();
         builder.AppendLine("## Final output");
         builder.AppendLine();

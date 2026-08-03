@@ -190,9 +190,27 @@ prompt text box, the `includeContext` checkbox, the read-only Safety summary, th
 warning banner, and the Apply / Revert / Cancel commands. Warning banners reuse the existing
 warning callout resources rather than literal colors.
 
-⏳ **Not verified in the GUI.** No local Release UI session was launched for Stage 17, so the
-following remain unchecked human visual verifications: Light and Dark rendering of both
-windows, legibility of the argument table and snippet preview, the warning banner contrast,
+✅ **Verified in the GUI.** A manual operator session covered both windows: Light and Dark
+rendering, legibility of the argument table and snippet preview, the warning banner contrast,
 keyboard focus states and traversal order, the minimum-size and narrow layouts, the
 maximized-window layout, the long-alias and long-prompt overflow behavior, and live theme
-switching while either window is open.
+switching while either window is open. No palette, template, or window-sizing regression was
+observed.
+
+Three post-implementation corrections were applied and visually confirmed in the same session:
+the Insert commands are hidden on the Placeholders tab so only Copy and Close remain, the
+prompt text box wraps with the horizontal scroll bar disabled, and workflow validation raises
+a short snackbar notification in addition to the detailed status line.
+
+## Stage 20 Prompt editor placeholder help and warnings
+
+Prompt editor adds one wrapping help line and one conditional warning callout above the existing
+agent-prompt card. Help uses `MutedTextBrush`; the callout uses `SurfaceBrush` for its background
+and `WarningBrush` for border and text. These are shared semantic dynamic resources present in
+both Light and Dark palettes. No inline color, new brush key, template, page, modal, theme, or
+switcher was added. The warning is non-blocking and does not alter the streamed-output surface.
+
+Release XAML compilation and ViewModel tests verified resource names, bindings, warning lifecycle,
+and command behavior. The application was not launched during the Stage 20 pass, so live contrast,
+wrapping under narrow width, keyboard reading order, and high-contrast behavior in both Light and
+Dark remain explicit manual visual checks.

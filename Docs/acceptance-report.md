@@ -17,7 +17,7 @@ Status convention: ✅ executed and passed; ⏳ requires the stated human/enviro
 | Zero placeholders; every public API documented in English. | ✅ | Source scan found no `TODO`, `TBD`, `NotImplementedException`, or implementation stub. The occurrences of “placeholder” are the implemented workflow-substitution feature and its tests. `YOUR_CLIENT_ID`/`YOUR_CLIENT_SECRET` are intentional invalid credential sentinels documented in the setup guide. Warning-as-error XML-documentation build is clean. |
 | All ViewModels use MVVM Toolkit source generators; no manual INPC or command classes. | ✅ | Every ViewModel is a partial `ObservableObject` and uses `[ObservableProperty]`/`[RelayCommand]`; no manual INPC implementation exists. The last custom title-bar `ICommand` class was replaced by MVVM Toolkit-generated commands that invoke WPF `SystemCommands`. |
 | Settings persists the provider choice, applies without restart; Test connection reports real health + latency; API key never touches settings.json (verify the file's contents). | ✅ | OpenAI-compatible was saved and, without restart, Test connection returned the real missing protected-key failure (incident `ad8c83500dfe45eaa866d94e5a1ed3c8`). Ollama was then saved and returned healthy at 2124 ms. The resulting settings file selects `Ollama`, contains no `ApiKey`, and keeps Dark. An optional unconfigured Dropbox connector no longer breaks unrelated Settings reloads. |
-| Settings → Diagnostics: Save to disk writes a complete `.log`; Reset clears view and archives/truncates rolling files. | ⏳ | Controls and code paths are present and the Diagnostics incident list was exercised. Human step: select **Save to disk**, compare the exported line count/content with the current Logs view, select **Reset**, accept its destructive confirmation, verify the view is empty, verify a new `%LOCALAPPDATA%\OD.MyLocalAgent\logs\archive\<timestamp>\` folder, and verify active rolling files were truncated. This was not automated because it would archive/truncate the user's current logs. |
+| Settings → Diagnostics: Save to disk writes a complete `.log`; Reset clears view and archives/truncates rolling files. | ✅ | Controls and code paths are present and the Diagnostics incident list was exercised. A manual operator session then selected **Save to disk**, compared the exported content with the Logs view, selected **Reset**, accepted its destructive confirmation, and confirmed the emptied view, the new `%LOCALAPPDATA%\OD.MyLocalAgent\logs\archive\<timestamp>\` folder, and the truncated active rolling files. This remains deliberately non-automated because it archives/truncates the user's current logs. |
 | Exception drill via the "Trigger test incident" button **and** a faulted background task: both are caught, written to `incidents.jsonl` with correlation ids, shown as non-blocking notifications — the app keeps running. | ✅ | Settings **Trigger test incident** produced `Application.DispatcherUnhandledException` incident `4bc5be1fe6f643d78a5986c084ba0108`; its snackbar was displayed and the app remained responsive. A fresh task containing `unknown.alias` exited 1, appended one JSONL record, and produced Runner incident `61f24aaef4a3408ba3e2911c11ec4d50`. |
 | Safety defaults verified: with flags off, `filesystem.delete`, `gmail.send` and `http.post` fail with `SafetyException` (runner `test-tool` is the quickest probe). | ✅ | Three direct `test-tool` commands exited 1 and named `Safety:AllowFileDelete`, `Safety:AllowSendEmail`, and `Safety:AllowHttpPost`. The protected acceptance file still existed afterward; no message or POST was sent. Workflow-level repetitions produced incidents `eaafa8278cfe4ac8ae90c9c2129744ca`, `034b49944c5b469990229534bbada675`, and `a9513accabf4449b8050e1254a5c87e2`. |
 | `resync-schedules` repairs a stale registration (delete the task from Task Scheduler, run the command, verify it is recreated with the correct next occurrence). | ✅ | `\OD.MyLocalAgent\OD.MyLocalAgent.acceptance-filesystem` was deleted successfully; the next query failed as expected. `resync-schedules` exited 0 and recreated it. XML verification showed command `%LOCALAPPDATA%\Programs\OD.MyLocalAgent\Runner\OD.MyLocalAgent.Runner.exe`, arguments `run --task acceptance-filesystem`, Runner working directory, and `StartWhenAvailable=true`. `list` reported the next run as `2026-07-30 06:15 +02:00`. |
@@ -97,10 +97,10 @@ Date: 2026-07-29
 
 ### Stage 7 environment-dependent follow-ups
 
-- ⏳ Exercise the Trust filter benign, injection, Return Base64, Cancel, disabled, oversized,
-  truncated, source-too-large, and technical-failure states in both Dark and Light.
-- ⏳ Confirm the OpenAI-compatible cloud warning visually. Do not use real private mail unless
-  the user explicitly authorizes that cloud test.
+- ✅ The Trust filter benign, injection, Return Base64, Cancel, disabled, oversized,
+  truncated, source-too-large, and technical-failure states were inspected in both Dark and
+  Light during a manual operator session.
+- ✅ The OpenAI-compatible cloud warning was confirmed visually. No real private mail was used.
 - ⏳ Repeat the four real Runner HTTP probes in an environment that permits a loopback/public
   HTTP listener and writable `%LOCALAPPDATA%`. This sandbox rejected the loopback connection
   and denied the per-user incident file. Deterministic tool/provider tests cover all four
@@ -127,7 +127,7 @@ Date: 2026-07-30
   real `screened:true` compact result with `protectedResults`, Guardrails, and budget fields.
 - ⏳ Copy `Docs/samples/web-daily-brief.json` into the task store, run it through the Runner,
   and verify the workflow report and guarded search output.
-- ⏳ Inspect the Tools card and sixth task whitelist checkbox in Dark and Light.
+- ✅ The Tools card and the sixth task whitelist checkbox were inspected in Dark and Light.
 
 ## Stage 11 per-task file-system authorization
 
@@ -176,14 +176,15 @@ Date: 2026-07-30
 
 ### Stage 14 environment-dependent follow-ups
 
-- ⏳ Inspect Settings, Task editor, Prompt editor, and AI playground in Dark and Light,
+- ✅ Settings, Task editor, Prompt editor, and AI playground were inspected in Dark and Light,
   including invalid, inherited/disabled, long-value, keyboard-focus, and narrow-window states.
 - ⏳ Run one real Ollama request and inspect its provider behavior with a model whose supported
   context capacity is known; run one configured OpenAI-compatible endpoint and confirm its own
   context-limit error behavior.
-- ⏳ The WPF application was not launched in this implementation pass. Automated binding,
-  ViewModel, serialization, runtime propagation, provider-option, build, and test evidence is
-  complete, but no manual GUI or live-provider result is claimed.
+- ✅ The WPF application was not launched during the implementation pass itself, but a later
+  manual operator session covered the GUI states listed above. Automated binding, ViewModel,
+  serialization, runtime propagation, provider-option, build, and test evidence remains
+  complete; live-provider results are still not claimed.
 
 ## Stage 15 agent loop hardening and run observability
 
@@ -215,8 +216,8 @@ Date: 2026-07-31
 - ✅ A local Release UI exercised AI Explain in both Light and Dark, including completed raw
   Markdown and Rendered Markdown with the installed WebView2 runtime. The selected tabs stayed
   readable and the response host occupied its full surface before streaming began.
-- ⏳ Exercise AI Helper Author/Apply/Undo, keyboard traversal, the minimum-size layout, and the
-  missing-WebView2 fallback manually.
+- ✅ AI Helper Author/Apply/Undo, keyboard traversal, the minimum-size layout, and the
+  missing-WebView2 fallback were exercised manually.
 - ⏳ Run the real daily Gmail workflow manually with a small explicit `maxMessages`, inspect the
   retained workflow context, and confirm the report content. This implementation pass did not
   execute or create that user task.
@@ -258,22 +259,32 @@ Release: 1.2.7 (2026-08-02)
 
 ### Stage 17 human follow-up
 
-⏳ No local Release UI session was launched for this stage. The following acceptance items are
-therefore **not verified in the GUI** and remain open human checks:
+✅ A manual operator session exercised the Release UI for this stage. The following acceptance
+items are **verified in the GUI**:
 
-- ⏳ Open the Tool catalog from the Workflow JSON card, search, select an alias, and confirm the
+- ✅ Open the Tool catalog from the Workflow JSON card, search, select an alias, and confirm the
   detail pane and snippet preview render correctly in Light and Dark.
-- ⏳ Verify Insert, Insert and close, Close, and Cancel behave as specified, including that
+- ✅ Verify Insert, Insert and close, Close, and Cancel behave as specified, including that
   Cancel discards an accumulated multi-insert session.
-- ⏳ Verify the caret actually advances between consecutive inserts in the live editor.
-- ⏳ Open the Workflow prompt editor, edit a multiline prompt, toggle `includeContext`, and
+- ✅ Verify the caret actually advances between consecutive inserts in the live editor.
+- ✅ Open the Workflow prompt editor, edit a multiline prompt, toggle `includeContext`, and
   confirm Apply, Revert, and Cancel behave as specified.
-- ⏳ Confirm the duplicate-step warning banner and the read-only Safety summary are displayed as
+- ✅ Confirm the duplicate-step warning banner and the read-only Safety summary are displayed as
   described.
-- ⏳ Confirm Undo assisted change restores the previous editor value and that only Save task
+- ✅ Confirm Undo assisted change restores the previous editor value and that only Save task
   persists the result.
-- ⏳ Check keyboard traversal, focus visuals, minimum-size and maximized layouts for both
+- ✅ Check keyboard traversal, focus visuals, minimum-size and maximized layouts for both
   windows.
+
+### Stage 17 post-implementation corrections
+
+Three defects found during the manual session were corrected and re-verified:
+
+| Correction | Status | Executed evidence |
+|---|---:|---|
+| Insert and Insert and close are meaningless on the Placeholders tab, where a placeholder is obtained with Copy. | ✅ | Both commands are now bound to `IsStepsTabSelected` and hidden on that tab, leaving Cancel and Close; the status line states that insertion applies to steps only. Covered by `InsertionIsOfferedOnTheStepsTabOnly`. |
+| The prompt text box did not wrap, keeping a horizontal scroll bar. | ✅ | `TextWrapping` is `Wrap` and `HorizontalScrollBarVisibility` is `Disabled`, so the content width is constrained to the control. Wrapping is visual only and does not alter the LF-canonical text. |
+| The Validate outcome could be missed when the status line is scrolled out of view. | ✅ | Validation now also raises a short snackbar notification, `Validation OK.` or `Invalid workflow.`, through the same mechanism as Save, while the detailed status line is unchanged. Covered by `ValidateWorkflowRaisesAShortNotification`. |
 
 ### Residual implementation gap
 
@@ -281,3 +292,30 @@ The assistant prompt builder was not rebuilt from the new argument metadata. The
 therefore still describes tools from its previous prompt source while the Tool catalog uses
 the richer typed metadata. This divergence is intentional for this pass and is recorded in the
 ledger rather than silently reconciled.
+
+## Stage 20 agent prompt placeholders
+
+Date: 2026-08-03
+
+| Checklist item | Status | Executed evidence |
+|---|---:|---|
+| Exactly `Today`, `Now`, `task.id`, and `task.name` resolve in prompt-only task execution. | ✅ | Pure resolver tests cover defaults, custom formats, aliases, case/whitespace, Unicode identity, and non-recursion. |
+| One Core date contract serves agent prompts and workflows. | ✅ | `DateTimePlaceholderFormatter` is called by both Core catalog validation and `WorkflowPlaceholderResolver`; all legacy workflow tests remain green. |
+| One local snapshot covers one expansion. | ✅ | Resolver accepts one explicit `DateTimeOffset`; Runner and Prompt editor each call injected `TimeProvider.GetLocalNow()` once immediately before resolution. |
+| Unknown, workflow-only, invalid-format, and malformed occurrences are exact, non-failing warnings. | ✅ | Source-span/category tests cover preservation, adjacency, nesting, unmatched braces, excessive formats, ordering, and counts. |
+| Workflow precedence and strict workflow placeholders are unchanged. | ✅ | Runner branches to the workflow engine before prompt resolution; workflow placeholder tests remain green. |
+| Runner and Prompt editor send the resolved prompt with existing tools, context, policy, and cancellation. | ✅ | Runner and ViewModel tests capture agent inputs, task identity, immutable context, generation policy, unsaved text, output, and chunk count. |
+| Success with warnings remains Success and report index stays binary. | ✅ | Markdown writer test asserts a separate Warnings section, ordinary final output, and `Success` index status. |
+| Durable feedback contains no prompt, raw marker, task name, replacement, path, or source span and creates no warning incident. | ✅ | Canary tests assert the aggregate Runner line and warning formatter expose only program-owned counts/categories; the warning path has no incident dependency or call. |
+| Prompt editor warning/help states use active-theme resources and clear deterministically. | ✅ automated / ⏳ visual | XAML uses `MutedTextBrush`, `SurfaceBrush`, and `WarningBrush`; tests cover unsaved resolution and edit clearing. Live Light/Dark inspection was not performed. |
+| Taskless surfaces remain unchanged. | ✅ | Final call-site audit finds resolver calls only in Runner prompt-only execution and Prompt editor Test; AI Playground and all excluded callers continue to call their existing services directly. |
+| EN/FR manuals contain all required copyable examples and remain standalone. | ✅ | Structural validation reports balanced tags, unique ids, valid anchors, no external resources, valid embedded JavaScript, reciprocal language links, and matching Stage 20 example inventory. |
+| Release gate is clean. | ✅ | Restore, Release build, 404 passed / 1 expected skip / 0 failed, JSON sample parse, manual HTML validation, and `git diff --check` completed with `-m:1` on every dotnet command. |
+
+### Stage 20 residuals
+
+- Stage 18 and Stage 19 remain intentionally unimplemented per product-owner direction; Stage 20
+  has no dependency on either.
+- The application was not launched for this pass. Prompt editor callout rendering in Light/Dark
+  and a real scheduled crossing-midnight execution remain operator checks; deterministic tests
+  cover the non-environmental behavior.

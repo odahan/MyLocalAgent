@@ -3,9 +3,14 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:behaviors="clr-namespace:OD.MyLocalAgent.UI.Behaviors"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
-    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
-                  VerticalScrollBarVisibility="Auto">
-        <StackPanel>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+            <StackPanel>
             <Grid>
                 <StackPanel>
                     <TextBlock Style="{StaticResource PageTitleStyle}"
@@ -358,14 +363,18 @@
                 </StackPanel>
             </materialDesign:Card>
 
-            <Border Margin="0,16,0,0"
-                    Padding="14"
-                    Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource DividerBrush}"
-                    BorderThickness="1"
-                    CornerRadius="7">
-                <TextBlock Text="{Binding ValidationText}" />
-            </Border>
-        </StackPanel>
-    </ScrollViewer>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Border Grid.Row="1"
+                Margin="0,16,0,0"
+                Padding="14"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource DividerBrush}"
+                BorderThickness="1"
+                CornerRadius="7">
+            <TextBlock Text="{Binding ValidationText}"
+                       TextWrapping="Wrap" />
+        </Border>
+    </Grid>
 </UserControl>

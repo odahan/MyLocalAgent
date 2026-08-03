@@ -93,9 +93,9 @@
                          AcceptsReturn="True"
                          AcceptsTab="True"
                          FontFamily="Consolas"
-                         HorizontalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Disabled"
                          VerticalScrollBarVisibility="Auto"
-                         TextWrapping="NoWrap"
+                         TextWrapping="Wrap"
                          behaviors:TextBoxSelectionBinding.Attach="True"
                          behaviors:TextBoxSelectionBinding.CaretIndex="{Binding DataContext.CaretIndex, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay}"
                          Text="{Binding PromptText, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" />

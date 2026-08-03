@@ -18,6 +18,11 @@ public sealed record WorkflowResult(
     string? ErrorMessage = null)
 {
     /// <summary>
+    /// Gets non-failing content-free warnings observed during execution.
+    /// </summary>
+    public IReadOnlyList<ExecutionWarning> Warnings { get; init; } = [];
+
+    /// <summary>
     /// Gets the total execution duration.
     /// </summary>
     public TimeSpan Duration => EndedUtc - StartedUtc;

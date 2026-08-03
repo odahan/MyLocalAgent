@@ -20,6 +20,7 @@ public sealed partial class PromptEditorViewModel : ObservableObject
     private readonly IIncidentReporter _incidentReporter;
     private readonly IMessenger _messenger;
     private readonly IOptionsMonitor<AIOptions>? _aiOptions;
+    private readonly TimeProvider _timeProvider;
     private string? _requestedTaskId;
     private ScheduledTask? _task;
     private GenerationOptions? _generationOptionsSnapshot;
@@ -57,6 +58,17 @@ public sealed partial class PromptEditorViewModel : ObservableObject
     private string _generationPolicyText =
         "Generation policy has not been resolved.";
 
+    [ObservableProperty]
+    private string _placeholderWarningText = string.Empty;
+
+    [ObservableProperty]
+    private bool _hasPlaceholderWarnings;
+
+    /// <summary>
+    /// Gets concise authoring help derived from the shared prompt-placeholder catalog.
+    /// </summary>
+    public string PlaceholderHelpText => AgentPromptPlaceholderCatalog.HelpText;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="PromptEditorViewModel"/> class.
     /// </summary>
@@ -66,7 +78,8 @@ public sealed partial class PromptEditorViewModel : ObservableObject
         IMyLocalAgentService agentService,
         IIncidentReporter incidentReporter,
         IMessenger messenger,
-        IOptionsMonitor<AIOptions>? aiOptions = null)
+        IOptionsMonitor<AIOptions>? aiOptions = null,
+        TimeProvider? timeProvider = null)
     {
         _taskStore = taskStore;
         _scheduler = scheduler;
@@ -74,6 +87,7 @@ public sealed partial class PromptEditorViewModel : ObservableObject
         _incidentReporter = incidentReporter;
         _messenger = messenger;
         _aiOptions = aiOptions;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <summary>
@@ -115,6 +129,7 @@ public sealed partial class PromptEditorViewModel : ObservableObject
             TaskId = _task.Id;
             TaskName = _task.Name;
             Prompt = _task.Prompt;
+            ClearPlaceholderWarnings();
             UpdateGenerationPolicyText();
             Output = "Test output will stream here.";
             ChunkCount = 0;
@@ -149,7 +164,7 @@ public sealed partial class PromptEditorViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            var updated = _task with { Prompt = Prompt.Trim() };
+            var updated = _task with { Prompt = Prompt };
             ScheduledTaskValidator.Validate(updated);
             await _taskStore
                 .SaveAsync(updated, cancellationToken)
@@ -199,16 +214,30 @@ public sealed partial class PromptEditorViewModel : ObservableObject
         IsStreaming = true;
         Output = string.Empty;
         ChunkCount = 0;
+        ClearPlaceholderWarnings();
         TokenUsageText =
             "Token usage is not reported by the current streaming contract.";
         StatusText = "The agent is generating with the task tool whitelist.";
         try
         {
+            var localNow = _timeProvider.GetLocalNow();
+            var resolution = AgentPromptPlaceholderResolver.Resolve(
+                Prompt,
+                _task.Id,
+                _task.Name,
+                localNow);
+            if (resolution.TotalUnresolvedCount > 0)
+            {
+                PlaceholderWarningText =
+                    AgentPromptPlaceholderWarning.FormatSummary(resolution);
+                HasPlaceholderWarnings = true;
+            }
+
             var generationPolicy = ResolveGenerationPolicy();
             UpdateGenerationPolicyText(generationPolicy);
             await foreach (var chunk in _agentService
                                .RunPromptStreamingAsync(
-                                   Prompt,
+                                   resolution.ResolvedPrompt,
                                    _task.Tools,
                                    ToolExecutionContext.FromTask(_task),
                                    generationPolicy,
@@ -219,11 +248,15 @@ public sealed partial class PromptEditorViewModel : ObservableObject
                 ChunkCount++;
             }
 
-            StatusText = $"Prompt test completed with {ChunkCount} chunk(s).";
+            StatusText = HasPlaceholderWarnings
+                ? $"Prompt test completed with {ChunkCount} chunk(s); {resolution.TotalUnresolvedCount} placeholder occurrence(s) remained unresolved."
+                : $"Prompt test completed with {ChunkCount} chunk(s).";
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            StatusText = $"Prompt test canceled after {ChunkCount} chunk(s).";
+            StatusText = HasPlaceholderWarnings
+                ? $"Prompt test canceled after {ChunkCount} chunk(s); unresolved placeholder warnings remain."
+                : $"Prompt test canceled after {ChunkCount} chunk(s).";
         }
         catch (Exception exception)
         {
@@ -281,5 +314,17 @@ public sealed partial class PromptEditorViewModel : ObservableObject
             $"Temperature {policy.Temperature.ToString("G", CultureInfo.CurrentCulture)} ({policy.TemperatureSource}) · " +
             $"Top P {policy.TopP.ToString("G", CultureInfo.CurrentCulture)} ({policy.TopPSource}) · " +
             $"Context {policy.ContextWindowTokens.ToString("N0", CultureInfo.CurrentCulture)} tokens (Settings)";
+    }
+
+    partial void OnPromptChanged(string value)
+    {
+        _ = value;
+        ClearPlaceholderWarnings();
+    }
+
+    private void ClearPlaceholderWarnings()
+    {
+        PlaceholderWarningText = string.Empty;
+        HasPlaceholderWarnings = false;
     }
 }

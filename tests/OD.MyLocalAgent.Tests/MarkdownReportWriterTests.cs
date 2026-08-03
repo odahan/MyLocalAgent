@@ -107,6 +107,54 @@ public sealed class MarkdownReportWriterTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies non-failing warnings receive a separate section without changing index status.
+    /// </summary>
+    [Fact]
+    public async Task WritesContentFreeWarningsWithoutChangingSuccessStatus()
+    {
+        var started = new DateTimeOffset(2026, 8, 3, 10, 0, 0, TimeSpan.Zero);
+        var result = new WorkflowResult(
+            true,
+            [],
+            "ordinary final output",
+            started,
+            started.AddSeconds(1))
+        {
+            Warnings =
+            [
+                new ExecutionWarning(
+                    AgentPromptPlaceholderWarning.Code,
+                    "Warning: 1 agent prompt placeholder occurrence was left unchanged (1 unknown).",
+                    1),
+            ],
+        };
+        var task = new ScheduledTask
+        {
+            Id = "warning-report",
+            Name = "Warning report",
+            Schedule = "0 7 * * *",
+            Prompt = "prompt",
+            Tools = [],
+        };
+        var writer = new MarkdownReportWriter(_directoryPath, TimeProvider.System);
+
+        var written = await writer.WriteAsync(
+            task,
+            result,
+            "Test",
+            CancellationToken.None);
+
+        written.Markdown.Should().Contain("## Warnings");
+        written.Markdown.Should().Contain(AgentPromptPlaceholderWarning.Code);
+        written.Markdown.Should().Contain("## Final output");
+        written.Markdown.Should().Contain("ordinary final output");
+        using var index = JsonDocument.Parse(
+            (await File.ReadAllLinesAsync(
+                Path.Combine(_directoryPath, "index.jsonl"))).Single());
+        index.RootElement.GetProperty("status").GetString().Should().Be("Success");
+    }
+
+    /// <summary>
     /// Deletes the isolated report directory.
     /// </summary>
     public void Dispose()

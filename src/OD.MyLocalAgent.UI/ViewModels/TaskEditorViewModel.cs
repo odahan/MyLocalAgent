@@ -593,6 +593,7 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
                 });
             ValidationText =
                 $"Workflow is valid ({workflow.Count} step(s)).";
+            _messenger.Send(new SnackbarNotificationMessage("Validation OK."));
         }
         catch (Exception exception)
             when (exception is TaskValidationException or
@@ -600,6 +601,7 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
                 JsonException)
         {
             ValidationText = AddAliasSuggestion(exception.Message);
+            _messenger.Send(new SnackbarNotificationMessage("Invalid workflow."));
         }
     }
 

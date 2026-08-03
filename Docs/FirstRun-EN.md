@@ -28,7 +28,7 @@ MyLocalAgent.
 From the repository root (`E:\OD.MyLocalAgent`):
 
 ```powershell
-dotnet restore
+dotnet restore OD.MyLocalAgent.sln -m:1
 dotnet build OD.MyLocalAgent.sln -m:1 --no-restore --configuration Release
 dotnet test OD.MyLocalAgent.sln -m:1 --no-build --no-restore --configuration Release
 ```
@@ -260,3 +260,28 @@ displayed read-only.
 **Undo assisted change** reverts the last assisted application in one operation,
 whatever its origin, until save or reload. As with any editor change, only
 **Save task** persists the result.
+
+## 12. Authoring a dated prompt-only task
+
+For a saved task with no workflow, MyLocalAgent can expand `{{Today}}`, `{{Now}}`,
+`{{task.id}}`, and `{{task.name}}` immediately before the prompt reaches the agent. For example:
+
+```text
+Create the Markdown report with the filesystem tool at:
+C:\Reports\Sort-{{Today[yyyyMMdd]}}.md
+```
+
+At local execution time `2026-08-03T14:30:25+02:00`, the path becomes
+`C:\Reports\Sort-20260803.md`. Save and schedule registration keep the template unchanged;
+the execution time supplies the date. `{{Now[yyyyMMdd-HHmmss]}}` can add seconds when several
+runs may occur on the same day.
+
+The same expansion is used by scheduled/CLI `run`, UI **Run now**, CLI `test-prompt`, and
+Prompt editor **Test the prompt**, including current unsaved editor text. Replacement is
+single-pass. Unknown or workflow-only markers remain unchanged with a non-failing warning;
+use `{{previous.output}}` only inside a workflow. Durable warning records contain categories
+and counts, not prompt or marker text. AI Playground and other taskless surfaces are unchanged.
+
+A resolved absolute path still requires the task’s File system whitelist and matching
+read-write authorized location, plus Windows access. Placeholder expansion does not guarantee
+that the model will select the tool or that the tool operation will succeed.

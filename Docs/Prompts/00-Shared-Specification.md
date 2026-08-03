@@ -1905,3 +1905,42 @@ Guardrails chunking/dispositions/call counts, native interruption, rollback, con
 privacy canaries. The gate runs restore, Release build/test, UI and Runner publish, JSON/manual
 validation, native published-output smoke tests, and `git diff --check`, with `-m:1` on every
 dotnet command.
+
+## 23. Stage 20 addendum — Agent prompt placeholders
+
+This addendum applies only to task-owned prompt execution without a workflow. It does not
+depend on the Stage 18 compact Guardrails pipeline or the Stage 19 SQLite tool, and it changes
+neither workflow placeholder resolution nor any taskless provider surface.
+
+### 23.1 Scope and supported values
+
+Scheduled/CLI `run`, UI **Run now** through that Runner path, CLI `test-prompt`, and Prompt
+editor **Test the prompt** resolve exactly `Today`, `Now`, `task.id`, and `task.name` before
+the agent receives the prompt. `Today` and `Now` accept the same invariant custom .NET formats
+and filename aliases as workflows. One `TimeProvider.GetLocalNow()` snapshot covers every
+date/time occurrence in one expansion. Save and schedule registration retain the original
+template; replacement is single-pass and never scans inserted task identity text.
+
+### 23.2 Preservation, warnings, and privacy
+
+Unknown markers, workflow-only markers, invalid date/time formats, and malformed double braces
+remain character-for-character unchanged and do not fail or skip agent execution. The resolver
+returns ordered content-free source-span descriptors classified as `Unknown`, `WorkflowOnly`,
+`InvalidDateTimeFormat`, or `MalformedBraces`. Runner and Markdown reports carry one aggregate
+warning with the stable code `AGENT_PROMPT_PLACEHOLDERS_UNRESOLVED`; success remains success and
+the report index remains `Success|Failure` only.
+
+Durable warnings contain program-owned codes, categories, and counts only. They never contain
+the original or resolved prompt, raw marker bodies, source spans, task names, replacement values,
+or expanded paths, and they never create incidents. Prompt editor retains its aggregate warning
+in memory until edit, reload, or another test, independently of streamed model output.
+
+### 23.3 Shared date contract and unchanged surfaces
+
+Core owns the single date/time parser, alias normalization, validation, and invariant formatter
+used by both the workflow resolver and the prompt-only resolver. Workflow markers remain strict,
+resolve only in workflow step strings with declaration-order context, and retain their established
+failure policy. A task with a non-empty workflow never pre-expands its saved prompt. AI Playground,
+Tool tester, AI Workflow Helper/Explain, Guardrails, skills, workflow `ai.prompt`, and health calls
+remain outside prompt-only expansion. Placeholder expansion grants no tool group, filesystem
+authorization, Safety permission, connector access, Windows right, or model/tool success.

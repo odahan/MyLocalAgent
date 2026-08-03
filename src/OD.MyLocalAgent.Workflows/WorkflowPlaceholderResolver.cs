@@ -1,12 +1,11 @@
 using System.Buffers;
-using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using OD.MyLocalAgent.Core;
 
 namespace OD.MyLocalAgent.Workflows;
 
-internal static partial class WorkflowPlaceholderResolver
+internal static class WorkflowPlaceholderResolver
 {
     public static JsonElement ResolveArguments(
         JsonElement arguments,
@@ -189,27 +188,22 @@ internal static partial class WorkflowPlaceholderResolver
         DateTimeOffset localNow,
         out string value)
     {
-        var match = DateTimePlaceholderPattern().Match(placeholder);
-        if (!match.Success)
+        var result = DateTimePlaceholderFormatter.Resolve(
+            placeholder,
+            localNow);
+        if (result.Status == DateTimePlaceholderStatus.NotRecognized)
         {
             value = string.Empty;
             return false;
         }
 
-        var name = match.Groups["name"].Value;
-        var format = match.Groups["format"].Success
-            ? WorkflowPlaceholderCatalog.NormalizeDateTimeFormat(
-                match.Groups["format"].Value)
-            : string.Equals(name, "Today", StringComparison.OrdinalIgnoreCase)
-                ? "yyyy-MM-dd"
-                : "yyyy-MM-ddTHH:mm:sszzz";
-        if (string.IsNullOrWhiteSpace(format) || format.Length > 100)
+        if (result.Status == DateTimePlaceholderStatus.InvalidFormat)
         {
             throw new FormatException(
-                $"Workflow date/time placeholder '{placeholder}' has an invalid format.");
+                "Workflow date/time placeholder has an invalid format.");
         }
 
-        value = localNow.ToString(format, CultureInfo.InvariantCulture);
+        value = result.Value!;
         return true;
     }
 
@@ -306,10 +300,4 @@ internal static partial class WorkflowPlaceholderResolver
         value = default;
         return false;
     }
-
-    [System.Text.RegularExpressions.GeneratedRegex(
-        @"^(?<name>Today|Now)(?:\[(?<format>[^\[\]]*)\])?$",
-        System.Text.RegularExpressions.RegexOptions.CultureInvariant |
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase)]
-    private static partial System.Text.RegularExpressions.Regex DateTimePlaceholderPattern();
 }

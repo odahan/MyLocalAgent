@@ -6,6 +6,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="0.9*" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="1.1*" />
@@ -42,7 +43,25 @@
                      IsIndeterminate="True"
                      Visibility="{Binding IsStreaming, Converter={StaticResource BooleanToVisibilityConverter}}" />
 
-        <materialDesign:Card Grid.Row="2"
+        <StackPanel Grid.Row="2"
+                    Margin="0,12,0,0">
+            <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                       Text="{Binding PlaceholderHelpText}"
+                       TextWrapping="Wrap" />
+            <Border Margin="0,8,0,0"
+                    Padding="10"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource WarningBrush}"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Visibility="{Binding HasPlaceholderWarnings, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <TextBlock Foreground="{DynamicResource WarningBrush}"
+                           Text="{Binding PlaceholderWarningText}"
+                           TextWrapping="Wrap" />
+            </Border>
+        </StackPanel>
+
+        <materialDesign:Card Grid.Row="3"
                              Margin="0,18,0,0">
             <Grid>
                 <Grid.RowDefinitions>
@@ -60,7 +79,7 @@
             </Grid>
         </materialDesign:Card>
 
-        <Grid Grid.Row="3"
+        <Grid Grid.Row="4"
               Margin="0,14,0,14">
             <StackPanel>
                 <TextBlock Text="{Binding StatusText}" />
@@ -78,7 +97,7 @@
             </StackPanel>
         </Grid>
 
-        <materialDesign:Card Grid.Row="4">
+        <materialDesign:Card Grid.Row="5">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />

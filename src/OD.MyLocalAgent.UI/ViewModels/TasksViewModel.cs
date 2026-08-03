@@ -1,7 +1,5 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
-using System.IO;
-using System.Text.Json;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -20,15 +18,10 @@ public sealed partial class TasksViewModel :
     IActivatablePage,
     IRecipient<TaskSavedMessage>
 {
-    private static readonly JsonSerializerOptions ReportJsonOptions =
-        new(JsonSerializerDefaults.Web)
-        {
-            PropertyNameCaseInsensitive = true,
-        };
-
     private readonly ITaskStore _taskStore;
     private readonly ITaskSchedulerService _scheduler;
     private readonly IRunnerService _runnerService;
+    private readonly IRunLogCatalog _runLogCatalog;
     private readonly IIncidentReporter _incidentReporter;
     private readonly IDesktopInteractionService _desktopInteraction;
     private readonly IMessenger _messenger;
@@ -80,6 +73,7 @@ public sealed partial class TasksViewModel :
         ITaskStore taskStore,
         ITaskSchedulerService scheduler,
         IRunnerService runnerService,
+        IRunLogCatalog runLogCatalog,
         IIncidentReporter incidentReporter,
         IDesktopInteractionService desktopInteraction,
         IMessenger messenger)
@@ -88,6 +82,7 @@ public sealed partial class TasksViewModel :
         _taskStore = taskStore;
         _scheduler = scheduler;
         _runnerService = runnerService;
+        _runLogCatalog = runLogCatalog;
         _incidentReporter = incidentReporter;
         _desktopInteraction = desktopInteraction;
         _messenger = messenger;
@@ -141,8 +136,7 @@ public sealed partial class TasksViewModel :
             var persistedTasks = await _taskStore
                 .GetAllAsync(cancellationToken)
                 .ConfigureAwait(true);
-            var reports = await ReadLatestReportsAsync(cancellationToken)
-                .ConfigureAwait(true);
+            var latestRuns = GetLatestRunsByTask();
             var rows = new List<TaskListItem>(persistedTasks.Count);
             foreach (var task in persistedTasks)
             {
@@ -151,7 +145,7 @@ public sealed partial class TasksViewModel :
                         .GetNextRunAsync(task.Id, cancellationToken)
                         .ConfigureAwait(true)
                     : null;
-                reports.TryGetValue(task.Id, out var report);
+                latestRuns.TryGetValue(task.Id, out var latestRun);
                 rows.Add(
                     new TaskListItem(
                         task.Id,
@@ -160,10 +154,10 @@ public sealed partial class TasksViewModel :
                         nextRun?.ToLocalTime().ToString(
                             "g",
                             CultureInfo.InvariantCulture) ?? "—",
-                        report?.StartedUtc.ToLocalTime().ToString(
+                        latestRun?.StartedUtc.ToLocalTime().ToString(
                             "g",
                             CultureInfo.InvariantCulture) ?? "Never",
-                        report?.Status ?? "—",
+                        FormatRunStatus(latestRun),
                         task.Enabled,
                         _scheduler.IsRegistered(task.Id)));
             }
@@ -221,6 +215,10 @@ public sealed partial class TasksViewModel :
             _messenger.Send(new EditPromptMessage(SelectedTask.Id));
         }
     }
+
+    [RelayCommand]
+    private void OpenTasksFolder() =>
+        _desktopInteraction.OpenFolder(LocalAppPaths.TasksDirectory);
 
     [RelayCommand(CanExecute = nameof(CanUseSelection))]
     private async Task DeleteTaskAsync(CancellationToken cancellationToken)
@@ -515,54 +513,28 @@ public sealed partial class TasksViewModel :
         }
     }
 
-    private static async Task<IReadOnlyDictionary<string, ReportIndexLine>>
-        ReadLatestReportsAsync(CancellationToken cancellationToken)
+    private IReadOnlyDictionary<string, RunLogRunInfo> GetLatestRunsByTask()
     {
-        var reports = new Dictionary<string, ReportIndexLine>(
+        var latestRuns = new Dictionary<string, RunLogRunInfo>(
             StringComparer.OrdinalIgnoreCase);
-        var path = Path.Combine(
-            LocalAppPaths.ApplicationDataDirectory,
-            "reports",
-            "index.jsonl");
-        if (!File.Exists(path))
+        foreach (var run in _runLogCatalog.GetRuns())
         {
-            return reports;
+            _ = latestRuns.TryAdd(run.TaskId, run);
         }
 
-        await using var stream = new FileStream(
-            path,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.ReadWrite | FileShare.Delete,
-            4096,
-            FileOptions.Asynchronous | FileOptions.SequentialScan);
-        using var reader = new StreamReader(stream);
-        while (await reader
-                   .ReadLineAsync(cancellationToken)
-                   .ConfigureAwait(true) is { } line)
-        {
-            if (string.IsNullOrWhiteSpace(line))
-            {
-                continue;
-            }
-
-            try
-            {
-                var report = JsonSerializer.Deserialize<ReportIndexLine>(
-                    line,
-                    ReportJsonOptions);
-                if (report is not null)
-                {
-                    reports[report.TaskId] = report;
-                }
-            }
-            catch (JsonException)
-            {
-            }
-        }
-
-        return reports;
+        return latestRuns;
     }
+
+    private static string FormatRunStatus(RunLogRunInfo? run) =>
+        run switch
+        {
+            null => "Never run",
+            { EndedUtc: null } or { ExitCode: null } => "In progress",
+            { ExitCode: 0 } => "Success",
+            _ => string.Create(
+                CultureInfo.InvariantCulture,
+                $"Failed ({run.ExitCode})"),
+        };
 
     private void OnTasksChanged(
         object? sender,
@@ -594,10 +566,4 @@ public sealed partial class TasksViewModel :
             .ConfigureAwait(true);
     }
 
-    private sealed record ReportIndexLine(
-        string TaskId,
-        DateTimeOffset StartedUtc,
-        long DurationMs,
-        string Status,
-        string ReportPath);
 }

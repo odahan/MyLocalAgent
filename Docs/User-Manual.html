@@ -2150,6 +2150,15 @@ ollama list</code></pre>
                     confirmation.
                 </p>
                 <p>
+                    Les commandes <span class="ui-label">Insert</span> et
+                    <span class="ui-label">Insert and close</span> ne concernent que l’onglet
+                    <span class="ui-label">Steps</span> et sont donc masquées sur l’onglet
+                    <span class="ui-label">Placeholders</span>, où un placeholder se récupère
+                    uniquement avec <span class="ui-label">Copy</span> vers le presse-papiers.
+                    Sur cet onglet, <span class="ui-label">Close</span> est la seule sortie
+                    conservant les insertions déjà accumulées.
+                </p>
+                <p>
                     Le curseur détermine la position : à l’intérieur d’un élément l’insertion se
                     fait après celui-ci, entre deux éléments après celui de gauche, avant le
                     premier à l’index 0, après le dernier en ajout final. Si le JSON n’est pas
@@ -2283,7 +2292,101 @@ ollama list</code></pre>
 ]</code></pre>
                 </div>
 
-                <h3>Étapes, sorties et placeholders</h3>
+                <h3>Placeholders du prompt agentique (tâches sans workflow)</h3>
+                <p>
+                    Pour une tâche enregistrée dont le workflow est vide, MyLocalAgent remplace
+                    exactement <code>{{Today}}</code>, <code>{{Now}}</code>,
+                    <code>{{task.id}}</code> et <code>{{task.name}}</code> avant que le prompt
+                    atteigne le modèle. Cela s’applique à <code>run</code> planifié/CLI,
+                    <span class="ui-label">Run now</span>, <code>test-prompt</code> et
+                    <span class="ui-label">Test the prompt</span> dans l’éditeur, y compris au texte
+                    courant non sauvegardé. La date et l’heure proviennent d’un unique instantané de
+                    l’horloge Windows locale injectée, pris au moment de l’exécution.
+                </p>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Forme sans workflow</th><th>Valeur résolue</th></tr></thead>
+                        <tbody>
+                            <tr><td><code>{{Today}}</code> / <code>{{Today[format]}}</code></td><td>Date locale, <code>yyyy-MM-dd</code> par défaut, ou format .NET personnalisé invariant.</td></tr>
+                            <tr><td><code>{{Now}}</code> / <code>{{Now[format]}}</code></td><td>Date/heure locale, <code>yyyy-MM-ddTHH:mm:sszzz</code> par défaut, ou format .NET personnalisé invariant.</td></tr>
+                            <tr><td><code>{{task.id}}</code></td><td>Id exact de la tâche enregistrée.</td></tr>
+                            <tr><td><code>{{task.name}}</code></td><td>Nom exact de la tâche enregistrée.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h4>Nom de rapport daté</h4>
+                <div class="code-block">
+                    <pre><code>Create the Markdown report with the filesystem tool at:
+C:\Reports\Sort-{{Today[yyyyMMdd]}}.md
+
+À 2026-08-03T14:30:25+02:00, MyLocalAgent envoie :
+C:\Reports\Sort-20260803.md</code></pre>
+                </div>
+
+                <h4>Nom résistant aux collisions</h4>
+                <div class="code-block">
+                    <pre><code>Write the report to reports/Sort-{{Now[yyyyMMdd-HHmmss]}}.md.
+
+À 2026-08-03T14:30:25+02:00, le nom est :
+Sort-20260803-143025.md</code></pre>
+                </div>
+
+                <h4>Identité de la tâche</h4>
+                <div class="code-block">
+                    <pre><code>Include task id {{task.id}} and task name {{task.name}} in the report heading.</code></pre>
+                </div>
+
+                <h4>Marqueur inconnu : conservé avec un warning</h4>
+                <div class="code-block">
+                    <pre><code>Create a greeting for {{customer_name}}.</code></pre>
+                </div>
+                <p>
+                    MyLocalAgent envoie <code>{{customer_name}}</code> sans modification et continue
+                    avec un warning non bloquant. Le modèle peut interpréter ce texte non résolu de
+                    manière imprévisible ; la conservation décrit uniquement ce que l’application a
+                    envoyé. Les warnings durables contiennent un code applicatif, des catégories et
+                    des compteurs agrégés, jamais le marqueur brut, le prompt, le nom de tâche, la
+                    valeur remplacée ou le chemin produit.
+                </p>
+
+                <h4><code>{{previous.output}}</code> appartient aux workflows</h4>
+                <div class="code-block">
+                    <pre><code>Summarize {{previous.output}}.</code></pre>
+                </div>
+                <p>
+                    Dans une tâche sans workflow, ce marqueur reste inchangé avec un warning
+                    workflow-only. Le concept équivalent valide est un workflow ordonné dans lequel
+                    une étape précédente a produit une sortie :
+                </p>
+                <div class="code-block">
+                    <pre><code>[
+  "gmail.readToday",
+  {
+    "step": "ai.prompt",
+    "args": { "prompt": "Summarize {{previous.output}}." }
+  }
+]</code></pre>
+                </div>
+                <p>
+                    La sauvegarde stocke le modèle original, l’enregistrement du planning le laisse
+                    également intact, et seule l’exécution fournit l’identité, la date et l’heure
+                    locales. La substitution se fait en une seule passe, sans récursion : si le nom
+                    enregistré de la tâche contient lui-même <code>{{Today}}</code>, ce texte inséré
+                    reste littéral. Un chemin de fichier résolu exige toujours le groupe d’outils de
+                    la tâche, une autorisation read-write correspondante, les droits Windows et tout
+                    réglage Safety indépendant. Une expansion réussie est indépendante du choix d’un
+                    outil par le modèle et de la réussite de cet outil.
+                </p>
+                <p>
+                    Les workflows conservent le jeu plus large de placeholders porteurs de données
+                    présenté ci-dessous et leur comportement d’échec strict. Une tâche avec un
+                    workflow non vide ne pré-résout pas son prompt enregistré. AI Playground, Tool
+                    tester, AI Workflow Helper/Explain, Guardrails, skills, <code>ai.prompt</code> de
+                    workflow et les autres surfaces sans tâche ne reçoivent pas cette expansion.
+                </p>
+
+                <h3>Étapes, sorties et placeholders de workflow</h3>
                 <p>
                     Une étape sous forme de chaîne ne prend aucun argument. La forme objet accepte
                     <code>step</code>, <code>id</code>, <code>args</code> et une politique d’erreur.

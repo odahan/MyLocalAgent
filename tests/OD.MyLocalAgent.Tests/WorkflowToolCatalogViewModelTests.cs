@@ -144,6 +144,26 @@ public sealed class WorkflowToolCatalogViewModelTests
         item.Matches(null).Should().BeTrue();
     }
 
+    /// <summary>
+    /// Verifies insertion is offered on the Steps tab only, because the Placeholders tab exposes
+    /// explicit clipboard copy instead of workflow insertion.
+    /// </summary>
+    [Fact]
+    public void InsertionIsOfferedOnTheStepsTabOnly()
+    {
+        var viewModel = Create();
+
+        viewModel.SelectedTabIndex.Should().Be(0);
+        viewModel.IsStepsTabSelected.Should().BeTrue();
+
+        viewModel.SelectedTabIndex = 1;
+        viewModel.IsStepsTabSelected.Should().BeFalse();
+        viewModel.StatusText.Should().Contain("clipboard");
+
+        viewModel.SelectedTabIndex = 0;
+        viewModel.IsStepsTabSelected.Should().BeTrue();
+    }
+
     private static WorkflowToolCatalogItem Select(
         WorkflowToolCatalogViewModel viewModel,
         string alias) =>

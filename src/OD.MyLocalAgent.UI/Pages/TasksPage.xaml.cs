@@ -1,5 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using OD.MyLocalAgent.UI.ViewModels;
 
@@ -20,6 +22,26 @@ public partial class TasksPage : UserControl
     public TasksPage()
     {
         InitializeComponent();
+    }
+
+    private void OnTasksGridMouseDoubleClick(
+        object sender,
+        MouseButtonEventArgs e)
+    {
+        var row = FindVisualParent<DataGridRow>(
+            e.OriginalSource as DependencyObject);
+        if (row?.Item is not TaskListItem item ||
+            DataContext is not TasksViewModel viewModel)
+        {
+            return;
+        }
+
+        viewModel.SelectedTask = item;
+        if (viewModel.EditTaskCommand.CanExecute(null))
+        {
+            viewModel.EditTaskCommand.Execute(null);
+            e.Handled = true;
+        }
     }
 
     private void OnRunnerOutputTextChanged(
@@ -123,5 +145,21 @@ public partial class TasksPage : UserControl
                 "PART_ContentHost",
                 RunnerOutputTextBox) as ScrollViewer;
         return _runnerOutputScrollViewer;
+    }
+
+    private static T? FindVisualParent<T>(DependencyObject? child)
+        where T : DependencyObject
+    {
+        while (child is not null)
+        {
+            if (child is T parent)
+            {
+                return parent;
+            }
+
+            child = VisualTreeHelper.GetParent(child);
+        }
+
+        return null;
     }
 }

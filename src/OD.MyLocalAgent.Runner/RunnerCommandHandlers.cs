@@ -306,7 +306,6 @@ internal static class RunnerCommandHandlers
         TextWriter output,
         CancellationToken cancellationToken)
     {
-        var timeProvider = services.GetRequiredService<TimeProvider>();
         var reportWriter = services.GetRequiredService<IReportWriter>();
         var configuration = services.GetRequiredService<IConfiguration>();
         var providerName = configuration["AI:Provider"] ?? "Unknown";
@@ -327,41 +326,14 @@ internal static class RunnerCommandHandlers
         }
         else
         {
-            var startedUtc = timeProvider.GetUtcNow();
-            try
-            {
-                var agent = services.GetRequiredService<IMyLocalAgentService>();
-                var generationPolicy = GenerationPolicyResolver.Resolve(
-                    services
-                        .GetRequiredService<IOptionsMonitor<AIOptions>>()
-                        .CurrentValue.GenerationDefaults,
-                    task.GenerationOptions);
-                var agentResult = await agent.RunPromptAsync(
-                    task.Prompt,
-                    task.Tools,
-                    ToolExecutionContext.FromTask(task),
-                    generationPolicy,
-                    cancellationToken).ConfigureAwait(false);
-                providerName = agentResult.ProviderName;
-                result = new WorkflowResult(
-                    true,
-                    [],
-                    agentResult.Text,
-                    startedUtc,
-                    timeProvider.GetUtcNow());
-            }
-            catch (Exception exception) when (
-                exception is not OperationCanceledException)
-            {
-                error = exception;
-                result = new WorkflowResult(
-                    false,
-                    [],
-                    string.Empty,
-                    startedUtc,
-                    timeProvider.GetUtcNow(),
-                    exception.Message);
-            }
+            var promptOutcome = await ExecutePromptOnlyAsync(
+                services,
+                task,
+                output,
+                cancellationToken).ConfigureAwait(false);
+            result = promptOutcome.Result;
+            providerName = promptOutcome.ProviderName;
+            error = promptOutcome.Error;
         }
 
         var report = await reportWriter.WriteAsync(
@@ -370,6 +342,84 @@ internal static class RunnerCommandHandlers
             providerName,
             cancellationToken).ConfigureAwait(false);
         return new ExecutionOutcome(result, report, error);
+    }
+
+    private static async Task<PromptExecutionOutcome> ExecutePromptOnlyAsync(
+        IServiceProvider services,
+        ScheduledTask task,
+        TextWriter output,
+        CancellationToken cancellationToken)
+    {
+        var timeProvider = services.GetRequiredService<TimeProvider>();
+        var startedUtc = timeProvider.GetUtcNow();
+        var localNow = timeProvider.GetLocalNow();
+        var resolution = AgentPromptPlaceholderResolver.Resolve(
+            task.Prompt,
+            task.Id,
+            task.Name,
+            localNow);
+        var warningMessage = AgentPromptPlaceholderWarning.FormatSummary(resolution);
+        IReadOnlyList<ExecutionWarning> warnings = warningMessage.Length == 0
+            ? []
+            :
+            [
+                new ExecutionWarning(
+                    AgentPromptPlaceholderWarning.Code,
+                    warningMessage,
+                    resolution.TotalUnresolvedCount),
+            ];
+        if (warningMessage.Length > 0)
+        {
+            output.WriteLine(warningMessage);
+        }
+
+        var providerName = services.GetRequiredService<IConfiguration>()["AI:Provider"] ??
+            "Unknown";
+        try
+        {
+            var agent = services.GetRequiredService<IMyLocalAgentService>();
+            var generationPolicy = GenerationPolicyResolver.Resolve(
+                services
+                    .GetRequiredService<IOptionsMonitor<AIOptions>>()
+                    .CurrentValue.GenerationDefaults,
+                task.GenerationOptions);
+            var agentResult = await agent.RunPromptAsync(
+                resolution.ResolvedPrompt,
+                task.Tools,
+                ToolExecutionContext.FromTask(task),
+                generationPolicy,
+                cancellationToken).ConfigureAwait(false);
+            providerName = agentResult.ProviderName;
+            return new PromptExecutionOutcome(
+                new WorkflowResult(
+                    true,
+                    [],
+                    agentResult.Text,
+                    startedUtc,
+                    timeProvider.GetUtcNow())
+                {
+                    Warnings = warnings,
+                },
+                providerName,
+                null);
+        }
+        catch (Exception exception) when (
+            exception is not OperationCanceledException)
+        {
+            return new PromptExecutionOutcome(
+                new WorkflowResult(
+                    false,
+                    [],
+                    string.Empty,
+                    startedUtc,
+                    timeProvider.GetUtcNow(),
+                    exception.Message)
+                {
+                    Warnings = warnings,
+                },
+                providerName,
+                exception);
+        }
     }
 
     private static async Task<int> ReportFailureAsync(
@@ -444,5 +494,10 @@ internal static class RunnerCommandHandlers
     private sealed record ExecutionOutcome(
         WorkflowResult Result,
         ReportWriteResult Report,
+        Exception? Error);
+
+    private sealed record PromptExecutionOutcome(
+        WorkflowResult Result,
+        string ProviderName,
         Exception? Error);
 }

@@ -257,10 +257,12 @@
                 <Button Command="{Binding CloseCommand}"
                         Content="Close" />
                 <Button Command="{Binding InsertCommand}"
-                        Content="Insert" />
+                        Content="Insert"
+                        Visibility="{Binding IsStepsTabSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 <Button Command="{Binding InsertAndCloseCommand}"
                         Content="Insert and close"
-                        Style="{StaticResource PrimaryButtonStyle}" />
+                        Style="{StaticResource PrimaryButtonStyle}"
+                        Visibility="{Binding IsStepsTabSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
             </StackPanel>
         </Grid>
     </Grid>
