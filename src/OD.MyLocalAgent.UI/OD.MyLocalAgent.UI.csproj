@@ -49,9 +49,24 @@
   <Target Name="CopyRunnerBesideUi"
           AfterTargets="Build"
           Condition="'$(Configuration)' == 'Debug'">
+    <MSBuild Projects="..\OD.MyLocalAgent.Runner\OD.MyLocalAgent.Runner.csproj"
+             Targets="Build"
+             Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="RunnerTargetOutput" />
+    </MSBuild>
+
+    <PropertyGroup>
+      <RunnerOutputDir>%(RunnerTargetOutput.RootDir)%(RunnerTargetOutput.Directory)</RunnerOutputDir>
+    </PropertyGroup>
+
     <ItemGroup>
-      <RunnerFiles Include="..\OD.MyLocalAgent.Runner\bin\$(Configuration)\net10.0\win-x64\**\*" />
+      <RunnerFiles Include="$(RunnerOutputDir)**\*" />
+      <!-- A runner copied straight into the UI output would win over the ..\Runner
+           probe in RunnerPathResolver and could go stale, so it is removed. -->
+      <StaleRunnerFiles Include="$(TargetDir)OD.MyLocalAgent.Runner.*" />
     </ItemGroup>
+
+    <Delete Files="@(StaleRunnerFiles)" />
     <Copy SourceFiles="@(RunnerFiles)"
           DestinationFolder="$(TargetDir)..\Runner\%(RecursiveDir)"
           SkipUnchangedFiles="true" />
