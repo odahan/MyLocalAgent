@@ -55,7 +55,7 @@
                             CornerRadius="6"
                             Visibility="{Binding IsOpenAIProvider, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <TextBlock Foreground="{DynamicResource WarningBrush}"
-                                   Text="Cloud warning: prompts and relevant context are sent to the configured OpenAI-compatible endpoint. Guardrail screening and complete-source summarization also send Gmail and HTTP content, including every oversized-source chunk." />
+                                   Text="Cloud warning: prompts and relevant context are sent to the configured OpenAI-compatible endpoint. Guardrails also send compact Gmail/HTTP projections and generated summaries. Text omitted by deterministic projection is not sent." />
                     </Border>
 
                     <Border Margin="0,18,0,0"
@@ -356,7 +356,7 @@
                               IsChecked="{Binding GuardrailsScreeningEnabled, Mode=TwoWay}" />
                     <TextBlock Margin="24,2,0,0"
                                Style="{StaticResource CaptionTextStyle}"
-                               Text="Turning this off does not disable protection. Normal-size Gmail and HTTP content uses marked Base64; oversized Gmail bodies are replaced with a review notice and oversized HTTP pages are skipped."
+                               Text="Turning this off does not disable protection. Gmail and HTTP use bounded projected headers or review markers in marked Base64, with no raw fallback."
                                TextWrapping="Wrap" />
 
                     <Grid Margin="0,16,0,0">
@@ -390,7 +390,7 @@
                               IsChecked="{Binding GuardrailsSummarizeOversizedContent, Mode=TwoWay}" />
                     <TextBlock Margin="24,2,0,0"
                                Style="{StaticResource CaptionTextStyle}"
-                               Text="Reduction covers every source character through sequential calls and can materially increase latency. Sources above the safe maximum are never partially summarized."
+                               Text="This compatibility setting controls complete-source reduction for the Trust filter and direct callers. Gmail and HTTP GET use deterministic compact projections instead."
                                TextWrapping="Wrap" />
 
                     <Grid Margin="0,16,0,0">

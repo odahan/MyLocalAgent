@@ -104,12 +104,12 @@ public sealed class HttpToolTests
     }
 
     /// <summary>
-    /// Verifies oversized sources above the safe limit are skipped without leaking content.
+    /// Verifies http.get delivers one bounded compact prefix without summarization.
     /// </summary>
     [Fact]
-    public async Task OversizedSourceAboveSafeLimitReturnsSkipMarker()
+    public async Task OversizedSourceReturnsProtectedCompactPrefix()
     {
-        var source = new string('q', 500);
+        var source = new string('q', 5_000);
         var handler = new StubHttpMessageHandler(
             (_, _) => Task.FromResult(
                 new HttpResponseMessage(HttpStatusCode.OK)
@@ -119,24 +119,12 @@ public sealed class HttpToolTests
                         Encoding.UTF8,
                         "text/plain"),
                 }));
-        var trustService = new StubContentTrustService
-        {
-            SummarizeHandler = (content, _, _) => Task.FromResult(
-                new ContentSummaryResult(
-                    ContentSummaryStatus.SourceTooLarge,
-                    string.Empty,
-                    content.Length,
-                    0,
-                    null,
-                    [],
-                    "Disabled",
-                    0)),
-        };
+        var trustService = new StubContentTrustService();
         var guardrails = new GuardrailsOptions
         {
-            MaxContentChars = 100,
-            MaxSummaryChars = 50,
-            MaxSummarizationSourceChars = 200,
+            MaxContentChars = 2_048,
+            MaxSummaryChars = 256,
+            MaxSummarizationSourceChars = 6_000,
         };
         var tool = CreateTool(
             handler,
@@ -151,22 +139,22 @@ public sealed class HttpToolTests
 
         using var document = JsonDocument.Parse(json);
         document.RootElement.GetProperty("contentProcessingStatus").GetString()
-            .Should().Be("SkippedTooLarge");
+            .Should().Be("CompactPrefix");
         document.RootElement.GetProperty("body").GetString()
-            .Should().Be(
-                "[HTTP PAGE NOT PROCESSED BY GUARDRAILS: content exceeded the safe summarization limit.]");
-        document.RootElement.GetProperty("requiresHumanReview").GetBoolean()
+            .Should().Contain("characters omitted");
+        document.RootElement.GetProperty("projectionWasTruncated").GetBoolean()
             .Should().BeTrue();
-        json.Should().NotContain(new string('q', 20));
+        trustService.SummarizedContents.Should().BeEmpty();
+        trustService.CompactBatches.Should().BeEmpty();
     }
 
     /// <summary>
-    /// Verifies technical reduction failure is reported once and the HTTP call still succeeds.
+    /// Verifies a compact getText phase failure is reported once and returns a review marker.
     /// </summary>
     [Fact]
     public async Task SummarizationFailureIsReportedOnceAndReturnsSkipMarker()
     {
-        var source = new string('r', 500);
+        var source = new string('r', 5_000);
         var handler = new StubHttpMessageHandler(
             (_, _) => Task.FromResult(
                 new HttpResponseMessage(HttpStatusCode.OK)
@@ -175,18 +163,30 @@ public sealed class HttpToolTests
                 }));
         var trustService = new StubContentTrustService
         {
-            SummarizeHandler = (_, _, _) =>
-                Task.FromException<ContentSummaryResult>(
-                    new GuardrailSummarizationException(
-                        "Safe reduction failure.",
-                        new InvalidOperationException("provider failure"))),
+            CompactHandler = (items, _) =>
+            {
+                var exception = new CompactExternalContentPhaseException(
+                    "Summarization", "Stub", "test-model", 1, 5);
+                return Task.FromResult(
+                    new CompactExternalContentBatchResult(
+                        [new CompactExternalContentResult(
+                            items[0].Id,
+                            null,
+                            Trust(items[0].Content, 95),
+                            null,
+                            CompactExternalContentStatus.SummarizationUnavailable,
+                            true,
+                            5)],
+                        [new CompactExternalContentBatchFailure(
+                            "Summarization", exception, 1)]));
+            },
         };
         var reporter = new StubIncidentReporter();
         var guardrails = new GuardrailsOptions
         {
-            MaxContentChars = 100,
-            MaxSummaryChars = 50,
-            MaxSummarizationSourceChars = 1_000,
+            MaxContentChars = 2_048,
+            MaxSummaryChars = 256,
+            MaxSummarizationSourceChars = 6_000,
         };
         var tool = CreateTool(
             handler,
@@ -196,24 +196,24 @@ public sealed class HttpToolTests
             trustService,
             reporter);
 
-        var json = await tool.GetAsync(
+        var json = await tool.GetTextAsync(
             "https://example.com/failure",
             CancellationToken.None);
 
         reporter.Reports.Should().ContainSingle();
         using var document = JsonDocument.Parse(json);
         document.RootElement.GetProperty("contentProcessingStatus").GetString()
-            .Should().Be("SkippedSummarizationFailed");
-        document.RootElement.GetProperty("body").GetString()
-            .Should().Contain("safe summarization failed");
+            .Should().Be("SummarizationUnavailable");
+        document.RootElement.GetProperty("text").GetString()
+            .Should().Contain("HTTP CONTENT REQUIRES HUMAN REVIEW");
         json.Should().NotContain(new string('r', 20));
     }
 
     /// <summary>
-    /// Verifies a truncated complete-source summary is forced to marked Base64.
+    /// Verifies http.get never invokes the compact summary pipeline.
     /// </summary>
     [Fact]
-    public async Task TruncatedSummaryForcesBase64Delivery()
+    public async Task GetNeverInvokesCompactSummarization()
     {
         var source = new string('s', 500);
         var handler = new StubHttpMessageHandler(
@@ -222,24 +222,10 @@ public sealed class HttpToolTests
                 {
                     Content = new StringContent(source, Encoding.UTF8, "text/plain"),
                 }));
-        const string summary =
-            "Short factual summary. [... AI summary truncated by 420 characters ...]";
-        var trustService = new StubContentTrustService
-        {
-            SummarizeHandler = (content, _, _) => Task.FromResult(
-                new ContentSummaryResult(
-                    ContentSummaryStatus.SummaryTruncated,
-                    summary,
-                    content.Length,
-                    summary.Length,
-                    95,
-                    [],
-                    "Stub",
-                    4)),
-        };
+        var trustService = new StubContentTrustService();
         var guardrails = new GuardrailsOptions
         {
-            MaxContentChars = 300,
+            MaxContentChars = 2_048,
             MaxSummaryChars = 256,
             MaxSummarizationSourceChars = 1_000,
         };
@@ -256,11 +242,11 @@ public sealed class HttpToolTests
 
         using var document = JsonDocument.Parse(json);
         document.RootElement.GetProperty("contentProcessingStatus").GetString()
-            .Should().Be("SummaryTruncated");
+            .Should().Be("CompactPrefix");
         document.RootElement.GetProperty("contentEncoding").GetString()
-            .Should().Be("base64");
-        document.RootElement.GetProperty("requiresHumanReview").GetBoolean()
-            .Should().BeTrue();
+            .Should().Be("none");
+        trustService.CompactBatches.Should().BeEmpty();
+        trustService.SummarizedContents.Should().BeEmpty();
     }
 
     private static HttpTool CreateTool(
@@ -286,4 +272,14 @@ public sealed class HttpToolTests
             incidentReporter ?? new StubIncidentReporter(),
             NullLogger<HttpTool>.Instance,
             TimeProvider.System);
+
+    private static ContentTrustResult Trust(string content, int score) =>
+        new(
+            score,
+            ContentTrustEnvelope.WrapPlaintext(content),
+            "none",
+            ContentTrustStatus.Screened,
+            [],
+            "Stub",
+            0);
 }

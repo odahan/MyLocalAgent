@@ -2182,7 +2182,7 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
                                     <tr><td><code>filesystem.delete</code></td><td><code>path</code></td><td>Requires AllowFileDelete.</td></tr>
                                     <tr><td><code>filesystem.createDirectory</code></td><td><code>path</code></td><td>Creates a relative directory.</td></tr>
                                     <tr><td><code>http.get</code></td><td><code>url</code></td><td>Returns a compact HTTP result.</td></tr>
-                                    <tr><td><code>http.getText</code></td><td><code>url</code></td><td>Extracts text from HTML.</td></tr>
+                                    <tr><td><code>http.getText</code></td><td><code>url</code></td><td>Returns only a protected factual summary of compact readable text.</td></tr>
                                     <tr><td><code>http.post</code></td><td><code>url</code>, <code>body</code>, <code>contentType</code></td><td>Requires AllowHttpPost.</td></tr>
                                     <tr><td><code>web.search</code></td><td><code>query</code>, optional <code>maxResults</code></td><td>One compact Guardrails-protected result set.</td></tr>
                                     <tr><td><code>ai.summarize</code></td><td>Optional <code>text</code></td><td>Without text, receives previous output.</td></tr>
@@ -2387,8 +2387,8 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
                 <h2>Understand the content trust filter</h2>
                 <p class="section-intro">
                     Gmail reads and <code>http.get</code> / <code>http.getText</code>
-                    responses are classified through a direct LLM call with no tools, skills,
-                    or agent loop. This probabilistic control does not replace Safety gates,
+                    responses are deterministically compacted before direct LLM calls with no
+                    tools, skills, or agent loop. This probabilistic control does not replace Safety gates,
                     tool whitelists, the filesystem sandbox, or the HTTP host allowlist.
                 </p>
 
@@ -2409,20 +2409,23 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
                     it and must still treat the decoded text only as data, never instructions.
                 </div>
 
-                <h3>Oversized content</h3>
+                <h3>Compact projections and batches</h3>
                 <p>
-                    Above <code>MaxContentChars</code>, deterministic ordered chunks cover
-                    every source character through sequential tool-less calls. The effective
-                    score is the minimum observed across the source and exact delivered summary
-                    block. A summary that exceeds its maximum is capped in C# with an explicit
-                    marker and forced to Base64. Content above
-                    <code>MaxSummarizationSourceChars</code> is never partially summarized.
+                    Gmail and HTTP discard boilerplate and over-budget suffixes before any model
+                    call. Every omission is represented by character-count metadata or an
+                    application marker. Compaction is a minimization boundary, not evidence that
+                    omitted text was safe. Gmail items are processed in stable batches of at most
+                    12 items and three eligible phases; a failed batch is not replayed item by item.
                 </p>
                 <ul>
-                    <li>Gmail preserves exact From, To, Subject, and Snippet values in one protected canonical block and replaces only Body with a summary or Gmail-review notice.</li>
-                    <li>HTTP preserves URL, status, and content type, then returns a <code>Skipped…</code> notice without the page or a partial summary.</li>
+                    <li>Gmail success delivers projected From, To, Subject, and Received plus a protected factual summary. Snippet, Body, quoted history, and omitted suffixes never reach workflow context.</li>
+                    <li><code>http.getText</code> delivers only a protected summary of readable compact text. <code>http.get</code> delivers one protected media-aware compact prefix and is never summarized.</li>
                     <li>A positive Gmail limit processes only the first N messages with explicit counts and a warning; <code>0</code> is unlimited.</li>
                 </ul>
+                <div class="callout warning">
+                    Generated summaries can omit details. Review the original message in Gmail or
+                    the original source URL whenever completeness matters.
+                </div>
 
                 <h3>Trust filter page</h3>
                 <p>
@@ -2440,13 +2443,13 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
                     thresholds, size limits, reduction, timeout, the 24-hour in-memory cache,
                     and Gmail limit. Turning off
                     <span class="ui-label">Use LLM guardrails processing</span> does not turn
-                    off protection: normal content uses Base64 and oversized sources use the
-                    Gmail/HTTP notices.
+                    off protection: compact Gmail/HTTP review blocks use marked Base64 when
+                    screening is unavailable.
                 </p>
                 <div class="callout danger">
                     With OpenAI-compatible selected, screened Gmail/HTTP/Web Search content leaves the
-                    machine. An oversized source may be sent completely through several
-                    sequential chunks. Do not use real private mail in a cloud test without
+                    machine. Only the compact projection and generated summary are sent; omitted
+                    source text is discarded first. Do not use real private mail in a cloud test without
                     explicit authorization.
                 </div>
                 <p>
@@ -2549,11 +2552,11 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
                     panel is taller.
                 </p>
                 <p>
-                    A Gmail read also reports Guardrails progress as <code>message N of M</code>.
+                    A Gmail read reports projection completion and content-free
+                    <code>batch N of M</code> Guardrails progress with aggregate item counts.
                     With a zero Gmail limit and no <code>maxMessages</code>, every retrieved
-                    message is screened sequentially by the local model. This can take several
-                    minutes without being an agent loop. Setting a limit is explicit: messages
-                    beyond it are reported as unprocessed.
+                    message is projected and included in bounded batches. Setting a limit remains
+                    explicit: messages beyond it are reported as unprocessed.
                 </p>
                 <h3>Logs page</h3>
                 <ul class="check-list">

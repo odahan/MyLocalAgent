@@ -2581,7 +2581,7 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
                                     <tr><td><code>filesystem.delete</code></td><td><code>path</code></td><td>Exige AllowFileDelete.</td></tr>
                                     <tr><td><code>filesystem.createDirectory</code></td><td><code>path</code></td><td>Crée un dossier relatif.</td></tr>
                                     <tr><td><code>http.get</code></td><td><code>url</code></td><td>Retourne une réponse HTTP compacte.</td></tr>
-                                    <tr><td><code>http.getText</code></td><td><code>url</code></td><td>Extrait le texte d’une page HTML.</td></tr>
+                                    <tr><td><code>http.getText</code></td><td><code>url</code></td><td>Retourne uniquement un résumé factuel protégé du texte lisible compact.</td></tr>
                                     <tr><td><code>http.post</code></td><td><code>url</code>, <code>body</code>, <code>contentType</code></td><td>Exige AllowHttpPost.</td></tr>
                                     <tr><td><code>web.search</code></td><td><code>query</code>, <code>maxResults</code> facultatif</td><td>Un ensemble compact protégé par Guardrails.</td></tr>
                                     <tr><td><code>ai.summarize</code></td><td><code>text</code> facultatif</td><td>Sans text, reçoit la sortie précédente.</td></tr>
@@ -2805,7 +2805,7 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
                 <h2>Comprendre le filtre de confiance</h2>
                 <p class="section-intro">
                     Les lectures Gmail et les réponses <code>http.get</code> /
-                    <code>http.getText</code> sont classées par un appel LLM direct, sans outil,
+                    <code>http.getText</code> sont compactées de façon déterministe avant des appels LLM directs, sans outil,
                     skill ni boucle d’agent. Cette réduction du risque est probabiliste : elle
                     ne remplace jamais les limites Safety, la liste blanche d’outils, le bac à
                     sable fichiers ou la liste d’hôtes HTTP.
@@ -2829,21 +2829,24 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
                     comme une instruction.
                 </div>
 
-                <h3>Contenus volumineux</h3>
+                <h3>Projections compactes et lots</h3>
                 <p>
-                    Au-delà de <code>MaxContentChars</code>, chaque caractère de la source est
-                    couvert par des morceaux ordonnés et des appels séquentiels sans outil. Le
-                    score final est le minimum observé sur la source et sur le bloc résumé
-                    livré. Un résumé trop long est tronqué en C# avec un marqueur explicite et
-                    passe obligatoirement en Base64. Au-delà de
-                    <code>MaxSummarizationSourceChars</code>, aucune synthèse partielle n’est
-                    produite.
+                    Gmail et HTTP éliminent le boilerplate et les suffixes hors budget avant tout
+                    appel modèle. Chaque omission est représentée par des compteurs de caractères
+                    ou un marqueur applicatif. La compaction est une frontière de minimisation,
+                    pas une preuve que le texte omis était sûr. Les messages Gmail sont traités par
+                    lots stables de 12 éléments maximum et trois phases éligibles ; un lot en échec
+                    n’est pas rejoué message par message.
                 </p>
                 <ul>
-                    <li>Gmail conserve exactement From, To, Subject et Snippet dans un bloc canonique protégé, puis remplace seulement Body par un résumé ou un avis de relecture Gmail.</li>
-                    <li>HTTP conserve URL, code de statut et type de contenu, puis renvoie un avis <code>Skipped…</code> sans page ni résumé partiel.</li>
+                    <li>Gmail livre en cas de succès From, To, Subject et Received projetés avec un résumé factuel protégé. Snippet, Body, historique cité et suffixes omis n’atteignent jamais le contexte du workflow.</li>
+                    <li><code>http.getText</code> livre uniquement un résumé protégé du texte lisible compact. <code>http.get</code> livre un préfixe compact protégé adapté au média et n’est jamais résumé.</li>
                     <li>Une limite Gmail positive traite seulement les N premiers messages avec des compteurs et un avertissement ; <code>0</code> signifie illimité.</li>
                 </ul>
+                <div class="callout warning">
+                    Un résumé généré peut omettre des détails. Relisez le message original dans
+                    Gmail ou l’URL source lorsque l’exhaustivité est importante.
+                </div>
 
                 <h3>Page Trust filter</h3>
                 <p>
@@ -2860,13 +2863,13 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
                     La section <span class="ui-label">Settings → General → Guardrails</span>
                     règle les seuils, tailles, synthèse, délai, cache de 24 heures et limite
                     Gmail. Désactiver <span class="ui-label">Use LLM guardrails processing</span>
-                    ne désactive pas la protection : le chemin normal utilise Base64 et les
-                    sources volumineuses appliquent les avis Gmail/HTTP.
+                    ne désactive pas la protection : les blocs de relecture Gmail/HTTP compacts
+                    utilisent le Base64 marqué lorsque le classement est indisponible.
                 </p>
                 <div class="callout danger">
                     Avec OpenAI-compatible, le contenu Gmail/HTTP/Web Search classé quitte la machine.
-                    Une source volumineuse peut être envoyée intégralement par plusieurs
-                    morceaux successifs. N’utilisez pas de véritable courrier privé pendant
+                    Seules la projection compacte et le résumé généré sont envoyés ; le texte
+                    omis est supprimé auparavant. N’utilisez pas de véritable courrier privé pendant
                     un test cloud sans autorisation explicite.
                 </div>
                 <p>
@@ -2999,12 +3002,11 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
                     lorsque le panneau est plus haut.
                 </p>
                 <p>
-                    Une lecture Gmail affiche aussi sa progression Guardrails sous la forme
-                    <code>message N of M</code>. Avec une limite Gmail à zéro et sans
-                    <code>maxMessages</code>, chaque message remonté est contrôlé successivement
-                    par le modèle local : cela peut prendre plusieurs minutes sans constituer
-                    une boucle. Définir une limite est un choix explicite : les messages au-delà
-                    de cette limite sont signalés comme non traités.
+                    Une lecture Gmail signale la fin des projections puis une progression
+                    Guardrails sans contenu sous la forme <code>batch N of M</code>, avec des
+                    comptes agrégés. Avec une limite Gmail à zéro et sans <code>maxMessages</code>,
+                    chaque message remonté est projeté et inclus dans des lots bornés. Définir une
+                    limite reste un choix explicite : les messages au-delà sont signalés comme non traités.
                 </p>
 
                 <h3>Page Logs</h3>

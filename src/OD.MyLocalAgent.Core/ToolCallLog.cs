@@ -48,11 +48,11 @@ internal static class ToolCallLog
         catch (Exception exception)
         {
             logger.LogWarning(
-                exception,
-                "Tool {ToolName} completed in {DurationMs} ms with outcome {Outcome}.",
+                "Tool {ToolName} completed in {DurationMs} ms with outcome {Outcome} and exception type {ExceptionType}.",
                 name,
                 timeProvider.GetElapsedTime(started).TotalMilliseconds,
-                "Failure");
+                "Failure",
+                exception.GetType().Name);
             throw;
         }
     }

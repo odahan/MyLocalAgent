@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OD.MyLocalAgent.Ollama;
 
@@ -24,8 +25,10 @@ public sealed class ContentTrustService : IContentTrustService
     private readonly IOptionsMonitor<OpenAIOptions> _openAIOptions;
     private readonly TimeProvider _timeProvider;
     private readonly IExecutionDebugTrace _debugTrace;
+    private readonly ILogger<ContentTrustService>? _logger;
     private readonly ConcurrentDictionary<string, VerdictCacheEntry> _verdictCache = [];
     private readonly ConcurrentDictionary<string, SummaryCacheEntry> _summaryCache = [];
+    private readonly ConcurrentDictionary<string, CompactSummaryCacheEntry> _compactSummaryCache = [];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ContentTrustService"/> class.
@@ -37,6 +40,7 @@ public sealed class ContentTrustService : IContentTrustService
     /// <param name="openAIOptions">The reloadable OpenAI-compatible settings.</param>
     /// <param name="timeProvider">The time source for latency, timeout, and cache expiry.</param>
     /// <param name="debugTrace">The optional ephemeral interactive diagnostic trace.</param>
+    /// <param name="logger">The optional sanitized aggregate logger.</param>
     public ContentTrustService(
         ILlmClientFactory clientFactory,
         IOptionsMonitor<GuardrailsOptions> guardrailsOptions,
@@ -44,7 +48,8 @@ public sealed class ContentTrustService : IContentTrustService
         IOptionsMonitor<OllamaOptions> ollamaOptions,
         IOptionsMonitor<OpenAIOptions> openAIOptions,
         TimeProvider timeProvider,
-        IExecutionDebugTrace? debugTrace = null)
+        IExecutionDebugTrace? debugTrace = null,
+        ILogger<ContentTrustService>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(clientFactory);
         ArgumentNullException.ThrowIfNull(guardrailsOptions);
@@ -59,6 +64,7 @@ public sealed class ContentTrustService : IContentTrustService
         _openAIOptions = openAIOptions;
         _timeProvider = timeProvider;
         _debugTrace = debugTrace ?? new NullExecutionDebugTrace();
+        _logger = logger;
     }
 
     /// <inheritdoc />
@@ -231,6 +237,800 @@ public sealed class ContentTrustService : IContentTrustService
         }
     }
 
+    /// <inheritdoc />
+    public async Task<CompactExternalContentBatchResult> ProcessCompactAsync(
+        IReadOnlyList<CompactExternalContentItem> items,
+        CancellationToken cancellationToken)
+    {
+        ValidateCompactItems(items);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var options = _guardrailsOptions.CurrentValue;
+        if (!options.ScreeningEnabled)
+        {
+            return new CompactExternalContentBatchResult(
+                items.Select(CreateDisabledCompactResult).ToArray(),
+                []);
+        }
+
+        var provider = _clientFactory.Create();
+        var snapshot = CaptureSnapshot(provider);
+        var operationStarted = _timeProvider.GetTimestamp();
+        var defaults = _aiOptions.CurrentValue.GenerationDefaults;
+        var screeningPolicy = GenerationPolicyResolver.ResolveInternal(
+            InternalGenerationPolicies.GuardrailScreening,
+            defaults);
+        var reductionPolicy = GenerationPolicyResolver.ResolveInternal(
+            InternalGenerationPolicies.GuardrailReduction,
+            defaults);
+        var results = new CompactExternalContentResult?[items.Count];
+        var failures = new List<CompactExternalContentBatchFailure>();
+        var partitions = PartitionCompactItems(items, options.MaxContentChars);
+        var sourceCalls = 0;
+        var summaryCalls = 0;
+        var finalCalls = 0;
+        var sourceCacheHits = 0;
+        var summaryCacheHits = 0;
+        var finalCacheHits = 0;
+        long sourceLatencyMs = 0;
+        long summaryLatencyMs = 0;
+        long finalLatencyMs = 0;
+
+        foreach (var batch in partitions)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var batchStarted = _timeProvider.GetTimestamp();
+            var states = batch
+                .Select(index => new CompactItemState(index, items[index]))
+                .ToArray();
+
+            foreach (var state in states.Where(static state => state.Item.Content.Length == 0))
+            {
+                var trust = CreateDeterministicTrust(string.Empty);
+                const string emptySummary = "[No readable external content was available.]";
+                results[state.Index] = new CompactExternalContentResult(
+                    state.Item.Id,
+                    emptySummary,
+                    trust,
+                    CreateDeterministicTrust(emptySummary),
+                    CompactExternalContentStatus.Summarized,
+                    false,
+                    0);
+            }
+
+            var activeStates = states
+                .Where(static state => state.Item.Content.Length > 0)
+                .ToArray();
+            if (activeStates.Length == 0)
+            {
+                continue;
+            }
+
+            try
+            {
+                EnsureSnapshot(snapshot);
+                var misses = new List<CompactItemState>();
+                foreach (var state in activeStates)
+                {
+                    var key = CreateCompactVerdictCacheKey(snapshot, state.Item.Content);
+                    if (options.CacheResults && TryGetVerdictCache(key, out var cached))
+                    {
+                        sourceCacheHits++;
+                        state.SourceVerdict = new VerdictCallResult(
+                            cached.Score,
+                            cached.Indicators,
+                            0);
+                    }
+                    else
+                    {
+                        misses.Add(state);
+                    }
+                }
+
+                if (misses.Count > 0)
+                {
+                    sourceCalls++;
+                    var call = await CallProviderAsync(
+                            provider,
+                            snapshot,
+                            CompactContentBatchScreenerPrompt.System,
+                            BuildCompactScreeningRequest(misses),
+                            options,
+                            screeningPolicy,
+                            requireStableConfiguration: true,
+                            cancellationToken,
+                            CalculateScreeningOutputTokens(misses.Count))
+                        .ConfigureAwait(false);
+                    sourceLatencyMs += call.LatencyMs;
+                    if (call.Text.Length > CalculateScreeningResponseCharacterLimit(
+                            misses.Select(static state => state.Item).ToArray()))
+                    {
+                        throw new FormatException(
+                            "The compact screening response exceeded its strict bound.");
+                    }
+
+                    var parsed = ParseCompactVerdicts(
+                        call.Text,
+                        misses.Select(static state => state.Item).ToArray());
+                    foreach (var state in misses)
+                    {
+                        var verdict = parsed[state.Item.Id];
+                        state.SourceVerdict = new VerdictCallResult(
+                            verdict.Score,
+                            verdict.Indicators,
+                            call.LatencyMs);
+                        if (options.CacheResults)
+                        {
+                            _verdictCache[CreateCompactVerdictCacheKey(
+                                snapshot,
+                                state.Item.Content)] = new VerdictCacheEntry(
+                                    verdict.Score,
+                                    verdict.Indicators,
+                                    _timeProvider.GetUtcNow());
+                        }
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
+                var failure = CreateCompactFailure(
+                    "SourceScreening",
+                    snapshot,
+                    activeStates.Length,
+                    batchStarted);
+                failures.Add(failure);
+                foreach (var state in activeStates)
+                {
+                    results[state.Index] = new CompactExternalContentResult(
+                        state.Item.Id,
+                        null,
+                        CreateFailedTrust(state.Item.Content, provider.ProviderName),
+                        null,
+                        CompactExternalContentStatus.SourceScreeningUnavailable,
+                        true,
+                        failure.Exception is CompactExternalContentPhaseException phase
+                            ? phase.ElapsedMilliseconds
+                            : 0);
+                }
+
+                continue;
+            }
+
+            var eligible = new List<CompactItemState>();
+            foreach (var state in activeStates)
+            {
+                var verdict = state.SourceVerdict
+                    ?? throw new InvalidOperationException("Compact source verdict is missing.");
+                state.SourceTrust = CreateScreenedTrust(
+                    state.Item.Content,
+                    verdict,
+                    provider.ProviderName);
+                if (verdict.Score < options.CautionThreshold)
+                {
+                    results[state.Index] = new CompactExternalContentResult(
+                        state.Item.Id,
+                        null,
+                        state.SourceTrust,
+                        null,
+                        CompactExternalContentStatus.SourceWithheld,
+                        true,
+                        verdict.LatencyMs);
+                }
+                else
+                {
+                    eligible.Add(state);
+                }
+            }
+
+            if (eligible.Count == 0)
+            {
+                continue;
+            }
+
+            try
+            {
+                EnsureSnapshot(snapshot);
+                var misses = new List<CompactItemState>();
+                foreach (var state in eligible)
+                {
+                    var key = CreateCompactSummaryCacheKey(
+                        snapshot,
+                        state.Item.Content,
+                        state.Item.MaximumSummaryCharacters);
+                    if (options.CacheResults && TryGetCompactSummaryCache(key, out var summary))
+                    {
+                        summaryCacheHits++;
+                        state.Summary = summary;
+                    }
+                    else
+                    {
+                        misses.Add(state);
+                    }
+                }
+
+                if (misses.Count > 0)
+                {
+                    summaryCalls++;
+                    var responseLimit = CalculateSummaryResponseCharacterLimit(misses);
+                    var call = await CallProviderAsync(
+                            provider,
+                            snapshot,
+                            CompactContentBatchSummarizerPrompt.System,
+                            BuildCompactSummaryRequest(misses),
+                            options,
+                            reductionPolicy,
+                            requireStableConfiguration: true,
+                            cancellationToken,
+                            CalculateSummaryOutputTokens(responseLimit))
+                        .ConfigureAwait(false);
+                    summaryLatencyMs += call.LatencyMs;
+                    if (call.Text.Length > responseLimit)
+                    {
+                        throw new FormatException(
+                            "The compact summary response exceeded its strict bound.");
+                    }
+
+                    var parsed = ParseCompactSummaries(
+                        call.Text,
+                        misses.Select(static state => state.Item).ToArray());
+                    foreach (var state in misses)
+                    {
+                        state.Summary = parsed[state.Item.Id];
+                        if (options.CacheResults)
+                        {
+                            _compactSummaryCache[CreateCompactSummaryCacheKey(
+                                snapshot,
+                                state.Item.Content,
+                                state.Item.MaximumSummaryCharacters)] =
+                                new CompactSummaryCacheEntry(
+                                    state.Summary,
+                                    _timeProvider.GetUtcNow());
+                        }
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
+                var failure = CreateCompactFailure(
+                    "Summarization",
+                    snapshot,
+                    eligible.Count,
+                    batchStarted);
+                failures.Add(failure);
+                foreach (var state in eligible)
+                {
+                    results[state.Index] = new CompactExternalContentResult(
+                        state.Item.Id,
+                        null,
+                        state.SourceTrust!,
+                        null,
+                        CompactExternalContentStatus.SummarizationUnavailable,
+                        true,
+                        state.SourceTrust!.LatencyMs + GetFailureLatency(failure));
+                }
+
+                continue;
+            }
+
+            try
+            {
+                EnsureSnapshot(snapshot);
+                var misses = new List<CompactItemState>();
+                foreach (var state in eligible)
+                {
+                    var summary = state.Summary
+                        ?? throw new InvalidOperationException("Compact summary is missing.");
+                    var key = CreateCompactVerdictCacheKey(snapshot, summary);
+                    if (options.CacheResults && TryGetVerdictCache(key, out var cached))
+                    {
+                        finalCacheHits++;
+                        state.SummaryVerdict = new VerdictCallResult(
+                            cached.Score,
+                            cached.Indicators,
+                            0);
+                    }
+                    else
+                    {
+                        misses.Add(state);
+                    }
+                }
+
+                if (misses.Count > 0)
+                {
+                    finalCalls++;
+                    var summaryItems = misses.Select(
+                        static state => new CompactExternalContentItem(
+                            state.Item.Id,
+                            state.Summary!,
+                            state.Item.MaximumSummaryCharacters)).ToArray();
+                    var call = await CallProviderAsync(
+                            provider,
+                            snapshot,
+                            CompactContentBatchScreenerPrompt.System,
+                            BuildCompactScreeningRequest(summaryItems),
+                            options,
+                            screeningPolicy,
+                            requireStableConfiguration: true,
+                            cancellationToken,
+                            CalculateScreeningOutputTokens(misses.Count))
+                        .ConfigureAwait(false);
+                    finalLatencyMs += call.LatencyMs;
+                    if (call.Text.Length > CalculateScreeningResponseCharacterLimit(summaryItems))
+                    {
+                        throw new FormatException(
+                            "The compact final-screening response exceeded its strict bound.");
+                    }
+
+                    var parsed = ParseCompactVerdicts(call.Text, summaryItems);
+                    foreach (var state in misses)
+                    {
+                        var verdict = parsed[state.Item.Id];
+                        state.SummaryVerdict = new VerdictCallResult(
+                            verdict.Score,
+                            verdict.Indicators,
+                            call.LatencyMs);
+                        if (options.CacheResults)
+                        {
+                            _verdictCache[CreateCompactVerdictCacheKey(
+                                snapshot,
+                                state.Summary!)] = new VerdictCacheEntry(
+                                    verdict.Score,
+                                    verdict.Indicators,
+                                    _timeProvider.GetUtcNow());
+                        }
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
+                var failure = CreateCompactFailure(
+                    "FinalScreening",
+                    snapshot,
+                    eligible.Count,
+                    batchStarted);
+                failures.Add(failure);
+                foreach (var state in eligible)
+                {
+                    results[state.Index] = new CompactExternalContentResult(
+                        state.Item.Id,
+                        null,
+                        state.SourceTrust!,
+                        null,
+                        CompactExternalContentStatus.FinalScreeningUnavailable,
+                        true,
+                        state.SourceTrust!.LatencyMs + GetFailureLatency(failure));
+                }
+
+                continue;
+            }
+
+            foreach (var state in eligible)
+            {
+                var sourceTrust = state.SourceTrust!;
+                var summaryVerdict = state.SummaryVerdict!;
+                var effectiveVerdict = new VerdictCallResult(
+                    Math.Min(sourceTrust.TrustScore!.Value, summaryVerdict.Score),
+                    UnionIndicators(
+                        sourceTrust.SuspiciousIndicators,
+                        summaryVerdict.Indicators),
+                    summaryVerdict.LatencyMs);
+                var summaryTrust = CreateScreenedTrust(
+                    state.Summary!,
+                    effectiveVerdict,
+                    provider.ProviderName);
+                results[state.Index] = new CompactExternalContentResult(
+                    state.Item.Id,
+                    state.Summary,
+                    sourceTrust,
+                    summaryTrust,
+                    CompactExternalContentStatus.Summarized,
+                    false,
+                    sourceTrust.LatencyMs + summaryVerdict.LatencyMs);
+            }
+        }
+
+        var completedResults = results.Select(static result => result
+                ?? throw new InvalidOperationException("A compact item result is missing."))
+                .ToArray();
+        _logger?.LogInformation(
+            "Compact Guardrails completed for provider {ProviderName}, model {ModelName}: items {ItemCount}, batches {BatchCount}, source calls {SourceCallCount}, summary calls {SummaryCallCount}, final calls {FinalCallCount}, source cache hits {SourceCacheHitCount}, summary cache hits {SummaryCacheHitCount}, final cache hits {FinalCacheHitCount}, screened {ScreenedCount}, summarized {SummarizedCount}, withheld {WithheldCount}, human review {ReviewCount}, source characters {SourceCharacterCount}, source latency {SourceLatencyMs} ms, summary latency {SummaryLatencyMs} ms, final latency {FinalLatencyMs} ms, total {TotalLatencyMs} ms.",
+            snapshot.Provider,
+            snapshot.Model,
+            items.Count,
+            partitions.Count,
+            sourceCalls,
+            summaryCalls,
+            finalCalls,
+            sourceCacheHits,
+            summaryCacheHits,
+            finalCacheHits,
+            completedResults.Count(static result => result.SourceTrust.Screened),
+            completedResults.Count(static result => result.Status == CompactExternalContentStatus.Summarized),
+            completedResults.Count(static result => result.Status == CompactExternalContentStatus.SourceWithheld),
+            completedResults.Count(static result => result.RequiresHumanReview),
+            items.Sum(static item => item.Content.Length),
+            sourceLatencyMs,
+            summaryLatencyMs,
+            finalLatencyMs,
+            GetElapsedMilliseconds(operationStarted));
+        return new CompactExternalContentBatchResult(completedResults, failures);
+    }
+
+    private void ValidateCompactItems(IReadOnlyList<CompactExternalContentItem> items)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        if (items.Count == 0)
+        {
+            throw new ArgumentException(
+                "At least one compact external-content item is required.",
+                nameof(items));
+        }
+
+        var options = _guardrailsOptions.CurrentValue;
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var item in items)
+        {
+            if (item is null)
+            {
+                throw new ArgumentException(
+                    "Compact external-content items cannot contain null entries.",
+                    nameof(items));
+            }
+
+            if (string.IsNullOrWhiteSpace(item.Id))
+            {
+                throw new ArgumentException(
+                    "Every compact external-content item requires a non-empty id.",
+                    nameof(items));
+            }
+
+            if (!ids.Add(item.Id))
+            {
+                throw new ArgumentException(
+                    "Compact external-content item ids must be unique.",
+                    nameof(items));
+            }
+
+            if (item.Content is null || item.Content.Length > options.MaxContentChars)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(items),
+                    $"Compact content cannot exceed {options.MaxContentChars} characters.");
+            }
+
+            if (item.MaximumSummaryCharacters < 1 ||
+                item.MaximumSummaryCharacters > options.MaxSummaryChars)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(items),
+                    $"Compact summary sizes must be between 1 and {options.MaxSummaryChars} characters.");
+            }
+        }
+    }
+
+    private static IReadOnlyList<IReadOnlyList<int>> PartitionCompactItems(
+        IReadOnlyList<CompactExternalContentItem> items,
+        int maximumItemCharacters)
+    {
+        const int maximumItems = 12;
+        var maximumCharacters = 6L * maximumItemCharacters;
+        var batches = new List<IReadOnlyList<int>>();
+        var current = new List<int>();
+        long characters = 0;
+        for (var index = 0; index < items.Count; index++)
+        {
+            var itemCharacters = items[index].Content.Length;
+            if (current.Count > 0 &&
+                (current.Count == maximumItems ||
+                 characters + itemCharacters > maximumCharacters))
+            {
+                batches.Add(current.ToArray());
+                current = [];
+                characters = 0;
+            }
+
+            current.Add(index);
+            characters += itemCharacters;
+        }
+
+        batches.Add(current.ToArray());
+        return batches;
+    }
+
+    private static string BuildCompactScreeningRequest(
+        IReadOnlyList<CompactItemState> states) =>
+        BuildCompactScreeningRequest(
+            states.Select(static state => state.Item).ToArray());
+
+    private static string BuildCompactScreeningRequest(
+        IReadOnlyList<CompactExternalContentItem> items)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine("Classify every independent item below.");
+        foreach (var item in items)
+        {
+            var nonce = CreateRequestNonce();
+            builder.Append("Item id: ").AppendLine(JsonSerializer.Serialize(item.Id));
+            builder.Append("<<<UNTRUSTED-CONTENT ").Append(nonce).AppendLine(">>>");
+            builder.AppendLine(item.Content);
+            builder.Append("<<<END ").Append(nonce).AppendLine(">>>");
+        }
+
+        return builder.ToString();
+    }
+
+    private static string BuildCompactSummaryRequest(
+        IReadOnlyList<CompactItemState> states)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine("Summarize every independent eligible item below.");
+        foreach (var state in states)
+        {
+            var nonce = CreateRequestNonce();
+            builder.Append("Item id: ").AppendLine(JsonSerializer.Serialize(state.Item.Id));
+            builder.Append("Maximum summary characters: ")
+                .AppendLine(state.Item.MaximumSummaryCharacters.ToString(CultureInfo.InvariantCulture));
+            builder.Append("<<<UNTRUSTED-SOURCE-DATA ").Append(nonce).AppendLine(">>>");
+            builder.AppendLine(state.Item.Content);
+            builder.Append("<<<END-UNTRUSTED-SOURCE-DATA ").Append(nonce).AppendLine(">>>");
+        }
+
+        return builder.ToString();
+    }
+
+    private static IReadOnlyDictionary<string, ParsedVerdict> ParseCompactVerdicts(
+        string response,
+        IReadOnlyList<CompactExternalContentItem> expectedItems)
+    {
+        var root = ParseStrictBatchRoot(response);
+        var byId = expectedItems.ToDictionary(static item => item.Id, StringComparer.Ordinal);
+        var parsed = new Dictionary<string, ParsedVerdict>(StringComparer.Ordinal);
+        foreach (var result in root.EnumerateArray())
+        {
+            if (result.ValueKind != JsonValueKind.Object ||
+                result.EnumerateObject().Count() != 3 ||
+                !result.TryGetProperty("id", out var idElement) ||
+                idElement.ValueKind != JsonValueKind.String ||
+                !result.TryGetProperty("score", out var scoreElement) ||
+                scoreElement.ValueKind != JsonValueKind.Number ||
+                !scoreElement.TryGetInt32(out var score) ||
+                score is < 0 or > 100 ||
+                !result.TryGetProperty("indicators", out var indicatorsElement) ||
+                indicatorsElement.ValueKind != JsonValueKind.Array)
+            {
+                throw new FormatException("A compact screening result has an invalid schema.");
+            }
+
+            var id = idElement.GetString()!;
+            if (!byId.TryGetValue(id, out var expected) || !parsed.TryAdd(id, null!))
+            {
+                throw new FormatException("A compact screening result contains an invalid id set.");
+            }
+
+            var indicators = new List<string>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var indicatorElement in indicatorsElement.EnumerateArray())
+            {
+                if (indicatorElement.ValueKind != JsonValueKind.String)
+                {
+                    throw new FormatException("Compact screening indicators must be strings.");
+                }
+
+                var indicator = indicatorElement.GetString()!;
+                if (!string.IsNullOrEmpty(indicator) &&
+                    expected.Content.Contains(indicator, StringComparison.Ordinal) &&
+                    seen.Add(indicator) &&
+                    indicators.Count < 20)
+                {
+                    indicators.Add(indicator);
+                }
+            }
+
+            parsed[id] = new ParsedVerdict(score, indicators);
+        }
+
+        if (parsed.Count != expectedItems.Count)
+        {
+            throw new FormatException("A compact screening response omitted an expected id.");
+        }
+
+        return parsed;
+    }
+
+    private static IReadOnlyDictionary<string, string> ParseCompactSummaries(
+        string response,
+        IReadOnlyList<CompactExternalContentItem> expectedItems)
+    {
+        var root = ParseStrictBatchRoot(response);
+        var byId = expectedItems.ToDictionary(static item => item.Id, StringComparer.Ordinal);
+        var parsed = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var result in root.EnumerateArray())
+        {
+            if (result.ValueKind != JsonValueKind.Object ||
+                result.EnumerateObject().Count() != 2 ||
+                !result.TryGetProperty("id", out var idElement) ||
+                idElement.ValueKind != JsonValueKind.String ||
+                !result.TryGetProperty("summary", out var summaryElement) ||
+                summaryElement.ValueKind != JsonValueKind.String)
+            {
+                throw new FormatException("A compact summary result has an invalid schema.");
+            }
+
+            var id = idElement.GetString()!;
+            var summary = summaryElement.GetString()!;
+            if (!byId.TryGetValue(id, out var expected) ||
+                string.IsNullOrWhiteSpace(summary) ||
+                summary.Length > expected.MaximumSummaryCharacters ||
+                !parsed.TryAdd(id, summary))
+            {
+                throw new FormatException("A compact summary result is incomplete or invalid.");
+            }
+        }
+
+        if (parsed.Count != expectedItems.Count)
+        {
+            throw new FormatException("A compact summary response omitted an expected id.");
+        }
+
+        return parsed;
+    }
+
+    private static JsonElement ParseStrictBatchRoot(string response)
+    {
+        if (string.IsNullOrWhiteSpace(response))
+        {
+            throw new FormatException("The compact Guardrails response is empty.");
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(response);
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object ||
+                root.EnumerateObject().Count() != 1 ||
+                !root.TryGetProperty("results", out var results) ||
+                results.ValueKind != JsonValueKind.Array)
+            {
+                throw new FormatException("The compact Guardrails response root is invalid.");
+            }
+
+            return results.Clone();
+        }
+        catch (JsonException exception)
+        {
+            throw new FormatException("The compact Guardrails response is malformed.", exception);
+        }
+    }
+
+    private CompactExternalContentBatchFailure CreateCompactFailure(
+        string phase,
+        ProviderSnapshot snapshot,
+        int itemCount,
+        long batchStarted)
+    {
+        var exception = new CompactExternalContentPhaseException(
+            phase,
+            snapshot.Provider,
+            snapshot.Model,
+            itemCount,
+            GetElapsedMilliseconds(batchStarted));
+        return new CompactExternalContentBatchFailure(phase, exception, itemCount);
+    }
+
+    private static long GetFailureLatency(CompactExternalContentBatchFailure failure) =>
+        failure.Exception is CompactExternalContentPhaseException exception
+            ? exception.ElapsedMilliseconds
+            : 0;
+
+    private static CompactExternalContentResult CreateDisabledCompactResult(
+        CompactExternalContentItem item) =>
+        new(
+            item.Id,
+            null,
+            new ContentTrustResult(
+                null,
+                ContentTrustEnvelope.WrapBase64(item.Content),
+                "base64",
+                ContentTrustStatus.ScreeningDisabled,
+                [],
+                "Disabled",
+                0),
+            null,
+            CompactExternalContentStatus.SourceScreeningUnavailable,
+            true,
+            0);
+
+    private static ContentTrustResult CreateDeterministicTrust(string content) =>
+        new(
+            100,
+            ContentTrustEnvelope.WrapPlaintext(content),
+            "none",
+            ContentTrustStatus.Screened,
+            [],
+            "Deterministic",
+            0);
+
+    private static ContentTrustResult CreateScreenedTrust(
+        string content,
+        VerdictCallResult verdict,
+        string providerName) =>
+        new(
+            verdict.Score,
+            ContentTrustEnvelope.WrapPlaintext(content),
+            "none",
+            ContentTrustStatus.Screened,
+            verdict.Indicators,
+            providerName,
+            verdict.LatencyMs);
+
+    private static ContentTrustResult CreateFailedTrust(
+        string content,
+        string providerName) =>
+        new(
+            null,
+            ContentTrustEnvelope.WrapBase64(content),
+            "base64",
+            ContentTrustStatus.Failed,
+            [],
+            providerName,
+            0);
+
+    private static IReadOnlyList<string> UnionIndicators(
+        IEnumerable<string> first,
+        IEnumerable<string> second)
+    {
+        var result = new List<string>();
+        AddIndicators(result, first);
+        AddIndicators(result, second);
+        return result;
+    }
+
+    private static int CalculateScreeningOutputTokens(int itemCount) =>
+        Math.Max(256, itemCount * 192);
+
+    private static int CalculateScreeningResponseCharacterLimit(
+        IReadOnlyList<CompactExternalContentItem> items) =>
+        checked(256 + items.Sum(static item => item.Id.Length + 512));
+
+    private static int CalculateSummaryResponseCharacterLimit(
+        IReadOnlyList<CompactItemState> states) =>
+        checked(
+            32 + states.Sum(
+                static state => state.Item.MaximumSummaryCharacters +
+                    state.Item.Id.Length + 48));
+
+    private static int CalculateSummaryOutputTokens(int responseCharacterLimit) =>
+        Math.Max(256, checked((responseCharacterLimit + 1) / 2));
+
+    private bool TryGetCompactSummaryCache(string key, out string summary)
+    {
+        if (_compactSummaryCache.TryGetValue(key, out var entry))
+        {
+            if (_timeProvider.GetUtcNow() - entry.CreatedAt <= CacheLifetime)
+            {
+                summary = entry.Summary;
+                return true;
+            }
+
+            _compactSummaryCache.TryRemove(key, out _);
+        }
+
+        summary = string.Empty;
+        return false;
+    }
+
     private async Task<ContentSummaryResult> ReduceAsync(
         ILlmClientService provider,
         ProviderSnapshot snapshot,
@@ -374,7 +1174,8 @@ public sealed class ContentTrustService : IContentTrustService
         GuardrailsOptions options,
         EffectiveGenerationPolicy generationPolicy,
         bool requireStableConfiguration,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int? maxOutputTokens = null)
     {
         var started = _timeProvider.GetTimestamp();
         using var timeoutSource = new CancellationTokenSource(
@@ -403,6 +1204,7 @@ public sealed class ContentTrustService : IContentTrustService
                     new ChatOptions
                     {
                         Tools = null,
+                        MaxOutputTokens = maxOutputTokens,
                     },
                     linkedSource.Token)
                 .ConfigureAwait(false);
@@ -863,6 +1665,20 @@ public sealed class ContentTrustService : IContentTrustService
             $"{ContentScreenerPrompt.Version}\n{ContentSummarizerPrompt.Version}\n" +
             $"{snapshot.Provider}\n{snapshot.Model}\n{maxSummaryChars}\n{Hash(content)}");
 
+    private static string CreateCompactVerdictCacheKey(
+        ProviderSnapshot snapshot,
+        string content) =>
+        Hash(
+            $"{CompactContentBatchScreenerPrompt.Version}\n{snapshot.Provider}\n{snapshot.Model}\n{Hash(content)}");
+
+    private static string CreateCompactSummaryCacheKey(
+        ProviderSnapshot snapshot,
+        string content,
+        int maxSummaryChars) =>
+        Hash(
+            $"{CompactContentBatchSummarizerPrompt.Version}\n{snapshot.Provider}\n{snapshot.Model}\n" +
+            $"{maxSummaryChars}\n{Hash(content)}");
+
     private static string Hash(string value) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
 
@@ -877,6 +1693,10 @@ public sealed class ContentTrustService : IContentTrustService
         ContentSummaryResult Result,
         DateTimeOffset CreatedAt);
 
+    private sealed record CompactSummaryCacheEntry(
+        string Summary,
+        DateTimeOffset CreatedAt);
+
     private sealed record ParsedVerdict(
         int Score,
         IReadOnlyList<string> Indicators);
@@ -889,4 +1709,21 @@ public sealed class ContentTrustService : IContentTrustService
         long LatencyMs);
 
     private sealed record CappedSummary(string Summary, bool Truncated);
+
+    private sealed class CompactItemState(
+        int index,
+        CompactExternalContentItem item)
+    {
+        public int Index { get; } = index;
+
+        public CompactExternalContentItem Item { get; } = item;
+
+        public VerdictCallResult? SourceVerdict { get; set; }
+
+        public ContentTrustResult? SourceTrust { get; set; }
+
+        public string? Summary { get; set; }
+
+        public VerdictCallResult? SummaryVerdict { get; set; }
+    }
 }

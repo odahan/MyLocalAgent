@@ -285,3 +285,16 @@ and counts, not prompt or marker text. AI Playground and other taskless surfaces
 A resolved absolute path still requires the task’s File system whitelist and matching
 read-write authorized location, plus Windows access. Placeholder expansion does not guarantee
 that the model will select the tool or that the tool operation will succeed.
+
+## 13. Understand compact Gmail and HTTP content
+
+Gmail reads minimize every message before any AI call, then process the projections in batches.
+A successful read contains only projected From, To, Subject, and Received headers with a
+protected factual summary. Snippet, Body, quoted history, and omitted suffixes never reach the
+workflow. `http.getText` likewise returns only a protected summary; `http.get` retains one
+protected compact prefix, never the complete response.
+
+The `originalCharacterCount`, `projectedCharacterCount`, and `omittedCharacterCount` metadata
+make reduction visible. Compaction is a minimization boundary, not evidence that omitted text
+was safe. A generated summary can miss details; review the original in Gmail or at the source
+URL whenever completeness matters.

@@ -10,9 +10,14 @@ internal sealed class StubContentTrustService : IContentTrustService
     public Func<string, int, CancellationToken, Task<ContentSummaryResult>>?
         SummarizeHandler { get; set; }
 
+    public Func<IReadOnlyList<CompactExternalContentItem>, CancellationToken,
+        Task<CompactExternalContentBatchResult>>? CompactHandler { get; set; }
+
     public List<string> ScreenedContents { get; } = [];
 
     public List<string> SummarizedContents { get; } = [];
+
+    public List<IReadOnlyList<CompactExternalContentItem>> CompactBatches { get; } = [];
 
     public Task<ContentTrustResult> ScreenAsync(
         string content,
@@ -63,4 +68,43 @@ internal sealed class StubContentTrustService : IContentTrustService
                 "Stub",
                 0));
     }
+
+    public Task<CompactExternalContentBatchResult> ProcessCompactAsync(
+        IReadOnlyList<CompactExternalContentItem> items,
+        CancellationToken cancellationToken)
+    {
+        CompactBatches.Add(items.ToArray());
+        if (CompactHandler is not null)
+        {
+            return CompactHandler(items, cancellationToken);
+        }
+
+        var results = items.Select(
+            item =>
+            {
+                var summary = item.Content.Length <= item.MaximumSummaryCharacters
+                    ? item.Content
+                    : item.Content[..item.MaximumSummaryCharacters];
+                var sourceTrust = CreateTrust(item.Content);
+                return new CompactExternalContentResult(
+                    item.Id,
+                    summary,
+                    sourceTrust,
+                    CreateTrust(summary),
+                    CompactExternalContentStatus.Summarized,
+                    false,
+                    0);
+            }).ToArray();
+        return Task.FromResult(new CompactExternalContentBatchResult(results, []));
+    }
+
+    private static ContentTrustResult CreateTrust(string content) =>
+        new(
+            100,
+            ContentTrustEnvelope.WrapPlaintext(content),
+            "none",
+            ContentTrustStatus.Screened,
+            [],
+            "Stub",
+            0);
 }

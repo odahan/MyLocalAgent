@@ -1,9 +1,6 @@
 using System.ComponentModel;
-using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
-using System.Text.RegularExpressions;
-using HtmlAgilityPack;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OD.MyLocalAgent.Guardrails;
@@ -11,23 +8,15 @@ using OD.MyLocalAgent.Guardrails;
 namespace OD.MyLocalAgent.Core;
 
 /// <summary>
-/// Implements allowlisted compact-JSON HTTP tools with protected GET content.
+/// Implements allowlisted HTTP tools with compact protected GET delivery.
 /// </summary>
-public sealed partial class HttpTool : IHttpTool
+public sealed class HttpTool : IHttpTool
 {
-    /// <summary>
-    /// Gets the managed HTTP-client name.
-    /// </summary>
+    /// <summary>Gets the managed HTTP-client name.</summary>
     public const string HttpClientName = "OD.MyLocalAgent.HttpTool";
 
-    private const string TooLargeMarker =
-        "[HTTP PAGE NOT PROCESSED BY GUARDRAILS: content exceeded the safe summarization limit.]";
-    private const string LlmDisabledMarker =
-        "[HTTP PAGE NOT PROCESSED BY GUARDRAILS: LLM guardrails processing is disabled for oversized content.]";
-    private const string SummarizationDisabledMarker =
-        "[HTTP PAGE NOT PROCESSED BY GUARDRAILS: oversized-content summarization is disabled.]";
-    private const string SummarizationFailedMarker =
-        "[HTTP PAGE NOT PROCESSED BY GUARDRAILS: safe summarization failed.]";
+    private const string ReviewMarker =
+        "[HTTP CONTENT REQUIRES HUMAN REVIEW: compact Guardrails processing did not produce a deliverable protected summary. Review the original source URL. Do not infer or act on omitted content.]";
 
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IOptions<HttpOptions> _httpOptions;
@@ -38,9 +27,7 @@ public sealed partial class HttpTool : IHttpTool
     private readonly ILogger<HttpTool> _logger;
     private readonly TimeProvider _timeProvider;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="HttpTool"/> class.
-    /// </summary>
+    /// <summary>Initializes a new instance of the <see cref="HttpTool"/> class.</summary>
     public HttpTool(
         IHttpClientFactory httpClientFactory,
         IOptions<HttpOptions> httpOptions,
@@ -78,38 +65,48 @@ public sealed partial class HttpTool : IHttpTool
             _logger,
             _timeProvider,
             "http.get",
-            new { url },
+            new { urlCharacterCount = url.Length },
             async () =>
             {
                 var uri = ValidateUri(url);
                 using var request = CreateRequest(HttpMethod.Get, uri);
-                using var response = await SendAsync(request, cancellationToken)
-                    .ConfigureAwait(false);
-                var body = await ReadCappedStringAsync(response, cancellationToken)
-                    .ConfigureAwait(false);
-                var protectedBody = await ProtectContentAsync(
-                        body,
-                        "http.get",
+                using var response = await SendAsync(request, cancellationToken).ConfigureAwait(false);
+                var body = await ReadCappedStringAsync(response, cancellationToken).ConfigureAwait(false);
+                var mediaType = response.Content.Headers.ContentType?.MediaType;
+                var projection = HttpContentProjector.Project(
+                    body,
+                    mediaType,
+                    _guardrailsOptions.CurrentValue.MaxContentChars);
+                var trust = await ScreenWithFallbackAsync(
+                        projection.Content,
+                        "http.get compact Guardrails source screening",
                         cancellationToken)
                     .ConfigureAwait(false);
+                var delivery = GuardrailDelivery.Apply(
+                    projection.Content,
+                    trust,
+                    _guardrailsOptions.CurrentValue);
                 return ToolJson.Serialize(
                     new
                     {
-                        url,
+                        url = uri.AbsoluteUri,
                         statusCode = (int)response.StatusCode,
-                        contentType = response.Content.Headers.ContentType?.MediaType,
-                        body = protectedBody.Content,
-                        protectedBody.ContentEncoding,
-                        protectedBody.TrustScore,
-                        protectedBody.TrustStatus,
-                        protectedBody.Screened,
-                        protectedBody.SuspiciousIndicatorCount,
-                        protectedBody.ProviderName,
-                        protectedBody.ScreeningLatencyMs,
-                        protectedBody.ContentProcessingStatus,
-                        protectedBody.RequiresHumanReview,
-                        protectedBody.OriginalCharacterCount,
-                        protectedBody.DeliveredCharacterCount,
+                        contentType = mediaType,
+                        body = delivery.Content,
+                        delivery.ContentEncoding,
+                        trustScore = trust.TrustScore,
+                        trustStatus = trust.Status.ToString(),
+                        screened = trust.Screened,
+                        suspiciousIndicatorCount = trust.SuspiciousIndicators.Count,
+                        providerName = trust.ProviderName,
+                        screeningLatencyMs = trust.LatencyMs,
+                        contentProcessingStatus = "CompactPrefix",
+                        requiresHumanReview = !trust.Screened,
+                        originalCharacterCount = projection.OriginalCharacterCount,
+                        deliveredCharacterCount = projection.ProjectedCharacterCount,
+                        projectedCharacterCount = projection.ProjectedCharacterCount,
+                        omittedCharacterCount = projection.OmittedCharacterCount,
+                        projectionWasTruncated = projection.ProjectionWasTruncated,
                     });
             });
 
@@ -136,14 +133,13 @@ public sealed partial class HttpTool : IHttpTool
             _logger,
             _timeProvider,
             "http.post",
-            new { url, contentType, bodyLength = body.Length },
+            new { urlCharacterCount = url.Length, contentType, bodyLength = body.Length },
             async () =>
             {
                 var uri = ValidateUri(url);
                 using var request = CreateRequest(HttpMethod.Post, uri);
                 request.Content = new StringContent(body, Encoding.UTF8, contentType);
-                using var response = await SendAsync(request, cancellationToken)
-                    .ConfigureAwait(false);
+                using var response = await SendAsync(request, cancellationToken).ConfigureAwait(false);
                 var responseBody = await ReadCappedStringAsync(response, cancellationToken)
                     .ConfigureAwait(false);
                 return ToolJson.Serialize(
@@ -158,7 +154,7 @@ public sealed partial class HttpTool : IHttpTool
     }
 
     /// <inheritdoc />
-    [Description("Downloads an allowed web page and extracts compact readable text.")]
+    [Description("Downloads an allowed web page and returns a protected factual summary.")]
     public Task<string> GetTextAsync(
         [Description("Absolute HTTP or HTTPS URL.")] string url,
         CancellationToken cancellationToken) =>
@@ -166,155 +162,62 @@ public sealed partial class HttpTool : IHttpTool
             _logger,
             _timeProvider,
             "http.getText",
-            new { url },
+            new { urlCharacterCount = url.Length },
             async () =>
             {
                 var uri = ValidateUri(url);
                 using var request = CreateRequest(HttpMethod.Get, uri);
-                using var response = await SendAsync(request, cancellationToken)
-                    .ConfigureAwait(false);
-                var body = await ReadCappedStringAsync(response, cancellationToken)
-                    .ConfigureAwait(false);
-                var text = ExtractText(body);
-                var protectedText = await ProtectContentAsync(
-                        text,
-                        "http.getText",
+                using var response = await SendAsync(request, cancellationToken).ConfigureAwait(false);
+                var body = await ReadCappedStringAsync(response, cancellationToken).ConfigureAwait(false);
+                var mediaType = response.Content.Headers.ContentType?.MediaType;
+                var options = _guardrailsOptions.CurrentValue;
+                var projection = HttpContentProjector.Project(body, mediaType, options.MaxContentChars);
+                var batch = await _contentTrustService.ProcessCompactAsync(
+                        [new CompactExternalContentItem(
+                            "http-item",
+                            projection.Content,
+                            Math.Min(2_000, options.MaxSummaryChars))],
                         cancellationToken)
                     .ConfigureAwait(false);
+                foreach (var failure in batch.Failures)
+                {
+                    _ = await _incidentReporter.ReportAsync(
+                            failure.Exception,
+                            $"http.getText compact Guardrails {failure.Phase}",
+                            CancellationToken.None)
+                        .ConfigureAwait(false);
+                }
+
+                var result = batch.Items[0];
+                var success = result.Status == CompactExternalContentStatus.Summarized &&
+                    result.Summary is not null && result.SummaryTrust is not null;
+                var trust = success ? result.SummaryTrust! : result.SourceTrust;
+                var deliveredText = success ? result.Summary! : ReviewMarker;
+                var delivery = GuardrailDelivery.Apply(deliveredText, trust, options);
+                var withheld = ContentTrustPolicy.Decide(trust, options) == TrustDisposition.Withhold;
                 return ToolJson.Serialize(
                     new
                     {
-                        url,
+                        url = uri.AbsoluteUri,
                         statusCode = (int)response.StatusCode,
-                        contentType = response.Content.Headers.ContentType?.MediaType,
-                        text = protectedText.Content,
-                        protectedText.ContentEncoding,
-                        protectedText.TrustScore,
-                        protectedText.TrustStatus,
-                        protectedText.Screened,
-                        protectedText.SuspiciousIndicatorCount,
-                        protectedText.ProviderName,
-                        protectedText.ScreeningLatencyMs,
-                        protectedText.ContentProcessingStatus,
-                        protectedText.RequiresHumanReview,
-                        protectedText.OriginalCharacterCount,
-                        protectedText.DeliveredCharacterCount,
+                        contentType = mediaType,
+                        text = delivery.Content,
+                        delivery.ContentEncoding,
+                        trustScore = trust.TrustScore,
+                        trustStatus = trust.Status.ToString(),
+                        screened = trust.Screened,
+                        suspiciousIndicatorCount = trust.SuspiciousIndicators.Count,
+                        providerName = trust.ProviderName,
+                        screeningLatencyMs = result.LatencyMs,
+                        contentProcessingStatus = result.Status.ToString(),
+                        requiresHumanReview = !success || withheld,
+                        originalCharacterCount = projection.OriginalCharacterCount,
+                        deliveredCharacterCount = deliveredText.Length,
+                        projectedCharacterCount = projection.ProjectedCharacterCount,
+                        omittedCharacterCount = projection.OmittedCharacterCount,
+                        projectionWasTruncated = projection.ProjectionWasTruncated,
                     });
             });
-
-    private async Task<ProtectedHttpContent> ProtectContentAsync(
-        string content,
-        string alias,
-        CancellationToken cancellationToken)
-    {
-        var options = _guardrailsOptions.CurrentValue;
-        if (content.Length <= options.MaxContentChars)
-        {
-            var trust = await ScreenWithFallbackAsync(
-                    content,
-                    $"{alias} guardrail screening",
-                    cancellationToken)
-                .ConfigureAwait(false);
-            var originalDelivery = GuardrailDelivery.Apply(content, trust, options);
-            return CreateProtectedContent(
-                originalDelivery,
-                trust,
-                "Original",
-                requiresHumanReview: false,
-                content.Length,
-                content.Length,
-                trust.SuspiciousIndicators.Count,
-                trust.LatencyMs);
-        }
-
-        ContentSummaryResult summary;
-        try
-        {
-            summary = await _contentTrustService
-                .SummarizeAsync(
-                    content,
-                    options.MaxSummaryChars,
-                    cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (GuardrailSummarizationException exception)
-        {
-            await ReportGuardrailIncidentAsync(
-                    exception,
-                    $"{alias} guardrail summarization")
-                .ConfigureAwait(false);
-            return CreateSkippedContent(
-                SummarizationFailedMarker,
-                "SkippedSummarizationFailed",
-                content.Length);
-        }
-
-        if (summary.Status is not (
-                ContentSummaryStatus.Summarized or
-                ContentSummaryStatus.SummaryTruncated))
-        {
-            return summary.Status switch
-            {
-                ContentSummaryStatus.SourceTooLarge => CreateSkippedContent(
-                    TooLargeMarker,
-                    "SkippedTooLarge",
-                    content.Length),
-                ContentSummaryStatus.LlmProcessingDisabled => CreateSkippedContent(
-                    LlmDisabledMarker,
-                    "SkippedLlmProcessingDisabled",
-                    content.Length),
-                ContentSummaryStatus.SummarizationDisabled => CreateSkippedContent(
-                    SummarizationDisabledMarker,
-                    "SkippedSummarizationDisabled",
-                    content.Length),
-                _ => throw new InvalidOperationException(
-                    $"Unsupported HTTP summary status '{summary.Status}'."),
-            };
-        }
-
-        var finalTrust = await ScreenWithFallbackAsync(
-                summary.Summary,
-                $"{alias} guardrail final-summary screening",
-                cancellationToken)
-            .ConfigureAwait(false);
-        var indicators = GuardrailDelivery.UnionIndicators(
-            summary.SuspiciousIndicators,
-            finalTrust.SuspiciousIndicators);
-        if (finalTrust.Screened)
-        {
-            finalTrust = finalTrust with
-            {
-                TrustScore = Math.Min(
-                    summary.SourceTrustScore
-                        ?? throw new InvalidOperationException(
-                            "A successful summary must contain a source trust score."),
-                    finalTrust.TrustScore
-                        ?? throw new InvalidOperationException(
-                            "A screened final summary must contain a trust score.")),
-                SuspiciousIndicators = indicators,
-            };
-        }
-
-        var truncated = summary.Status == ContentSummaryStatus.SummaryTruncated;
-        var summaryDelivery = GuardrailDelivery.Apply(
-            summary.Summary,
-            finalTrust,
-            options,
-            forceBase64: truncated);
-        return CreateProtectedContent(
-            summaryDelivery,
-            finalTrust,
-            truncated ? "SummaryTruncated" : "Summarized",
-            requiresHumanReview: truncated,
-            content.Length,
-            summary.Summary.Length,
-            indicators.Count,
-            summary.LatencyMs + finalTrust.LatencyMs);
-    }
 
     private async Task<ContentTrustResult> ScreenWithFallbackAsync(
         string content,
@@ -323,8 +226,7 @@ public sealed partial class HttpTool : IHttpTool
     {
         try
         {
-            return await _contentTrustService
-                .ScreenAsync(content, returnBase64: false, cancellationToken)
+            return await _contentTrustService.ScreenAsync(content, false, cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -333,61 +235,14 @@ public sealed partial class HttpTool : IHttpTool
         }
         catch (GuardrailScreeningException exception)
         {
-            await ReportGuardrailIncidentAsync(exception, incidentSource)
+            _ = await _incidentReporter.ReportAsync(
+                    exception,
+                    incidentSource,
+                    CancellationToken.None)
                 .ConfigureAwait(false);
             return exception.FallbackResult;
         }
     }
-
-    private async Task ReportGuardrailIncidentAsync(
-        Exception exception,
-        string source)
-    {
-        _ = await _incidentReporter
-            .ReportAsync(exception, source, CancellationToken.None)
-            .ConfigureAwait(false);
-    }
-
-    private static ProtectedHttpContent CreateProtectedContent(
-        GuardrailDelivery.ProtectedContent delivery,
-        ContentTrustResult trust,
-        string processingStatus,
-        bool requiresHumanReview,
-        int originalCharacterCount,
-        int deliveredCharacterCount,
-        int suspiciousIndicatorCount,
-        long latencyMs) =>
-        new(
-            delivery.Content,
-            delivery.ContentEncoding,
-            trust.TrustScore,
-            trust.Status.ToString(),
-            trust.Screened,
-            suspiciousIndicatorCount,
-            trust.ProviderName,
-            latencyMs,
-            processingStatus,
-            requiresHumanReview,
-            originalCharacterCount,
-            deliveredCharacterCount);
-
-    private static ProtectedHttpContent CreateSkippedContent(
-        string marker,
-        string processingStatus,
-        int originalCharacterCount) =>
-        new(
-            marker,
-            "none",
-            null,
-            null,
-            false,
-            0,
-            "None",
-            0,
-            processingStatus,
-            true,
-            originalCharacterCount,
-            marker.Length);
 
     private Uri ValidateUri(string url)
     {
@@ -395,19 +250,14 @@ public sealed partial class HttpTool : IHttpTool
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
             (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
         {
-            throw new ArgumentException(
-                "An absolute HTTP or HTTPS URL is required.",
-                nameof(url));
+            throw new ArgumentException("An absolute HTTP or HTTPS URL is required.", nameof(url));
         }
 
         var allowedHosts = _httpOptions.Value.AllowedHosts ?? [];
-        if (allowedHosts.Length > 0 &&
-            !allowedHosts.Any(
+        if (allowedHosts.Length > 0 && !allowedHosts.Any(
                 host => string.Equals(host, uri.IdnHost, StringComparison.OrdinalIgnoreCase)))
         {
-            throw new SafetyException(
-                $"HTTP request to host '{uri.IdnHost}'",
-                "Http:AllowedHosts");
+            throw new SafetyException($"HTTP request to host '{uri.IdnHost}'", "Http:AllowedHosts");
         }
 
         return uri;
@@ -428,13 +278,13 @@ public sealed partial class HttpTool : IHttpTool
         HttpRequestMessage request,
         CancellationToken cancellationToken)
     {
-        var timeout = TimeSpan.FromSeconds(_httpOptions.Value.TimeoutSeconds);
-        using var timeoutSource = new CancellationTokenSource(timeout, _timeProvider);
+        using var timeoutSource = new CancellationTokenSource(
+            TimeSpan.FromSeconds(_httpOptions.Value.TimeoutSeconds),
+            _timeProvider);
         using var linkedSource = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken,
             timeoutSource.Token);
-        var client = _httpClientFactory.CreateClient(HttpClientName);
-        var response = await client.SendAsync(
+        var response = await _httpClientFactory.CreateClient(HttpClientName).SendAsync(
             request,
             HttpCompletionOption.ResponseHeadersRead,
             linkedSource.Token).ConfigureAwait(false);
@@ -446,44 +296,8 @@ public sealed partial class HttpTool : IHttpTool
         HttpResponseMessage response,
         CancellationToken cancellationToken)
     {
-        var content = await response.Content.ReadAsStringAsync(cancellationToken)
-            .ConfigureAwait(false);
+        var content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
         var maximumLength = _httpOptions.Value.MaxResponseCharacters;
-        return content.Length <= maximumLength
-            ? content
-            : content[..maximumLength];
+        return content.Length <= maximumLength ? content : content[..maximumLength];
     }
-
-    private string ExtractText(string html)
-    {
-        var document = new HtmlDocument();
-        document.LoadHtml(html);
-        foreach (var node in document.DocumentNode.SelectNodes("//script|//style|//noscript")
-                     ?? Enumerable.Empty<HtmlNode>())
-        {
-            node.Remove();
-        }
-
-        var decoded = WebUtility.HtmlDecode(document.DocumentNode.InnerText);
-        var compact = WhitespacePattern().Replace(decoded, " ").Trim();
-        var maximumLength = _httpOptions.Value.MaxResponseCharacters;
-        return compact.Length <= maximumLength ? compact : compact[..maximumLength];
-    }
-
-    [GeneratedRegex(@"\s+", RegexOptions.CultureInvariant)]
-    private static partial Regex WhitespacePattern();
-
-    private sealed record ProtectedHttpContent(
-        string Content,
-        string ContentEncoding,
-        int? TrustScore,
-        string? TrustStatus,
-        bool Screened,
-        int SuspiciousIndicatorCount,
-        string ProviderName,
-        long ScreeningLatencyMs,
-        string ContentProcessingStatus,
-        bool RequiresHumanReview,
-        int OriginalCharacterCount,
-        int DeliveredCharacterCount);
 }

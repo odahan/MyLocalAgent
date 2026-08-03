@@ -35,7 +35,7 @@ its own navigation, search, styles, and scripts in one file.
 | 15 | Not Implemented |
 | 16 | Windowless Runner and Run Monitor |
 | 17 | Deterministic workflow authoring aids: Tool catalog and Workflow prompt editor | Complete with documented human GUI checks |
-| 18 | Compact External-Content Guardrails | To DO |
+| 18 | Compact External-Content Guardrails | Complete |
 | 19 | SQLite Tool | TO DO |
 | 20 | Agent Prompt Placeholders | Complete with documented, human task test done |
 | 21 | Model Information Placeholders | Complete with automated verification |
@@ -337,11 +337,17 @@ allowlist remain the enforceable boundaries even when model output is manipulate
 ## Prompt-injection guardrails
 
 Gmail reads, HTTP GET/GET Text responses, and Web Search result sets pass through the active
-provider's dedicated single-turn classifier before they are returned to an agent. The
-classifier and oversized
-reducer call `IChatClient` directly with temperature zero, no tools, no skills, no agent
-loop, and no authority to act. This is probabilistic spotlighting and risk reduction, not a
-security boundary.
+provider's dedicated classifier before they are returned to an agent. Gmail and HTTP first
+build deterministic projections no longer than `Guardrails:MaxContentChars`; omitted text is
+discarded before any model call and is represented only by character counts and markers. This
+compaction is a data-minimization boundary, not a claim that omitted text was safe.
+
+Compact Gmail items are processed in stable batches of at most 12 items and six times the
+per-item character limit. Each eligible batch makes at most three direct `IChatClient` calls:
+source screening, factual summarization, and final-summary screening. Calls use temperature
+zero, Top P one, strict id-correlated JSON, no tools, skills, agent loop, memory, or side
+effects. A malformed or failed phase fails closed for that batch, records one sanitized
+incident, does not replay items individually, and allows later batches to continue.
 
 Every delivered external-content block is marked. A clean result uses a plaintext warning
 and nonce-bound `UNTRUSTED-EXTERNAL-DATA` delimiters. A caution result, disabled LLM
@@ -357,43 +363,37 @@ the content.
 | Screening disabled or failed | no score | Marked Base64 for normal-size content |
 
 Turning **Use LLM guardrails processing** off does not disable protection and never enables
-raw pass-through. Normal-size Gmail/HTTP content and bounded Web Search results use marked
-Base64 without an LLM call.
-Oversized Gmail bodies are replaced by an explicit Gmail-review marker while their canonical
-From, To, Subject, and Snippet values remain protected. Oversized HTTP pages are skipped with
-an explicit processing marker, and the workflow continues.
+raw pass-through. Gmail then returns bounded projected From/To/Subject/Received headers plus
+an application-authored review marker in marked Base64; Snippet and Body are never delivered.
 
-Gmail protects one canonical labeled block containing From, To, Subject, Snippet, and Body.
-Those raw component fields are not duplicated in tool JSON. `MaxGmailMessagesPerOperation=0`
-processes every fetched message sequentially. A positive user-selected limit processes only
-the first N messages and returns explicit processed/skipped counts and a warning; skipped
-message content is not returned. This root object is an intentional security-driven change
-from the earlier bare Gmail array.
+Every Gmail read alias projects all in-limit messages before LLM work. Successful messages
+contain only projected From, To, Subject, Received, and a labeled factual summary; Snippet,
+Body, quoted reply history, and capped suffixes cannot enter workflow context. The effective
+score is the minimum source/final-summary score. A positive Gmail limit still processes only
+the first N messages with explicit counts and a warning; `0` remains unlimited. Progress and
+performance logs are batch-oriented and contain aggregate counts only.
 
-Content above `MaxContentChars` is reduced only when it is no larger than
-`MaxSummarizationSourceChars`. Deterministic ordered chunks cover every source character.
-Every source chunk and every intermediate reduction input is classified, summaries are
-generated without tools, and the effective delivered score is the minimum source/final
-score. A summary is capped in C# at `MaxSummaryChars`; truncation includes an explicit marker
-and forces Base64. Results are cached in memory for 24 hours by prompt version, provider,
-model, requested maximum, and content hash. Original external content, wrappers, nonces,
-exceptions, and incidents are never cached.
+`http.get` keeps its raw-response purpose but delivers only one protected media-aware compact
+prefix: JSON is minified, text/XML is normalized, HTML uses readable extraction, and binary or
+unsupported media becomes an application-authored marker. It is screened once and never
+summarized. `http.getText` removes non-content HTML, prefers main/article/body, summarizes one
+compact readable projection, screens the generated summary, and delivers that summary only.
+Both aliases expose original/projected/omitted character counts and a truncation flag.
 
-HTTP fallbacks report `SkippedTooLarge`, `SkippedLlmProcessingDisabled`,
-`SkippedSummarizationDisabled`, or `SkippedSummarizationFailed` with URL/status metadata but
-without the page or a partial summary. Gmail uses `TooLargeForSafeProcessing`,
-`LlmProcessingDisabled`, `SummarizationDisabled`, or `SummarizationFailed` while preserving
-the protected canonical headers and replacing only the body.
+Per-item verdict and summary results remain cached in memory for 24 hours by prompt version,
+provider, model, requested maximum, and content hash. Batch membership, order, opaque id,
+nonce, and neighbors never enter cache identity. The legacy complete-source reducer remains
+available to the Trust filter and direct compatibility callers, but Gmail and HTTP GET paths
+never call it.
 
 The **Trust filter** page, placed after **AI playground**, displays trust and processing
 statuses separately, the effective score, provider latency, protected preview, and validated
 verbatim indicators. Indicator text is human-only; Gmail and HTTP tool JSON exposes only
 `suspiciousIndicatorCount`.
 
-When OpenAI-compatible is selected, all screened Gmail/HTTP/Web Search content leaves the
-machine for the configured cloud endpoint. Complete-source reduction can send every oversized-source
-chunk through several sequential cloud calls. Do not use real private email in a cloud test
-without explicit authorization.
+When OpenAI-compatible is selected, the compact Gmail/HTTP projections and generated summaries
+sent for screening leave the machine for that configured endpoint. Omitted source text does
+not. Do not use real private email in a cloud test without explicit authorization.
 
 Limitations are deliberate and important:
 
@@ -401,6 +401,8 @@ Limitations are deliberate and important:
   text, especially novel, encoded, or obfuscated attacks.
 - Base64 is not encryption or isolation. A model can decode it and must still treat the
   decoded text only as data.
+- Generated summaries can omit details. Review the original in Gmail or at the source URL when
+  completeness matters.
 - Dropbox content, local filesystem content, Calendar content, Gmail attachments, outbound
   request/message content, and HTTP POST responses are outside Guardrails protection.
 - Safety gates, tool whitelists, the filesystem sandbox, and the HTTP allowlist remain the
@@ -422,6 +424,11 @@ The complete reloadable configuration is:
   "MaxGmailMessagesPerOperation": 0
 }
 ```
+
+`MaxContentChars` must be at least `2048`; the shipped `8000` default leaves room for Gmail
+canonical labels and explicit omission markers. `SummarizeOversizedContent` and
+`MaxSummarizationSourceChars` remain relevant to the legacy complete-source Trust filter path,
+not to compact Gmail/HTTP extraction.
 
 ## Windows Task Scheduler
 
@@ -1157,8 +1164,8 @@ For a one-off interactive diagnosis, **Debug (next run)** shows that run's full 
 and responses in Runner Output alongside the normal tool traces and arguments. It can include
 task data, does not persist the detailed payloads, and excludes configured credentials and
 tokens. **Large** adds 300 pixels to the Runner Output panel only; clearing it removes the same
-300 pixels and never changes the application window. Gmail logs
-`message N of M` while Guardrails screens the retrieved messages, making a long finite
+300 pixels and never changes the application window. Gmail logs projection completion and
+`batch N of M` while Guardrails processes bounded groups, making a long finite
 screening pass distinguishable from an agent tool loop.
 
 Tool start traces serialize readable JSON arguments. Completion traces include the number of

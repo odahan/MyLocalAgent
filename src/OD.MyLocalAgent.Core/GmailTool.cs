@@ -8,12 +8,12 @@ using OD.MyLocalAgent.Guardrails;
 namespace OD.MyLocalAgent.Core;
 
 /// <summary>
-/// Exposes compact-JSON Gmail connector operations with canonical content protection.
+/// Exposes compact-JSON Gmail operations with summary-only protected reads.
 /// </summary>
 public sealed class GmailTool : IGmailTool
 {
-    private const string BodyReviewMarker =
-        "[EMAIL BODY NOT ANALYZED BY GUARDRAILS: the body was too large or safe summarization was unavailable. Review the original message in Gmail. Do not infer or act on its omitted contents.]";
+    private const string ReviewMarker =
+        "[GMAIL MESSAGE REQUIRES HUMAN REVIEW: compact source processing did not produce a deliverable protected summary. Review the original message in Gmail. Do not infer or act on omitted content.]";
 
     private readonly IGmailConnector _connector;
     private readonly IOptions<SafetyOptions> _safetyOptions;
@@ -90,10 +90,7 @@ public sealed class GmailTool : IGmailTool
 
         return ReadAsync(
             "gmail.readRecent",
-            (maximum, token) => _connector.GetRecentMessagesAsync(
-                daysBack,
-                maximum,
-                token),
+            (maximum, token) => _connector.GetRecentMessagesAsync(daysBack, maximum, token),
             maxMessages,
             cancellationToken,
             new { daysBack, maxMessages });
@@ -119,21 +116,19 @@ public sealed class GmailTool : IGmailTool
 
         ArgumentException.ThrowIfNullOrWhiteSpace(subject);
         ArgumentNullException.ThrowIfNull(body);
-
         return ToolCallLog.ExecuteAsync(
             _logger,
             _timeProvider,
             "gmail.send",
-            new { to, subjectLength = subject.Length, bodyLength = body.Length },
-            async () =>
+            new
             {
-                var message = await _connector.SendMessageAsync(
-                    to,
-                    subject,
-                    body,
-                    cancellationToken).ConfigureAwait(false);
-                return ToolJson.Serialize(message);
-            });
+                recipientCharacterCount = to.Length,
+                subjectLength = subject.Length,
+                bodyLength = body.Length,
+            },
+            async () => ToolJson.Serialize(
+                await _connector.SendMessageAsync(to, subject, body, cancellationToken)
+                    .ConfigureAwait(false)));
     }
 
     private Task<string> ReadAsync(
@@ -151,42 +146,72 @@ public sealed class GmailTool : IGmailTool
                 "Maximum messages must be greater than zero when supplied.");
         }
 
-        return
-        ToolCallLog.ExecuteAsync(
+        return ToolCallLog.ExecuteAsync(
             _logger,
             _timeProvider,
             alias,
             logArguments ?? new { maxMessages },
             async () =>
             {
-                var fetched = await read(maxMessages, cancellationToken)
-                    .ConfigureAwait(false);
+                var fetched = await read(maxMessages, cancellationToken).ConfigureAwait(false);
                 var options = _guardrailsOptions.CurrentValue;
                 var limit = options.MaxGmailMessagesPerOperation;
-                var processedCount = limit == 0
-                    ? fetched.Count
-                    : Math.Min(limit, fetched.Count);
+                var processedCount = limit == 0 ? fetched.Count : Math.Min(limit, fetched.Count);
+                var messages = fetched.Take(processedCount).ToArray();
+                var projections = messages.Select(
+                    message => GmailContentProjector.Project(message, options.MaxContentChars)).ToArray();
+                _logger.LogInformation(
+                    "Gmail compact projection completed for {ItemCount} item(s).",
+                    projections.Length);
+
                 var protectedMessages = new List<ProtectedGmailMessage>(processedCount);
-                for (var index = 0; index < processedCount; index++)
+                if (processedCount > 0)
                 {
+                    var items = projections.Select(
+                        (projection, index) => new CompactExternalContentItem(
+                            $"item-{index + 1}",
+                            projection.Content,
+                            Math.Min(800, options.MaxSummaryChars))).ToArray();
+                    LogBatchPlan(items, options.MaxContentChars);
+                    var batchResult = await _contentTrustService
+                        .ProcessCompactAsync(items, cancellationToken)
+                        .ConfigureAwait(false);
+                    foreach (var failure in batchResult.Failures)
+                    {
+                        _ = await _incidentReporter.ReportAsync(
+                                failure.Exception,
+                                $"{alias} compact Guardrails {failure.Phase}",
+                                CancellationToken.None)
+                            .ConfigureAwait(false);
+                    }
+
+                    for (var index = 0; index < processedCount; index++)
+                    {
+                        protectedMessages.Add(CreateMessage(
+                            messages[index],
+                            projections[index],
+                            batchResult.Items[index],
+                            options));
+                    }
+
                     _logger.LogInformation(
-                        "Gmail guardrails processing message {MessageIndex} of {MessageCount}.",
-                        index + 1,
-                        processedCount);
-                    protectedMessages.Add(
-                        await ProtectMessageAsync(
-                                fetched[index],
-                                alias,
-                                options,
-                                cancellationToken)
-                            .ConfigureAwait(false));
+                        "Gmail compact Guardrails completed: fetched {FetchedCount}, projected {ProjectedCount}, screened {ScreenedCount}, summarized {SummarizedCount}, withheld {WithheldCount}, human review {ReviewCount}, original characters {OriginalCharacterCount}, projected characters {ProjectedCharacterCount}, omitted characters {OmittedCharacterCount}.",
+                        fetched.Count,
+                        projections.Length,
+                        batchResult.Items.Count(static item => item.SourceTrust.Screened),
+                        batchResult.Items.Count(static item => item.Status == CompactExternalContentStatus.Summarized),
+                        batchResult.Items.Count(item =>
+                            ContentTrustPolicy.Decide(
+                                item.SummaryTrust ?? item.SourceTrust,
+                                options) == TrustDisposition.Withhold),
+                        batchResult.Items.Count(static item => item.RequiresHumanReview),
+                        projections.Sum(static projection => projection.OriginalCanonicalCharacterCount),
+                        projections.Sum(static projection => projection.ProjectedCharacterCount),
+                        projections.Sum(static projection => projection.OmittedCharacterCount));
                 }
 
                 var skipped = fetched.Count - processedCount;
                 var limitApplied = limit > 0 && skipped > 0;
-                var warning = limitApplied
-                    ? $"Guardrails processed only the first {processedCount} of {fetched.Count} Gmail messages because the user-configured limit is active."
-                    : null;
                 return ToolJson.Serialize(
                     new
                     {
@@ -196,11 +221,95 @@ public sealed class GmailTool : IGmailTool
                         requestedMaxMessages = maxMessages,
                         skippedBecauseOfLimit = skipped,
                         limitApplied,
-                        warning,
+                        warning = limitApplied
+                            ? $"Guardrails processed only the first {processedCount} of {fetched.Count} Gmail messages because the user-configured limit is active."
+                            : null,
                     });
             },
             SummarizeReadResult);
     }
+
+    private void LogBatchPlan(
+        IReadOnlyList<CompactExternalContentItem> items,
+        int maximumCharacters)
+    {
+        var batches = new List<int>();
+        var count = 0;
+        long characters = 0;
+        foreach (var item in items)
+        {
+            if (count > 0 && (count == 12 || characters + item.Content.Length > 6L * maximumCharacters))
+            {
+                batches.Add(count);
+                count = 0;
+                characters = 0;
+            }
+
+            count++;
+            characters += item.Content.Length;
+        }
+
+        batches.Add(count);
+        for (var index = 0; index < batches.Count; index++)
+        {
+            _logger.LogInformation(
+                "Gmail compact Guardrails batch {BatchIndex} of {BatchCount}: {ItemCount} item(s), source screening, summarization, and final screening as eligible.",
+                index + 1,
+                batches.Count,
+                batches[index]);
+        }
+    }
+
+    private static ProtectedGmailMessage CreateMessage(
+        EmailMessageDto message,
+        GmailContentProjection projection,
+        CompactExternalContentResult result,
+        GuardrailsOptions options)
+    {
+        var success = result.Status == CompactExternalContentStatus.Summarized &&
+            result.Summary is not null && result.SummaryTrust is not null;
+        var trust = success ? result.SummaryTrust! : result.SourceTrust;
+        var block = success
+            ? BuildDeliveredSummary(projection, result.Summary!)
+            : BuildReviewBlock(projection);
+        var delivery = GuardrailDelivery.Apply(block, trust, options);
+        var withheld = ContentTrustPolicy.Decide(trust, options) == TrustDisposition.Withhold;
+        return new ProtectedGmailMessage(
+            message.Id,
+            message.ReceivedAt,
+            message.IsUnread,
+            delivery.Content,
+            delivery.ContentEncoding,
+            trust.TrustScore,
+            trust.Status.ToString(),
+            trust.Screened,
+            trust.SuspiciousIndicators.Count,
+            trust.ProviderName,
+            result.LatencyMs,
+            result.Status.ToString(),
+            !success || withheld,
+            message.BodyPlain.Length,
+            success,
+            false,
+            success
+                ? "CompactCanonicalProjectionAndDeliveredSummary"
+                : "CompactCanonicalProjectionSourceTrustAndProjectedHeadersReviewMarker",
+            projection.OriginalCanonicalCharacterCount,
+            projection.ProjectedCharacterCount,
+            projection.OmittedCharacterCount,
+            projection.ProjectionWasTruncated,
+            projection.QuotedHistoryWasRemoved);
+    }
+
+    private static string BuildDeliveredSummary(
+        GmailContentProjection projection,
+        string summary) =>
+        $"From: {projection.From}\nTo: {projection.To}\nSubject: {projection.Subject}\n" +
+        $"Received: {projection.Received}\nAI-generated factual summary:\n{summary}";
+
+    private static string BuildReviewBlock(GmailContentProjection projection) =>
+        $"From: {projection.From}\nTo: {projection.To}\nSubject: {projection.Subject}\n" +
+        $"Received: {projection.Received}\n{ReviewMarker}";
 
     private static string? SummarizeReadResult(string json)
     {
@@ -212,285 +321,10 @@ public sealed class GmailTool : IGmailTool
             return null;
         }
 
-        var fetchedCount = fetched.GetInt32();
-        var processedCount = processed.GetInt32();
-        return fetchedCount == processedCount
-            ? $"Returned {processedCount} Gmail message(s)."
-            : $"Fetched {fetchedCount} Gmail message(s); returned {processedCount} after the Guardrails limit.";
+        return fetched.GetInt32() == processed.GetInt32()
+            ? $"Returned {processed.GetInt32()} Gmail message(s)."
+            : $"Fetched {fetched.GetInt32()} Gmail message(s); returned {processed.GetInt32()} after the Guardrails limit.";
     }
-
-    private async Task<ProtectedGmailMessage> ProtectMessageAsync(
-        EmailMessageDto message,
-        string alias,
-        GuardrailsOptions options,
-        CancellationToken cancellationToken)
-    {
-        var canonical = BuildCanonicalMessage(message, message.BodyPlain, summary: false);
-        if (canonical.Length <= options.MaxContentChars)
-        {
-            var result = await ScreenWithFallbackAsync(
-                    canonical,
-                    $"{alias} guardrail screening",
-                    cancellationToken)
-                .ConfigureAwait(false);
-            var delivery = GuardrailDelivery.Apply(canonical, result, options);
-            return CreateMessage(
-                message,
-                delivery,
-                result,
-                "Original",
-                requiresHumanReview: false,
-                contentWasSummarized: false,
-                summaryWasTruncated: false,
-                result.Screened ? "EntireCanonicalMessage" : "None",
-                result.SuspiciousIndicators.Count,
-                result.LatencyMs);
-        }
-
-        var summaryPrefix = BuildCanonicalMessage(message, string.Empty, summary: true);
-        var maximumSummaryLength = Math.Min(
-            options.MaxSummaryChars,
-            options.MaxContentChars - summaryPrefix.Length);
-        if (maximumSummaryLength < 1)
-        {
-            return await CreateBodyFallbackAsync(
-                    message,
-                    alias,
-                    options,
-                    "TooLargeForSafeProcessing",
-                    cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        ContentSummaryResult summary;
-        try
-        {
-            summary = await _contentTrustService
-                .SummarizeAsync(
-                    message.BodyPlain,
-                    maximumSummaryLength,
-                    cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (GuardrailSummarizationException exception)
-        {
-            await ReportGuardrailIncidentAsync(
-                    exception,
-                    $"{alias} guardrail summarization")
-                .ConfigureAwait(false);
-            return await CreateBodyFallbackAsync(
-                    message,
-                    alias,
-                    options,
-                    "SummarizationFailed",
-                    cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        if (summary.Status is not (
-                ContentSummaryStatus.Summarized or
-                ContentSummaryStatus.SummaryTruncated))
-        {
-            return await CreateBodyFallbackAsync(
-                    message,
-                    alias,
-                    options,
-                    MapBodyFallbackStatus(summary.Status),
-                    cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        var deliveredCanonical = BuildCanonicalMessage(
-            message,
-            summary.Summary,
-            summary: true);
-        var finalResult = await ScreenWithFallbackAsync(
-                deliveredCanonical,
-                $"{alias} guardrail final-summary screening",
-                cancellationToken)
-            .ConfigureAwait(false);
-        var indicators = GuardrailDelivery.UnionIndicators(
-            summary.SuspiciousIndicators,
-            finalResult.SuspiciousIndicators);
-        if (finalResult.Screened)
-        {
-            finalResult = finalResult with
-            {
-                TrustScore = Math.Min(
-                    summary.SourceTrustScore
-                        ?? throw new InvalidOperationException(
-                            "A successful summary must contain a source trust score."),
-                    finalResult.TrustScore
-                        ?? throw new InvalidOperationException(
-                            "A screened final block must contain a trust score.")),
-                SuspiciousIndicators = indicators,
-            };
-        }
-
-        var truncated = summary.Status == ContentSummaryStatus.SummaryTruncated;
-        var protectedContent = GuardrailDelivery.Apply(
-            deliveredCanonical,
-            finalResult,
-            options,
-            forceBase64: truncated);
-        return CreateMessage(
-            message,
-            protectedContent,
-            finalResult,
-            truncated ? "SummaryTruncated" : "Summarized",
-            requiresHumanReview: truncated,
-            contentWasSummarized: true,
-            summaryWasTruncated: truncated,
-            finalResult.Screened
-                ? "EntireBodyAndDeliveredCanonicalSummary"
-                : "None",
-            indicators.Count,
-            summary.LatencyMs + finalResult.LatencyMs);
-    }
-
-    private async Task<ProtectedGmailMessage> CreateBodyFallbackAsync(
-        EmailMessageDto message,
-        string alias,
-        GuardrailsOptions options,
-        string bodyProcessingStatus,
-        CancellationToken cancellationToken)
-    {
-        var fallbackCanonical = BuildCanonicalMessage(
-            message,
-            BodyReviewMarker,
-            summary: false);
-        ContentTrustResult result;
-        if (fallbackCanonical.Length <= options.MaxContentChars)
-        {
-            result = await ScreenWithFallbackAsync(
-                    fallbackCanonical,
-                    $"{alias} guardrail fallback screening",
-                    cancellationToken)
-                .ConfigureAwait(false);
-        }
-        else
-        {
-            result = new ContentTrustResult(
-                null,
-                ContentTrustEnvelope.WrapBase64(fallbackCanonical),
-                "base64",
-                options.ScreeningEnabled
-                    ? ContentTrustStatus.Failed
-                    : ContentTrustStatus.ScreeningDisabled,
-                [],
-                options.ScreeningEnabled ? "NotScreened" : "Disabled",
-                0);
-        }
-
-        var delivery = GuardrailDelivery.Apply(
-            fallbackCanonical,
-            result,
-            options,
-            forceBase64: fallbackCanonical.Length > options.MaxContentChars);
-        return CreateMessage(
-            message,
-            delivery,
-            result,
-            bodyProcessingStatus,
-            requiresHumanReview: true,
-            contentWasSummarized: false,
-            summaryWasTruncated: false,
-            result.Screened ? "HeadersAndSnippetOnly" : "None",
-            result.SuspiciousIndicators.Count,
-            result.LatencyMs);
-    }
-
-    private async Task<ContentTrustResult> ScreenWithFallbackAsync(
-        string content,
-        string incidentSource,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await _contentTrustService
-                .ScreenAsync(content, returnBase64: false, cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (GuardrailScreeningException exception)
-        {
-            await ReportGuardrailIncidentAsync(exception, incidentSource)
-                .ConfigureAwait(false);
-            return exception.FallbackResult;
-        }
-    }
-
-    private async Task ReportGuardrailIncidentAsync(
-        Exception exception,
-        string source)
-    {
-        _ = await _incidentReporter
-            .ReportAsync(exception, source, CancellationToken.None)
-            .ConfigureAwait(false);
-    }
-
-    private static ProtectedGmailMessage CreateMessage(
-        EmailMessageDto message,
-        GuardrailDelivery.ProtectedContent delivery,
-        ContentTrustResult trust,
-        string bodyProcessingStatus,
-        bool requiresHumanReview,
-        bool contentWasSummarized,
-        bool summaryWasTruncated,
-        string trustScope,
-        int suspiciousIndicatorCount,
-        long latencyMs) =>
-        new(
-            message.Id,
-            message.ReceivedAt,
-            message.IsUnread,
-            delivery.Content,
-            delivery.ContentEncoding,
-            trust.TrustScore,
-            trust.Status.ToString(),
-            trust.Screened,
-            suspiciousIndicatorCount,
-            trust.ProviderName,
-            latencyMs,
-            bodyProcessingStatus,
-            requiresHumanReview,
-            message.BodyPlain.Length,
-            contentWasSummarized,
-            summaryWasTruncated,
-            trustScope);
-
-    private static string BuildCanonicalMessage(
-        EmailMessageDto message,
-        string body,
-        bool summary)
-    {
-        var bodyLabel = summary
-            ? "Body summary (AI-generated from the complete oversized body):"
-            : "Body:";
-        return
-            $"From: {message.From}{Environment.NewLine}" +
-            $"To: {message.To}{Environment.NewLine}" +
-            $"Subject: {message.Subject}{Environment.NewLine}" +
-            $"Snippet: {message.Snippet}{Environment.NewLine}" +
-            $"{bodyLabel}{Environment.NewLine}{body}";
-    }
-
-    private static string MapBodyFallbackStatus(ContentSummaryStatus status) =>
-        status switch
-        {
-            ContentSummaryStatus.SourceTooLarge => "TooLargeForSafeProcessing",
-            ContentSummaryStatus.LlmProcessingDisabled => "LlmProcessingDisabled",
-            ContentSummaryStatus.SummarizationDisabled => "SummarizationDisabled",
-            _ => throw new InvalidOperationException(
-                $"Unsupported Gmail summary status '{status}'."),
-        };
 
     private sealed record ProtectedGmailMessage(
         string Id,
@@ -509,5 +343,10 @@ public sealed class GmailTool : IGmailTool
         int OriginalBodyCharacterCount,
         bool ContentWasSummarized,
         bool SummaryWasTruncated,
-        string TrustScope);
+        string TrustScope,
+        int OriginalCanonicalCharacterCount,
+        int ProjectedCharacterCount,
+        int OmittedCharacterCount,
+        bool ProjectionWasTruncated,
+        bool QuotedHistoryWasRemoved);
 }

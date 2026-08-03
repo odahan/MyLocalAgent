@@ -1590,7 +1590,7 @@ Modified:
   a dispatcher incident when the Tasks page loaded. The correction does not execute, modify, or
   expose any task data.
 
-#### Runner diagnosis and Gmail progress — 2026-07-31
+#### Runner diagnosis and Gmail progress — 2026-07-31 (historical, superseded for Gmail by Stage 18)
 
 - The observed daily Gmail workflow was not in an agent loop: its initial unbounded
   `gmail.readToday` retrieval returned 40 messages, and Guardrails began 27 sequential local
@@ -1601,7 +1601,8 @@ Modified:
   sanitized tool-argument traces; it disables automatic scrolling and never persists those
   payloads in normal logs or reports. Large raises only the diagnostic panel by 300 pixels and
   never changes the main window.
-- Gmail emits privacy-safe `message N of M` Guardrails progress. No hidden read limit was added:
+- Gmail emitted privacy-safe `message N of M` Guardrails progress at this point in the history.
+  Stage 18 replaces it with bounded `batch N of M` progress without adding a hidden read limit;
   selecting `maxMessages` or a non-zero Guardrails cap remains an explicit user choice because
   it can omit messages from the report.
 - Release verification after this correction: `dotnet build OD.MyLocalAgent.sln --no-restore
@@ -1859,9 +1860,10 @@ Modified:
 #### Scope and pre-Stage-18/19 integration decision
 
 - Implemented `Docs/Prompts/20-Stage20-AgentPromptPlaceholders.md` directly on the completed
-  Stage 17 code line at the product owner’s request. Stage 18 compact Guardrails and Stage 19
-  SQLite remain deliberately unimplemented and no Stage 20 code, test, package, setting, task
-  field, tool group, Safety flag, migration, or documentation example depends on them.
+  Stage 17 code line at the product owner’s request. At that point, Stage 18 compact Guardrails
+  and Stage 19 SQLite were deliberately unimplemented, and no Stage 20 code, test, package,
+  setting, task field, tool group, Safety flag, migration, or documentation example depended on
+  them. The later Stage 18 entry below supersedes only the Stage 18 status.
 - Expansion is selected only by task-owned prompt-only boundaries: Runner `run` when
   `Workflow.Count == 0`, Runner `test-prompt`, UI Run now through the same child Runner, and
   Prompt editor Test over its current unsaved prompt. Workflow precedence remains unchanged;
@@ -1932,7 +1934,8 @@ Modified:
 - Packages the Stage 20 agent prompt placeholder implementation as version 1.2.8, set in
   `Directory.Build.props`.
 - Includes the Tasks page `Open Folder` action for opening the task storage directory.
-- Stage 18 compact Guardrails and Stage 19 SQLite remain intentionally deferred.
+- At release 1.2.8, Stage 18 compact Guardrails and Stage 19 SQLite were intentionally deferred;
+  the later Stage 18 entry below supersedes the Stage 18 status.
 
 ### Stage 21 — Model information placeholders — 2026-08-03
 
@@ -2016,3 +2019,72 @@ Modified:
 - Packages the Stage 21 model information placeholders and task-log model header as version
   1.2.9, set centrally in `Directory.Build.props`.
 - The annotated Git tag for this release is `V129` and identifies the Stage 21 implementation.
+
+### Stage 18 — Compact external-content Guardrails — 2026-08-03
+
+#### Scope and superseded Stage 7 behavior
+
+- Implemented `Docs/Prompts/18-Stage18-CompactExternalContentGuardrails.md` on the completed
+  Stage 21 line. This entry supersedes the Stage 7 complete-source and message-sequential rules
+  only for Gmail reads, `http.get`, and `http.getText`. The singleton `ScreenAsync` and legacy
+  complete-source `SummarizeAsync` contracts remain available to the Trust filter and direct
+  compatibility callers. Web Search, HTTP POST, Gmail send/attachments, Calendar, Dropbox,
+  filesystem, authorization, Safety, providers, models, packages, settings, task fields, aliases,
+  pages, and migrations are unchanged.
+- Gmail and HTTP now establish a deterministic minimization boundary before any LLM request.
+  Omitted source characters are discarded and represented only by application-authored markers
+  and aggregate counts. Compaction does not classify omitted text as safe.
+
+#### Public APIs and deterministic projectors
+
+- Guardrails adds `CompactExternalContentItem`, `CompactExternalContentStatus`,
+  `CompactExternalContentResult`, `CompactExternalContentBatchFailure`,
+  `CompactExternalContentBatchResult`, `CompactExternalContentPhaseException`, and
+  `IContentTrustService.ProcessCompactAsync(IReadOnlyList<CompactExternalContentItem>,
+  CancellationToken)`.
+- Core adds pure `GmailContentProjector.Project(EmailMessageDto, int)` with
+  `GmailContentProjection`, and `HttpContentProjector.Project(string, string?, int)` with
+  `HttpContentProjection`. Gmail canonical order is From, To, Subject, Received, Snippet, Body;
+  field limits are 512, 512, 1,000, invariant timestamp, 1,500, and the remaining overall
+  budget. English/French/original-message quoted suffixes are removed only at compiled line-start
+  boundaries. HTTP handles minified JSON, normalized text/XML, readable HTML, and an unsupported
+  media marker. Guardrails option validation now requires `MaxContentChars >= 2048`.
+
+#### Batch schemas, versions, limits, and cache
+
+- `CompactContentBatchScreenerPrompt.Version` is `compact-screen-v1`. Its exact response schema
+  is `{"results":[{"id":"opaque-id","score":85,"indicators":["verbatim suspicious span"]}]}`.
+- `CompactContentBatchSummarizerPrompt.Version` is `compact-summary-v1`. Its exact response schema
+  is `{"results":[{"id":"opaque-id","summary":"factual summary"}]}`.
+- Ordered inputs are greedily partitioned at 12 items or six times `MaxContentChars`. Every
+  uncached eligible batch makes at most one source-screen request, one eligible-only summary
+  request, and one final-summary-screen request. Each item has a fresh nonce block; ids are
+  correlated strictly and response order is irrelevant. Unknown, duplicate, missing, malformed,
+  overlong, or out-of-range data invalidates the complete phase.
+- All calls use the selected provider/model snapshot, fixed Guardrail policies, direct
+  `IChatClient`, `Tools=null`, and a program-owned `MaxOutputTokens` bound. Phase failures produce
+  one content-free exception without inner exception or provider response, do not trigger
+  singleton replay, and do not stop later batches. Caller cancellation stops immediately.
+- Verdict and compact-summary caches remain process-local with the existing 24-hour TTL. Keys
+  contain content hash, provider, model, dedicated prompt version, and requested summary maximum
+  where applicable; opaque id, nonce, batch composition, position, and neighbors are excluded.
+
+#### Delivery, privacy, and verification
+
+- Gmail reads project every in-limit message before batch processing and retain connector order
+  and root count/limit fields. Success delivers only projected From/To/Subject/Received plus a
+  labeled factual summary. Fallback delivers only projected headers plus a bounded Gmail-review
+  marker under source trust. Snippet, Body, quoted history, omitted suffixes, and generated text
+  that failed final screening never reach workflow context. Projection metadata is additive.
+- `http.get` screens once and delivers one protected media-aware compact prefix without summary.
+  `http.getText` processes one compact item and delivers only its protected factual summary or a
+  review marker. Both expose original/projected/omitted counts and a truncation flag.
+- Tool arguments no longer log HTTP URLs or Gmail recipient addresses. Tool failure logging emits
+  only the exception type, and compact incidents carry phase/provider/model/item count/timing only.
+- Dedicated deterministic coverage proves projections, quoted-history and HTML rules, strict id
+  correlation, eligible-only phases, per-item effective trust/cache identity, cancellation, later-
+  batch continuation, summary-only delivery, and fake-provider call counts: 1–12 eligible items
+  use three calls, 13 use six, low-trust batches use source screening only, and fully cached items
+  add zero calls.
+
+No package or package version changed.

@@ -229,17 +229,17 @@ Release: 1.2.4 (2026-08-01)
 | Checklist item | Status | Executed evidence |
 |---|---:|---|
 | Tasks page loads without a read-only binding incident. | ✅ | `DisplayedRunText` explicitly uses a OneWay binding. |
-| An operator can distinguish sequential Gmail screening from a loop. | ✅ | The observed run retrieved 40 messages, then issued 27 sequential Guardrails LLM calls before cancellation. Gmail now emits `message N of M` progress. |
+| An operator can distinguish the pre-Stage-18 sequential Gmail screening from a loop. | ✅ | The historical run retrieved 40 messages, then issued 27 sequential Guardrails LLM calls before cancellation. At that time, Gmail emitted `message N of M` progress. Stage 18 supersedes this path with bounded batch progress. |
 | Interactive detailed diagnostics are available without normal-log persistence. | ✅ | Debug protocol tests cover round-trip and malformed-line rejection. The opt-in child Runner trace includes LLM request/response messages and existing sanitized tool arguments; the independent Auto-scroll control can pause or resume following output. |
 | Long diagnostic output is readable. | ✅ | Large repeatedly changes only the Runner panel from 190 to 490 pixels; the application window is untouched and the page remains scrollable. A local Release build completed two full check/clear cycles with those exact heights and no window movement. |
 | Release verification is clean. | ✅ | Release build completed with zero warnings/errors; 261 tests passed, none failed, and one local Ollama integration test was intentionally skipped. |
 
 ### Remaining operational choice
 
-The real task intentionally has no Gmail cap and `MaxGmailMessagesPerOperation` is configured
-as zero. That preserves complete daily coverage but makes local LLM Guardrails processing
-linear in the number of retrieved messages. Applying a `maxMessages` cap would trade coverage
-for runtime and requires explicit user direction; it was not silently changed.
+Historical note, superseded by Stage 18: the real task intentionally had no Gmail cap and
+`MaxGmailMessagesPerOperation` was configured as zero. That preserved complete daily coverage,
+while the then-sequential local Guardrails processing scaled linearly with retrieved messages.
+Stage 18 keeps the task setting unchanged but replaces that per-message path with bounded batches.
 
 ## Stage 17 workflow authoring aids
 
@@ -314,8 +314,27 @@ Date: 2026-08-03
 
 ### Stage 20 residuals
 
-- Stage 18 and Stage 19 remain intentionally unimplemented per product-owner direction; Stage 20
-  has no dependency on either.
+- Stage 19 remains intentionally unimplemented. Stage 20 has no dependency on it.
 - The application was not launched for this pass. Prompt editor callout rendering in Light/Dark
   and a real scheduled crossing-midnight execution remain operator checks; deterministic tests
   cover the non-environmental behavior.
+
+## Stage 18 compact external-content Guardrails
+
+Date: 2026-08-03
+
+| Checklist item | Status | Executed evidence |
+|---|---:|---|
+| Gmail and HTTP minimize before LLM use. | ✅ | Pure projector tests cover canonical Gmail fields, normalization, quoted-history removal, JSON/text/HTML/media handling, exact bounds, and omission metadata. |
+| Gmail success is summary-only; fallbacks expose no Snippet or Body. | ✅ | Gmail tool tests assert projected headers plus protected summary or review marker and absence of body canaries. |
+| `http.get` is a screened compact prefix; `http.getText` is summary-only. | ✅ | HTTP tool tests assert no compact summary call for GET and one compact batch with review behavior for GET Text. |
+| Batches are strict, stable, tool-less, and fail closed by phase. | ✅ | Fake-provider tests cover response reordering, duplicate/missing ids, strict schema, output bounds, no tools, fixed policy, malformed first batch, and later-batch continuation. |
+| Provider calls are materially grouped. | ✅ | Empty-cache acceptance tests measure exactly 3 calls for 1–12 eligible items, 6 for 13, 1 for an all-low-trust batch, and 0 additional calls for fully cached items. |
+| Cache identity is per item. | ✅ | Reordered input with changed opaque ids reuses source, summary, and final verdicts without another provider call. |
+| Incidents and logs are content-free. | ✅ | Batch exceptions have no inner exception/provider output; HTTP URLs and Gmail recipients are no longer logged; aggregate projection/batch counters contain no external text. |
+| Legacy direct reducer and out-of-scope behavior remain. | ✅ | Existing singleton Guardrails, Web Search, Trust filter, HTTP POST, Gmail send, authorization, Safety, and complete regression tests remain in the gate. |
+| Release gate is clean. | ✅ | Restore and Release build completed with zero warnings/errors; 441 tests passed, 1 expected local Ollama integration test was skipped, JSON samples parsed, both manuals passed structural validation, and `git diff --check` succeeded. Every dotnet command used `-m:1`. |
+
+Compaction is a minimization boundary rather than a safety verdict over omitted text. Generated
+summaries may omit details; Gmail or the source URL remains the authority when completeness is
+required.

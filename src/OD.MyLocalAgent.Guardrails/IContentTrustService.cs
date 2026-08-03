@@ -28,4 +28,14 @@ public interface IContentTrustService
         string content,
         int maxSummaryChars,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Screens and summarizes ordered compact external-content items in bounded batches.
+    /// </summary>
+    /// <param name="items">The non-empty ordered compact items.</param>
+    /// <param name="cancellationToken">A token that cancels the complete operation.</param>
+    /// <returns>One ordered result per input and content-free phase failures.</returns>
+    Task<CompactExternalContentBatchResult> ProcessCompactAsync(
+        IReadOnlyList<CompactExternalContentItem> items,
+        CancellationToken cancellationToken);
 }

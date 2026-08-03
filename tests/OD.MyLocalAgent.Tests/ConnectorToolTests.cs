@@ -189,15 +189,17 @@ public sealed class ConnectorToolTests : IDisposable
             .ReturnsAsync([message]);
         var trustService = new StubContentTrustService
         {
-            ScreenHandler = (content, _, _) => Task.FromResult(
-                new ContentTrustResult(
-                    60,
-                    ContentTrustEnvelope.WrapPlaintext(content),
-                    "none",
-                    ContentTrustStatus.Screened,
-                    ["ignore prior instructions"],
-                    "Stub",
-                    4)),
+            CompactHandler = (items, _) => Task.FromResult(
+                new CompactExternalContentBatchResult(
+                    [new CompactExternalContentResult(
+                        items[0].Id,
+                        "A bounded factual summary.",
+                        Trust(items[0].Content, 60, ["ignore prior instructions"]),
+                        Trust("A bounded factual summary.", 60, ["ignore prior instructions"]),
+                        CompactExternalContentStatus.Summarized,
+                        false,
+                        4)],
+                    [])),
         };
         var tool = new GmailTool(
             connector.Object,
@@ -221,12 +223,10 @@ public sealed class ConnectorToolTests : IDisposable
             .Should().Be(1);
         var canonical = DecodeEnvelope(
             protectedMessage.GetProperty("content").GetString()!);
-        canonical.Should().Be(
-            $"From: {message.From}{Environment.NewLine}" +
-            $"To: {message.To}{Environment.NewLine}" +
-            $"Subject: {message.Subject}{Environment.NewLine}" +
-            $"Snippet: {message.Snippet}{Environment.NewLine}" +
-            $"Body:{Environment.NewLine}{message.BodyPlain}");
+        canonical.Should().Contain($"From: {message.From}\n");
+        canonical.Should().Contain("AI-generated factual summary:\nA bounded factual summary.");
+        canonical.Should().NotContain(message.Snippet);
+        canonical.Should().NotContain(message.BodyPlain);
         json.Should().NotContain("ignore prior instructions");
     }
 
@@ -270,7 +270,8 @@ public sealed class ConnectorToolTests : IDisposable
             .Should().BeTrue();
         document.RootElement.GetProperty("warning").GetString()
             .Should().Contain("first 1 of 2");
-        trustService.ScreenedContents.Should().ContainSingle();
+        trustService.CompactBatches.Should().ContainSingle();
+        trustService.CompactBatches[0].Should().ContainSingle();
         json.Should().NotContain("secret skipped body");
     }
 
@@ -281,29 +282,30 @@ public sealed class ConnectorToolTests : IDisposable
     public async Task GmailSourceTooLargePreservesHeadersAndUsesBodyReviewMarker()
     {
         var connector = new Mock<IGmailConnector>(MockBehavior.Strict);
-        var message = CreateMessage("large", new string('z', 1_000));
+        var message = CreateMessage("large", new string('z', 4_000));
         connector.Setup(instance => instance.GetUnreadMessagesAsync(
                 It.IsAny<int?>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync([message]);
         var trustService = new StubContentTrustService
         {
-            SummarizeHandler = (content, _, _) => Task.FromResult(
-                new ContentSummaryResult(
-                    ContentSummaryStatus.SourceTooLarge,
-                    string.Empty,
-                    content.Length,
-                    0,
-                    null,
-                    [],
-                    "Disabled",
-                    0)),
+            CompactHandler = (items, _) => Task.FromResult(
+                new CompactExternalContentBatchResult(
+                    [new CompactExternalContentResult(
+                        items[0].Id,
+                        null,
+                        Trust(items[0].Content, 95),
+                        null,
+                        CompactExternalContentStatus.SummarizationUnavailable,
+                        true,
+                        0)],
+                    [])),
         };
         var options = new GuardrailsOptions
         {
-            MaxContentChars = 400,
-            MaxSummaryChars = 200,
-            MaxSummarizationSourceChars = 500,
+            MaxContentChars = 2_048,
+            MaxSummaryChars = 256,
+            MaxSummarizationSourceChars = 5_000,
         };
         var tool = new GmailTool(
             connector.Object,
@@ -319,13 +321,13 @@ public sealed class ConnectorToolTests : IDisposable
         using var document = JsonDocument.Parse(json);
         var result = document.RootElement.GetProperty("messages")[0];
         result.GetProperty("bodyProcessingStatus").GetString()
-            .Should().Be("TooLargeForSafeProcessing");
+            .Should().Be("SummarizationUnavailable");
         result.GetProperty("requiresHumanReview").GetBoolean().Should().BeTrue();
         result.GetProperty("trustScope").GetString()
-            .Should().Be("HeadersAndSnippetOnly");
+            .Should().Be("CompactCanonicalProjectionSourceTrustAndProjectedHeadersReviewMarker");
         var protectedContent = result.GetProperty("content").GetString()!;
         protectedContent.Should().Contain($"From: {message.From}");
-        protectedContent.Should().Contain("EMAIL BODY NOT ANALYZED BY GUARDRAILS");
+        protectedContent.Should().Contain("GMAIL MESSAGE REQUIRES HUMAN REVIEW");
         protectedContent.Should().NotContain(new string('z', 50));
     }
 
@@ -343,21 +345,29 @@ public sealed class ConnectorToolTests : IDisposable
             .ReturnsAsync([message]);
         var trustService = new StubContentTrustService
         {
-            ScreenHandler = (content, _, _) =>
+            CompactHandler = (items, _) =>
             {
-                var fallback = new ContentTrustResult(
-                    null,
-                    ContentTrustEnvelope.WrapBase64(content),
-                    "base64",
-                    ContentTrustStatus.Failed,
-                    [],
-                    "Stub",
-                    3);
-                return Task.FromException<ContentTrustResult>(
-                    new GuardrailScreeningException(
-                        "Safe screening failure.",
-                        new InvalidOperationException("provider failure"),
-                        fallback));
+                var failure = new CompactExternalContentPhaseException(
+                    "SourceScreening", "Stub", "test-model", items.Count, 3);
+                return Task.FromResult(
+                    new CompactExternalContentBatchResult(
+                        [new CompactExternalContentResult(
+                            items[0].Id,
+                            null,
+                            new ContentTrustResult(
+                                null,
+                                ContentTrustEnvelope.WrapBase64(items[0].Content),
+                                "base64",
+                                ContentTrustStatus.Failed,
+                                [],
+                                "Stub",
+                                3),
+                            null,
+                            CompactExternalContentStatus.SourceScreeningUnavailable,
+                            true,
+                            3)],
+                        [new CompactExternalContentBatchFailure(
+                            "SourceScreening", failure, items.Count)]));
             },
         };
         var reporter = new StubIncidentReporter();
@@ -378,7 +388,79 @@ public sealed class ConnectorToolTests : IDisposable
         result.GetProperty("trustStatus").GetString().Should().Be("Failed");
         result.GetProperty("contentEncoding").GetString().Should().Be("base64");
         DecodeEnvelope(result.GetProperty("content").GetString()!)
-            .Should().Contain("external body");
+            .Should().Contain("GMAIL MESSAGE REQUIRES HUMAN REVIEW");
+        DecodeEnvelope(result.GetProperty("content").GetString()!)
+            .Should().NotContain("external body");
+    }
+
+    /// <summary>
+    /// Verifies compact Gmail logs and incidents contain aggregate metadata only.
+    /// </summary>
+    [Fact]
+    public async Task GmailCompactObservabilityDoesNotLeakExternalCanaries()
+    {
+        const string addressCanary = "private-address-canary@example.com";
+        const string subjectCanary = "PRIVATE-SUBJECT-CANARY";
+        const string bodyCanary = "PRIVATE-BODY-CANARY";
+        var message = new EmailMessageDto(
+            "PRIVATE-ID-CANARY",
+            addressCanary,
+            "reader@example.com",
+            subjectCanary,
+            "PRIVATE-SNIPPET-CANARY",
+            bodyCanary,
+            DateTimeOffset.Parse("2026-08-03T08:00:00Z"),
+            true);
+        var connector = new Mock<IGmailConnector>(MockBehavior.Strict);
+        connector.Setup(instance => instance.GetUnreadMessagesAsync(
+                It.IsAny<int?>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync([message]);
+        var trustService = new StubContentTrustService
+        {
+            CompactHandler = (items, _) =>
+            {
+                var exception = new CompactExternalContentPhaseException(
+                    "SourceScreening", "Stub", "test-model", 1, 7);
+                return Task.FromResult(new CompactExternalContentBatchResult(
+                    [new CompactExternalContentResult(
+                        items[0].Id,
+                        null,
+                        new ContentTrustResult(
+                            null,
+                            ContentTrustEnvelope.WrapBase64(items[0].Content),
+                            "base64",
+                            ContentTrustStatus.Failed,
+                            [],
+                            "Stub",
+                            7),
+                        null,
+                        CompactExternalContentStatus.SourceScreeningUnavailable,
+                        true,
+                        7)],
+                    [new CompactExternalContentBatchFailure("SourceScreening", exception, 1)]));
+            },
+        };
+        var reporter = new StubIncidentReporter();
+        var logger = new RecordingLogger<GmailTool>();
+        var tool = new GmailTool(
+            connector.Object,
+            Options.Create(new SafetyOptions()),
+            new MutableOptionsMonitor<GuardrailsOptions>(new GuardrailsOptions()),
+            trustService,
+            reporter,
+            logger,
+            TimeProvider.System);
+
+        _ = await tool.ReadUnreadAsync(cancellationToken: CancellationToken.None);
+
+        var durableText = string.Join('\n', logger.Messages) + "\n" +
+            string.Join('\n', reporter.Reports.Select(report => report.Exception.Message + report.Source));
+        durableText.Should().NotContain(addressCanary);
+        durableText.Should().NotContain(subjectCanary);
+        durableText.Should().NotContain(bodyCanary);
+        durableText.Should().NotContain("PRIVATE-ID-CANARY");
+        durableText.Should().NotContain("PRIVATE-SNIPPET-CANARY");
     }
 
     /// <summary>
@@ -589,6 +671,19 @@ public sealed class ConnectorToolTests : IDisposable
             body,
             DateTimeOffset.Parse("2026-07-29T08:00:00Z"),
             true);
+
+    private static ContentTrustResult Trust(
+        string content,
+        int score,
+        IReadOnlyList<string>? indicators = null) =>
+        new(
+            score,
+            ContentTrustEnvelope.WrapPlaintext(content),
+            "none",
+            ContentTrustStatus.Screened,
+            indicators ?? [],
+            "Stub",
+            0);
 
     private static string DecodeEnvelope(string envelope)
     {

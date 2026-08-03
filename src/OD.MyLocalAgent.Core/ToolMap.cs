@@ -146,7 +146,7 @@ public static class ToolMap
             ],
             "Safety:AllowHttpPost"),
         Tool("http.getText", "http_get_text", ToolGroups.Http, typeof(HttpTool), nameof(HttpTool.GetTextAsync),
-            "Downloads an allowed web page and extracts compact readable text.",
+            "Downloads an allowed web page and returns a protected factual summary.",
             [Url()]),
         Tool(
             "web.search",

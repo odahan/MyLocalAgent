@@ -19,14 +19,10 @@ internal static class GuardrailDelivery
         return disposition switch
         {
             TrustDisposition.PassThrough => new ProtectedContent(
-                result.ContentEncoding == "none"
-                    ? result.Content
-                    : ContentTrustEnvelope.WrapPlaintext(canonicalContent),
+                ContentTrustEnvelope.WrapPlaintext(canonicalContent),
                 "none"),
             TrustDisposition.EncodeBase64 => new ProtectedContent(
-                result.ContentEncoding == "base64"
-                    ? result.Content
-                    : ContentTrustEnvelope.WrapBase64(canonicalContent),
+                ContentTrustEnvelope.WrapBase64(canonicalContent),
                 "base64"),
             TrustDisposition.Withhold => new ProtectedContent(
                 $"[external content withheld by guardrails: trust score {result.TrustScore}]",

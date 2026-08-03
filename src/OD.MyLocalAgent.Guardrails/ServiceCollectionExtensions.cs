@@ -29,7 +29,7 @@ public static class ServiceCollectionExtensions
                     options.CautionThreshold >= 0 &&
                     options.CautionThreshold < options.CleanThreshold &&
                     options.CleanThreshold <= 100 &&
-                    options.MaxContentChars > 0 &&
+                    options.MaxContentChars >= 2_048 &&
                     options.MaxSummaryChars >= 256 &&
                     options.MaxSummaryChars <= options.MaxContentChars &&
                     options.MaxSummarizationSourceChars > options.MaxContentChars &&

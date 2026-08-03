@@ -290,3 +290,16 @@ Playground et les autres surfaces sans tâche restent inchangés.
 Un chemin absolu résolu exige toujours le groupe File system de la tâche, un emplacement
 autorisé en lecture-écriture et les droits Windows. L’expansion ne garantit ni que le modèle
 choisira l’outil, ni que l’opération réussira.
+
+## 13. Comprendre les contenus Gmail et HTTP compacts
+
+Les lectures Gmail minimisent chaque message avant tout appel IA, puis traitent les projections
+par lots. Le résultat d’une lecture réussie contient uniquement les en-têtes projetés From, To,
+Subject et Received avec un résumé factuel protégé. Snippet, Body, l’historique cité et les
+suffixes omis ne sont jamais transmis au workflow. `http.getText` retourne également un résumé
+protégé uniquement ; `http.get` conserve un préfixe compact protégé, jamais la réponse complète.
+
+Les compteurs `originalCharacterCount`, `projectedCharacterCount` et
+`omittedCharacterCount` rendent la réduction visible. Cette compaction est une frontière de
+minimisation, pas une preuve que le texte omis était sûr. Un résumé généré peut omettre des
+détails : si l’exhaustivité compte, relire l’original dans Gmail ou à l’URL source.
