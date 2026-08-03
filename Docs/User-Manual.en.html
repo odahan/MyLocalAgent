@@ -1255,6 +1255,13 @@ ollama list</code></pre>
                         <p>The editor expects the array of steps, not the complete task object.</p>
                     </li>
                 </ol>
+                <div class="callout info">
+                    <span class="ui-label">Tool whitelist</span> is generated from the tool catalog
+                    compiled into this version. Groups integrated by a future version therefore appear in this
+                    editor automatically and always start cleared. Selecting a group grants no
+                    filesystem location and changes no Safety setting; those controls remain
+                    independent. The catalog does not load external runtime plug-ins.
+                </div>
                 <div class="code-block">
                     <pre><code>[
   {
@@ -1525,7 +1532,7 @@ ollama list</code></pre>
                         </thead>
                         <tbody>
                             <tr><td>No</td><td>No</td><td>Raw provider completion.</td></tr>
-                            <tr><td>Yes</td><td>No</td><td>Agent with all six tool groups.</td></tr>
+                            <tr><td>Yes</td><td>No</td><td>Agent with all installed task-whitelist tool groups.</td></tr>
                             <tr><td>No</td><td>Yes</td><td>Agent with summarize, extract action items, and classify email.</td></tr>
                             <tr><td>Yes</td><td>Yes</td><td>Agent with both tools and built-in skills.</td></tr>
                         </tbody>

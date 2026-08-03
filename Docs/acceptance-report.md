@@ -340,3 +340,23 @@ Release: 1.3.0
 Compaction is a minimization boundary rather than a safety verdict over omitted text. Generated
 summaries may omit details; Gmail or the source URL remains the authority when completeness is
 required.
+
+## Stage 18A extensible tool integration foundation
+
+Date: 2026-08-04
+
+| Checklist item | Status | Executed evidence |
+|---|---:|---|
+| One ordered Core catalog owns group names, labels, descriptions, and whitelist eligibility. | ✅ | `ToolGroupDefinition` and `ToolGroups.Catalog` expose the metadata; uniqueness, nonblank fields, order, lookup, `TaskWhitelist`, and `All` are covered by `ToolGroupCatalogTests`. |
+| Tool Map and group metadata cannot drift silently. | ✅ | Bidirectional tests require every alias group to resolve and every whitelist group to own a non-AI Tool Map entry; ai remains authoring-only. |
+| Task editor whitelist has no concrete per-group state or XAML list. | ✅ | One read-only observable selection collection drives one templated `ItemsControl`; load, save, helper Apply, catalog opt-in, example loading, and Undo iterate that collection. |
+| Authorized locations visibility follows Tool Map path metadata. | ✅ | Projection tests prove filesystem and Dropbox require local paths while Gmail does not; selection changes update visibility and dirty state. |
+| Tool catalog and Tool tester share catalog order. | ✅ | Both call `ToolGroups.GetDisplayOrder`; catalog ordering has a deterministic equality test. |
+| Existing tasks and capabilities are unchanged. | ✅ | No alias, group, package, setting, Safety flag, persisted field, migration, provider call, or runtime tool was added; existing regression tests remain green. |
+| Documentation records compiled extensibility without claiming runtime plug-ins. | ✅ | Shared spec, standalone prompt, ledger, README, prompt index, First Run guides, manuals, theme audit, and this report use the same boundary. |
+| Release verification is clean. | ✅ | Release build completed with zero warnings/errors; 449 tests passed, 1 expected local Ollama probe was skipped, and `git diff --check` passed. Every dotnet build/test command used `-m:1`. |
+
+### Stage 18A human follow-up
+
+The application was not launched during this pass. Live verification of generated checkbox
+wrapping, tooltips, keyboard traversal, and Light/Dark focus/contrast remains an operator check.

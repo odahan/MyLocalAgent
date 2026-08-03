@@ -36,6 +36,7 @@ its own navigation, search, styles, and scripts in one file.
 | 16 | Windowless Runner and Run Monitor |
 | 17 | Deterministic workflow authoring aids: Tool catalog and Workflow prompt editor | Complete with documented human GUI checks |
 | 18 | Compact External-Content Guardrails | Complete |
+| 18A | Extensible Tool Integration Foundation | Complete with automated verification |
 | 19 | SQLite Tool | TO DO |
 | 20 | Agent Prompt Placeholders | Complete with documented, human task test done |
 | 21 | Model Information Placeholders | Complete with automated verification |
@@ -787,6 +788,19 @@ persisted by these dialogs; the only outbound copy is the explicit Copy placehol
 
 ### Tool Map
 
+Tool groups are described once by the ordered Core `ToolGroups.Catalog`: stable persisted name,
+English display label, description, and task-whitelist eligibility. `ToolGroups.TaskWhitelist`
+and `ToolGroups.All` are derived projections. The Task editor renders its whitelist collection
+from this metadata, while Authorized locations visibility is inferred from each group's Tool Map
+local-path arguments. The Tool catalog and Tool tester use the same display order. Consequently,
+adding a compiled group no longer requires a new ViewModel Boolean, XAML checkbox, load/save
+branch, or UI-local order array.
+
+This is not runtime plug-in discovery. A new group still requires a Core catalog definition,
+Tool Map entries, concrete registered implementations, authorization and Safety metadata, tests,
+and documentation. Unknown groups and the synthetic `ai` authoring group remain invalid in task
+JSON, and every new-task whitelist choice starts disabled.
+
 | Workflow alias | Agent function | Implementation | Arguments | Safety |
 |---|---|---|---|---|
 | `gmail.readToday` | `gmail_read_today` | `GmailTool.ReadTodayAsync` | optional `maxMessages` | — |
@@ -1184,7 +1198,7 @@ every creation, so the next test or task uses the new provider without restartin
 Already-running executions are not interrupted.
 
 The AI playground uses raw completion by default. **Allow Tools** switches it to agent mode
-with all six tool groups, while **Allow Skills** exposes the built-in summarize, action-item,
+with all installed task-whitelist groups, while **Allow Skills** exposes the built-in summarize, action-item,
 and email-classification skills. The filesystem sandbox, tool safety flags, connector
 configuration, and HTTP allowlist continue to apply in the playground.
 
@@ -1274,13 +1288,17 @@ that its action points to the stable published runner.
 
 ### Add a tool
 
-1. Add an interface and implementation in Core with asynchronous methods, cancellation, XML
+1. If the tool needs a new group, add one ordered `ToolGroupDefinition` to
+   `ToolGroups.Catalog`; the Task editor, validation projection, Tool catalog order, tester order,
+   and Playground all-tools set then follow automatically.
+2. Add an interface and implementation in Core with asynchronous methods, cancellation, XML
    documentation, validation, and sanitized structured logging.
-2. Add exactly one entry to `ToolMap.Definitions`; do not create a second alias table.
-3. Register the implementation in `AddODServices`.
-4. Add the tool group to task validation only if it is a new group.
-5. Extend Tool Map consistency, argument-binding, whitelist, and safety tests.
-6. Document the alias and any new side-effect gate.
+3. Add exactly one entry to `ToolMap.Definitions`; do not create a second alias table. Declare
+   every local path and Safety gate in its metadata.
+4. Register the implementation in `AddODServices`.
+5. Extend Tool Map/group completeness, argument-binding, whitelist, authorization, and Safety
+   tests.
+6. Document the group, alias, package/runtime constraints, and any new side-effect gate.
 
 ### Add a skill
 

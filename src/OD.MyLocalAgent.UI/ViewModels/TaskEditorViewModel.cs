@@ -31,12 +31,6 @@ public sealed partial class TaskEditorViewModel :
         nameof(Prompt),
         nameof(IsEnabled),
         nameof(SelectedErrorPolicy),
-        nameof(UseGmail),
-        nameof(UseCalendar),
-        nameof(UseDropbox),
-        nameof(UseFileSystem),
-        nameof(UseHttp),
-        nameof(UseWeb),
         nameof(WorkflowText),
         nameof(UseGlobalTemperature),
         nameof(TemperatureOverrideText),
@@ -55,6 +49,7 @@ public sealed partial class TaskEditorViewModel :
     private readonly IWorkflowPromptEditorDialogService? _promptEditorDialog;
     private readonly IOptionsMonitor<SafetyOptions>? _safetyOptions;
     private readonly IOptionsMonitor<AIOptions>? _aiOptions;
+    private readonly ObservableCollection<ToolGroupSelectionItem> _toolGroupSelectionItems;
     private string? _requestedTaskId;
     private string? _originalTaskId;
     private AIEditorSnapshot? _assistedUndoSnapshot;
@@ -113,24 +108,6 @@ public sealed partial class TaskEditorViewModel :
     private WorkflowErrorPolicy _selectedErrorPolicy =
         WorkflowErrorPolicy.StopOnError;
 
-    [ObservableProperty]
-    private bool _useGmail;
-
-    [ObservableProperty]
-    private bool _useCalendar;
-
-    [ObservableProperty]
-    private bool _useDropbox;
-
-    [ObservableProperty]
-    private bool _useFileSystem;
-
-    [ObservableProperty]
-    private bool _useHttp;
-
-    [ObservableProperty]
-    private bool _useWeb;
-
     /// <summary>
     /// Gets the task-specific absolute authorized locations.
     /// </summary>
@@ -139,7 +116,8 @@ public sealed partial class TaskEditorViewModel :
     /// <summary>
     /// Gets a value indicating whether local-path authorization is relevant.
     /// </summary>
-    public bool ShowAuthorizedLocations => UseFileSystem || UseDropbox;
+    public bool ShowAuthorizedLocations => ToolGroupSelections.Any(
+        static item => item.IsSelected && item.RequiresLocalPathAuthorization);
 
     /// <summary>
     /// Gets a value indicating whether the Temperature override editor is enabled.
@@ -220,6 +198,24 @@ public sealed partial class TaskEditorViewModel :
         _aiOptions = aiOptions;
         ErrorPolicies = Enum.GetValues<WorkflowErrorPolicy>();
         WorkflowAliases = ToolMap.Definitions;
+        _toolGroupSelectionItems = new ObservableCollection<ToolGroupSelectionItem>(
+            ToolGroups.TaskWhitelist.Select(
+                static group => new ToolGroupSelectionItem(
+                    group,
+                    ToolMap.Definitions.Any(
+                        tool =>
+                            string.Equals(
+                                tool.ToolGroup,
+                                group.Name,
+                                StringComparison.OrdinalIgnoreCase) &&
+                            tool.LocalPathArguments.Count > 0))));
+        ToolGroupSelections = new ReadOnlyObservableCollection<ToolGroupSelectionItem>(
+            _toolGroupSelectionItems);
+        foreach (var selection in _toolGroupSelectionItems)
+        {
+            selection.PropertyChanged += OnToolGroupSelectionChanged;
+        }
+
         SelectedWorkflowAlias = WorkflowAliases.FirstOrDefault();
         PropertyChanged += OnEditablePropertyChanged;
         AuthorizedLocations.CollectionChanged += OnAuthorizedLocationsChanged;
@@ -235,6 +231,11 @@ public sealed partial class TaskEditorViewModel :
     /// Gets the workflow steps available in the Tool Map.
     /// </summary>
     public IReadOnlyList<ToolDefinition> WorkflowAliases { get; }
+
+    /// <summary>
+    /// Gets task-whitelist choices projected from the shared ordered tool-group catalog.
+    /// </summary>
+    public ReadOnlyObservableCollection<ToolGroupSelectionItem> ToolGroupSelections { get; }
 
     /// <summary>
     /// Gets the common scheduler patterns that can be applied without writing cron syntax.
@@ -306,12 +307,6 @@ public sealed partial class TaskEditorViewModel :
         }
     }
 
-    partial void OnUseFileSystemChanged(bool value) =>
-        OnPropertyChanged(nameof(ShowAuthorizedLocations));
-
-    partial void OnUseDropboxChanged(bool value) =>
-        OnPropertyChanged(nameof(ShowAuthorizedLocations));
-
     partial void OnUseGlobalTemperatureChanged(bool value) =>
         UpdateGenerationState();
 
@@ -376,24 +371,7 @@ public sealed partial class TaskEditorViewModel :
             IsEnabled = task?.Enabled ?? true;
             SelectedErrorPolicy =
                 task?.ErrorPolicy ?? WorkflowErrorPolicy.StopOnError;
-            UseGmail = task?.Tools.Contains(
-                ToolGroups.Gmail,
-                StringComparer.OrdinalIgnoreCase) == true;
-            UseCalendar = task?.Tools.Contains(
-                ToolGroups.Calendar,
-                StringComparer.OrdinalIgnoreCase) == true;
-            UseDropbox = task?.Tools.Contains(
-                ToolGroups.Dropbox,
-                StringComparer.OrdinalIgnoreCase) == true;
-            UseFileSystem = task?.Tools.Contains(
-                ToolGroups.FileSystem,
-                StringComparer.OrdinalIgnoreCase) == true;
-            UseHttp = task?.Tools.Contains(
-                ToolGroups.Http,
-                StringComparer.OrdinalIgnoreCase) == true;
-            UseWeb = task?.Tools.Contains(
-                ToolGroups.Web,
-                StringComparer.OrdinalIgnoreCase) == true;
+            SetSelectedToolGroups(task?.Tools ?? []);
             AuthorizedLocations.Clear();
             foreach (var rule in task?.FileSystemAccess ?? [])
             {
@@ -659,7 +637,7 @@ public sealed partial class TaskEditorViewModel :
               }
             ]
             """;
-        UseFileSystem = true;
+        SetToolGroupSelected(ToolGroups.FileSystem, isSelected: true);
         ValidationText =
             "Translation example loaded. Adapt the source and destination paths.";
     }
@@ -887,40 +865,9 @@ public sealed partial class TaskEditorViewModel :
     }
 
     private IReadOnlyList<string> GetSelectedToolGroups()
-    {
-        var groups = new List<string>(6);
-        if (UseGmail)
-        {
-            groups.Add(ToolGroups.Gmail);
-        }
-
-        if (UseCalendar)
-        {
-            groups.Add(ToolGroups.Calendar);
-        }
-
-        if (UseDropbox)
-        {
-            groups.Add(ToolGroups.Dropbox);
-        }
-
-        if (UseFileSystem)
-        {
-            groups.Add(ToolGroups.FileSystem);
-        }
-
-        if (UseHttp)
-        {
-            groups.Add(ToolGroups.Http);
-        }
-
-        if (UseWeb)
-        {
-            groups.Add(ToolGroups.Web);
-        }
-
-        return groups;
-    }
+        => [.. ToolGroupSelections
+            .Where(static item => item.IsSelected)
+            .Select(static item => item.Name)];
 
     private bool CanOpenAIExplain() =>
         !string.IsNullOrWhiteSpace(WorkflowText) &&
@@ -1042,12 +989,45 @@ public sealed partial class TaskEditorViewModel :
         var groups = new HashSet<string>(
             toolGroups,
             StringComparer.OrdinalIgnoreCase);
-        UseGmail = groups.Contains(ToolGroups.Gmail);
-        UseCalendar = groups.Contains(ToolGroups.Calendar);
-        UseDropbox = groups.Contains(ToolGroups.Dropbox);
-        UseFileSystem = groups.Contains(ToolGroups.FileSystem);
-        UseHttp = groups.Contains(ToolGroups.Http);
-        UseWeb = groups.Contains(ToolGroups.Web);
+        foreach (var selection in ToolGroupSelections)
+        {
+            selection.IsSelected = groups.Contains(selection.Name);
+        }
+    }
+
+    /// <summary>
+    /// Changes one task tool-group selection through the shared catalog projection.
+    /// </summary>
+    /// <param name="toolGroup">The stable task-whitelist group name.</param>
+    /// <param name="isSelected">Whether the group is granted.</param>
+    /// <exception cref="ArgumentException">The group is not a task-whitelist group.</exception>
+    public void SetToolGroupSelected(string toolGroup, bool isSelected)
+    {
+        FindToolGroupSelection(toolGroup).IsSelected = isSelected;
+    }
+
+    /// <summary>
+    /// Determines whether the current task draft grants a tool group.
+    /// </summary>
+    /// <param name="toolGroup">The stable task-whitelist group name.</param>
+    /// <returns><see langword="true"/> when selected; otherwise <see langword="false"/>.</returns>
+    /// <exception cref="ArgumentException">The group is not a task-whitelist group.</exception>
+    public bool IsToolGroupSelected(string toolGroup)
+    {
+        return FindToolGroupSelection(toolGroup).IsSelected;
+    }
+
+    private ToolGroupSelectionItem FindToolGroupSelection(string toolGroup)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(toolGroup);
+        return ToolGroupSelections.FirstOrDefault(
+            item => string.Equals(
+                item.Name,
+                toolGroup,
+                StringComparison.OrdinalIgnoreCase)) ??
+            throw new ArgumentException(
+                $"Unknown task tool group '{toolGroup}'.",
+                nameof(toolGroup));
     }
 
     private void ClearAssistedUndo()
@@ -1275,6 +1255,25 @@ public sealed partial class TaskEditorViewModel :
         object? sender,
         NotifyCollectionChangedEventArgs e)
     {
+        if (!_isLoading)
+        {
+            IsDirty = true;
+        }
+    }
+
+    private void OnToolGroupSelectionChanged(
+        object? sender,
+        PropertyChangedEventArgs e)
+    {
+        if (!string.Equals(
+                e.PropertyName,
+                nameof(ToolGroupSelectionItem.IsSelected),
+                StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        OnPropertyChanged(nameof(ShowAuthorizedLocations));
         if (!_isLoading)
         {
             IsDirty = true;

@@ -214,3 +214,16 @@ Release XAML compilation and ViewModel tests verified resource names, bindings, 
 and command behavior. The application was not launched during the Stage 20 pass, so live contrast,
 wrapping under narrow width, keyboard reading order, and high-contrast behavior in both Light and
 Dark remain explicit manual visual checks.
+
+## Stage 18A metadata-driven tool whitelist
+
+The Task editor's six concrete CheckBox declarations were replaced by one `ItemsControl` whose
+items come from the ordered Core task-whitelist catalog. Its `WrapPanel` preserves the existing
+responsive layout, and each generated Material CheckBox uses the catalog display label and
+description tooltip. No inline color, new brush, control template, page, modal, or theme resource
+was introduced.
+
+Release XAML compilation and ViewModel tests verify the generated item order, selection binding,
+dirty state, and metadata-driven Authorized locations visibility. The application was not launched
+for this pass, so wrapping at narrow widths, tooltip contrast, keyboard traversal, and focus visuals
+in Light and Dark remain explicit manual checks.

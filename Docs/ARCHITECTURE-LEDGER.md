@@ -2093,3 +2093,49 @@ No package or package version changed.
 
 - Packages the Stage 18 compact external-content Guardrails implementation as version 1.3.0,
   set centrally in `Directory.Build.props`.
+
+### Stage 18A — Extensible Tool Integration Foundation — 2026-08-04
+
+#### Scope and compatibility
+
+- Implemented `Docs/Prompts/18A-Stage18A-ExtensibleToolIntegration.md` after Stage 18 and before
+  the still-unimplemented Stage 19 SQLite tool. This refactor adds no tool, group, alias, package,
+  setting, Safety flag, persisted task field, migration, provider call, page, or external service.
+- The six existing task groups and synthetic authoring-only ai group retain their exact stable
+  names and behavior. Existing task JSON requires no migration; new-task selections remain false.
+
+#### Central group catalog
+
+- Added immutable public `ToolGroupDefinition` with stable name, English display name,
+  description, and task-whitelist eligibility.
+- `ToolGroups.Catalog` is the single stable display order. `TaskWhitelist` and the
+  case-insensitive `All` set derive from it; `Find` and `GetDisplayOrder` provide shared lookup and
+  ordering. Existing group constants remain source-compatible.
+- Deterministic consistency tests require unique nonblank metadata, every Tool Map group to resolve,
+  every whitelist group to own a non-AI runtime definition, and ai to remain non-whitelistable.
+
+#### Metadata-driven UI integration
+
+- Added `ToolGroupSelectionItem`. `TaskEditorViewModel` exposes a read-only observable collection
+  built from `ToolGroups.TaskWhitelist`; it no longer owns six per-group Boolean properties or six
+  load/save/apply branches.
+- Task editor XAML now renders one templated wrapping `ItemsControl`. Generic load, save, AI Helper
+  Apply, Tool catalog opt-in, translation example, and assisted Undo operate on stable group names
+  in catalog order.
+- `RequiresLocalPathAuthorization` is computed from each group's Tool Map local-path arguments.
+  Authorized locations visibility no longer special-cases filesystem and Dropbox names.
+- Workflow Tool catalog and Tool tester now sort through `ToolGroups.GetDisplayOrder`; the former's
+  private order array and the tester's alphabetical group ordering were removed. Scheduled-task
+  validation lists expected groups from the ordered whitelist projection.
+
+#### Verification, documentation, and residual boundary
+
+- Added catalog/group/UI projection tests and updated Task editor tests to use generic selection.
+  Release build completed with zero warnings and zero errors; 449 deterministic tests passed, zero
+  failed, and one local Ollama integration probe was intentionally skipped.
+- Updated shared specification, prompt index, README, First Run guides, both standalone manuals,
+  theme audit, and acceptance report. The manuals preserve FR/EN semantic parity.
+- This is compiled-product extensibility, not runtime plug-in discovery. A future group still needs
+  catalog metadata, Tool Map entries, concrete registration, authorization/Safety design, tests,
+  and documentation. Live Light/Dark inspection of generated checkbox wrapping/tooltips remains a
+  manual follow-up.

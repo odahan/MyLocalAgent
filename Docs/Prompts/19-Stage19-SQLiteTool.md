@@ -1,6 +1,6 @@
 # STAGE 19 — SQLite Tool
 
-> Run only after **Stage 18** is finished. Stage 17 V2 is the implementation contract for
+> Run only after **Stage 18A** is finished. Stage 17 V2 is the implementation contract for
 > workflow authoring. Stages 9 and 10 remain abandoned proposals and are neither prerequisites
 > nor in scope. This stage adds one local, task-authorized SQLite tool group; it does not add a
 > general database abstraction, ORM, remote database connector, or connection-string surface.
@@ -12,8 +12,9 @@
 2. `Docs/ARCHITECTURE-LEDGER.md` — full read. Recorded package versions, Tool Map metadata,
    task serialization, local-path authorization, Safety, Guardrails, privacy, active-theme,
    and publishing decisions are binding.
-3. The post-Stage-18 implementations of `ToolMap`, `ToolDefinition`,
-   `ToolArgumentDefinition`, `WorkflowArgumentKind`, `ToolGroups`, `ToolRegistry`,
+3. The post-Stage-18A implementations of `ToolMap`, `ToolDefinition`,
+   `ToolArgumentDefinition`, `WorkflowArgumentKind`, `ToolGroupDefinition`, `ToolGroups`,
+   `ToolGroupSelectionItem`, `ToolRegistry`,
    `ToolExecutionContext`, `IContextualToolFactory<TTool>`, `IPathSandbox`, `PathSandbox`,
    `LocalPathArgumentDefinition`, `WorkflowRequirementAnalyzer`, `ScheduledTask`,
    `ScheduledTaskSerializer`, `ScheduledTaskValidator`, `ToolCallLog`, `SafetyOptions`,
@@ -201,8 +202,10 @@ construction where practical, but do not infer a task value from mutable singlet
 
 ### 6.1 New group and enum
 
-Add `ToolGroups.Sqlite = "sqlite"` and include it in `ToolGroups.All`. Update comments and UI
-language that count supported groups.
+Add `ToolGroups.Sqlite = "sqlite"` and one task-whitelist `ToolGroupDefinition` in the central
+catalog. `ToolGroups.TaskWhitelist`, `ToolGroups.All`, Task editor selection, validation, catalog,
+tester, and playground projections must then include it without a SQLite-specific Boolean,
+checkbox, or group-order table. Update comments and UI language that count supported groups.
 
 Add:
 
@@ -607,9 +610,10 @@ Extend the shared Safety lookup; do not add a SQLite-only analyzer.
 
 ### 11.3 Tool catalog and snippet builder
 
-Insert `sqlite` in the Stage 17 fixed catalog group order immediately after `filesystem` and
-before `http`. The catalog shows the path access, Safety warning, task Guardrails state, and the
-fact that the global SQLite Guardrails setting applies only to new/taskless contexts.
+Insert the `sqlite` metadata entry in the Stage 18A central catalog immediately after `filesystem`
+and before `http`. Every catalog-driven UI surface inherits that order. The workflow catalog shows
+the path access, Safety warning, task Guardrails state, and the fact that the global SQLite
+Guardrails setting applies only to new/taskless contexts.
 
 `WorkflowSnippetBuilder` supports `Object` by emitting `{}`. SQLite snippets use `""` for path,
 SQL, and table/pattern strings, `All` for the enum, `{}` for parameters, `0` for optional integer
@@ -658,9 +662,11 @@ SQL editor, or live database inspection is added to Settings.
 
 ### 12.2 Task editor
 
-Add a **SQLite** tool-group checkbox and include it in load/save, dirty tracking, validation,
-assisted group application, and undo snapshots. When selected, show the existing **Authorized
-locations** card alongside File system and Dropbox behavior.
+The Stage 18A collection-driven whitelist automatically renders a **SQLite** tool-group checkbox
+from its catalog metadata and includes it in load/save, dirty tracking, validation, assisted group
+application, and undo snapshots. Do not add a `UseSQLite` property or dedicated XAML checkbox.
+Because SQLite aliases declare local-path arguments, selecting it automatically shows the existing
+**Authorized locations** card alongside File system and Dropbox behavior.
 
 Add a task-level **Protect SQLite read results with Guardrails** checkbox, visible when SQLite is
 selected but persisted regardless of selection. For a new task, initialize it once from current
@@ -674,8 +680,8 @@ display its status but never change it.
 ### 12.3 Existing dynamic surfaces
 
 Tool tester discovers all four aliases from the Tool Map and uses taskless Guardrails defaults.
-AI Playground's **Allow Tools** automatically includes the seventh non-AI group through
-`ToolGroups.All`. Tools page counts and documentation must not retain six-group wording. No
+AI Playground's **Allow Tools** automatically includes the new group through the Stage 18A task
+whitelist projection. Tools page counts and documentation must not retain six-group wording. No
 SQLite-specific output renderer is required; the existing JSON viewer remains authoritative.
 
 ## 13. Privacy, errors, and observability

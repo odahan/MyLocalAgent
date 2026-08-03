@@ -89,8 +89,10 @@ public sealed class TaskEditorViewModelTests
                 Id = "editor-task",
                 Name = "Editor task",
                 Prompt = "Write a report.",
-                UseFileSystem = true,
             };
+            viewModel.SetToolGroupSelected(ToolGroups.FileSystem, isSelected: true);
+            viewModel.SetToolGroupSelected(ToolGroups.Calendar, isSelected: true);
+            viewModel.SetToolGroupSelected(ToolGroups.Web, isSelected: true);
 
             viewModel.AddAuthorizedLocationCommand.Execute(null);
             viewModel.AuthorizedLocations.Single().CanWrite = false;
@@ -98,7 +100,11 @@ public sealed class TaskEditorViewModelTests
 
             viewModel.AuthorizedLocations.Should().ContainSingle();
             savedTask.Should().NotBeNull();
-            savedTask!.FileSystemAccess.Should().ContainSingle(
+            savedTask!.Tools.Should().Equal(
+                ToolGroups.Calendar,
+                ToolGroups.FileSystem,
+                ToolGroups.Web);
+            savedTask.FileSystemAccess.Should().ContainSingle(
                 rule =>
                     rule.Path == authorizedPath &&
                     rule.Access == FileSystemAccessMode.ReadOnly);
@@ -110,6 +116,52 @@ public sealed class TaskEditorViewModelTests
         {
             Directory.Delete(authorizedPath, recursive: true);
         }
+    }
+
+    /// <summary>
+    /// Verifies task loading projects several saved groups through the generic catalog selection.
+    /// </summary>
+    [Fact]
+    public async Task ExistingTaskLoadsSeveralToolGroupsThroughCatalogSelection()
+    {
+        var storedTask = new ScheduledTask
+        {
+            Id = "catalog-selection",
+            Name = "Catalog selection",
+            Schedule = "0 8 * * *",
+            Prompt = "Test",
+            Tools = [ToolGroups.Web, ToolGroups.Gmail, ToolGroups.Http],
+            FileSystemAccess = [],
+            Workflow = [],
+            Enabled = true,
+            ErrorPolicy = WorkflowErrorPolicy.StopOnError,
+        };
+        var store = new Mock<ITaskStore>(MockBehavior.Strict);
+        store.Setup(
+                instance => instance.GetAsync(
+                    storedTask.Id,
+                    It.IsAny<CancellationToken>()))
+            .ReturnsAsync(storedTask);
+        var viewModel = new TaskEditorViewModel(
+            store.Object,
+            Mock.Of<ITaskSchedulerService>(),
+            Mock.Of<IIncidentReporter>(),
+            Mock.Of<IDesktopInteractionService>(),
+            Mock.Of<IMessenger>(),
+            TimeProvider.System);
+
+        viewModel.Open(storedTask.Id);
+        await (viewModel.LoadCommand.ExecutionTask ?? Task.CompletedTask);
+
+        viewModel.ToolGroupSelections
+            .Where(static item => item.IsSelected)
+            .Select(static item => item.Name)
+            .Should().Equal(
+                ToolGroups.Gmail,
+                ToolGroups.Http,
+                ToolGroups.Web);
+        viewModel.IsDirty.Should().BeFalse();
+        store.VerifyAll();
     }
 
     /// <summary>
@@ -328,14 +380,14 @@ public sealed class TaskEditorViewModelTests
 
         viewModel.WorkflowText.Should().Be(
             """[{"step":"filesystem.list","args":{"path":"."}}]""");
-        viewModel.UseFileSystem.Should().BeTrue();
+        viewModel.IsToolGroupSelected(ToolGroups.FileSystem).Should().BeTrue();
         viewModel.AuthorizedLocations.Should().ContainSingle();
         viewModel.HasAssistedUndoSnapshot.Should().BeTrue();
 
         viewModel.UndoAssistedChangeCommand.Execute(null);
 
         viewModel.WorkflowText.Should().Be("[]");
-        viewModel.UseFileSystem.Should().BeFalse();
+        viewModel.IsToolGroupSelected(ToolGroups.FileSystem).Should().BeFalse();
         viewModel.AuthorizedLocations.Should().BeEmpty();
         viewModel.HasAssistedUndoSnapshot.Should().BeFalse();
         dialog.VerifyAll();

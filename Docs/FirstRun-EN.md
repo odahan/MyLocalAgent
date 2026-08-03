@@ -257,6 +257,11 @@ A step coming from a tool group that the task does not allow shows a warning and
 an **unchecked** box: authorization is never widened silently. Safety settings are
 displayed read-only.
 
+The Task editor **Tool whitelist** is generated from the catalog built into the application.
+A future version can therefore add a group without another hard-coded list; the group appears
+cleared and remains separate from path authorization and Safety. This is a compiled catalog,
+not an external runtime plug-in loader.
+
 **Undo assisted change** reverts the last assisted application in one operation,
 whatever its origin, until save or reload. As with any editor change, only
 **Save task** persists the result.

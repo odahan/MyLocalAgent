@@ -54,7 +54,7 @@ public sealed partial class ToolTesterViewModel :
         _incidentReporter = incidentReporter;
         Aliases = toolRegistry.Definitions
             .Where(static definition => definition.IsAgentTool)
-            .OrderBy(static definition => definition.ToolGroup)
+            .OrderBy(static definition => ToolGroups.GetDisplayOrder(definition.ToolGroup))
             .ThenBy(static definition => definition.Alias)
             .Select(
                 static definition => new ToolAliasItem(

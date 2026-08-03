@@ -64,7 +64,7 @@ public static partial class ScheduledTaskValidator
             if (string.IsNullOrWhiteSpace(group) || !ToolGroups.All.Contains(group))
             {
                 throw new TaskValidationException(
-                    $"Task tool group '{group}' is unknown. Expected one of: {string.Join(", ", ToolGroups.All)}.");
+                    $"Task tool group '{group}' is unknown. Expected one of: {string.Join(", ", ToolGroups.TaskWhitelist.Select(static definition => definition.Name))}.");
             }
 
             if (!toolGroups.Add(group))

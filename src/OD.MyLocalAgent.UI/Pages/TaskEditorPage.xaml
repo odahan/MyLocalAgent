@@ -288,26 +288,22 @@
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionTitleStyle}"
                                Text="Tool whitelist" />
-                    <WrapPanel Margin="0,14,0,0">
-                        <CheckBox Margin="0,0,24,10"
-                                  Content="Gmail"
-                                  IsChecked="{Binding UseGmail}" />
-                        <CheckBox Margin="0,0,24,10"
-                                  Content="Calendar"
-                                  IsChecked="{Binding UseCalendar}" />
-                        <CheckBox Margin="0,0,24,10"
-                                  Content="Dropbox"
-                                  IsChecked="{Binding UseDropbox}" />
-                        <CheckBox Margin="0,0,24,10"
-                                  Content="File system"
-                                  IsChecked="{Binding UseFileSystem}" />
-                        <CheckBox Margin="0,0,24,10"
-                                  Content="HTTP"
-                                  IsChecked="{Binding UseHttp}" />
-                        <CheckBox Margin="0,0,24,10"
-                                  Content="Web search (web) (cloud)"
-                                  IsChecked="{Binding UseWeb}" />
-                    </WrapPanel>
+                    <ItemsControl Margin="0,14,0,0"
+                                  ItemsSource="{Binding ToolGroupSelections}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <CheckBox Margin="0,0,24,10"
+                                          Content="{Binding DisplayName}"
+                                          IsChecked="{Binding IsSelected}"
+                                          ToolTip="{Binding Description}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </StackPanel>
             </materialDesign:Card>
 

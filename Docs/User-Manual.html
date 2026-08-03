@@ -1577,6 +1577,14 @@ ollama list</code></pre>
                         <p>Le champ attend un tableau JSON de étapes, et non l’objet complet de la tâche.</p>
                     </li>
                 </ol>
+                <div class="callout info">
+                    La liste <span class="ui-label">Tool whitelist</span> est générée depuis le
+                    catalogue d’outils compilé dans cette version. Les nouveaux groupes intégrés à une future version
+                    apparaissent donc automatiquement dans cet éditeur, toujours décochés par
+                    défaut. Cocher un groupe ne crée aucune autorisation de chemin et ne modifie
+                    aucun réglage Safety ; ces contrôles restent indépendants. Ce catalogue ne
+                    charge pas de plug-ins externes à l’exécution.
+                </div>
                 <div class="code-block">
                     <pre><code>[
   {
@@ -1855,7 +1863,7 @@ ollama list</code></pre>
                         </thead>
                         <tbody>
                             <tr><td>Non</td><td>Non</td><td>Complétion brute du fournisseur.</td></tr>
-                            <tr><td>Oui</td><td>Non</td><td>Agent avec les six groupes d’outils.</td></tr>
+                            <tr><td>Oui</td><td>Non</td><td>Agent avec tous les groupes d’outils installés et autorisables.</td></tr>
                             <tr><td>Non</td><td>Oui</td><td>Agent avec summarize, extract action items et classify email.</td></tr>
                             <tr><td>Oui</td><td>Oui</td><td>Agent avec outils et skills intégrés.</td></tr>
                         </tbody>

@@ -12,6 +12,28 @@ namespace OD.MyLocalAgent.Tests;
 public sealed class WorkflowToolCatalogViewModelTests
 {
     /// <summary>
+    /// Verifies catalog grouping follows the shared group metadata rather than a UI-local list.
+    /// </summary>
+    [Fact]
+    public void ItemsFollowSharedToolGroupDisplayOrder()
+    {
+        var viewModel = Create();
+
+        var actualGroups = viewModel.Items
+            .Select(static item => item.ToolGroup)
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+        var expectedGroups = ToolGroups.Catalog
+            .Where(group => ToolMap.Definitions.Any(
+                tool => string.Equals(
+                    tool.ToolGroup,
+                    group.Name,
+                    StringComparison.OrdinalIgnoreCase)))
+            .Select(static group => group.Name);
+
+        actualGroups.Should().Equal(expectedGroups);
+    }
+
+    /// <summary>
     /// Verifies a session without any insertion returns no result at all.
     /// </summary>
     [Fact]

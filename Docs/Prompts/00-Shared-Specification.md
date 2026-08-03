@@ -1792,6 +1792,42 @@ cancellation, sanitized incidents/logs, unchanged out-of-scope callers, and exac
 phases, and fully cached input uses zero. The final gate remains a warning-clean Release build
 and deterministic tests with `-m:1`, plus `git diff --check`.
 
+## 21A. Stage 18A addendum — Extensible tool integration foundation
+
+This addendum refactors catalog integration after Stage 18 and before Stage 19. It adds no tool,
+group, alias, package, setting, persisted field, migration, permission, page, or runtime behavior.
+The standalone `Docs/Prompts/18A-Stage18A-ExtensibleToolIntegration.md` prompt is the complete
+implementation contract.
+
+### 21A.1 Central group metadata
+
+Core owns one ordered immutable definition for every tool group: stable persisted name, English
+display name, English description, and task-whitelist eligibility. The existing six task groups
+remain unchanged and the synthetic ai group remains authoring-only. `ToolGroups.TaskWhitelist` and
+the case-insensitive `ToolGroups.All` derive from that metadata. Every Tool Map entry must resolve
+to a catalog group and every whitelist group must own a non-AI Tool Map entry.
+
+### 21A.2 Metadata-driven integration
+
+Task editor renders a collection of group-selection items rather than one Boolean and XAML checkbox
+per group. Load, save, helper Apply, catalog opt-in, and assisted Undo iterate that collection in
+catalog order. Authorized locations visibility is derived from whether a selected group owns a Tool
+Map entry with local-path metadata; group-name special cases are forbidden.
+
+Workflow Tool catalog and Tool tester share the catalog display order. Task validation lists legal
+groups from the whitelist projection, and AI Playground continues using the derived all-groups set
+behind its explicit opt-in. Unknown and ai task groups still fail closed.
+
+### 21A.3 Compatibility and verification
+
+Existing task JSON, runtime tools, aliases, Safety, authorization, provider calls, settings, and
+logging remain unchanged. This is compiled-product extensibility, not runtime plug-in loading.
+Automated coverage asserts catalog uniqueness/order, bidirectional Tool Map completeness, dynamic
+Task editor projection, local-path relevance, dirty/load/save/Apply/Undo behavior, authoring/tester
+order, unknown-group rejection, and all prior whitelist regressions. The gate remains a warning-
+clean Release build and deterministic tests with `-m:1`, documentation parity, and
+`git diff --check`.
+
 ## 22. Stage 19 addendum — SQLite Tool
 
 This addendum extends §7.6, §8.1–§8.3, §14, §16, §20, and §21 with one local SQLite tool group.
@@ -1803,7 +1839,7 @@ connection string, saved connection, or database session.
 
 | # | Decision |
 |---|---|
-| S19-D1 | **Four aliases in one group.** Add `sqlite.listObjects`, `sqlite.describeTable`, `sqlite.query`, and `sqlite.execute` in the whitelist group `sqlite`. |
+| S19-D1 | **Four aliases in one group.** Add `sqlite.listObjects`, `sqlite.describeTable`, `sqlite.query`, and `sqlite.execute` in the whitelist group `sqlite`, registered once in the Stage 18A central group catalog. |
 | S19-D2 | **Microsoft provider only.** Pin `Microsoft.Data.Sqlite` 10.0.10 in the central package file and reference it from Core. No EF Core, Dapper, System.Data.SQLite, migration framework, or second SQLite bundle. |
 | S19-D3 | **Paths only.** Every alias accepts `databasePath`, resolved by the existing sandbox. Connection strings, URI filenames, memory databases, passwords, VFS selection, attached databases, extension loading, and encryption are out of scope. |
 | S19-D4 | **Independent authorization.** Read aliases require ReadOnly access. `sqlite.execute` requires the `sqlite` group, ReadWrite path access, and global `Safety:AllowSqliteWrite=true`, shipped false. |
@@ -1861,9 +1897,11 @@ only named `$`, `:`, or `@` native parameters whose supplied JSON values are nul
 Int64, finite real, or string. Arrays, nested objects, positional parameters, input BLOBs,
 missing parameters, and unused parameters fail before execution.
 
-The Stage 17 catalog group order inserts sqlite after filesystem and before http. Object snippets
-emit `{}`. Tool Map metadata continues to drive runtime registry, helper prompts, authoring,
-whitelist proposals, local-path proposals, and Safety warnings.
+The Stage 18A central group catalog inserts sqlite after filesystem and before http; task whitelist,
+editor, tester, workflow catalog, validator, and playground projections derive it without parallel
+ordering tables or SQLite-specific selection properties. Object snippets emit `{}`. Tool Map
+metadata continues to drive runtime registry, helper prompts, authoring, whitelist proposals,
+local-path proposals, and Safety warnings.
 
 ### 22.4 Results and Guardrails
 
@@ -1893,8 +1931,9 @@ closes every command/reader/transaction/connection/native handle. Write calls en
 keys and commit once. Busy timeout is not described as a CPU deadline. Caller/task cancellation
 interrupts the native connection and rolls back writes.
 
-Task editor adds the SQLite group, task Guardrails checkbox, and SQLite-aware Authorized
-locations visibility. Settings adds the complete SQLite section. Tool tester, AI Playground,
+Task editor derives the SQLite group and local-path visibility from Stage 18A metadata, adds only
+the task Guardrails checkbox as SQLite-specific state, and must not add a `UseSQLite` property or
+dedicated XAML group checkbox. Settings adds the complete SQLite section. Tool tester, AI Playground,
 Tool catalog, helper generation/explanation, validation, manuals, samples, and group counts are
 updated from shared metadata. The helper generation prompt advances from
 `workflow-generation-v2` to `workflow-generation-v3`.

@@ -13,17 +13,6 @@ namespace OD.MyLocalAgent.UI.ViewModels;
 /// </summary>
 public sealed partial class WorkflowToolCatalogViewModel : ObservableObject
 {
-    private static readonly string[] GroupOrder =
-    [
-        ToolGroups.Gmail,
-        ToolGroups.Calendar,
-        ToolGroups.Dropbox,
-        ToolGroups.FileSystem,
-        ToolGroups.Http,
-        ToolGroups.Web,
-        ToolGroups.Ai,
-    ];
-
     private readonly List<WorkflowToolCatalogInsertion> _insertions = [];
     private readonly List<string> _warnings = [];
     private readonly HashSet<string> _acceptedGroups =
@@ -228,7 +217,7 @@ public sealed partial class WorkflowToolCatalogViewModel : ObservableObject
         var granted = new HashSet<string>(request.ToolGroups, StringComparer.OrdinalIgnoreCase);
         Items.Clear();
         foreach (var tool in ToolMap.Definitions
-                     .OrderBy(static tool => Array.IndexOf(GroupOrder, tool.ToolGroup))
+                     .OrderBy(static tool => ToolGroups.GetDisplayOrder(tool.ToolGroup))
                      .ThenBy(static tool => tool.Alias, StringComparer.OrdinalIgnoreCase))
         {
             Items.Add(

@@ -261,6 +261,11 @@ Une étape provenant d’un groupe d’outils non autorisé pour la tâche affic
 avertissement et une case **décochée** : l’autorisation n’est jamais élargie
 silencieusement. Les réglages Safety sont affichés en lecture seule.
 
+La liste **Tool whitelist** de l’éditeur est générée depuis le catalogue intégré à
+l’application. Une version future peut donc ajouter un groupe sans nouveau câblage de cette
+liste ; le groupe apparaîtra décoché et restera séparé des autorisations de chemins et de
+Safety. Il s’agit d’un catalogue compilé, pas d’un chargeur de plug-ins externes.
+
 **Undo assisted change** annule d’un seul geste la dernière application assistée,
 quelle qu’en soit l’origine, jusqu’à la sauvegarde ou au rechargement. Comme pour
 toute modification de l’éditeur, seul **Save task** persiste le résultat.

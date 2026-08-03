@@ -1,6 +1,6 @@
 # STAGE 22 — Archive, Office, and PDF Tools
 
-> Run only after **Stage 21** is finished. Stage 17 V2 remains the implementation contract for
+> Run only after **Stage 21** is finished, including the **Stage 18A** foundation. Stage 17 V2 remains the implementation contract for
 > Tool Map metadata and workflow authoring, Stage 19 remains the contract for contextual local-file
 > tools, and Stages 20–21 remain the placeholder contracts. This stage adds four task-whitelist
 > groups for bounded local archive, DOCX, spreadsheet, and PDF operations. It does not add OCR,
@@ -16,7 +16,8 @@
    file-system sandbox, per-task authorization, reparse-point, Safety, Guardrails, privacy,
    cancellation, active-theme, and documentation decisions are binding.
 3. The post-Stage-21 implementations of `ToolMap`, `ToolDefinition`, `ToolArgumentDefinition`,
-   `LocalPathArgumentDefinition`, `WorkflowArgumentKind`, `ToolGroups`, `ToolRegistry`,
+   `LocalPathArgumentDefinition`, `WorkflowArgumentKind`, `ToolGroupDefinition`, `ToolGroups`,
+   `ToolGroupSelectionItem`, `ToolRegistry`,
    `ToolExecutionContext`, `IContextualToolFactory<TTool>`, `IPathSandbox`, `PathSandbox`,
    `WorkflowRequirementAnalyzer`, `WorkflowSnippetBuilder`, task creation/editing and validation,
    Settings persistence, Tool tester, AI Playground, AI Workflow Helper, Tool catalog, Runner,
@@ -50,7 +51,7 @@ contain some write APIs. Package capability does not automatically become produc
 
 | # | Decision |
 |---|---|
-| S22-D1 | **Four independent whitelist groups.** Add exactly `archive`, `document`, `spreadsheet`, and `pdf` to `ToolGroups.All`. They are visible and unchecked by default in new-task creation and remain independently selectable when editing a task. |
+| S22-D1 | **Four independent whitelist groups.** Add exactly `archive`, `document`, `spreadsheet`, and `pdf` as task-whitelist entries in the Stage 18A central catalog. `ToolGroups.All` and every catalog-driven UI projection derive them automatically. They are visible and unchecked by default in new-task creation and remain independently selectable when editing a task. |
 | S22-D2 | **One authoritative Tool Map.** Every new alias, argument, example, path access, Safety flag, function name, description, snippet, helper projection, and catalog entry comes from the existing Core Tool Map. No UI-only or workflow-only alias table is allowed. |
 | S22-D3 | **Permissively licensed packages.** Pin SharpCompress 0.50.1, DocumentFormat.OpenXml 3.5.1, ExcelDataReader 3.9.0, and PdfPig 0.1.15 centrally and reference them from Core only. Record the resolved package and license inventory in the architecture ledger. |
 | S22-D4 | **No commercially constrained document stack.** Do not add NPOI, EPPlus, iText, Aspose, Syncfusion, GemBox, Office Interop, LibreOffice automation, a command-line archiver, or a second library for the same format. NPOI is specifically excluded because its current binary distribution carries a revenue-related maintenance EULA despite older Apache-2.0 expectations. |
@@ -218,9 +219,10 @@ public const string Spreadsheet = "spreadsheet";
 public const string Pdf = "pdf";
 ```
 
-Include all four in `ToolGroups.All`. Preserve the established display order and insert the new
-groups after SQLite: gmail, calendar, dropbox, filesystem, sqlite, archive, document, spreadsheet,
-pdf, http, web, then the non-whitelist `ai` authoring group. Update every hard-coded count or phrase
+Add all four as task-whitelist `ToolGroupDefinition` entries. Preserve the established display
+order and insert the new groups after SQLite: gmail, calendar, dropbox, filesystem, sqlite, archive,
+document, spreadsheet, pdf, http, web, then the non-whitelist `ai` authoring group. Do not maintain
+a second UI, tester, or workflow-catalog ordering table. Update every hard-coded count or phrase
 such as “seven tool groups.”
 
 New-task creation presents four independent unchecked checkboxes. Loading a pre-Stage-22 task adds
@@ -655,7 +657,8 @@ evaluation, recursive extraction, archive encryption, or Office/PDF writing.
 
 ### 13.1 Task creation and editing
 
-The existing tool-whitelist control gains four English checkboxes:
+The existing collection-driven tool-whitelist control gains four English checkboxes from the
+central catalog; do not add four Boolean view-model properties or dedicated XAML controls:
 
 - **Archives**;
 - **Word documents**;
