@@ -217,18 +217,43 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
                                 <TextBlock FontFamily="Consolas"
                                            Text="{Binding DisplayText}"
+                                           TextWrapping="Wrap"
                                            VerticalAlignment="Center" />
                                 <TextBlock Grid.Column="1"
                                            Margin="12,0,0,0"
                                            Text="{Binding Description}"
                                            TextWrapping="Wrap"
                                            VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1"
+                                           Grid.Row="1"
+                                           Margin="12,2,0,0"
+                                           Opacity="0.75"
+                                           Text="{Binding Details}"
+                                           TextWrapping="Wrap"
+                                           VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Details}"
+                                                             Value="{x:Null}">
+                                                    <Setter Property="Visibility"
+                                                            Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                                 <Button Grid.Column="2"
                                         Command="{Binding DataContext.CopyPlaceholderCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                         CommandParameter="{Binding}"
-                                        Content="Copy" />
+                                        Content="Copy"
+                                        VerticalAlignment="Top" />
                             </Grid>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>

@@ -19,6 +19,15 @@ public sealed record WorkflowPlaceholderDefinition(
     public string DisplayText { get; init; } = InsertText;
 
     /// <summary>
+    /// Gets the optional authoring details shown by the user interface only.
+    /// </summary>
+    /// <remarks>
+    /// This text documents accepted arguments such as date/time formats. It is never part of
+    /// the <see cref="WorkflowPlaceholderCatalog.Definitions"/> model-context projection.
+    /// </remarks>
+    public string? Details { get; init; }
+
+    /// <summary>
     /// Gets a value indicating whether the template must be completed with a prior step id
     /// before it can be inserted.
     /// </summary>

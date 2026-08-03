@@ -22,15 +22,21 @@ public static partial class WorkflowPlaceholderCatalog
         new("{{task.prompt}}", "current task prompt"),
         new("{{previous.output}}", "previous successful step output")
         {
+            Details =
+                "Accepts a structured selector, for example " +
+                "{{previous.output.items[0].name}}.",
             SupportsStructuredSelector = true,
         },
         new("{{stepId.output}}", "a prior named step output")
         {
+            Details = "Replace 'stepId' with the identifier of a step declared earlier.",
             RequiresPriorStepId = true,
         },
         new("{{stepId.output.property}}", "structured JSON selection")
         {
             DisplayText = "{{stepId.output.property}} and {{stepId.output.items[0].name}}",
+            Details =
+                "Selectors chain '.property' segments and '[index]' array positions.",
             RequiresPriorStepId = true,
             SupportsStructuredSelector = true,
         },
@@ -42,10 +48,22 @@ public static partial class WorkflowPlaceholderCatalog
         new("{{Today}}", "local date")
         {
             DisplayText = "{{Today}} or {{Today[custom .NET format]}}",
+            Details =
+                "Without a format it resolves to yyyy-MM-dd. " +
+                "Examples: {{Today[dd/MM/yyyy]}}, {{Today[yyyy-MM-dd]}}, {{Today[dddd d MMMM yyyy]}}. " +
+                "The format is a .NET custom date/time format of at most 100 characters, " +
+                "resolved in local time with the invariant culture. " +
+                "Filename-friendly aliases YYYY, YY and DD are normalized to yyyy, yy and dd.",
         },
         new("{{Now}}", "local date and time")
         {
             DisplayText = "{{Now}} or {{Now[custom .NET format]}}",
+            Details =
+                "Without a format it resolves to yyyy-MM-ddTHH:mm:sszzz. " +
+                "Examples: {{Now[HH:mm]}}, {{Now[yyyy-MM-dd HH-mm-ss]}}, {{Now[HH:mm:ss zzz]}}. " +
+                "The format is a .NET custom date/time format of at most 100 characters, " +
+                "resolved in local time with the invariant culture. " +
+                "Aliases YYYY, YY, DD and hh are normalized to yyyy, yy, dd and HH (24-hour).",
         },
     ];
 
