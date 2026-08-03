@@ -323,6 +323,8 @@ Date: 2026-08-03
 
 Date: 2026-08-03
 
+Release: 1.3.0
+
 | Checklist item | Status | Executed evidence |
 |---|---:|---|
 | Gmail and HTTP minimize before LLM use. | ✅ | Pure projector tests cover canonical Gmail fields, normalization, quoted-history removal, JSON/text/HTML/media handling, exact bounds, and omission metadata. |

@@ -2088,3 +2088,8 @@ Modified:
   add zero calls.
 
 No package or package version changed.
+
+#### Release 1.3.0 — 2026-08-03
+
+- Packages the Stage 18 compact external-content Guardrails implementation as version 1.3.0,
+  set centrally in `Directory.Build.props`.
