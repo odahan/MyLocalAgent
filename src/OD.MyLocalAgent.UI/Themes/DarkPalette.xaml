@@ -13,6 +13,7 @@
     <Color x:Key="OnBackgroundColor">#E5E7EB</Color>
     <Color x:Key="OnSurfaceColor">#F8FAFC</Color>
     <Color x:Key="OnPrimaryColor">#111318</Color>
+    <Color x:Key="OnErrorColor">#FFFFFF</Color>
     <Color x:Key="OnPrimaryActionColor">#FFFFFF</Color>
     <Color x:Key="MutedTextColor">#94A3B8</Color>
     <Color x:Key="DividerColor">#334155</Color>
@@ -33,6 +34,8 @@
                      Color="{StaticResource SecondaryColor}" />
     <SolidColorBrush x:Key="ErrorBrush"
                      Color="{StaticResource ErrorColor}" />
+    <SolidColorBrush x:Key="OnErrorBrush"
+                     Color="{StaticResource OnErrorColor}" />
     <SolidColorBrush x:Key="WarningBrush"
                      Color="{StaticResource WarningColor}" />
     <SolidColorBrush x:Key="SuccessBrush"

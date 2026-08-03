@@ -220,14 +220,14 @@ public sealed class TaskEditorViewModelTests
     /// Verifies Back does not discard a changed task definition without confirmation.
     /// </summary>
     [Fact]
-    public void BackKeepsChangedDraftWhenDiscardIsCanceled()
+    public async Task BackKeepsChangedDraftWhenLeavingIsCanceled()
     {
         var desktop = new Mock<IDesktopInteractionService>(MockBehavior.Strict);
         desktop.Setup(
-                service => service.Confirm(
-                    "Discard unsaved task changes",
-                    "Discard the unsaved task definition and return to Tasks?"))
-            .Returns(false);
+                service => service.PromptUnsavedChanges(
+                    "Unsaved task",
+                    "Save your task changes before leaving the editor?"))
+            .Returns(UnsavedChangesChoice.Stay);
         var messenger = new StrongReferenceMessenger();
         var recipient = new object();
         var navigatedToTasks = false;
@@ -245,10 +245,46 @@ public sealed class TaskEditorViewModelTests
             Name = "Unsaved draft",
         };
 
-        viewModel.BackToTasksCommand.Execute(null);
+        await viewModel.BackToTasksCommand.ExecuteAsync(null);
 
         navigatedToTasks.Should().BeFalse();
         viewModel.Name.Should().Be("Unsaved draft");
+        desktop.VerifyAll();
+    }
+
+    /// <summary>
+    /// Verifies abandoning a changed task permits navigation through the shared guard.
+    /// </summary>
+    [Fact]
+    public async Task BackCanDiscardChangedTaskAndNavigate()
+    {
+        var desktop = new Mock<IDesktopInteractionService>(MockBehavior.Strict);
+        desktop.Setup(
+                service => service.PromptUnsavedChanges(
+                    "Unsaved task",
+                    "Save your task changes before leaving the editor?"))
+            .Returns(UnsavedChangesChoice.Discard);
+        var messenger = new StrongReferenceMessenger();
+        var recipient = new object();
+        var navigatedToTasks = false;
+        messenger.Register<NavigateMessage>(
+            recipient,
+            (_, message) => navigatedToTasks = message.Route == PageRoute.Tasks);
+        var viewModel = new TaskEditorViewModel(
+            Mock.Of<ITaskStore>(),
+            Mock.Of<ITaskSchedulerService>(),
+            Mock.Of<IIncidentReporter>(),
+            desktop.Object,
+            messenger,
+            TimeProvider.System)
+        {
+            Name = "Unsaved draft",
+        };
+
+        await viewModel.BackToTasksCommand.ExecuteAsync(null);
+
+        navigatedToTasks.Should().BeTrue();
+        viewModel.IsDirty.Should().BeFalse();
         desktop.VerifyAll();
     }
 

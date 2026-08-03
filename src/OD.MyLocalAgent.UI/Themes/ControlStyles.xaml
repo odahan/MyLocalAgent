@@ -637,9 +637,9 @@
                 <Setter Property="Background"
                         Value="{DynamicResource ErrorBrush}" />
                 <Setter Property="Foreground"
-                        Value="{DynamicResource OnPrimaryBrush}" />
+                        Value="{DynamicResource OnErrorBrush}" />
                 <Setter Property="TextElement.Foreground"
-                        Value="{DynamicResource OnPrimaryBrush}" />
+                        Value="{DynamicResource OnErrorBrush}" />
             </Trigger>
         </Style.Triggers>
     </Style>

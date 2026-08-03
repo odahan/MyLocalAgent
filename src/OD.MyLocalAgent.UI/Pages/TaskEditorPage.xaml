@@ -5,37 +5,42 @@
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+        <Grid Grid.Row="0">
+            <StackPanel>
+                <TextBlock Style="{StaticResource PageTitleStyle}"
+                           Text="{Binding EditorTitle}" />
+                <TextBlock Margin="0,5,0,0"
+                           Foreground="{DynamicResource MutedTextBrush}"
+                           Text="Define identity, schedule, tool access, prompt, and deterministic workflow." />
+            </StackPanel>
+            <StackPanel HorizontalAlignment="Right"
+                        VerticalAlignment="Top"
+                        Orientation="Horizontal">
+                <Button Command="{Binding BackToTasksCommand}"
+                        Content="Back" />
+                <Button Command="{Binding OpenPromptCommand}"
+                        Content="Prompt tester" />
+                <Button Command="{Binding SaveCommand}"
+                        Content="Save task"
+                        Style="{StaticResource PrimaryButtonStyle}" />
+            </StackPanel>
+        </Grid>
+
+        <ProgressBar Grid.Row="1"
+                     Height="3"
+                     Margin="0,16,0,0"
+                     IsIndeterminate="True"
+                     Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
+
+        <ScrollViewer Grid.Row="2"
+                      HorizontalScrollBarVisibility="Disabled"
                       VerticalScrollBarVisibility="Auto">
             <StackPanel>
-            <Grid>
-                <StackPanel>
-                    <TextBlock Style="{StaticResource PageTitleStyle}"
-                               Text="{Binding EditorTitle}" />
-                    <TextBlock Margin="0,5,0,0"
-                               Foreground="{DynamicResource MutedTextBrush}"
-                               Text="Define identity, schedule, tool access, prompt, and deterministic workflow." />
-                </StackPanel>
-                <StackPanel HorizontalAlignment="Right"
-                            VerticalAlignment="Top"
-                            Orientation="Horizontal">
-                    <Button Command="{Binding BackToTasksCommand}"
-                            Content="Back" />
-                    <Button Command="{Binding OpenPromptCommand}"
-                            Content="Prompt tester" />
-                    <Button Command="{Binding SaveCommand}"
-                            Content="Save task"
-                            Style="{StaticResource PrimaryButtonStyle}" />
-                </StackPanel>
-            </Grid>
-
-            <ProgressBar Height="3"
-                         Margin="0,16,0,0"
-                         IsIndeterminate="True"
-                         Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
 
             <materialDesign:Card Margin="0,20,0,0">
                 <StackPanel>
@@ -366,7 +371,7 @@
             </StackPanel>
         </ScrollViewer>
 
-        <Border Grid.Row="1"
+        <Border Grid.Row="3"
                 Margin="0,16,0,0"
                 Padding="14"
                 Background="{DynamicResource SurfaceBrush}"

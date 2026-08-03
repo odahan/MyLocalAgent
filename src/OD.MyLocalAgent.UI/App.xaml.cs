@@ -82,14 +82,18 @@ public partial class App : Application
     }
 
     /// <inheritdoc />
-    protected override async void OnExit(ExitEventArgs e)
+    protected override void OnExit(ExitEventArgs e)
     {
         DispatcherUnhandledException -= OnDispatcherUnhandledException;
         try
         {
             if (_host is not null)
             {
-                await _host.StopAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(true);
+                // The dispatcher is already shutting down, so continuations must never be
+                // marshalled back to the UI thread or the exit sequence would never finish.
+                _host.StopAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false)
+                    .GetAwaiter()
+                    .GetResult();
             }
         }
         catch (Exception exception)
@@ -98,13 +102,15 @@ public partial class App : Application
             {
                 try
                 {
-                    _ = await _host.Services
+                    _ = _host.Services
                         .GetRequiredService<IIncidentReporter>()
                         .ReportAsync(
                             exception,
                             "Application shutdown",
                             CancellationToken.None)
-                        .ConfigureAwait(true);
+                        .ConfigureAwait(false)
+                        .GetAwaiter()
+                        .GetResult();
                 }
                 catch
                 {

@@ -346,7 +346,9 @@ public sealed partial class SettingsViewModel :
             return true;
         }
 
-        switch (_desktopInteraction.PromptUnsavedChanges())
+        switch (_desktopInteraction.PromptUnsavedChanges(
+                    "Unsaved settings",
+                    "Save your changes before leaving Settings?"))
         {
             case UnsavedChangesChoice.Save:
                 await SaveAsync(CancellationToken.None).ConfigureAwait(true);

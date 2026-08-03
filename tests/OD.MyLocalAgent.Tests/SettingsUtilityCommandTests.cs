@@ -68,7 +68,9 @@ public sealed class SettingsUtilityCommandTests
     public async Task NavigationCanBeCanceledWithUnsavedChanges()
     {
         var desktop = new Mock<IDesktopInteractionService>();
-        desktop.Setup(static service => service.PromptUnsavedChanges())
+        desktop.Setup(static service => service.PromptUnsavedChanges(
+                "Unsaved settings",
+                "Save your changes before leaving Settings?"))
             .Returns(UnsavedChangesChoice.Stay);
         var viewModel = CreateViewModel(desktop.Object);
         viewModel.OllamaModel = "edited-model";
@@ -86,7 +88,9 @@ public sealed class SettingsUtilityCommandTests
     public async Task NavigationCanDiscardUnsavedChanges()
     {
         var desktop = new Mock<IDesktopInteractionService>();
-        desktop.Setup(static service => service.PromptUnsavedChanges())
+        desktop.Setup(static service => service.PromptUnsavedChanges(
+                "Unsaved settings",
+                "Save your changes before leaving Settings?"))
             .Returns(UnsavedChangesChoice.Discard);
         var viewModel = CreateViewModel(desktop.Object);
         viewModel.OllamaModel = "edited-model";

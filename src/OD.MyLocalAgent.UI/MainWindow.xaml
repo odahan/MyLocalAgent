@@ -166,6 +166,7 @@
                         <ListBox Margin="12,0,12,18"
                                  HorizontalContentAlignment="Stretch"
                                  ItemsSource="{Binding NavigationItems}"
+                                 PreviewMouseLeftButtonDown="NavigationListBox_PreviewMouseLeftButtonDown"
                                  SelectedItem="{Binding SelectedNavigationItem, Mode=TwoWay}"
                                  Style="{StaticResource NavigationRailListBoxStyle}">
                             <ListBox.ItemTemplate>

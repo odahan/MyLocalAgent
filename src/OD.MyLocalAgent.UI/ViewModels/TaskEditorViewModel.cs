@@ -18,7 +18,10 @@ namespace OD.MyLocalAgent.UI.ViewModels;
 /// <summary>
 /// Edits and validates scheduled task definitions.
 /// </summary>
-public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatablePage
+public sealed partial class TaskEditorViewModel :
+    ObservableObject,
+    IDeactivatablePage,
+    IAsyncNavigationGuard
 {
     private static readonly HashSet<string> EditablePropertyNames =
     [
@@ -264,6 +267,30 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
     void IDeactivatablePage.Deactivate() =>
         ClearAssistedUndo();
 
+    /// <inheritdoc />
+    public async Task<bool> CanNavigateAwayAsync()
+    {
+        if (!IsDirty)
+        {
+            return true;
+        }
+
+        switch (_desktopInteraction.PromptUnsavedChanges(
+                    "Unsaved task",
+                    "Save your task changes before leaving the editor?"))
+        {
+            case UnsavedChangesChoice.Save:
+                await SaveAsync(CancellationToken.None).ConfigureAwait(true);
+                return !IsDirty;
+            case UnsavedChangesChoice.Discard:
+                IsDirty = false;
+                ClearAssistedUndo();
+                return true;
+            default:
+                return false;
+        }
+    }
+
     partial void OnScheduleChanged(string value) =>
         UpdateCronPreview();
 
@@ -506,17 +533,13 @@ public sealed partial class TaskEditorViewModel : ObservableObject, IDeactivatab
     }
 
     [RelayCommand]
-    private void BackToTasks()
+    private async Task BackToTasksAsync()
     {
-        if (IsDirty &&
-            !_desktopInteraction.Confirm(
-                "Discard unsaved task changes",
-                "Discard the unsaved task definition and return to Tasks?"))
+        if (!await CanNavigateAwayAsync().ConfigureAwait(true))
         {
             return;
         }
 
-        ClearAssistedUndo();
         _messenger.Send(new NavigateMessage(PageRoute.Tasks));
     }
 

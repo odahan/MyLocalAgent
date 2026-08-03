@@ -9,11 +9,11 @@ namespace OD.MyLocalAgent.UI.Services;
 
 internal sealed class DesktopInteractionService : IDesktopInteractionService
 {
-    public UnsavedChangesChoice PromptUnsavedChanges()
+    public UnsavedChangesChoice PromptUnsavedChanges(string title, string message)
     {
         var dialog = CreateDialog(
-            "Unsaved settings",
-            "Save your changes before leaving Settings?",
+            title,
+            message,
             requiresConfirmation: true,
             primaryButtonText: "Save and leave",
             cancelButtonText: "Stay on settings",
