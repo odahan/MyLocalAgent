@@ -205,9 +205,14 @@ public sealed partial class AIPlaygroundViewModel :
             else
             {
                 var provider = _llmClientFactory.Create();
+                var resolvedPrompt = ModelPromptPlaceholderResolver.Resolve(
+                    Prompt,
+                    new ModelPromptPlaceholderContext(
+                        provider.ModelName,
+                        generationPolicy));
                 await foreach (var chunk in provider
                                    .GenerateStreamingAsync(
-                                       Prompt,
+                                       resolvedPrompt,
                                        generationPolicy,
                                        cancellationToken)
                                    .ConfigureAwait(true))

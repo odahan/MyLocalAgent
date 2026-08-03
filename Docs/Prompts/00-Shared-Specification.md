@@ -159,7 +159,8 @@ callers report incidents (ADR, §9-A).
   `Task<string> GenerateAsync(string prompt, CancellationToken ct)` ·
   `IAsyncEnumerable<string> GenerateStreamingAsync(string prompt, CancellationToken ct)` ·
   `Task<LlmHealthResult> CheckHealthAsync(CancellationToken ct)` (reachable? model present?
-  latency) · `IChatClient ChatClient { get; }` · `string ProviderName { get; }`.
+  latency) · `IChatClient ChatClient { get; }` · `string ProviderName { get; }` ·
+  `string ModelName { get; }`.
   Usage: `GenerateAsync`/`GenerateStreamingAsync` feed the AI playground (raw completion);
   `ChatClient` is what the agent wraps (§7.3).
 - `ILlmClientFactory` — `ILlmClientService Create()` selects the implementation from
@@ -1944,3 +1945,57 @@ failure policy. A task with a non-empty workflow never pre-expands its saved pro
 Tool tester, AI Workflow Helper/Explain, Guardrails, skills, workflow `ai.prompt`, and health calls
 remain outside prompt-only expansion. Placeholder expansion grants no tool group, filesystem
 authorization, Safety permission, connector access, Windows right, or model/tool success.
+
+## 24. Stage 21 addendum — Model information placeholders
+
+This addendum supersedes Stage 20 only where taskless and workflow surfaces were previously
+excluded from model-information expansion. Date/task placeholders, unresolved-marker warnings,
+workflow output semantics, authorization, and every other Stage 20 decision remain unchanged.
+The standalone `Docs/Prompts/21-Stage21-ModelInformationPlaceholders.md` prompt is the complete
+implementation contract.
+
+### 24.1 Exact values and effective policy
+
+Every user-authored execution surface accepts `ModelName`, `ModelSettings`, `ModelContextSize`,
+and `ModelInfo` inside double braces. Matching is case-insensitive and permits surrounding
+whitespace. Given model `qwen3:14b`, effective Temperature `0.25`, effective Top P `0.9`, and
+declared context `32768`, exact values are `qwen3:14b`, `Temp 0.25 - TopP 0.9`, `32768`, and
+`ModelName qwen3:14b - Temp 0.25 - TopP 0.9 - Context 32768` respectively. Formatting is
+invariant, single-pass, and non-recursive.
+
+Temperature and Top P are the immutable values applied to that call: workflow step over task
+over Settings, task over Settings, or Settings for taskless/playground calls. Context is the
+configured declared window, not token usage, remaining capacity, output budget, or provider
+telemetry. Model name is the exact configured identifier for the selected provider; resolution
+performs no health, network, catalog, tool, or extra model call.
+
+### 24.2 Runtime surfaces and architecture
+
+Prompt-only scheduled/CLI execution, UI Run now, agentic tasks, Prompt editor Test, workflow
+string arguments and AI prompts/skills, and AI Playground raw/agent modes resolve the four
+markers before dispatch. The shared agent boundary resolves after provider selection as a safety
+net; direct raw-provider playground generation resolves explicitly. Internal system prompts,
+Guardrails schemas, responses, tool outputs, and connector payloads are not rescanned.
+
+Core owns one immutable model-placeholder context and one pure resolver that preserves unrelated
+markers. `ILlmClientService.ModelName` exposes the current monitored provider model.
+`WorkflowPlaceholderCatalog` advertises the four forms and validates them everywhere; each AI
+step uses its step-effective policy and each non-AI step uses the task-effective policy. Model
+markers are valid in Stage 20 prompt resolution and never produce unresolved warnings.
+
+### 24.3 Task-log header, privacy, and verification
+
+The first visible line of every retained task run log is the task-effective `ModelInfo` value;
+the structured JSONL start record remains physically first. The header appears once per task run,
+before progress/output, and contains only model name, Temperature, Top P, and declared context.
+Workflow steps may expose different step overrides through their own placeholder value; no
+per-step log header is added.
+
+Stage 21 adds no prompt, task name, tool argument/result, path, SQL, external content, endpoint,
+key, model response, or exception payload to logs/incidents. It adds no setting, task field,
+migration, provider, package, model call, tool, skill, page, or authorization. Automated coverage
+includes exact formatting, invariant/case-insensitive/non-recursive replacement, agent and direct
+provider dispatch, workflow effective-policy resolution, authoring metadata, first-visible-log
+ordering, reload/concurrency isolation, and all prior placeholder/generation/run-log regressions.
+The final gate remains a warning-clean Release build and deterministic tests with `-m:1`, manual
+parity validation, and `git diff --check`.

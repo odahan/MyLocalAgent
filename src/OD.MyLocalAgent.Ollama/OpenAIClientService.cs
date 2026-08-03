@@ -53,6 +53,9 @@ public sealed class OpenAIClientService : ILlmClientService
     public string ProviderName => AIOptions.OpenAIProvider;
 
     /// <inheritdoc />
+    public string ModelName => _options.CurrentValue.Model;
+
+    /// <inheritdoc />
     public Task<string> GenerateAsync(
         string prompt,
         CancellationToken cancellationToken) =>

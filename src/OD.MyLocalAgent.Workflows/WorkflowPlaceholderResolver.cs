@@ -12,7 +12,8 @@ internal static class WorkflowPlaceholderResolver
         ScheduledTask task,
         WorkflowContext context,
         string stepId,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        ModelPromptPlaceholderContext modelContext)
     {
         if (arguments.ValueKind == JsonValueKind.Undefined)
         {
@@ -29,7 +30,8 @@ internal static class WorkflowPlaceholderResolver
                 task,
                 context,
                 stepId,
-                localNow);
+                localNow,
+                modelContext);
         }
 
         using var document = JsonDocument.Parse(buffer.WrittenMemory);
@@ -41,7 +43,8 @@ internal static class WorkflowPlaceholderResolver
         ScheduledTask task,
         WorkflowContext context,
         string stepId,
-        DateTimeOffset localNow)
+        DateTimeOffset localNow,
+        ModelPromptPlaceholderContext modelContext)
     {
         ArgumentNullException.ThrowIfNull(template);
         return WorkflowPlaceholderCatalog.Replace(
@@ -51,7 +54,8 @@ internal static class WorkflowPlaceholderResolver
                 task,
                 context,
                 stepId,
-                localNow));
+                localNow,
+                modelContext));
     }
 
     private static void WriteResolvedElement(
@@ -60,7 +64,8 @@ internal static class WorkflowPlaceholderResolver
         ScheduledTask task,
         WorkflowContext context,
         string stepId,
-        DateTimeOffset localNow)
+        DateTimeOffset localNow,
+        ModelPromptPlaceholderContext modelContext)
     {
         switch (element.ValueKind)
         {
@@ -75,7 +80,8 @@ internal static class WorkflowPlaceholderResolver
                         task,
                         context,
                         stepId,
-                        localNow);
+                        localNow,
+                        modelContext);
                 }
 
                 writer.WriteEndObject();
@@ -91,7 +97,8 @@ internal static class WorkflowPlaceholderResolver
                         task,
                         context,
                         stepId,
-                        localNow);
+                        localNow,
+                        modelContext);
                 }
 
                 writer.WriteEndArray();
@@ -104,7 +111,8 @@ internal static class WorkflowPlaceholderResolver
                         task,
                         context,
                         stepId,
-                        localNow));
+                        localNow,
+                        modelContext));
                 break;
 
             default:
@@ -118,7 +126,8 @@ internal static class WorkflowPlaceholderResolver
         ScheduledTask task,
         WorkflowContext context,
         string stepId,
-        DateTimeOffset localNow)
+        DateTimeOffset localNow,
+        ModelPromptPlaceholderContext modelContext)
     {
         if (string.Equals(placeholder, "task.id", StringComparison.OrdinalIgnoreCase))
         {
@@ -133,6 +142,14 @@ internal static class WorkflowPlaceholderResolver
         if (string.Equals(placeholder, "task.prompt", StringComparison.OrdinalIgnoreCase))
         {
             return task.Prompt;
+        }
+
+        if (ModelPromptPlaceholderResolver.TryResolve(
+                placeholder,
+                modelContext,
+                out var modelValue))
+        {
+            return modelValue;
         }
 
         if (TryResolveDateTimePlaceholder(

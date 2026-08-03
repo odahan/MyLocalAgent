@@ -2025,7 +2025,47 @@ Sort-20260803-143025.md</code></pre>
                     failure behavior. A task with a non-empty workflow does not pre-expand its saved
                     prompt. AI Playground, Tool tester, AI Workflow Helper/Explain, Guardrails, skills,
                     workflow <code>ai.prompt</code>, and other taskless surfaces do not receive this
-                    prompt-only expansion.
+                    prompt-only date, identity, or workflow-context expansion.
+                </p>
+
+                <h3>Model information placeholders (all surfaces)</h3>
+                <p>
+                    The following four placeholders are available in scheduled tasks,
+                    <span class="ui-label">Run now</span>, prompt tests, agentic tasks, every
+                    workflow string value, and AI Playground in both raw and agent modes.
+                    MyLocalAgent replaces them before the model or workflow tool call.
+                </p>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Placeholder</th><th>Example value</th></tr></thead>
+                        <tbody>
+                            <tr><td><code>{{ModelName}}</code></td><td><code>qwen3:14b</code></td></tr>
+                            <tr><td><code>{{ModelSettings}}</code></td><td><code>Temp 0.25 - TopP 0.9</code></td></tr>
+                            <tr><td><code>{{ModelContextSize}}</code></td><td><code>32768</code></td></tr>
+                            <tr><td><code>{{ModelInfo}}</code></td><td><code>ModelName qwen3:14b - Temp 0.25 - TopP 0.9 - Context 32768</code></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p>
+                    Temperature and Top P are the effective call values: an AI-step override wins
+                    over its task, and a task override wins over Settings. A non-AI tool step uses
+                    the task-effective values; AI Playground uses Settings. Context size is the
+                    window declared in Settings—not consumed tokens, remaining capacity, or an
+                    output limit. Numbers use invariant formatting without thousands separators.
+                </p>
+                <div class="code-block">
+                    <pre><code>Prompt: Generate a short diagnostic headed "{{ModelInfo}}".
+
+Value sent with the example settings:
+Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 - Context 32768".</code></pre>
+                </div>
+                <p>
+                    Substitution is case-insensitive, single-pass, and never scans the inserted
+                    model name again. The first visible item in every retained task run log is the
+                    task-level <code>{{ModelInfo}}</code> value. A workflow AI step may then use its
+                    own overrides. This log line contains only model name, Temperature, Top P, and
+                    declared context; it adds no prompt, output, path, external data, endpoint, or
+                    secret to the log.
                 </p>
 
                 <h3>Workflow outputs and placeholders</h3>
@@ -2045,6 +2085,10 @@ Sort-20260803-143025.md</code></pre>
                             <tr><td><code>{{stepId.output}}</code></td><td>Output of a named step.</td></tr>
                             <tr><td><code>{{stepId.output.property}}</code></td><td>Property selected from a JSON step output; array indexes such as <code>items[0].name</code> are supported.</td></tr>
                             <tr><td><code>{{workflow.context}}</code></td><td>JSON snapshot of every successful output accumulated so far.</td></tr>
+                            <tr><td><code>{{ModelName}}</code></td><td>Exact active model name.</td></tr>
+                            <tr><td><code>{{ModelSettings}}</code></td><td>Step-effective Temperature and Top P.</td></tr>
+                            <tr><td><code>{{ModelContextSize}}</code></td><td>Declared context-window size in tokens.</td></tr>
+                            <tr><td><code>{{ModelInfo}}</code></td><td>Model name, effective Temperature, Top P, and context in one string.</td></tr>
                             <tr><td><code>{{Today}}</code></td><td>Current local date as <code>yyyy-MM-dd</code>.</td></tr>
                             <tr><td><code>{{Today[format]}}</code></td><td>Current local date using the requested format, for example <code>{{Today[YYYY]}}</code> or <code>{{Today[yyyyMMdd]}}</code>.</td></tr>
                             <tr><td><code>{{Now}}</code></td><td>Current local date and time as <code>yyyy-MM-ddTHH:mm:sszzz</code>.</td></tr>

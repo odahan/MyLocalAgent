@@ -10,7 +10,7 @@ public static partial class WorkflowPlaceholderCatalog
     /// <summary>
     /// Gets the version of the placeholder contract supplied to workflow assistants.
     /// </summary>
-    public const string Version = "1";
+    public const string Version = "2";
 
     /// <summary>
     /// Gets the structured placeholder templates shared by validation, execution, and authoring.
@@ -35,6 +35,10 @@ public static partial class WorkflowPlaceholderCatalog
             SupportsStructuredSelector = true,
         },
         new("{{workflow.context}}", "ordered successful outputs before the current step"),
+        new("{{ModelName}}", "active model name"),
+        new("{{ModelSettings}}", "effective Temperature and Top P"),
+        new("{{ModelContextSize}}", "declared context-window size in tokens"),
+        new("{{ModelInfo}}", "active model name and effective generation settings"),
         new("{{Today}}", "local date")
         {
             DisplayText = "{{Today}} or {{Today[custom .NET format]}}",
@@ -141,7 +145,8 @@ public static partial class WorkflowPlaceholderCatalog
         if (placeholder.Equals("task.id", StringComparison.OrdinalIgnoreCase) ||
             placeholder.Equals("task.name", StringComparison.OrdinalIgnoreCase) ||
             placeholder.Equals("task.prompt", StringComparison.OrdinalIgnoreCase) ||
-            placeholder.Equals("workflow.context", StringComparison.OrdinalIgnoreCase))
+            placeholder.Equals("workflow.context", StringComparison.OrdinalIgnoreCase) ||
+            ModelPromptPlaceholderResolver.IsSupported(placeholder))
         {
             error = null;
             return true;

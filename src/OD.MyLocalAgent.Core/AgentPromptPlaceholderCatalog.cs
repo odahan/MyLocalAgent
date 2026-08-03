@@ -8,7 +8,7 @@ namespace OD.MyLocalAgent.Core;
 public static class AgentPromptPlaceholderCatalog
 {
     /// <summary>
-    /// Gets the four supported prompt-only placeholder forms.
+    /// Gets the supported prompt-only placeholder forms.
     /// </summary>
     public static IReadOnlyList<string> Forms { get; } =
         new ReadOnlyCollection<string>(
@@ -17,6 +17,10 @@ public static class AgentPromptPlaceholderCatalog
             "{{Now}} or {{Now[custom .NET format]}}",
             "{{task.id}}",
             "{{task.name}}",
+            "{{ModelName}}",
+            "{{ModelSettings}}",
+            "{{ModelContextSize}}",
+            "{{ModelInfo}}",
         ]);
 
     /// <summary>

@@ -18,6 +18,11 @@ public interface ILlmClientService
     string ProviderName { get; }
 
     /// <summary>
+    /// Gets the currently configured model identifier.
+    /// </summary>
+    string ModelName { get; }
+
+    /// <summary>
     /// Generates a complete response for a prompt.
     /// </summary>
     /// <param name="prompt">The user prompt.</param>

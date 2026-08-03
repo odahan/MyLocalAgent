@@ -1933,3 +1933,86 @@ Modified:
   `Directory.Build.props`.
 - Includes the Tasks page `Open Folder` action for opening the task storage directory.
 - Stage 18 compact Guardrails and Stage 19 SQLite remain intentionally deferred.
+
+### Stage 21 — Model information placeholders — 2026-08-03
+
+#### Specification and locked format
+
+- Added `Docs/Prompts/21-Stage21-ModelInformationPlaceholders.md` using the shared staged
+  specification protocol and added normative shared-specification §24. Stage 21 supersedes only
+  the Stage 20 exclusions for model-information values; task/date identity expansion and its
+  privacy-preserving warning behavior remain unchanged.
+- Added exactly four case-insensitive placeholders with invariant, single-pass output:
+  `ModelName` returns the configured model id; `ModelSettings` returns
+  `Temp <temperature> - TopP <topP>`; `ModelContextSize` returns the ungrouped declared token
+  count; and `ModelInfo` returns
+  `ModelName <name> - Temp <temperature> - TopP <topP> - Context <tokens>`.
+- Context is explicitly the global declared `ContextWindowTokens`, not consumed tokens,
+  remaining capacity, output budget, or provider telemetry. Temperature and Top P are the
+  immutable effective values already applied to the call: step over task over Settings, task
+  over Settings, or Settings for taskless/playground calls.
+
+#### Public API and shared resolution
+
+- Added immutable public `ModelPromptPlaceholderContext`, which snapshots model name,
+  Temperature, Top P, and context tokens and exposes exact `ModelSettings`,
+  `ModelContextSize`, and `ModelInfo` projections.
+- Added pure public `ModelPromptPlaceholderResolver` with `Resolve`, `IsSupported`, and
+  `TryResolve`. It performs one regex pass, resolves only the four program-owned names,
+  preserves unrelated complete markers exactly, uses invariant formatting, and never rescans
+  inserted model text.
+- Extended `ILlmClientService` with reloadable `ModelName`; both Ollama and OpenAI-compatible
+  services project their monitored configured model. `MyLocalAgentService` resolves model
+  placeholders after provider selection and before tracing/model dispatch in direct
+  `ai.prompt`, non-streaming agent, and streaming agent paths.
+- `AgentPromptPlaceholderResolver.Resolve` accepts an optional immutable model context and
+  recognizes the four names even when final provider-bound resolution is deferred. They never
+  produce Stage 20 unresolved warnings. `AgentPromptPlaceholderCatalog` now advertises all four.
+
+#### Workflow, playground, and authoring integration
+
+- Advanced `WorkflowPlaceholderCatalog.Version` from `1` to `2`, added the four definitions,
+  and made validation accept them at every workflow string position. Existing task/output/date
+  markers, structured selectors, strict unknown failure, and recursive JSON traversal remain.
+- `SequentialWorkflowEngine` builds one model context per step. AI steps use their exact
+  step-effective policy; non-AI tool steps use the task-effective policy. The context is passed
+  through nested object/array string resolution before tool, skill, or prompt execution.
+- AI Playground resolves model markers before both its direct raw-provider call and agent path;
+  the latter also retains the shared dispatch safety net. Workflow assistant/catalog metadata
+  receives the version-2 definitions without a second handwritten catalog.
+
+#### Task run logs and privacy
+
+- Added `RunLogSession.WriteModelInfo`. After a Runner loads the task, it resolves the selected
+  configured model plus task-effective policy and writes exact `ModelInfo` as the first visible
+  output line. The structured JSONL `start` record remains physically first; retention,
+  incremental tailing, protocol filtering, stream mapping, flushing, and `end` behavior are
+  unchanged. Workflow step overrides are not duplicated as per-step headers.
+- The header contains only model name, Temperature, Top P, and declared context. Stage 21 adds no
+  prompt, task name, tool argument/result, path, SQL, external content, endpoint, secret, model
+  output, or exception payload to logs/incidents. Expansion grants no authorization or Safety
+  capability and performs no extra provider, health, model, tool, or network call.
+
+#### Verification and documentation
+
+- Deterministic tests cover exact punctuation and numeric formatting, case/whitespace handling,
+  unrelated-marker preservation, non-recursive model names, prompt-only warning compatibility,
+  shared agent dispatch, workflow step-effective values, AI Playground raw mode, catalog
+  metadata, and first-visible run-log ordering. The provider reload, generation hierarchy,
+  workflow, Stage 20, privacy, and run-log regression suite remains included.
+- Updated README, prompt index, shared specification, and both standalone manuals in structural
+  FR/EN parity. The manuals state the effective-policy hierarchy, declared-context limitation,
+  all supported surfaces, exact values, and task-log behavior.
+- No package, setting, persisted task field, migration, provider, tool, skill, page, dialog,
+  model call, external service, or authorization was added.
+- Final gate: NuGet restore succeeded from the normal user cache/source; the Release solution
+  build completed with zero warnings and zero errors; deterministic tests completed with 411
+  passed, zero failed, and one intentionally skipped local Ollama integration probe (412 total).
+  Both standalone manuals passed HTML parsing, unique-id/internal-link checks, external-resource
+  checks, and Stage 21 marker/example parity. `git diff --check` passed.
+
+#### Release 1.2.9 — 2026-08-03
+
+- Packages the Stage 21 model information placeholders and task-log model header as version
+  1.2.9, set centrally in `Directory.Build.props`.
+- The annotated Git tag for this release is `V129` and identifies the Stage 21 implementation.

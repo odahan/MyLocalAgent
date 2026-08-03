@@ -79,6 +79,11 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
         try
         {
             var provider = _clientFactory.Create();
+            var resolvedPrompt = ModelPromptPlaceholderResolver.Resolve(
+                prompt,
+                new ModelPromptPlaceholderContext(
+                    provider.ModelName,
+                    generationPolicy));
             var policyClient = new GenerationPolicyChatClient(
                 provider.ChatClient,
                 generationPolicy,
@@ -88,13 +93,13 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
                 "ai.prompt",
                 provider.ProviderName,
                 systemPrompt,
-                prompt,
+                resolvedPrompt,
                 generationPolicy,
                 []);
             var response = await policyClient.GetResponseAsync(
                 [
                     new ChatMessage(ChatRole.System, systemPrompt),
-                    new ChatMessage(ChatRole.User, prompt),
+                    new ChatMessage(ChatRole.User, resolvedPrompt),
                 ],
                 cancellationToken: cancellationToken).ConfigureAwait(false);
             WriteLlmResponseTrace("ai.prompt", provider.ProviderName, response.Text);
@@ -176,15 +181,20 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
             generationPolicy,
             systemPrompt,
             cancellationToken).ConfigureAwait(false);
+        var resolvedPrompt = ModelPromptPlaceholderResolver.Resolve(
+            prompt,
+            new ModelPromptPlaceholderContext(
+                provider.ModelName,
+                generationPolicy));
         WriteLlmRequestTrace(
             "agent",
             provider.ProviderName,
             systemPrompt,
-            prompt,
+            resolvedPrompt,
             generationPolicy,
             toolNames);
         var response = await agent.RunAsync(
-            prompt,
+            resolvedPrompt,
             cancellationToken: cancellationToken).ConfigureAwait(false);
         WriteLlmResponseTrace("agent", provider.ProviderName, response.Text);
         loopGuard.ThrowIfRepeatedCallDetected();
@@ -284,16 +294,21 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
             generationPolicy,
             systemPrompt,
             cancellationToken).ConfigureAwait(false);
+        var resolvedPrompt = ModelPromptPlaceholderResolver.Resolve(
+            prompt,
+            new ModelPromptPlaceholderContext(
+                provider.ModelName,
+                generationPolicy));
         WriteLlmRequestTrace(
             "agent.streaming",
             provider.ProviderName,
             systemPrompt,
-            prompt,
+            resolvedPrompt,
             generationPolicy,
             toolNames);
         var response = _debugTrace.IsEnabled ? new StringBuilder() : null;
         await foreach (var update in agent.RunStreamingAsync(
-                           prompt,
+                           resolvedPrompt,
                            cancellationToken: cancellationToken).ConfigureAwait(false))
         {
             if (!string.IsNullOrEmpty(update.Text))

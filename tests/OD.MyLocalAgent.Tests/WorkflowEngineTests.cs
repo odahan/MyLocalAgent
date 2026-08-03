@@ -372,6 +372,72 @@ public sealed class WorkflowEngineTests
     }
 
     /// <summary>
+    /// Verifies workflow placeholders expose the active model and step-effective settings.
+    /// </summary>
+    [Fact]
+    public async Task WorkflowResolvesModelInformationFromStepEffectivePolicy()
+    {
+        const string expected =
+            "ModelName qwen3:14b - Temp 0.7 - TopP 0.85 - Context 12000";
+        var agent = new Mock<IMyLocalAgentService>(MockBehavior.Strict);
+        agent.Setup(
+                service => service.RunPromptWithoutToolsAsync(
+                    expected,
+                    It.Is<EffectiveGenerationPolicy>(
+                        policy =>
+                            policy.Temperature == 0.7 &&
+                            policy.TopP == 0.85 &&
+                            policy.ContextWindowTokens == 12_000),
+                    It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AgentRunResult("done", "Test"));
+        var provider = new StubLlmClientService("unused")
+        {
+            ModelName = "qwen3:14b",
+        };
+        var factory = new Mock<ILlmClientFactory>(MockBehavior.Strict);
+        factory.Setup(instance => instance.Create()).Returns(provider);
+        var options = new MutableOptionsMonitor<AIOptions>(
+            new AIOptions
+            {
+                GenerationDefaults = new AIGenerationDefaults
+                {
+                    Temperature = 0.2,
+                    TopP = 1,
+                    ContextWindowTokens = 12_000,
+                },
+            });
+        var definition = Step(
+            "ai.prompt",
+            "model-info",
+            """{ "prompt": "{{ModelInfo}}" }""") with
+        {
+            GenerationOptions = new GenerationOptions
+            {
+                Temperature = 0.7,
+            },
+        };
+        var task = CreateTask([definition]) with
+        {
+            GenerationOptions = new GenerationOptions
+            {
+                TopP = 0.85,
+            },
+        };
+
+        var result = await CreateEngine(
+                new RecordingToolRegistry(
+                    (_, _, _) => Task.FromResult(string.Empty)),
+                agentService: agent.Object,
+                aiOptions: options,
+                llmClientFactory: factory.Object)
+            .ExecuteAsync(task, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        agent.VerifyAll();
+        factory.VerifyAll();
+    }
+
+    /// <summary>
     /// Verifies placeholders can select object properties and array items from JSON outputs.
     /// </summary>
     [Fact]
@@ -814,7 +880,8 @@ public sealed class WorkflowEngineTests
         IEnumerable<ISkill>? skills = null,
         IMyLocalAgentService? agentService = null,
         TimeProvider? timeProvider = null,
-        IOptionsMonitor<AIOptions>? aiOptions = null)
+        IOptionsMonitor<AIOptions>? aiOptions = null,
+        ILlmClientFactory? llmClientFactory = null)
     {
         var agent = agentService ?? Mock.Of<IMyLocalAgentService>();
         return new SequentialWorkflowEngine(
@@ -823,7 +890,8 @@ public sealed class WorkflowEngineTests
             agent,
             timeProvider ?? TimeProvider.System,
             NullLogger<SequentialWorkflowEngine>.Instance,
-            aiOptions);
+            aiOptions,
+            llmClientFactory);
     }
 
     private static ScheduledTask CreateTask(

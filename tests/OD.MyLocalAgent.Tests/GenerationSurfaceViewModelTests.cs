@@ -246,7 +246,10 @@ public sealed class GenerationSurfaceViewModelTests
     {
         var provider = new StubLlmClientService(
             new StubChatClient("playground result"),
-            AIOptions.OllamaProvider);
+            AIOptions.OllamaProvider)
+        {
+            ModelName = "test-model",
+        };
         var factory = new Mock<ILlmClientFactory>(MockBehavior.Strict);
         factory.Setup(instance => instance.Create()).Returns(provider);
         var aiOptions = new MutableOptionsMonitor<AIOptions>(
@@ -273,7 +276,7 @@ public sealed class GenerationSurfaceViewModelTests
             Mock.Of<IIncidentReporter>(),
             Mock.Of<IMessenger>())
         {
-            Prompt = "Test global generation options.",
+            Prompt = "Test {{ModelInfo}}.",
         };
 
         await viewModel.GenerateCommand.ExecuteAsync(null);
@@ -285,6 +288,9 @@ public sealed class GenerationSurfaceViewModelTests
             .ContainKey(OllamaOption.NumCtx.Name);
         viewModel.GenerationPolicyText.Should().Contain("24");
         viewModel.Output.Should().Be("playground result");
+        provider.Client.LastMessages.Should().ContainSingle();
+        provider.Client.LastMessages[0].Text.Should().Be(
+            "Test ModelName test-model - Temp 0.65 - TopP 0.72 - Context 24000.");
         factory.VerifyAll();
     }
 

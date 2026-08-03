@@ -108,6 +108,8 @@ internal static class RunnerCommandHandlers
             return RunnerExitCodes.TaskNotFound;
         }
 
+        WriteModelInfoToRunLog(services, task);
+
         if (!task.Enabled)
         {
             error.WriteLine($"Task '{taskId}' is disabled.");
@@ -440,6 +442,32 @@ internal static class RunnerCommandHandlers
         error.WriteLine(
             $"Task '{task.Id}' failed: {exception.Message} Incident: {correlationId}.");
         return RunnerExceptionClassifier.GetExitCode(exception);
+    }
+
+    private static void WriteModelInfoToRunLog(
+        IServiceProvider services,
+        ScheduledTask task)
+    {
+        var aiOptions = services
+            .GetRequiredService<IOptionsMonitor<AIOptions>>()
+            .CurrentValue;
+        var generationPolicy = GenerationPolicyResolver.Resolve(
+            aiOptions.GenerationDefaults,
+            task.GenerationOptions);
+        var modelName = string.Equals(
+            aiOptions.Provider,
+            AIOptions.OpenAIProvider,
+            StringComparison.OrdinalIgnoreCase)
+            ? services
+                .GetRequiredService<IOptionsMonitor<OpenAIOptions>>()
+                .CurrentValue.Model
+            : services
+                .GetRequiredService<IOptionsMonitor<OllamaOptions>>()
+                .CurrentValue.Model;
+        var modelInfo = new ModelPromptPlaceholderContext(
+            modelName,
+            generationPolicy).ModelInfo;
+        services.GetService<RunLogSessionHolder>()?.Session?.WriteModelInfo(modelInfo);
     }
 
     private static string PrettyPrintJson(string value)

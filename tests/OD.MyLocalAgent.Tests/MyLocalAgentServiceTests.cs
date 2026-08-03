@@ -48,6 +48,49 @@ public sealed class MyLocalAgentServiceTests
     }
 
     /// <summary>
+    /// Verifies every agent call expands model information immediately before dispatch.
+    /// </summary>
+    [Fact]
+    public async Task AgentCallResolvesModelPlaceholdersFromEffectivePolicy()
+    {
+        var provider = new StubLlmClientService("Done.")
+        {
+            ModelName = "qwen3:8b",
+        };
+        var factory = new Mock<ILlmClientFactory>(MockBehavior.Strict);
+        factory.Setup(instance => instance.Create()).Returns(provider);
+        var registry = new Mock<IToolRegistry>(MockBehavior.Strict);
+        registry.Setup(instance => instance.GetAgentTools(
+                It.IsAny<IEnumerable<string>>(),
+                It.IsAny<ToolExecutionContext>()))
+            .Returns([]);
+        var service = new MyLocalAgentService(
+            factory.Object,
+            registry.Object,
+            [],
+            Mock.Of<IIncidentReporter>(),
+            TimeProvider.System);
+        var policy = new EffectiveGenerationPolicy(
+            0.3,
+            0.95,
+            24_000,
+            GenerationOptionSource.Task,
+            GenerationOptionSource.Settings);
+
+        _ = await service.RunPromptAsync(
+            "Use {{ModelInfo}}.",
+            [],
+            ToolExecutionContext.Taskless,
+            policy,
+            CancellationToken.None);
+
+        provider.Client.LastMessages
+            .Should().ContainSingle(static message => message.Role == ChatRole.User)
+            .Which.Text.Should().Be(
+                "Use ModelName qwen3:8b - Temp 0.3 - TopP 0.95 - Context 24000.");
+    }
+
+    /// <summary>
     /// Verifies identical tool calls are stopped before an agent can loop indefinitely.
     /// </summary>
     [Fact]

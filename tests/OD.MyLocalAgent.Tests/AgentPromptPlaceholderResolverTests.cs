@@ -18,6 +18,34 @@ public sealed class AgentPromptPlaceholderResolverTests
         25,
         TimeSpan.FromHours(2));
 
+    private static readonly ModelPromptPlaceholderContext ModelContext = new(
+        "llama3.2:latest",
+        new OD.MyLocalAgent.Ollama.EffectiveGenerationPolicy(
+            0.4,
+            0.85,
+            16_384,
+            OD.MyLocalAgent.Ollama.GenerationOptionSource.Task,
+            OD.MyLocalAgent.Ollama.GenerationOptionSource.Settings));
+
+    /// <summary>
+    /// Verifies prompt-only tasks expand model placeholders without warnings.
+    /// </summary>
+    [Fact]
+    public void ResolvesModelInformationWithEffectiveTaskPolicy()
+    {
+        var result = AgentPromptPlaceholderResolver.Resolve(
+            "{{ModelName}} | {{ModelSettings}} | {{ModelContextSize}} | {{ModelInfo}}",
+            "model-task",
+            "Model task",
+            LocalNow,
+            ModelContext);
+
+        result.ResolvedPrompt.Should().Be(
+            "llama3.2:latest | Temp 0.4 - TopP 0.85 | 16384 | " +
+            "ModelName llama3.2:latest - Temp 0.4 - TopP 0.85 - Context 16384");
+        result.UnresolvedOccurrences.Should().BeEmpty();
+    }
+
     /// <summary>
     /// Verifies default and custom date/time values use one explicit local snapshot.
     /// </summary>

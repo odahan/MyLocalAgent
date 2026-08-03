@@ -14,12 +14,16 @@ public static class AgentPromptPlaceholderResolver
     /// <param name="taskId">The exact persisted task identifier.</param>
     /// <param name="taskName">The exact persisted task name.</param>
     /// <param name="localNow">The single local-time snapshot for this expansion.</param>
+    /// <param name="modelContext">
+    /// The optional active-model snapshot. Model markers remain deferred without a snapshot.
+    /// </param>
     /// <returns>The expanded prompt and content-free unresolved source descriptors.</returns>
     public static AgentPromptPlaceholderResult Resolve(
         string prompt,
         string taskId,
         string taskName,
-        DateTimeOffset localNow)
+        DateTimeOffset localNow,
+        ModelPromptPlaceholderContext? modelContext = null)
     {
         ArgumentNullException.ThrowIfNull(prompt);
         ArgumentNullException.ThrowIfNull(taskId);
@@ -68,6 +72,7 @@ public static class AgentPromptPlaceholderResolver
                     taskId,
                     taskName,
                     localNow,
+                    modelContext,
                     out var warningKind);
                 if (replacement is null)
                 {
@@ -117,6 +122,7 @@ public static class AgentPromptPlaceholderResolver
         string taskId,
         string taskName,
         DateTimeOffset localNow,
+        ModelPromptPlaceholderContext? modelContext,
         out AgentPromptPlaceholderWarningKind warningKind)
     {
         if (placeholder.Equals("task.id", StringComparison.OrdinalIgnoreCase))
@@ -129,6 +135,18 @@ public static class AgentPromptPlaceholderResolver
         {
             warningKind = default;
             return taskName;
+        }
+
+        if (ModelPromptPlaceholderResolver.IsSupported(placeholder))
+        {
+            warningKind = default;
+            return modelContext is not null &&
+                ModelPromptPlaceholderResolver.TryResolve(
+                    placeholder,
+                    modelContext,
+                    out var modelValue)
+                ? modelValue
+                : $"{{{{{placeholder}}}}}";
         }
 
         var dateTime = DateTimePlaceholderFormatter.Resolve(placeholder, localNow);

@@ -20,6 +20,7 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<SequentialWorkflowEngine> _logger;
     private readonly IOptionsMonitor<AIOptions>? _aiOptions;
+    private readonly ILlmClientFactory? _llmClientFactory;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SequentialWorkflowEngine"/> class.
@@ -30,7 +31,8 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
         IMyLocalAgentService agentService,
         TimeProvider timeProvider,
         ILogger<SequentialWorkflowEngine> logger,
-        IOptionsMonitor<AIOptions>? aiOptions = null)
+        IOptionsMonitor<AIOptions>? aiOptions = null,
+        ILlmClientFactory? llmClientFactory = null)
     {
         ArgumentNullException.ThrowIfNull(toolRegistry);
         ArgumentNullException.ThrowIfNull(skills);
@@ -45,6 +47,7 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
         _timeProvider = timeProvider;
         _logger = logger;
         _aiOptions = aiOptions;
+        _llmClientFactory = llmClientFactory;
     }
 
     /// <inheritdoc />
@@ -127,13 +130,23 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
         var startedTimestamp = _timeProvider.GetTimestamp();
         var attempts = 0;
         var definition = ToolMap.Find(step.Alias);
+        var generationDefaults =
+            _aiOptions?.CurrentValue.GenerationDefaults ??
+            new AIGenerationDefaults();
         var generationPolicy = definition?.IsAiStep == true
             ? GenerationPolicyResolver.Resolve(
-                _aiOptions?.CurrentValue.GenerationDefaults ??
-                new AIGenerationDefaults(),
+                generationDefaults,
                 task.GenerationOptions,
                 step.GenerationOptions)
             : null;
+        var modelName = ContainsModelPlaceholder(step.Args)
+            ? _llmClientFactory?.Create().ModelName ?? "Unknown"
+            : "Unknown";
+        var modelContext = new ModelPromptPlaceholderContext(
+            modelName,
+            generationPolicy ?? GenerationPolicyResolver.Resolve(
+                generationDefaults,
+                task.GenerationOptions));
 
         _logger.LogInformation(
             "Workflow step {StepId} ({StepAlias}) started.",
@@ -162,7 +175,8 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                         task,
                         context,
                         step.Id,
-                        _timeProvider);
+                        _timeProvider,
+                        modelContext);
                 var output = await ExecuteStepAsync(
                     step,
                     resolvedArguments,
@@ -342,6 +356,23 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
             ? element.GetBoolean()
             : throw new ArgumentException(
                 $"Workflow argument '{propertyName}' must be a boolean.");
+    }
+
+    private static bool ContainsModelPlaceholder(JsonElement element)
+    {
+        return element.ValueKind switch
+        {
+            JsonValueKind.Object => element
+                .EnumerateObject()
+                .Any(static property => ContainsModelPlaceholder(property.Value)),
+            JsonValueKind.Array => element
+                .EnumerateArray()
+                .Any(ContainsModelPlaceholder),
+            JsonValueKind.String => WorkflowPlaceholderCatalog
+                .Extract(element.GetString() ?? string.Empty)
+                .Any(ModelPromptPlaceholderResolver.IsSupported),
+            _ => false,
+        };
     }
 
     private static TimeSpan ComputeBackoff(

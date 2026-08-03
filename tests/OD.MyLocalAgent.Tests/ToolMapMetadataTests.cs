@@ -259,6 +259,10 @@ public sealed class ToolMapMetadataTests
             "{{stepId.output}} - a prior named step output",
             "{{stepId.output.property}} and {{stepId.output.items[0].name}} - structured JSON selection",
             "{{workflow.context}} - ordered successful outputs before the current step",
+            "{{ModelName}} - active model name",
+            "{{ModelSettings}} - effective Temperature and Top P",
+            "{{ModelContextSize}} - declared context-window size in tokens",
+            "{{ModelInfo}} - active model name and effective generation settings",
             "{{Today}} or {{Today[custom .NET format]}} - local date",
             "{{Now}} or {{Now[custom .NET format]}} - local date and time");
     }

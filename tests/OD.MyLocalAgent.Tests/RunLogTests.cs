@@ -53,6 +53,31 @@ public sealed class RunLogTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies the resolved model information is the first visible task-log line.
+    /// </summary>
+    [Fact]
+    public void ModelInfoHeaderIsFirstVisibleLine()
+    {
+        const string modelInfo =
+            "ModelName qwen3:8b - Temp 0.2 - TopP 0.9 - Context 32768";
+        using var session = RunLogSession.Start(
+            "model-info-task",
+            5,
+            TimeProvider.System,
+            _rootDirectory);
+
+        session.WriteModelInfo(modelInfo);
+        session.WriteLine(RunLogStream.Output, "task output");
+
+        var lines = new RunLogCatalog(_rootDirectory)
+            .ReadLines(session.FilePath, 0)
+            .Lines;
+
+        lines.Select(static line => line.Text)
+            .Should().Equal(modelInfo, "task output");
+    }
+
+    /// <summary>
     /// Verifies the tee mirrors completed lines but never the private protocol channels,
     /// while the inner writer receives everything unchanged.
     /// </summary>

@@ -57,6 +57,9 @@ public sealed class OllamaClientService : ILlmClientService, IOllamaModelCatalog
     public string ProviderName => AIOptions.OllamaProvider;
 
     /// <inheritdoc />
+    public string ModelName => _options.CurrentValue.Model;
+
+    /// <inheritdoc />
     public Task<string> GenerateAsync(
         string prompt,
         CancellationToken cancellationToken) =>

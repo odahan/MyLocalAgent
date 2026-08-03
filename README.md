@@ -35,6 +35,10 @@ its own navigation, search, styles, and scripts in one file.
 | 15 | Not Implemented |
 | 16 | Windowless Runner and Run Monitor |
 | 17 | Deterministic workflow authoring aids: Tool catalog and Workflow prompt editor | Complete with documented human GUI checks |
+| 18 | Compact External-Content Guardrails | To DO |
+| 19 | SQLite Tool | TO DO |
+| 20 | Agent Prompt Placeholders | Complete with documented, human task test done |
+| 21 | Model Information Placeholders | Complete with automated verification |
 
 See [Docs/acceptance-report.md](Docs/acceptance-report.md) for the executed acceptance
 evidence and any remaining environment-dependent checks.
@@ -566,7 +570,32 @@ where the larger placeholder set remains strict and an unavailable value fails t
 Resolved paths receive no new permission: filesystem operations still need the task whitelist,
 the global root or a matching authorized location, Windows access, and any independent Safety
 gate. Successful expansion also does not prove that the model will call a tool or that the tool
-will succeed. AI Playground and all other taskless surfaces do not perform this expansion.
+will succeed. AI Playground and all other taskless surfaces do not perform this task/date/identity
+expansion.
+
+### Model information placeholders
+
+Four model placeholders are available in every user-authored execution surface: scheduled and
+**Run now** tasks, prompt tests, agentic calls, workflow string arguments, workflow AI steps, and
+AI Playground in both raw and agent modes.
+
+| Placeholder | Example resolved value |
+|---|---|
+| `{{ModelName}}` | `qwen3:14b` |
+| `{{ModelSettings}}` | `Temp 0.25 - TopP 0.9` |
+| `{{ModelContextSize}}` | `32768` |
+| `{{ModelInfo}}` | `ModelName qwen3:14b - Temp 0.25 - TopP 0.9 - Context 32768` |
+
+Temperature and Top P are the effective values applied to the call: a workflow AI-step override
+wins over its task, and a task override wins over Settings. Playground and other taskless calls
+use Settings. Context is the configured declared context window in tokens—not current token usage,
+remaining capacity, or an output limit. Values use invariant formatting and substitution is
+single-pass; inserted model text is never scanned again.
+
+The first visible line of each retained task run log is the task-level `{{ModelInfo}}` value. A
+workflow AI step may still use different step-level Temperature or Top P overrides. This header
+contains model configuration only and does not add prompt text, tool data, paths, external content,
+endpoints, secrets, or model output to the log.
 
 String form is for steps without explicit arguments:
 
@@ -605,6 +634,10 @@ Available placeholders are:
 - `{{<stepId>.output.<field>}}`
 - `{{<stepId>.output.<array>[<index>].<field>}}`
 - `{{workflow.context}}`
+- `{{ModelName}}`
+- `{{ModelSettings}}`
+- `{{ModelContextSize}}`
+- `{{ModelInfo}}`
 - `{{Today}}` and `{{Today[format]}}`
 - `{{Now}}` and `{{Now[format]}}`
 

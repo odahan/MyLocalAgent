@@ -2383,7 +2383,51 @@ Sort-20260803-143025.md</code></pre>
                     présenté ci-dessous et leur comportement d’échec strict. Une tâche avec un
                     workflow non vide ne pré-résout pas son prompt enregistré. AI Playground, Tool
                     tester, AI Workflow Helper/Explain, Guardrails, skills, <code>ai.prompt</code> de
-                    workflow et les autres surfaces sans tâche ne reçoivent pas cette expansion.
+                    workflow et les autres surfaces sans tâche ne reçoivent pas cette expansion de
+                    date, d’identité ou de contexte de workflow.
+                </p>
+
+                <h3>Placeholders d’information du modèle (toutes les surfaces)</h3>
+                <p>
+                    Les quatre placeholders suivants sont disponibles dans les tâches planifiées,
+                    <span class="ui-label">Run now</span>, les tests de prompt, les tâches
+                    agentiques, toutes les valeurs chaîne d’un workflow et AI Playground, en mode
+                    brut comme en mode agent. MyLocalAgent les remplace avant l’appel au modèle ou
+                    à l’outil de workflow.
+                </p>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Placeholder</th><th>Valeur d’exemple</th></tr></thead>
+                        <tbody>
+                            <tr><td><code>{{ModelName}}</code></td><td><code>qwen3:14b</code></td></tr>
+                            <tr><td><code>{{ModelSettings}}</code></td><td><code>Temp 0.25 - TopP 0.9</code></td></tr>
+                            <tr><td><code>{{ModelContextSize}}</code></td><td><code>32768</code></td></tr>
+                            <tr><td><code>{{ModelInfo}}</code></td><td><code>ModelName qwen3:14b - Temp 0.25 - TopP 0.9 - Context 32768</code></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p>
+                    Temperature et Top P sont les valeurs effectives de l’appel : une surcharge
+                    d’étape IA gagne sur celle de la tâche, qui gagne sur Settings. Une étape
+                    d’outil sans appel IA utilise les valeurs effectives de la tâche ; AI Playground
+                    utilise Settings. La taille de contexte est la fenêtre déclarée dans Settings,
+                    pas le nombre de tokens consommés, la place restante ni une limite de sortie.
+                    Les nombres utilisent un format invariant sans séparateur de milliers.
+                </p>
+                <div class="code-block">
+                    <pre><code>Prompt : Generate a short diagnostic headed "{{ModelInfo}}".
+
+Valeur envoyée avec les réglages d’exemple :
+Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 - Context 32768".</code></pre>
+                </div>
+                <p>
+                    La substitution est insensible à la casse, se fait en une seule passe et
+                    n’analyse jamais à nouveau le nom du modèle inséré. Le premier élément visible
+                    de chaque log de tâche conservé est la valeur <code>{{ModelInfo}}</code> au
+                    niveau de la tâche. Une étape IA de workflow peut ensuite utiliser ses propres
+                    surcharges. Cette ligne de log contient uniquement le nom du modèle, Temperature,
+                    Top P et le contexte déclaré ; elle n’ajoute ni prompt, sortie, chemin, donnée
+                    externe, endpoint ou secret au log.
                 </p>
 
                 <h3>Étapes, sorties et placeholders de workflow</h3>
@@ -2405,6 +2449,10 @@ Sort-20260803-143025.md</code></pre>
                             <tr><td><code>{{stepId.output}}</code></td><td>Sortie d’une étape désignée par son id.</td></tr>
                             <tr><td><code>{{stepId.output.property}}</code></td><td>Propriété extraite d’une sortie JSON ; les index de tableau comme <code>items[0].name</code> sont acceptés.</td></tr>
                             <tr><td><code>{{workflow.context}}</code></td><td>Instantané JSON de toutes les sorties réussies accumulées jusque-là.</td></tr>
+                            <tr><td><code>{{ModelName}}</code></td><td>Nom exact du modèle actif.</td></tr>
+                            <tr><td><code>{{ModelSettings}}</code></td><td>Temperature et Top P effectifs de l’étape.</td></tr>
+                            <tr><td><code>{{ModelContextSize}}</code></td><td>Taille déclarée de la fenêtre de contexte, en tokens.</td></tr>
+                            <tr><td><code>{{ModelInfo}}</code></td><td>Nom du modèle, Temperature, Top P et contexte effectifs dans une seule chaîne.</td></tr>
                             <tr><td><code>{{Today}}</code></td><td>Date locale courante au format <code>yyyy-MM-dd</code>.</td></tr>
                             <tr><td><code>{{Today[format]}}</code></td><td>Date locale avec le format demandé, par exemple <code>{{Today[YYYY]}}</code> ou <code>{{Today[yyyyMMdd]}}</code>.</td></tr>
                             <tr><td><code>{{Now}}</code></td><td>Date et heure locales au format <code>yyyy-MM-ddTHH:mm:sszzz</code>.</td></tr>

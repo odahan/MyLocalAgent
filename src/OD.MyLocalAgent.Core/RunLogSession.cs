@@ -95,6 +95,16 @@ public sealed class RunLogSession : IDisposable
     }
 
     /// <summary>
+    /// Writes the resolved model-information header as the first visible task-log line.
+    /// </summary>
+    /// <param name="modelInfo">The resolved <c>{{ModelInfo}}</c> value.</param>
+    public void WriteModelInfo(string modelInfo)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(modelInfo);
+        WriteLine(RunLogStream.Output, modelInfo);
+    }
+
+    /// <summary>
     /// Writes the terminal end record. Subsequent calls are ignored.
     /// </summary>
     /// <param name="exitCode">The runner exit code.</param>

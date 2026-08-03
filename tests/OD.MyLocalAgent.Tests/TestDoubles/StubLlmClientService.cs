@@ -25,6 +25,8 @@ internal sealed class StubLlmClientService : ILlmClientService
 
     public string ProviderName => _providerName;
 
+    public string ModelName { get; init; } = "stub-model";
+
     public async Task<string> GenerateAsync(
         string prompt,
         CancellationToken cancellationToken)
