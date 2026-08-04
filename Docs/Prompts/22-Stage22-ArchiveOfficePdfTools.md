@@ -31,7 +31,8 @@
 Add safe, bounded tools that let an agent or deterministic workflow:
 
 - inspect and extract common local archive formats;
-- create a ZIP and add a local file or directory tree to a ZIP;
+- create a ZIP and add a local file or directory tree to a ZIP, with simple optional compression
+  choices;
 - extract readable text from `.docx` files;
 - inspect and read bounded ranges from `.xls`, `.xlsx`, and `.xlsb` workbooks;
 - inspect and extract readable text from `.pdf` files.
@@ -56,8 +57,8 @@ contain some write APIs. Package capability does not automatically become produc
 | S22-D3 | **Permissively licensed packages.** Pin SharpCompress 0.50.1, DocumentFormat.OpenXml 3.5.1, ExcelDataReader 3.9.0, and PdfPig 0.1.15 centrally and reference them from Core only. Record the resolved package and license inventory in the architecture ledger. |
 | S22-D4 | **No commercially constrained document stack.** Do not add NPOI, EPPlus, iText, Aspose, Syncfusion, GemBox, Office Interop, LibreOffice automation, a command-line archiver, or a second library for the same format. NPOI is specifically excluded because its current binary distribution carries a revenue-related maintenance EULA despite older Apache-2.0 expectations. |
 | S22-D5 | **Stable releases only.** Do not replace PdfPig 0.1.15 with a newer alpha/nightly build. The shared stable-first package policy applies even when a prerelease has a later date. |
-| S22-D6 | **Read allowlist for archives.** Archive list/extract operations accept only ZIP, 7z, RAR, TAR, TAR.GZ/TGZ, TAR.BZ2/TBZ2, TAR.XZ/TXZ, TAR.ZST/TZST, GZIP, BZIP2, XZ, and Zstandard inputs that SharpCompress 0.50.1 actually opens in the restored build. Unsupported or ambiguous formats fail closed. |
-| S22-D7 | **ZIP-only writes.** `archive.createZip` and `archive.addToZip` produce or replace only `.zip` files. No alias writes any other archive format, deletes an entry, renames an entry, or edits an archive in place. |
+| S22-D6 | **Explicit common-format read allowlist.** Archive list/extract operations accept only ZIP, 7z, RAR, TAR, TAR.GZ/TGZ, TAR.BZ2/TBZ2, TAR.LZ, TAR.XZ/TXZ, TAR.ZST/TZST, GZIP, BZIP2, LZIP, XZ, and Zstandard inputs that SharpCompress 0.50.1 actually opens in the restored build. Library recognition alone never authorizes a format; unsupported or ambiguous formats fail closed. |
+| S22-D7 | **ZIP-only writes with simple compression choices.** `archive.createZip` and `archive.addToZip` produce or replace only `.zip` files. New or replaced entries may use only `deflate` or `store`; Deflate exposes only `fast`, `balanced`, or `smallest`, with `deflate` plus `balanced` as the defaults. No alias writes any other archive format, deletes an entry, renames an entry, or edits an archive in place. |
 | S22-D8 | **Archive write Safety gate.** Every archive operation that creates filesystem content — extract one, extract all, create ZIP, or add to ZIP — requires `Safety:AllowArchiveWrite`, shipped `false`, in addition to the task group and path authorization. Listing never requires this flag. |
 | S22-D9 | **Explicit overwrite.** The default is never overwrite. `extract`, `createZip`, and `addToZip` reject an existing destination or entry unless their explicit overwrite argument is `true`. An overwrite still requires the archive Safety flag and ReadWrite authorization. |
 | S22-D10 | **No partial archive replacement.** ZIP create/add builds a complete temporary sibling, validates it, flushes it, and atomically moves or replaces the destination. It never updates the live ZIP in place. A failure or cancellation preserves the prior archive and cleans up only temporary files owned by the call. |
@@ -236,16 +237,18 @@ existing validator rejects unknown groups as before.
 | `archive.list` | `archive_list` | `archivePath`, `maxEntries` | `maxEntries` | archive ReadOnly | — |
 | `archive.extract` | `archive_extract` | `archivePath`, `entryPath`, `destinationPath`, `overwrite` | `overwrite` | archive ReadOnly; destination ReadWrite | `AllowArchiveWrite` |
 | `archive.extractAll` | `archive_extract_all` | `archivePath`, `destinationDirectory` | — | archive ReadOnly; destination ReadWrite | `AllowArchiveWrite` |
-| `archive.createZip` | `archive_create_zip` | `archivePath`, `sourcePath`, `entryPath`, `overwriteArchive` | `entryPath`, `overwriteArchive` | source ReadOnly; archive ReadWrite | `AllowArchiveWrite` |
-| `archive.addToZip` | `archive_add_to_zip` | `archivePath`, `sourcePath`, `entryPath`, `overwriteEntry` | `entryPath`, `overwriteEntry` | archive ReadWrite; source ReadOnly | `AllowArchiveWrite` |
+| `archive.createZip` | `archive_create_zip` | `archivePath`, `sourcePath`, `entryPath`, `overwriteArchive`, `compressionMethod`, `compressionLevel` | last four | source ReadOnly; archive ReadWrite | `AllowArchiveWrite` |
+| `archive.addToZip` | `archive_add_to_zip` | `archivePath`, `sourcePath`, `entryPath`, `overwriteEntry`, `compressionMethod`, `compressionLevel` | last four | archive ReadWrite; source ReadOnly | `AllowArchiveWrite` |
 | `document.readDocx` | `document_read_docx` | `documentPath`, `maxCharacters` | `maxCharacters` | ReadOnly | — |
 | `spreadsheet.listSheets` | `spreadsheet_list_sheets` | `workbookPath` | — | ReadOnly | — |
 | `spreadsheet.readRange` | `spreadsheet_read_range` | `workbookPath`, `sheetName`, `startRow`, `startColumn`, `maxRows`, `maxColumns` | last five | ReadOnly | — |
 | `pdf.getInfo` | `pdf_get_info` | `pdfPath` | — | ReadOnly | — |
 | `pdf.readText` | `pdf_read_text` | `pdfPath`, `startPage`, `maxPages`, `maxCharacters` | last three | ReadOnly | — |
 
-All numeric arguments use `WorkflowArgumentKind.Integer`; paths, entry/sheet names, and optional
-values use `String`; overwrite flags use `Boolean`. Cancellation tokens are excluded from Tool Map
+All numeric arguments use `WorkflowArgumentKind.Integer`; paths, entry/sheet names, compression
+choices, and optional values use `String`; overwrite flags use `Boolean`. `compressionMethod` accepts
+only the exact lowercase values `deflate` and `store`. `compressionLevel` accepts only the exact
+lowercase values `fast`, `balanced`, and `smallest`. Cancellation tokens are excluded from Tool Map
 metadata. Use the same ordered signatures for public interfaces, concrete methods, Tool Map
 metadata, `DescriptionAttribute`, agent functions, workflow validation, snippets, helper prompts,
 and tests.
@@ -279,6 +282,8 @@ public interface IArchiveTool
         string sourcePath,
         string? entryPath = null,
         bool overwriteArchive = false,
+        string? compressionMethod = null,
+        string? compressionLevel = null,
         CancellationToken cancellationToken = default);
 
     Task<string> AddToZipAsync(
@@ -286,6 +291,8 @@ public interface IArchiveTool
         string sourcePath,
         string? entryPath = null,
         bool overwriteEntry = false,
+        string? compressionMethod = null,
+        string? compressionLevel = null,
         CancellationToken cancellationToken = default);
 }
 
@@ -358,18 +365,21 @@ metadata, or temporary file names.
 
 ### 7.1 Format validation
 
-Recognize extensions case-insensitively, with longest compound extension first. The read allowlist
-is `.zip`, `.7z`, `.rar`, `.tar`, `.tar.gz`, `.tgz`, `.tar.bz2`, `.tbz2`, `.tar.xz`, `.txz`,
-`.tar.zst`, `.tzst`, `.gz`, `.bz2`, `.xz`, and `.zst`. Do not treat `.docx`, `.xlsx`, `.jar`,
-`.nupkg`, `.epub`, or arbitrary ZIP-based containers as archive-tool inputs in Stage 22.
+Recognize extensions case-insensitively, with longest compound extension first. The explicit common-
+format read allowlist is `.zip`, `.7z`, `.rar`, `.tar`, `.tar.gz`, `.tgz`, `.tar.bz2`, `.tbz2`,
+`.tar.lz`, `.tar.xz`, `.txz`, `.tar.zst`, `.tzst`, `.gz`, `.bz2`, `.lz`, `.xz`, and `.zst`. Do not
+treat `.docx`, `.xlsx`, `.jar`, `.nupkg`, `.epub`, or arbitrary ZIP-based containers as archive-tool
+inputs in Stage 22. ACE, ARC, ARJ, standalone LZW, and any format added by a later SharpCompress
+version remain unsupported unless a future product specification adds them explicitly.
 
 The implementation verifies container type from content and rejects disagreement with the declared
 extension. For single-stream compression formats, synthesize at most one logical regular entry using
 a safe derived leaf name; never accept a header-provided absolute or traversing output name.
 
-RAR is read/extract only. If a supported extension maps to a feature the restored SharpCompress
-build cannot safely read, remove it from both implementation and documentation and record the exact
-deviation rather than routing through an external executable.
+RAR, 7z, TAR, compressed TAR variants, and single-stream compression formats are read/extract only
+in the product even when SharpCompress can write some of them. If a supported extension maps to a
+feature the restored SharpCompress build cannot safely read, remove it from both implementation and
+documentation and record the exact deviation rather than routing through an external executable.
 
 ### 7.2 Canonical entry names
 
@@ -439,6 +449,13 @@ entries use `/`; entry order is deterministic ordinal order by canonical relativ
 file bytes and a normalized available last-write UTC timestamp, but do not store Windows ACLs,
 alternate streams, owner data, reparse data, or absolute source paths.
 
+`compressionMethod` is optional and defaults to `deflate`. It accepts only `deflate` or `store`.
+For `deflate`, `compressionLevel` is optional and defaults to `balanced`; it accepts only `fast`,
+`balanced`, or `smallest`. For `store`, `compressionLevel` must be omitted. Map these stable product
+values internally to the pinned SharpCompress API; do not expose package-specific numeric levels.
+Apply the resolved choice uniformly to every new regular-file entry in the call. Directory entries
+carry no compressed payload.
+
 Write to a temporary sibling ZIP. Reopen it through the same validation path before commit. Reject
 an existing archive unless `overwriteArchive` is true. Atomic replacement must preserve the old ZIP
 if construction, validation, cancellation, or commit fails.
@@ -454,6 +471,11 @@ If `entryPath` is omitted, use the same default mapping as create. Existing cano
 collisions fail unless `overwriteEntry` is true. For a directory source, overwrite applies to each
 colliding regular file under that prefix; file/directory structural conflicts always fail. Reopen
 and validate the complete replacement ZIP before atomically replacing the original.
+
+The same `compressionMethod` and `compressionLevel` rules and defaults as create apply only to new
+or replaced regular-file entries. Safe non-colliding existing entries retain their existing
+compression and are not intentionally recompressed. A replaced entry uses the newly requested
+compression choice.
 
 ### 7.8 Archive limits
 
@@ -623,7 +645,8 @@ Stage 17 metadata drives:
 
 - searchable Tool catalog descriptions, format matrices, argument types, examples, optionality,
   Safety and path requirements;
-- valid JSON snippets with conservative synthetic paths and explicit `false` overwrite values;
+- valid JSON snippets with conservative synthetic paths, explicit `false` overwrite values, and
+  omitted compression choices so the documented `deflate`/`balanced` defaults apply;
 - Add step and caret insertion;
 - AI Helper generation/explanation and its tool/path/Safety proposals;
 - task validation and required-group warnings.
@@ -651,7 +674,8 @@ evaluation, recursive extraction, archive encryption, or Office/PDF writing.
   failures are normal typed tool failures, not incidents. Unexpected infrastructure faults use the
   existing single incident pipeline with sanitized data.
 - Archive write acknowledgements contain only operation, format, aggregate counts/bytes, overwrite
-  boolean, and success. They never echo paths or entry names.
+  boolean, effective compression method/level for new entries, and success. They never echo paths or
+  entry names.
 
 ## 13. User interface
 
@@ -703,8 +727,8 @@ Add deterministic tests for at least the following.
 
 ### 14.2 Archive read and security
 
-7. List and extract representative ZIP, 7z, RAR, TAR, and each supported compressed-TAR/single-
-   stream format fixture that SharpCompress actually supports.
+7. List and extract representative ZIP, 7z, RAR, TAR, and each explicitly allowlisted compressed-
+   TAR/single-stream format fixture, including LZip and TAR.LZ, that SharpCompress actually supports.
 8. Extension/signature mismatch, unsupported extension, corrupt header, truncated payload,
    encrypted archive, and wrong ZIP-based container fail with sanitized categories.
 9. Canonical entry order, counts, max-list truncation, directories, timestamps, and nullable sizes.
@@ -726,10 +750,13 @@ Add deterministic tests for at least the following.
 17. Extract-all requires a missing destination, stages completely, handles destination races,
     commits by rename, and leaves no partial final directory.
 18. Create ZIP from file and directory with default/custom canonical entry roots, deterministic
-    order, preserved bytes, no reparse traversal, and atomic default/overwrite behavior.
+    order, preserved bytes, `deflate`/`balanced` defaults, every accepted method/level combination,
+    rejected unknown values and `store` with an explicit level, no reparse traversal, and atomic
+    default/overwrite behavior.
 19. Add to ZIP copies safe existing entries, rejects unsafe originals, handles file/directory
-    collisions, obeys `overwriteEntry`, validates replacement, and preserves the old archive on
-    every injected failure point.
+    collisions, obeys `overwriteEntry`, applies compression choices only to new/replaced entries,
+    preserves non-colliding entries without intentional recompression, validates replacement, and
+    preserves the old archive on every injected failure point.
 20. Concurrent calls to the same archive have deterministic winner/failure behavior without
     corruption or shared mutable context.
 
@@ -807,7 +834,8 @@ Update during Stage 22 implementation:
 
 The README technical reference must make the deliberate product boundary unmistakable:
 
-- common formats are readable/extractable, but only ZIP is writable;
+- the explicit common-format allowlist, including LZip/TAR.LZ, is readable/extractable, but only ZIP
+  is writable;
 - DOCX, XLS/XLSX/XLSB, and PDF support is read-only;
 - archives and documents are never opened with an external desktop application;
 - no password, OCR, macro, formula recalculation, external fetch, recursive extraction, Office/PDF
@@ -820,7 +848,8 @@ Both standalone user guides must include complete, copyable task/workflow exampl
 1. enabling **Archives** plus ReadOnly/ReadWrite locations and extracting one ZIP entry;
 2. extracting a complete archive to a new destination directory and explaining why it must not
    already exist;
-3. creating a ZIP, then adding a second file with overwrite disabled;
+3. creating a ZIP with the default compression, then adding a second file with overwrite disabled
+   and demonstrating one optional non-default compression choice;
 4. reading a DOCX and explaining which parts are omitted;
 5. listing workbook sheets and reading a bounded range from an XLS/XLSX file;
 6. reading selected PDF pages and explaining the image-only/no-OCR result;
@@ -833,6 +862,8 @@ Both guides must state plainly:
 - group permission does not grant a path, and a path grant does not enable a group;
 - archive extraction/create/add also requires the global Safety opt-in;
 - overwrite defaults false and ZIP replacement is staged/atomic;
+- ZIP creation/addition defaults to `deflate`/`balanced`; the only alternatives are `store` or the
+  closed Deflate levels documented in §7;
 - extracted document/cell text is untrusted data and may contain misleading instructions;
 - file size, entry, expansion, row/cell, page, and character limits prevent unbounded context or
   archive expansion;
@@ -880,7 +911,7 @@ executable, OCR engine, live model, personal document, personal path, or network
 - [ ] Archive list/extract accepts only the documented allowlist and verifies extension plus
       signature/container.
 - [ ] Archive writes are ZIP-only, Safety-gated, default-no-overwrite, staged, validated, and
-      atomic.
+      atomic; their closed compression choices and defaults match §7 exactly.
 - [ ] Zip Slip, Windows path aliases, collisions, reparse points, special entries, nesting, bombs,
       encryption, races, cancellation, and cleanup satisfy §§7 and 12.
 - [ ] DOCX extraction is read-only, ordered, bounded, and limited to the documented body content.
