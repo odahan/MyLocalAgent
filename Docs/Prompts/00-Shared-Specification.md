@@ -1947,7 +1947,7 @@ connection string, saved connection, or database session.
 |---|---|
 | S19-D1 | **Four aliases in one group.** Add `sqlite.listObjects`, `sqlite.describeTable`, `sqlite.query`, and `sqlite.execute` in the whitelist group `sqlite`, registered once in the Stage 18A central group catalog. |
 | S19-D2 | **Microsoft provider only.** Pin `Microsoft.Data.Sqlite` 10.0.10 in the central package file and reference it from Core. No EF Core, Dapper, System.Data.SQLite, migration framework, or second SQLite bundle. |
-| S19-D3 | **Paths only.** Every alias accepts `databasePath`, resolved by the existing sandbox. Connection strings, URI filenames, memory databases, passwords, VFS selection, attached databases, extension loading, and encryption are out of scope. |
+| S19-D3 | **Paths plus managed read target.** Every alias accepts `databasePath`, resolved by the existing sandbox, except that `sqlite.query` may instead receive one Stage 23 `storageSpaceId`. Connection strings, URI filenames, memory databases, passwords, VFS selection, attached databases, extension loading, and encryption are out of scope. |
 | S19-D4 | **Independent authorization.** Read aliases require ReadOnly access. `sqlite.execute` requires the `sqlite` group, ReadWrite path access, and global `Safety:AllowSqliteWrite=true`, shipped false. |
 | S19-D5 | **One statement.** Query and execute each accept exactly one prepared statement. Query requires a result-producing native-read-only statement; execute requires a non-result-producing modifying statement and runs in one application-owned transaction. |
 | S19-D6 | **Layered SQL confinement.** Native preparation/read-only classification is combined with token-aware denial of ATTACH/DETACH, PRAGMA, VACUUM, extension loading, caller transaction control, virtual-table creation, TEMP creation, and executable tails. Neither a prefix check nor `sqlite3_stmt_readonly` alone is sufficient. |
@@ -1995,7 +1995,7 @@ tester and AI Playground calls use the current new-task default.
 |---|---|---|---|---|
 | `sqlite.listObjects` | `sqlite_list_objects` | `databasePath`, `objectType`, `namePattern`, `maxResults` | last three | ReadOnly |
 | `sqlite.describeTable` | `sqlite_describe_table` | `databasePath`, `tableName` | — | ReadOnly |
-| `sqlite.query` | `sqlite_query` | `databasePath`, `sql`, `parameters`, `maxRows` | last two | ReadOnly |
+| `sqlite.query` | `sqlite_query` | `databasePath`, `sql`, `parameters`, `maxRows`, `storageSpaceId` | `databasePath`, `parameters`, `maxRows`, `storageSpaceId` | ReadOnly path or managed space |
 | `sqlite.execute` | `sqlite_execute` | `databasePath`, `sql`, `parameters`, `createIfMissing` | last two | ReadWrite / `Safety:AllowSqliteWrite` |
 
 `SQLiteObjectType` values are `All`, `Table`, `View`, `Index`, and `Trigger`. Parameters accept
@@ -2144,3 +2144,48 @@ provider dispatch, workflow effective-policy resolution, authoring metadata, fir
 ordering, reload/concurrency isolation, and all prior placeholder/generation/run-log regressions.
 The final gate remains a warning-clean Release build and deterministic tests with `-m:1`, manual
 parity validation, and `git diff --check`.
+
+## 25. Stages 23–25 addendum — Research, publications, and human workflow editing
+
+The standalone Stage 23, 24, and 25 documents are the complete implementation contracts for
+their respective surfaces. They extend, rather than replace, the existing local-first, Guardrails,
+immutable-execution-context, declarative-tool-catalog, task-authorization, privacy, and
+warning-clean gate rules.
+
+### 25.1 Storage spaces and Stage 23 research
+
+Stage 23 adds application-owned named storage spaces, a built-in `default` space, and optional
+`ScheduledTask.storageSpaceId`. An omitted value resolves to `default`; a supplied id must exist
+when the task is validated and is carried in an immutable execution snapshot. Storage spaces are
+not task-supplied database paths. Their SQLite files are app-managed, schema-owned, and reserved
+from ordinary filesystem grants. `Microsoft.Data.Sqlite` remains centrally pinned at `10.0.10`.
+
+Research profiles compile persisted themes to deterministic query templates. The discovery window
+is 2, then 4, then 7 days only when the verified, unique, in-window document count remains below
+the profile threshold. Unknown-date documents never satisfy that threshold. The system stores
+compact document metadata and a bounded short summary, never the full external article/post body.
+Research records have bounded age retention; user publication records do not.
+
+### 25.2 Stage 19 bridge and Stage 24 publications
+
+Stage 19 `sqlite.query` accepts exactly one of `databasePath` or `storageSpaceId` when Stage 23
+is installed. Managed-storage target mode is always read-only, resolves no caller-visible path,
+and retains every Stage 19 statement-confinement, result-bound, Guardrails and privacy rule.
+`sqlite.execute`, schema inspection, and arbitrary managed writes stay path-only or unavailable
+as specified by Stage 19. Managed table names and columns are documented stable contracts in this
+product version; do not create SQL views merely to conceal an otherwise fixed schema.
+
+Stage 24 stores user-owned `PublicationRecord` metadata in the selected storage space and exports
+`PublicationReport` Markdown. Publication data is never automatically purged; `periodKey` is a
+user-selected grouping value, not a primary key and not necessarily a calendar year. No record
+stores the full body of a social post or article.
+
+### 25.3 Stage 25 workflow authoring surface
+
+Stage 25 retains JSON as the persisted, imported, exported and runtime workflow format, but makes
+deterministic human-readable Workflow text the default Task editor surface. Its parser/renderer
+must satisfy semantic JSON-to-text-to-JSON round trips. AI Helper may propose a validated workflow
+from free user text; it is neither the parser nor the reverse renderer. AI Explain remains an
+explanation feature. Raw **JSON edit (advanced)** remains available and no valid JSON feature is
+removed for users who need it. Tool argument editor metadata drives multi-line Prompt, SQL and
+Markdown editing without per-tool UI maps.

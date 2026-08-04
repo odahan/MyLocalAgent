@@ -53,10 +53,10 @@ agent context.
 
 | # | Decision |
 |---|---|
-| S19-D1 | **Four aliases, one group.** Add exactly `sqlite.listObjects`, `sqlite.describeTable`, `sqlite.query`, and `sqlite.execute` in the new whitelist group `sqlite`. No generic database provider or alias synonym is introduced. |
+| S19-D1 | **Four aliases, one group.** Add exactly `sqlite.listObjects`, `sqlite.describeTable`, `sqlite.query`, and `sqlite.execute` in the new whitelist group `sqlite`. No generic database provider or alias synonym is introduced. After Stage 23, `sqlite.query` additionally supports the documented managed-storage target mode; it is not a fifth alias. |
 | S19-D2 | **Microsoft.Data.Sqlite only.** Pin `Microsoft.Data.Sqlite` 10.0.10 centrally and reference it from Core. Do not add EF Core, Dapper, System.Data.SQLite, a migration framework, or a second SQLite bundle. |
 | S19-D3 | **Paths, not connection strings.** Every alias accepts `databasePath`. Connection strings, URI filenames, `:memory:`, named in-memory databases, passwords, VFS names, cache modes, and arbitrary provider options are forbidden inputs. |
-| S19-D4 | **Existing authorization model.** Read aliases require `ReadOnly` local-path access; `sqlite.execute` requires `ReadWrite`. Relative paths use `FileSystem:RootPath`; absolute paths use immutable task grants. Reparse-point checks remain authoritative. |
+| S19-D4 | **Existing authorization model.** Read aliases require `ReadOnly` local-path access; `sqlite.execute` requires `ReadWrite`. Relative paths use `FileSystem:RootPath`; absolute paths use immutable task grants. Reparse-point checks remain authoritative. The Stage 23 managed-storage query mode resolves only an immutable `storageSpaceId` snapshot and does not accept, reveal, or authorize a path. |
 | S19-D5 | **Context-bound instances.** `SqliteTool` declares Stage 18D `Contextual` activation and is created by the generic target activator for each execution context. Singleton mutable task id, current path, current Guardrails flag, connection, or transaction state is forbidden. |
 | S19-D6 | **One statement per call.** `query` and `execute` accept exactly one prepared SQLite statement, allowing only trailing whitespace/comments and one optional terminating semicolon. No multi-statement or migration batch alias belongs to Stage 19. |
 | S19-D7 | **Read and write are structurally separate.** `sqlite.query` accepts a result-producing statement classified read-only by SQLite plus the additional deny rules in §7. `sqlite.execute` accepts a non-result-producing modifying statement and rejects read-only statements. |
@@ -250,10 +250,11 @@ public interface ISqliteTool
         CancellationToken cancellationToken = default);
 
     Task<string> QueryAsync(
-        string databasePath,
+        string? databasePath,
         string sql,
         JsonElement parameters = default,
         int? maxRows = null,
+        string? storageSpaceId = null,
         CancellationToken cancellationToken = default);
 
     Task<string> ExecuteAsync(
@@ -277,7 +278,7 @@ entry. `CancellationToken` is excluded from catalog arguments as before.
 |---|---|---|---|---|---|
 | `sqlite.listObjects` | `sqlite_list_objects` | `databasePath`, `objectType`, `namePattern`, `maxResults` | `objectType`, `namePattern`, `maxResults` | file, ReadOnly | — |
 | `sqlite.describeTable` | `sqlite_describe_table` | `databasePath`, `tableName` | — | file, ReadOnly | — |
-| `sqlite.query` | `sqlite_query` | `databasePath`, `sql`, `parameters`, `maxRows` | `parameters`, `maxRows` | file, ReadOnly | — |
+| `sqlite.query` | `sqlite_query` | `databasePath`, `sql`, `parameters`, `maxRows`, `storageSpaceId` | `databasePath`, `parameters`, `maxRows`, `storageSpaceId` | file ReadOnly or managed space ReadOnly | — |
 | `sqlite.execute` | `sqlite_execute` | `databasePath`, `sql`, `parameters`, `createIfMissing` | `parameters`, `createIfMissing` | file, ReadWrite | `Safety:AllowSqliteWrite` |
 
 Tool Map descriptions must state what is returned, that queries and writes accept one statement,
@@ -303,6 +304,14 @@ generated status when available, foreign keys, and indexes. It never executes sc
 returns trigger bodies. Internal queries parameterize values or use one tested SQLite identifier
 quoting helper that doubles embedded quotes; caller text is never concatenated as executable
 syntax.
+
+`sqlite.query` requires exactly one target: `databasePath` or the Stage 23 `storageSpaceId`.
+`databasePath` follows the existing read-only path authorization. `storageSpaceId` resolves a
+managed application storage snapshot and is read-only even when `Safety:AllowSqliteWrite` is
+enabled. It may query the stable documented tables and columns of that space, but it must reject
+`sqlite_` objects, schema-changing statements, `ATTACH`, and every existing forbidden construct.
+It never reveal the resolved database path. A managed-space id that is unknown, deleted, or not
+available in the immutable task snapshot fails before preparing SQL.
 
 `sqlite.query` executes one approved read-only, result-producing statement and returns ordered
 columns and bounded rows under §8. `maxRows` uses the same default and clamp rules. It does not
@@ -956,6 +965,8 @@ Update during Stage 19 implementation:
 
 - `Docs/Prompts/00-Shared-Specification.md` §22 if implementation reveals a discrepancy; do not
   silently weaken this prompt;
+- `Docs/Prompts/23-Stage23-WebDiscoveryResearchStorage.md` when Stage 23 is present, including
+  the managed-storage read-only query bridge;
 - `Docs/ARCHITECTURE-LEDGER.md` with exact APIs, package/native versions, SQL confinement,
   settings, task migration/default, output schema, Guardrails screen-only prompt version,
   cancellation, privacy, tests, publish evidence, and residual risks;
@@ -1028,6 +1039,9 @@ do not require a real LLM for this smoke test.
       local authorization, and per-task Guardrails state.
 - [ ] Tool catalog, helper, Tool tester, AI Playground, manuals, samples, and ledger are consistent.
 - [ ] Complete gate and published-output native smoke tests are green.
+- [ ] When Stage 23 is present, `sqlite.query` accepts exactly one of `databasePath` and
+      `storageSpaceId`; managed-space reads are bounded, Guardrails-protected when requested,
+      path-free in output/logs, and cannot write or inspect internal schema.
 
 ## 19. Before finishing implementation
 
