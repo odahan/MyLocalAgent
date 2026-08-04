@@ -1878,6 +1878,62 @@ persistence, reflection metadata, catalog visibility, and regressions. The gate 
 clean Release build and deterministic tests with `-m:1`, EN/FR manual parity, sample validation,
 and `git diff --check`.
 
+## 21D. Stage 18D addendum — Declarative dynamic tooling
+
+This addendum applies after Stage 18C and before Stage 19. It supersedes Stage 18A only where
+Stage 18A retained handwritten invocable Tool Map entries, concrete runtime registration, and
+per-type contextual factories. The standalone
+`Docs/Prompts/18D-Stage18D-DeclarativeDynamicTooling.md` prompt is the complete implementation
+contract. Stage 18D adds no tool, alias, group, package, setting, task field, permission, page,
+provider call, or runtime behavior.
+
+### 21D.1 Attributed built-in discovery
+
+Concrete tool classes compiled into `OD.MyLocalAgent.Core` declare stable group metadata, display
+order, task-whitelist eligibility, singleton/contextual activation, and an optional public service
+contract through a class attribute. Public invocable methods and non-cancellation parameters
+declare alias, description, argument kind, example, optionality, enumeration/placeholder behavior,
+Safety reference, and local-path semantics through method/parameter attributes. Tool and argument
+attributes provide the effective `DescriptionAttribute` text, so catalog and agent-schema
+descriptions cannot diverge.
+
+Production discovery inspects only the fixed Core assembly. It never enumerates loaded assemblies,
+probes directories, accepts an assembly path, loads a DLL, or executes a plug-in manifest. Invalid
+or conflicting metadata fails during bootstrap. Group names/orders, aliases, function names,
+method signatures, parameter metadata, path references, Safety identifiers, and activation
+contracts are validated before any target is instantiated.
+
+### 21D.2 One immutable catalog and generic activation
+
+Discovery builds one ordered immutable catalog shared by Core, workflows, Runner, validation,
+authoring, Tool tester, AI Playground, and WPF. Existing `ToolMap`/`ToolGroups` public members may
+remain only as read-only compatibility façades over that exact snapshot; they own no parallel
+runtime group or invocable-alias list. The synthetic non-whitelist `ai` workflow contribution
+remains explicit because it is not an invocable attributed tool.
+
+`ToolRegistry` depends on the catalog and one generic target activator rather than concrete tools.
+Singleton targets resolve from DI; contextual targets are created with the immutable
+`ToolExecutionContext`. Whitelist validation precedes activation and an unselected group is never
+constructed. Tool-specific packages, options, parsers, connector/secret configuration, Safety
+persistence, and specialized Settings controls remain explicit and fail closed.
+
+### 21D.3 Dynamic UI and residual boundary
+
+Task whitelist selections, authorized-location visibility, Tool catalog, Tool tester, helper, and
+Playground projections derive from the immutable catalog. Adding an attributed built-in tool must
+not require editing `ToolGroups`, `ToolMap`, the `ToolRegistry` constructor/target dictionary,
+per-type contextual factories, XAML, ViewModel group Booleans, load/save branches, or group-order
+arrays. New groups remain unchecked and grant no path or Safety capability until explicitly
+authorized.
+
+This is compiled extensibility, not external-DLL discovery or a plug-in system. Stage 19 and Stage
+22 consume the attributed contract for SQLite, archive, document, spreadsheet, and PDF tools while
+retaining their explicit implementation-specific services/settings. Automated coverage proves
+metadata equivalence, fixed-assembly discovery, fail-fast validation, singleton/context isolation,
+no activation before whitelist checks, catalog equality across consumers, legacy task
+compatibility, and absence of concrete generic wiring. The final gate remains warning-clean
+Release build/tests with `-m:1`, documentation parity, and `git diff --check`.
+
 ## 22. Stage 19 addendum — SQLite Tool
 
 This addendum extends §7.6, §8.1–§8.3, §14, §16, §20, and §21 with one local SQLite tool group.

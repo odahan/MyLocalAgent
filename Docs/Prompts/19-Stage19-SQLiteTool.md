@@ -1,6 +1,6 @@
 # STAGE 19 — SQLite Tool
 
-> Run only after **Stage 18A** is finished. Stage 17 V2 is the implementation contract for
+> Run only after **Stage 18D** is finished. Stage 17 V2 is the implementation contract for
 > workflow authoring. Stages 9 and 10 remain abandoned proposals and are neither prerequisites
 > nor in scope. This stage adds one local, task-authorized SQLite tool group; it does not add a
 > general database abstraction, ORM, remote database connector, or connection-string surface.
@@ -12,10 +12,10 @@
 2. `Docs/ARCHITECTURE-LEDGER.md` — full read. Recorded package versions, Tool Map metadata,
    task serialization, local-path authorization, Safety, Guardrails, privacy, active-theme,
    and publishing decisions are binding.
-3. The post-Stage-18A implementations of `ToolMap`, `ToolDefinition`,
-   `ToolArgumentDefinition`, `WorkflowArgumentKind`, `ToolGroupDefinition`, `ToolGroups`,
-   `ToolGroupSelectionItem`, `ToolRegistry`,
-   `ToolExecutionContext`, `IContextualToolFactory<TTool>`, `IPathSandbox`, `PathSandbox`,
+3. The post-Stage-18D implementations of `IToolCatalog`, the declarative tool attributes,
+   `ToolMap`, `ToolDefinition`, `ToolArgumentDefinition`, `WorkflowArgumentKind`,
+   `ToolGroupDefinition`, `ToolGroups`, `ToolGroupSelectionItem`, `ToolRegistry`,
+   `ToolExecutionContext`, the generic target activator, `IPathSandbox`, `PathSandbox`,
    `LocalPathArgumentDefinition`, `WorkflowRequirementAnalyzer`, `ScheduledTask`,
    `ScheduledTaskSerializer`, `ScheduledTaskValidator`, `ToolCallLog`, `SafetyOptions`,
    `IContentTrustService`, compact batch Guardrails contracts, `GuardrailDelivery`, options
@@ -57,7 +57,7 @@ agent context.
 | S19-D2 | **Microsoft.Data.Sqlite only.** Pin `Microsoft.Data.Sqlite` 10.0.10 centrally and reference it from Core. Do not add EF Core, Dapper, System.Data.SQLite, a migration framework, or a second SQLite bundle. |
 | S19-D3 | **Paths, not connection strings.** Every alias accepts `databasePath`. Connection strings, URI filenames, `:memory:`, named in-memory databases, passwords, VFS names, cache modes, and arbitrary provider options are forbidden inputs. |
 | S19-D4 | **Existing authorization model.** Read aliases require `ReadOnly` local-path access; `sqlite.execute` requires `ReadWrite`. Relative paths use `FileSystem:RootPath`; absolute paths use immutable task grants. Reparse-point checks remain authoritative. |
-| S19-D5 | **Context-bound instances.** `SqliteTool` is created through `IContextualToolFactory<SqliteTool>` for each execution context. Singleton mutable task id, current path, current Guardrails flag, connection, or transaction state is forbidden. |
+| S19-D5 | **Context-bound instances.** `SqliteTool` declares Stage 18D `Contextual` activation and is created by the generic target activator for each execution context. Singleton mutable task id, current path, current Guardrails flag, connection, or transaction state is forbidden. |
 | S19-D6 | **One statement per call.** `query` and `execute` accept exactly one prepared SQLite statement, allowing only trailing whitespace/comments and one optional terminating semicolon. No multi-statement or migration batch alias belongs to Stage 19. |
 | S19-D7 | **Read and write are structurally separate.** `sqlite.query` accepts a result-producing statement classified read-only by SQLite plus the additional deny rules in §7. `sqlite.execute` accepts a non-result-producing modifying statement and rejects read-only statements. |
 | S19-D8 | **Writes require explicit Safety opt-in.** `sqlite.execute`, including file creation, requires `Safety:AllowSqliteWrite`, shipped `false`. Tool-group whitelisting and read-write path authorization remain independently required. |
@@ -75,7 +75,7 @@ agent context.
 | S19-D20 | **Taskless default.** Tool tester and AI Playground use `SQLite:GuardrailsEnabledByDefault` because they have no persisted task. Task-associated workflow and agent calls always use the task's persisted value. |
 | S19-D21 | **Responsive cancellation.** Database work runs away from the WPF dispatcher. Cancellation uses the connection's native handle and `sqlite3_interrupt`; `SqliteCommand.Cancel` and nominal async ADO.NET methods are not treated as effective cancellation. |
 | S19-D22 | **Content-free observability.** SQL, parameters, database values, schema names, identifiers, BLOB bytes, absolute paths, protected payloads, and raw SQLite exception messages never enter normal logs, incidents, telemetry, or Guardrails failure descriptors. |
-| S19-D23 | **Stage 17 remains the authoring source.** New aliases and the `Object` argument kind extend the single Core Tool Map, snippet builder, Tool catalog, helper prompt, validation, and assisted authoring. No SQLite-only alias table or workflow editor is permitted. |
+| S19-D23 | **Stage 17 remains the authoring source.** Attributed aliases and the `Object` argument kind extend the single discovered Core catalog, snippet builder, Tool catalog, helper prompt, validation, and assisted authoring. No SQLite-only alias table or workflow editor is permitted. |
 | S19-D24 | **All SQLite settings are visible together.** Settings adds one SQLite section containing the write Safety switch, new-task Guardrails default, row limits, result limit, BLOB limit, SQL limit, and command timeout. No separate SQLite page is introduced. |
 | S19-D25 | **English and MVVM.** UI text, code identifiers, comments, XML documentation, result markers, and errors are English. MVVM Toolkit remains mandatory and database logic does not enter code-behind. |
 
@@ -198,14 +198,18 @@ contains no task override, causing `SqliteTool` to read the current
 `GuardrailsEnabledByDefault`. Preserve source compatibility for existing test/context
 construction where practical, but do not infer a task value from mutable singleton state.
 
-## 6. Tool Map and public tool contracts
+## 6. Declarative tool metadata and public contracts
 
 ### 6.1 New group and enum
 
-Add `ToolGroups.Sqlite = "sqlite"` and one task-whitelist `ToolGroupDefinition` in the central
-catalog. `ToolGroups.TaskWhitelist`, `ToolGroups.All`, Task editor selection, validation, catalog,
-tester, and playground projections must then include it without a SQLite-specific Boolean,
-checkbox, or group-order table. Update comments and UI language that count supported groups.
+Decorate `SqliteTool` with the Stage 18D group attribute using stable name `sqlite`, English
+display name **SQLite**, task-whitelist eligibility, display order 500, `Contextual` activation,
+and `ISqliteTool` as its taskless public service contract. The discovered catalog, compatibility
+projections, Task editor selection, validation, catalog, tester, and Playground must then include
+it without editing `ToolGroups`, `ToolMap`, a registry constructor, target dictionary,
+SQLite-specific Boolean, checkbox, or group-order table. A `ToolGroups.Sqlite = "sqlite"`
+constant may be added for source convenience, but the constant is not registration. Update
+comments and UI language that count supported groups.
 
 Add:
 
@@ -261,8 +265,11 @@ public interface ISqliteTool
 }
 ```
 
-The implementation methods carry English `DescriptionAttribute` metadata matching the enriched
-Tool Map exactly. CancellationToken is excluded from Tool Map arguments as before.
+Decorate each implementation method with `ToolAttribute`, every non-cancellation parameter with
+`ToolArgumentAttribute`, and every path requirement with `ToolLocalPathAttribute`. The Stage 18D
+tool attributes provide the effective English `DescriptionAttribute` metadata used by both the
+discovered catalog and agent schema. Do not add a second `[Description]` or a handwritten Tool Map
+entry. `CancellationToken` is excluded from catalog arguments as before.
 
 ### 6.3 Normative aliases
 
@@ -592,13 +599,16 @@ files globally.
 
 ### 11.1 Registration and registry
 
-Register `SQLiteOptions`, `IContextualToolFactory<SqliteTool>`, a taskless `SqliteTool` projection,
-and `ISqliteTool`. Extend `ToolRegistry` constructor, target creation, and reflection tests. Agent
-tools and direct workflow invocation continue to come exclusively from Tool Map definitions.
+Register `SQLiteOptions` and SQLite-specific parser/native/helper services explicitly. Stage 18D
+discovery registers the attributed `SqliteTool`, its taskless `ISqliteTool` projection, contextual
+activation, registry target, aliases, and generic UI projections. Do not register
+`IContextualToolFactory<SqliteTool>`, extend the `ToolRegistry` constructor, add a target-creation
+branch, or add a parallel alias/group list. Agent tools and direct workflow invocation continue to
+come exclusively from the discovered catalog.
 
 ### 11.2 Static requirement analysis
 
-Tool Map local-path metadata drives existing Stage 13/17 analysis:
+Attributed local-path metadata in the discovered catalog drives existing Stage 13/17 analysis:
 
 - read aliases propose a containing-directory ReadOnly grant for a literal absolute file;
 - execute proposes ReadWrite;
@@ -610,8 +620,9 @@ Extend the shared Safety lookup; do not add a SQLite-only analyzer.
 
 ### 11.3 Tool catalog and snippet builder
 
-Insert the `sqlite` metadata entry in the Stage 18A central catalog immediately after `filesystem`
-and before `http`. Every catalog-driven UI surface inherits that order. The workflow catalog shows
+The `SqliteTool` group attribute uses display order 500, placing it after `filesystem` (400) and
+before `http` (1000). Every catalog-driven UI surface inherits that order without a central-list
+edit. The workflow catalog shows
 the path access, Safety warning, task Guardrails state, and the fact that the global SQLite
 Guardrails setting applies only to new/taskless contexts.
 
@@ -662,7 +673,8 @@ SQL editor, or live database inspection is added to Settings.
 
 ### 12.2 Task editor
 
-The Stage 18A collection-driven whitelist automatically renders a **SQLite** tool-group checkbox
+The Stage 18D discovered catalog and collection-driven whitelist automatically render a
+**SQLite** tool-group checkbox
 from its catalog metadata and includes it in load/save, dirty tracking, validation, assisted group
 application, and undo snapshots. Do not add a `UseSQLite` property or dedicated XAML checkbox.
 Because SQLite aliases declare local-path arguments, selecting it automatically shows the existing
@@ -679,10 +691,11 @@ display its status but never change it.
 
 ### 12.3 Existing dynamic surfaces
 
-Tool tester discovers all four aliases from the Tool Map and uses taskless Guardrails defaults.
-AI Playground's **Allow Tools** automatically includes the new group through the Stage 18A task
-whitelist projection. Tools page counts and documentation must not retain six-group wording. No
-SQLite-specific output renderer is required; the existing JSON viewer remains authoritative.
+Tool tester discovers all four attributed aliases from the catalog and uses taskless Guardrails
+defaults. AI Playground's **Allow Tools** automatically includes the new group through the Stage
+18D task-whitelist projection. Tools page counts and documentation must not retain six-group
+wording. No SQLite-specific output renderer is required; the existing JSON viewer remains
+authoritative.
 
 ## 13. Privacy, errors, and observability
 
@@ -835,7 +848,7 @@ task.
 Add deterministic tests, using temporary authorized directories and generated synthetic SQLite
 databases only, for at least:
 
-### 15.1 Package, registration, and Tool Map
+### 15.1 Package, attributed discovery, and catalog
 
 1. Exact central `Microsoft.Data.Sqlite` 10.0.10 version and one Core reference.
 2. UI and Runner build outputs resolve the provider and native e_sqlite3 library.
@@ -843,8 +856,9 @@ databases only, for at least:
 4. Four exact aliases, agent function names, method mappings, argument order, optionality,
    descriptions, object/enum kinds, Safety metadata, and local-path access metadata.
 5. Reflection consistency including `JsonElement` → `Object` and CancellationToken exclusion.
-6. Contextual factory isolation and taskless registration.
-7. Tool tester and AI Playground dynamic discovery without duplicate alias tables.
+6. Stage 18D contextual-activator isolation and taskless `ISqliteTool` registration.
+7. Tool tester and AI Playground dynamic discovery without duplicate alias tables, registry
+   branches, or generic SQLite-specific UI wiring.
 
 ### 15.2 Settings and task persistence
 
@@ -989,7 +1003,8 @@ do not require a real LLM for this smoke test.
 
 ## 18. Acceptance addendum
 
-- [ ] Exactly four SQLite aliases exist in one `sqlite` group and in the single Tool Map.
+- [ ] Exactly four attributed SQLite aliases exist in one `sqlite` group and the single discovered
+      catalog.
 - [ ] Microsoft.Data.Sqlite 10.0.10 and compatible native assets publish for UI and Runner.
 - [ ] No ORM, remote connector, connection string, session, attached database, extension,
       encryption, memory database, WAL mutation, or migration batch was introduced.

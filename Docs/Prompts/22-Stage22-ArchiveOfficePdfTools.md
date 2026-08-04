@@ -1,7 +1,8 @@
 # STAGE 22 — Archive, Office, and PDF Tools
 
-> Run only after **Stage 21** is finished, including the **Stage 18A** foundation. Stage 17 V2 remains the implementation contract for
-> Tool Map metadata and workflow authoring, Stage 19 remains the contract for contextual local-file
+> Run only after **Stage 21** is finished, including the **Stage 18D** declarative-tooling
+> foundation. Stage 17 V2 remains the implementation contract for catalog metadata and workflow
+> authoring, Stage 19 remains the contract for contextual local-file
 > tools, and Stages 20–21 remain the placeholder contracts. This stage adds four task-whitelist
 > groups for bounded local archive, DOCX, spreadsheet, and PDF operations. It does not add OCR,
 > Office automation, COM interop, a document editor, arbitrary archive conversion, encrypted-file
@@ -15,10 +16,11 @@
 2. `Docs/ARCHITECTURE-LEDGER.md` — full read. Recorded package, Tool Map, task serialization,
    file-system sandbox, per-task authorization, reparse-point, Safety, Guardrails, privacy,
    cancellation, active-theme, and documentation decisions are binding.
-3. The post-Stage-21 implementations of `ToolMap`, `ToolDefinition`, `ToolArgumentDefinition`,
+3. The post-Stage-21 implementations of `IToolCatalog`, the Stage 18D declarative tool
+   attributes, `ToolMap`, `ToolDefinition`, `ToolArgumentDefinition`,
    `LocalPathArgumentDefinition`, `WorkflowArgumentKind`, `ToolGroupDefinition`, `ToolGroups`,
    `ToolGroupSelectionItem`, `ToolRegistry`,
-   `ToolExecutionContext`, `IContextualToolFactory<TTool>`, `IPathSandbox`, `PathSandbox`,
+   `ToolExecutionContext`, the generic target activator, `IPathSandbox`, `PathSandbox`,
    `WorkflowRequirementAnalyzer`, `WorkflowSnippetBuilder`, task creation/editing and validation,
    Settings persistence, Tool tester, AI Playground, AI Workflow Helper, Tool catalog, Runner,
    logging, incidents, tests, publishing, root README, and both standalone user manuals.
@@ -52,8 +54,8 @@ contain some write APIs. Package capability does not automatically become produc
 
 | # | Decision |
 |---|---|
-| S22-D1 | **Four independent whitelist groups.** Add exactly `archive`, `document`, `spreadsheet`, and `pdf` as task-whitelist entries in the Stage 18A central catalog. `ToolGroups.All` and every catalog-driven UI projection derive them automatically. They are visible and unchecked by default in new-task creation and remain independently selectable when editing a task. |
-| S22-D2 | **One authoritative Tool Map.** Every new alias, argument, example, path access, Safety flag, function name, description, snippet, helper projection, and catalog entry comes from the existing Core Tool Map. No UI-only or workflow-only alias table is allowed. |
+| S22-D1 | **Four independent whitelist groups.** Add exactly `archive`, `document`, `spreadsheet`, and `pdf` through Stage 18D attributes on their concrete tool classes. The discovered catalog and every generic UI projection derive them automatically. They are visible and unchecked by default in new-task creation and remain independently selectable when editing a task. |
+| S22-D2 | **One authoritative discovered catalog.** Every new alias, argument, example, path access, Safety flag, function name, description, snippet, helper projection, and group entry comes from Stage 18D attributes. No handwritten Tool Map row, registry branch, UI-only, or workflow-only alias table is allowed. |
 | S22-D3 | **Permissively licensed packages.** Pin SharpCompress 0.50.1, DocumentFormat.OpenXml 3.5.1, ExcelDataReader 3.9.0, and PdfPig 0.1.15 centrally and reference them from Core only. Record the resolved package and license inventory in the architecture ledger. |
 | S22-D4 | **No commercially constrained document stack.** Do not add NPOI, EPPlus, iText, Aspose, Syncfusion, GemBox, Office Interop, LibreOffice automation, a command-line archiver, or a second library for the same format. NPOI is specifically excluded because its current binary distribution carries a revenue-related maintenance EULA despite older Apache-2.0 expectations. |
 | S22-D5 | **Stable releases only.** Do not replace PdfPig 0.1.15 with a newer alpha/nightly build. The shared stable-first package policy applies even when a prerelease has a later date. |
@@ -74,10 +76,10 @@ contain some write APIs. Package capability does not automatically become produc
 | S22-D20 | **No PDF passwords.** Encrypted or password-protected PDFs are rejected. No password enters a tool argument, log, incident, setting, or secret store. |
 | S22-D21 | **Bounded, structured output.** All list/read results are compact JSON with deterministic order, explicit counts and truncation metadata, and one program-owned `untrustedContent` marker. Text and cell data never enter exception messages, normal logs, incidents, or telemetry. |
 | S22-D22 | **Existing Guardrails contract is unchanged.** Stage 22 does not add a new per-task Guardrails field or silently summarize local documents. The existing agent system instruction continues to treat file/tool content as untrusted data. Limits are applied before content enters agent or workflow context. |
-| S22-D23 | **Context-bound local tools.** New tool instances are created through the existing contextual factory so path grants and task identity remain immutable per execution. No singleton current-task, current-path, open archive, open workbook, or open PDF state is introduced. |
+| S22-D23 | **Context-bound local tools.** New tool classes declare Stage 18D `Contextual` activation and are created by the generic target activator so path grants and task identity remain immutable per execution. No singleton current-task, current-path, open archive, open workbook, or open PDF state is introduced. |
 | S22-D24 | **One validated configuration section.** Add one `FileContent` settings section for archive and document limits, with one matching Settings UI section. Do not scatter related limits across FileSystem, Guardrails, or provider settings. |
 | S22-D25 | **Content-free observability.** Logs may contain alias, format, counts, byte totals, truncation flags, elapsed time, and outcome category. They never contain entry names, document text, cell values, sheet names, PDF metadata values, passwords, absolute paths, temporary names, or raw parser exceptions. |
-| S22-D26 | **English implementation, bilingual guidance.** Code identifiers, XML documentation, UI labels, errors, Tool Map descriptions, and technical documentation are English. The standalone user guides explain the same behavior and examples in French and English. |
+| S22-D26 | **English implementation, bilingual guidance.** Code identifiers, XML documentation, UI labels, errors, attributed catalog descriptions, and technical documentation are English. The standalone user guides explain the same behavior and examples in French and English. |
 
 ## 4. Critical constraints
 
@@ -207,7 +209,7 @@ The Settings UI places all File content limits and **Allow archive writes and ex
 section. The Safety control explains that task whitelisting and ReadWrite authorized locations are
 still required. It must not imply that enabling the switch grants paths or adds a task tool group.
 
-## 6. Tool groups, Tool Map, and public contracts
+## 6. Declarative tool groups, catalog, and public contracts
 
 ### 6.1 Groups and task whitelist
 
@@ -220,11 +222,14 @@ public const string Spreadsheet = "spreadsheet";
 public const string Pdf = "pdf";
 ```
 
-Add all four as task-whitelist `ToolGroupDefinition` entries. Preserve the established display
-order and insert the new groups after SQLite: gmail, calendar, dropbox, filesystem, sqlite, archive,
-document, spreadsheet, pdf, http, web, then the non-whitelist `ai` authoring group. Do not maintain
-a second UI, tester, or workflow-catalog ordering table. Update every hard-coded count or phrase
-such as “seven tool groups.”
+The constants are source conveniences and do not register groups. Decorate the four concrete tool
+classes with Stage 18D group attributes, task-whitelist eligibility, `Contextual` activation,
+their public interface contracts, and display orders 600 (`archive`), 700 (`document`),
+800 (`spreadsheet`), and 900 (`pdf`). The discovered order is therefore gmail, calendar, dropbox,
+filesystem, sqlite, archive, document, spreadsheet, pdf, http, web, then the non-whitelist `ai`
+authoring group. Do not edit a central group list or maintain a second UI, tester, or
+workflow-catalog ordering table. Update every hard-coded count or phrase such as “seven tool
+groups.”
 
 New-task creation presents four independent unchecked checkboxes. Loading a pre-Stage-22 task adds
 nothing to its saved `tools` array. Saving a task retains only explicitly selected groups and the
@@ -248,10 +253,12 @@ existing validator rejects unknown groups as before.
 All numeric arguments use `WorkflowArgumentKind.Integer`; paths, entry/sheet names, compression
 choices, and optional values use `String`; overwrite flags use `Boolean`. `compressionMethod` accepts
 only the exact lowercase values `deflate` and `store`. `compressionLevel` accepts only the exact
-lowercase values `fast`, `balanced`, and `smallest`. Cancellation tokens are excluded from Tool Map
-metadata. Use the same ordered signatures for public interfaces, concrete methods, Tool Map
-metadata, `DescriptionAttribute`, agent functions, workflow validation, snippets, helper prompts,
-and tests.
+lowercase values `fast`, `balanced`, and `smallest`. Decorate every concrete method,
+non-cancellation parameter, local-path requirement, and archive Safety reference with the Stage
+18D attributes. Cancellation tokens are excluded from catalog metadata. The attributes provide
+the effective `DescriptionAttribute` metadata, so a second `[Description]` and handwritten Tool
+Map entries are forbidden. Use the same discovered ordered signatures for public interfaces,
+concrete methods, agent functions, workflow validation, snippets, helper prompts, and tests.
 
 ### 6.3 Public interfaces
 
@@ -605,7 +612,7 @@ For every alias, enforce in this order:
 
 1. workflow alias/agent function exists;
 2. task whitelist contains the owning group;
-3. every input/output path resolves under the sandbox and immutable task grants with the Tool Map's
+3. every input/output path resolves under the sandbox and immutable task grants with the catalog's
    declared access;
 4. archive write Safety flag where applicable;
 5. extension/signature, format, structural, collision, and configured-limit validation;
@@ -630,9 +637,13 @@ placeholders. AI Helper application remains opt-in and never silently authorizes
 
 ### 11.3 Registration and contextual creation
 
-Register parsing services and contextual factories in the existing Core DI extension. Archive,
-document, spreadsheet, and PDF tool instances receive immutable `ToolExecutionContext`, options,
-path sandbox, Safety monitor where needed, sanitized tool-call logging, and internal parser services.
+Register parsing, option, encoding, and helper services explicitly in the existing Core DI
+extension. Stage 18D discovery registers the four attributed tool targets, taskless public
+interface projections, contextual activation, aliases, registry dispatch, and generic UI
+projections. Do not add four contextual-factory registrations, extend the `ToolRegistry`
+constructor, add concrete target branches, or edit parallel alias/group lists. Archive, document,
+spreadsheet, and PDF tool instances receive immutable `ToolExecutionContext`, options, path
+sandbox, Safety monitor where needed, sanitized tool-call logging, and internal parser services.
 Dispose every per-call resource; no open-document cache or static mutable reader is allowed.
 
 Agent functions are exposed only for enabled groups. Workflow validation accepts aliases only when
@@ -681,8 +692,8 @@ evaluation, recursive extraction, archive encryption, or Office/PDF writing.
 
 ### 13.1 Task creation and editing
 
-The existing collection-driven tool-whitelist control gains four English checkboxes from the
-central catalog; do not add four Boolean view-model properties or dedicated XAML controls:
+The existing collection-driven tool-whitelist control gains four English checkboxes from Stage
+18D attributed discovery; do not add four Boolean view-model properties or dedicated XAML controls:
 
 - **Archives**;
 - **Word documents**;
@@ -710,7 +721,7 @@ properties/commands and no business logic in code-behind.
 
 Add deterministic tests for at least the following.
 
-### 14.1 Package, Tool Map, whitelist, and settings
+### 14.1 Package, attributed catalog, whitelist, and settings
 
 1. Exact direct package versions, expected licenses recorded in documentation, and no forbidden
    package/direct reference.
@@ -719,7 +730,9 @@ Add deterministic tests for at least the following.
 3. All ten aliases match interface methods, function names, ordered/optional arguments,
    descriptions, Safety flags, and local-path access metadata.
 4. `ToolGroups.All`, task validator, new-task UI, task round trip, registry, workflow validation,
-   catalog, snippets, helper, tester, and playground agree on the four groups.
+   catalog, snippets, helper, tester, and playground agree on the four groups, with no central
+   catalog edit, registry constructor/target branch, contextual-factory registration, dedicated
+   checkbox, or other group-specific generic integration wiring.
 5. New tasks leave all four groups unchecked; legacy tasks do not gain them; explicitly selected
    groups round-trip exactly.
 6. Every FileContent/Safety default, validation boundary, user-settings save/reload, unknown-section
@@ -901,7 +914,7 @@ executable, OCR engine, live model, personal document, personal path, or network
 
 ## 17. Acceptance addendum
 
-- [ ] Exactly four new independent whitelist groups exist and are unchecked by default for new
+- [ ] Exactly four new attributed independent whitelist groups exist and are unchecked by default for new
       tasks.
 - [ ] Exactly ten aliases exist with the names, arguments, path access, and Safety metadata in §6.
 - [ ] SharpCompress, DocumentFormat.OpenXml, ExcelDataReader, and PdfPig are centrally pinned to the
@@ -924,6 +937,8 @@ executable, OCR engine, live model, personal document, personal path, or network
       telemetry.
 - [ ] Tool registry, workflows, Task editor, new-task initialization, Tool catalog, snippets,
       helper, tester, Playground, Settings, samples, and tests derive from shared metadata.
+- [ ] No central group/alias list, concrete registry branch, contextual-factory registration, or
+      dedicated generic whitelist control was added for the four groups.
 - [ ] README contains the complete English technical reference; both user manuals and First Run
       guides have French/English parity and copyable examples.
 - [ ] Complete restore/audit/build/test/publish/documentation gate is green with `-m:1` on every
