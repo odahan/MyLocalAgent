@@ -7,6 +7,13 @@ namespace OD.MyLocalAgent.Core;
 /// <summary>
 /// Exposes compact-JSON Google Calendar connector operations.
 /// </summary>
+[ToolGroup(
+    "calendar",
+    "Calendar",
+    "Read or create Google Calendar events through the configured account.",
+    200,
+    Activation = ToolActivationKind.Singleton,
+    ServiceContract = typeof(ICalendarTool))]
 public sealed class CalendarTool : ICalendarTool
 {
     private readonly ICalendarConnector _connector;
@@ -30,7 +37,7 @@ public sealed class CalendarTool : ICalendarTool
     }
 
     /// <inheritdoc />
-    [Description("Reads today's Google Calendar events.")]
+    [Tool("calendar.today", "Reads today's Google Calendar events.", 100)]
     public Task<string> TodayAsync(CancellationToken cancellationToken) =>
         ToolCallLog.ExecuteAsync(
             _logger,
@@ -46,9 +53,9 @@ public sealed class CalendarTool : ICalendarTool
             SummarizeReadResult);
 
     /// <inheritdoc />
-    [Description("Reads Google Calendar events for the current local day, week, month, or year.")]
+    [Tool("calendar.read", "Reads Google Calendar events for the current local day, week, month, or year.", 200)]
     public Task<string> ReadAsync(
-        [Description("Calendar period: Day, Week, Month, or Year.")] CalendarPeriod period,
+        [ToolArgument(WorkflowArgumentKind.Enumeration, "Calendar period: Day, Week, Month, or Year.", Example = "Week")] CalendarPeriod period,
         CancellationToken cancellationToken = default) =>
         ToolCallLog.ExecuteAsync(
             _logger,
@@ -64,12 +71,12 @@ public sealed class CalendarTool : ICalendarTool
             SummarizeReadResult);
 
     /// <inheritdoc />
-    [Description("Creates a Google Calendar event.")]
+    [Tool("calendar.create", "Creates a Google Calendar event.", 300)]
     public Task<string> CreateAsync(
-        [Description("Event summary.")] string summary,
-        [Description("Event start time with offset.")] DateTimeOffset start,
-        [Description("Event end time with offset.")] DateTimeOffset end,
-        [Description("Event description.")] string description,
+        [ToolArgument(WorkflowArgumentKind.String, "Event summary.", Example = "Team sync")] string summary,
+        [ToolArgument(WorkflowArgumentKind.String, "Event start time with offset.", Example = "2026-01-15T09:00:00+01:00")] DateTimeOffset start,
+        [ToolArgument(WorkflowArgumentKind.String, "Event end time with offset.", Example = "2026-01-15T10:00:00+01:00")] DateTimeOffset end,
+        [ToolArgument(WorkflowArgumentKind.String, "Event description.", Example = "Weekly team synchronisation.")] string description,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(summary);

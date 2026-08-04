@@ -9,6 +9,13 @@ namespace OD.MyLocalAgent.Core;
 /// <summary>
 /// Implements sandboxed local file-system tools.
 /// </summary>
+[ToolGroup(
+    "filesystem",
+    "File system",
+    "Read or change files beneath authorized local paths.",
+    400,
+    Activation = ToolActivationKind.Contextual,
+    ServiceContract = typeof(IFileSystemTool))]
 public sealed class FileSystemTool : IFileSystemTool
 {
     private static readonly MarkdownPipeline MarkdownPipeline =
@@ -54,9 +61,10 @@ public sealed class FileSystemTool : IFileSystemTool
     }
 
     /// <inheritdoc />
-    [Description("Lists immediate files and directories beneath an authorized local path.")]
+    [ToolLocalPath("path", LocalPathTargetKind.Directory, FileSystemAccessMode.ReadOnly)]
+    [Tool("filesystem.list", "Lists immediate files and directories beneath an authorized local path.", 100)]
     public Task<string> ListAsync(
-        [Description("Relative global-root path or task-authorized absolute directory path.")] string path,
+        [ToolArgument(WorkflowArgumentKind.String, "Relative global-root path or task-authorized absolute directory path.", Example = "inbox")] string path,
         CancellationToken cancellationToken) =>
         ToolCallLog.ExecuteAsync(
             _logger,
@@ -98,9 +106,10 @@ public sealed class FileSystemTool : IFileSystemTool
             });
 
     /// <inheritdoc />
-    [Description("Reads a UTF-8 text file beneath an authorized local path.")]
+    [ToolLocalPath("path", LocalPathTargetKind.File, FileSystemAccessMode.ReadOnly)]
+    [Tool("filesystem.read", "Reads a UTF-8 text file beneath an authorized local path.", 200)]
     public Task<string> ReadAsync(
-        [Description("Relative global-root path or task-authorized absolute file path.")] string path,
+        [ToolArgument(WorkflowArgumentKind.String, "Relative global-root path or task-authorized absolute file path.", Example = "inbox/source.txt")] string path,
         CancellationToken cancellationToken) =>
         ToolCallLog.ExecuteAsync(
             _logger,
@@ -133,10 +142,11 @@ public sealed class FileSystemTool : IFileSystemTool
             });
 
     /// <inheritdoc />
-    [Description("Writes UTF-8 text to an authorized local file path.")]
+    [ToolLocalPath("path", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite)]
+    [Tool("filesystem.write", "Writes UTF-8 text to an authorized local file path.", 300)]
     public Task<string> WriteAsync(
-        [Description("Relative global-root path or task-authorized absolute file path.")] string path,
-        [Description("Text content to write.")] string content,
+        [ToolArgument(WorkflowArgumentKind.String, "Relative global-root path or task-authorized absolute file path.", Example = "reports/summary.txt")] string path,
+        [ToolArgument(WorkflowArgumentKind.String, "Text content to write.", Example = "Report body.")] string content,
         CancellationToken cancellationToken) =>
         ToolCallLog.ExecuteAsync(
             _logger,
@@ -170,10 +180,12 @@ public sealed class FileSystemTool : IFileSystemTool
             });
 
     /// <inheritdoc />
-    [Description("Moves a file or directory between authorized local paths.")]
+    [ToolLocalPath("from", LocalPathTargetKind.FileOrDirectory, FileSystemAccessMode.ReadWrite)]
+    [ToolLocalPath("to", LocalPathTargetKind.FileOrDirectory, FileSystemAccessMode.ReadWrite)]
+    [Tool("filesystem.move", "Moves a file or directory between authorized local paths.", 400)]
     public Task<string> MoveAsync(
-        [Description("Relative global-root or task-authorized absolute source path.")] string from,
-        [Description("Relative global-root or task-authorized absolute destination path.")] string to,
+        [ToolArgument(WorkflowArgumentKind.String, "Relative global-root or task-authorized absolute source path.", Example = "inbox/source.txt")] string from,
+        [ToolArgument(WorkflowArgumentKind.String, "Relative global-root or task-authorized absolute destination path.", Example = "archive/destination.txt")] string to,
         CancellationToken cancellationToken) =>
         ToolCallLog.ExecuteAsync(
             _logger,
@@ -215,9 +227,10 @@ public sealed class FileSystemTool : IFileSystemTool
             });
 
     /// <inheritdoc />
-    [Description("Moves an authorized local file or directory to the Windows Recycle Bin when Safety:AllowMoveToBin is enabled.")]
+    [ToolLocalPath("path", LocalPathTargetKind.FileOrDirectory, FileSystemAccessMode.ReadWrite)]
+    [Tool("filesystem.moveToBin", "Moves an authorized local file or directory to the Windows Recycle Bin when Safety:AllowMoveToBin is enabled.", 500, SafetyFlag = "Safety:AllowMoveToBin")]
     public Task<string> MoveToBinAsync(
-        [Description("Relative global-root or task-authorized absolute file or directory path.")] string path,
+        [ToolArgument(WorkflowArgumentKind.String, "Relative global-root or task-authorized absolute file or directory path.", Example = "inbox/obsolete.txt")] string path,
         CancellationToken cancellationToken)
     {
         if (!_safetyOptions.Value.AllowMoveToBin)
@@ -254,10 +267,12 @@ public sealed class FileSystemTool : IFileSystemTool
     }
 
     /// <inheritdoc />
-    [Description("Renames an authorized local file without changing its directory.")]
+    [ToolLocalPath("path", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite)]
+    [ToolLocalPath("path", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite, Derivation = LocalPathDerivationKind.SameDirectoryLeafName, ValueArgumentName = "newName")]
+    [Tool("filesystem.rename", "Renames an authorized local file without changing its directory.", 600)]
     public Task<string> RenameAsync(
-        [Description("Relative global-root or task-authorized absolute source file path.")] string path,
-        [Description("New file name only, without a directory path.")] string newName,
+        [ToolArgument(WorkflowArgumentKind.String, "Relative global-root or task-authorized absolute source file path.", Example = "inbox/source.txt")] string path,
+        [ToolArgument(WorkflowArgumentKind.String, "New file name only, without a directory path.", Example = "renamed.txt")] string newName,
         CancellationToken cancellationToken) =>
         ToolCallLog.ExecuteAsync(
             _logger,
@@ -309,10 +324,12 @@ public sealed class FileSystemTool : IFileSystemTool
             });
 
     /// <inheritdoc />
-    [Description("Changes the extension of an authorized local file.")]
+    [ToolLocalPath("path", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite)]
+    [ToolLocalPath("path", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite, Derivation = LocalPathDerivationKind.SameDirectoryExtension, ValueArgumentName = "extension")]
+    [Tool("filesystem.setExtension", "Changes the extension of an authorized local file.", 700)]
     public Task<string> SetExtensionAsync(
-        [Description("Relative global-root or task-authorized absolute source file path.")] string path,
-        [Description("New extension with or without a leading period, for example '.md' or 'md'.")] string extension,
+        [ToolArgument(WorkflowArgumentKind.String, "Relative global-root or task-authorized absolute source file path.", Example = "inbox/source.txt")] string path,
+        [ToolArgument(WorkflowArgumentKind.String, "New extension with or without a leading period, for example '.md' or 'md'.", Example = ".md")] string extension,
         CancellationToken cancellationToken) =>
         ToolCallLog.ExecuteAsync(
             _logger,
@@ -363,9 +380,10 @@ public sealed class FileSystemTool : IFileSystemTool
             });
 
     /// <inheritdoc />
-    [Description("Deletes a sandboxed file or directory when Safety:AllowFileDelete is enabled.")]
+    [ToolLocalPath("path", LocalPathTargetKind.FileOrDirectory, FileSystemAccessMode.ReadWrite)]
+    [Tool("filesystem.delete", "Deletes a sandboxed file or directory when Safety:AllowFileDelete is enabled.", 800, SafetyFlag = "Safety:AllowFileDelete")]
     public Task<string> DeleteAsync(
-        [Description("Relative global-root or task-authorized absolute file or directory path.")] string path,
+        [ToolArgument(WorkflowArgumentKind.String, "Relative global-root or task-authorized absolute file or directory path.", Example = "inbox/obsolete.txt")] string path,
         CancellationToken cancellationToken)
     {
         if (!_safetyOptions.Value.AllowFileDelete)
@@ -411,9 +429,10 @@ public sealed class FileSystemTool : IFileSystemTool
     }
 
     /// <inheritdoc />
-    [Description("Creates a directory beneath an authorized local path.")]
+    [ToolLocalPath("path", LocalPathTargetKind.Directory, FileSystemAccessMode.ReadWrite)]
+    [Tool("filesystem.createDirectory", "Creates a directory beneath an authorized local path.", 900)]
     public Task<string> CreateDirectoryAsync(
-        [Description("Relative global-root or task-authorized absolute directory path.")] string path,
+        [ToolArgument(WorkflowArgumentKind.String, "Relative global-root or task-authorized absolute directory path.", Example = "reports/2026")] string path,
         CancellationToken cancellationToken) =>
         ToolCallLog.ExecuteAsync(
             _logger,
@@ -433,11 +452,13 @@ public sealed class FileSystemTool : IFileSystemTool
             });
 
     /// <inheritdoc />
-    [Description("Converts an authorized Markdown file to a standalone UTF-8 HTML file using a dark or light theme.")]
+    [ToolLocalPath("sourcePath", LocalPathTargetKind.File, FileSystemAccessMode.ReadOnly)]
+    [ToolLocalPath("sourcePath", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite, Derivation = LocalPathDerivationKind.OptionalDestinationOrSameDirectoryExtension, ValueArgumentName = "destinationPath", DefaultValue = ".html")]
+    [Tool("filesystem.markdownToHtml", "Converts an authorized Markdown file to a standalone UTF-8 HTML file using a dark or light theme.", 1000)]
     public Task<string> MarkdownToHtmlAsync(
-        [Description("Relative global-root or task-authorized absolute Markdown source file path.")] string sourcePath,
-        [Description("Optional HTML destination path; omit to replace the source extension with '.html'.")] string? destinationPath = null,
-        [Description("Standalone HTML theme: Dark or Light. Dark is the default.")] MarkdownHtmlTheme theme = MarkdownHtmlTheme.Dark,
+        [ToolArgument(WorkflowArgumentKind.String, "Relative global-root or task-authorized absolute Markdown source file path.", Example = "reports/summary.md")] string sourcePath,
+        [ToolArgument(WorkflowArgumentKind.String, "Optional HTML destination path; omit to replace the source extension with '.html'.", Example = "reports/summary.html")] string? destinationPath = null,
+        [ToolArgument(WorkflowArgumentKind.Enumeration, "Standalone HTML theme: Dark or Light. Dark is the default.", Example = "Dark")] MarkdownHtmlTheme theme = MarkdownHtmlTheme.Dark,
         CancellationToken cancellationToken = default) =>
         ToolCallLog.ExecuteAsync(
             _logger,
@@ -495,10 +516,11 @@ public sealed class FileSystemTool : IFileSystemTool
             });
 
     /// <inheritdoc />
-    [Description("Extracts normalized plain text or principal Markdown structure from an authorized HTML file.")]
+    [ToolLocalPath("sourcePath", LocalPathTargetKind.File, FileSystemAccessMode.ReadOnly)]
+    [Tool("filesystem.htmlToText", "Extracts normalized plain text or principal Markdown structure from an authorized HTML file.", 1100)]
     public Task<string> HtmlToTextAsync(
-        [Description("Relative global-root or task-authorized absolute HTML source file path.")] string sourcePath,
-        [Description("Output format: Text or Markdown. Text is the default.")] HtmlTextFormat format = HtmlTextFormat.Text,
+        [ToolArgument(WorkflowArgumentKind.String, "Relative global-root or task-authorized absolute HTML source file path.", Example = "inbox/page.html")] string sourcePath,
+        [ToolArgument(WorkflowArgumentKind.Enumeration, "Output format: Text or Markdown. Text is the default.", Example = "Text")] HtmlTextFormat format = HtmlTextFormat.Text,
         CancellationToken cancellationToken = default) =>
         ToolCallLog.ExecuteAsync(
             _logger,

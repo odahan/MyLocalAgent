@@ -38,7 +38,7 @@ its own navigation, search, styles, and scripts in one file.
 | 18 | Compact External-Content Guardrails | Complete |
 | 18A | Extensible Tool Integration Foundation | Complete with automated verification |
 | 18C | File-system Recycle Bin and document conversions | Complete with automated verification |
-| 18D | Declarative Dynamic Tooling | Specification drafted; implementation TO DO |
+| 18D | Declarative Dynamic Tooling | Complete with automated verification |
 | 19 | SQLite Tool | TO DO |
 | 20 | Agent Prompt Placeholders | Complete with documented, human task test done |
 | 21 | Model Information Placeholders | Complete with automated verification |

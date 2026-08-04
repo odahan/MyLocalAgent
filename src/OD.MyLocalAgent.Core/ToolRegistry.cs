@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using System.Reflection;
 using System.Text.Json;
 using Microsoft.Extensions.AI;
@@ -6,44 +5,28 @@ using Microsoft.Extensions.AI;
 namespace OD.MyLocalAgent.Core;
 
 /// <summary>
-/// Creates agent functions and direct workflow invocations from the static Tool Map.
+/// Creates agent functions and direct workflow invocations from the canonical tool catalog.
 /// </summary>
 public sealed class ToolRegistry : IToolRegistry
 {
-    private readonly GmailTool _gmailTool;
-    private readonly CalendarTool _calendarTool;
-    private readonly IContextualToolFactory<DropboxTool> _dropboxToolFactory;
-    private readonly IContextualToolFactory<FileSystemTool> _fileSystemToolFactory;
-    private readonly HttpTool _httpTool;
-    private readonly WebSearchTool _webSearchTool;
+    private readonly IToolCatalog _catalog;
+    private readonly IToolTargetActivator _targetActivator;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ToolRegistry"/> class.
     /// </summary>
-    public ToolRegistry(
-        GmailTool gmailTool,
-        CalendarTool calendarTool,
-        IContextualToolFactory<DropboxTool> dropboxToolFactory,
-        IContextualToolFactory<FileSystemTool> fileSystemToolFactory,
-        HttpTool httpTool,
-        WebSearchTool webSearchTool)
+    /// <param name="catalog">The canonical tool catalog.</param>
+    /// <param name="targetActivator">The generic target activator.</param>
+    public ToolRegistry(IToolCatalog catalog, IToolTargetActivator targetActivator)
     {
-        ArgumentNullException.ThrowIfNull(gmailTool);
-        ArgumentNullException.ThrowIfNull(calendarTool);
-        ArgumentNullException.ThrowIfNull(dropboxToolFactory);
-        ArgumentNullException.ThrowIfNull(fileSystemToolFactory);
-        ArgumentNullException.ThrowIfNull(httpTool);
-        ArgumentNullException.ThrowIfNull(webSearchTool);
-        _gmailTool = gmailTool;
-        _calendarTool = calendarTool;
-        _dropboxToolFactory = dropboxToolFactory;
-        _fileSystemToolFactory = fileSystemToolFactory;
-        _httpTool = httpTool;
-        _webSearchTool = webSearchTool;
+        ArgumentNullException.ThrowIfNull(catalog);
+        ArgumentNullException.ThrowIfNull(targetActivator);
+        _catalog = catalog;
+        _targetActivator = targetActivator;
     }
 
     /// <inheritdoc />
-    public IReadOnlyList<ToolDefinition> Definitions => ToolMap.Definitions;
+    public IReadOnlyList<ToolDefinition> Definitions => _catalog.Definitions;
 
     /// <inheritdoc />
     public AITool[] GetAgentTools(IEnumerable<string> enabledToolGroups)
@@ -56,8 +39,8 @@ public sealed class ToolRegistry : IToolRegistry
     {
         ArgumentNullException.ThrowIfNull(executionContext);
         var whitelist = NormalizeWhitelist(enabledToolGroups);
-        var functions = CreateFunctions(executionContext);
-        return ToolMap.Definitions
+        var functions = CreateFunctions(whitelist, executionContext);
+        return _catalog.Definitions
             .Where(definition =>
                 definition.IsAgentTool && whitelist.Contains(definition.ToolGroup))
             .Select(definition => (AITool)functions[definition.Alias])
@@ -67,7 +50,7 @@ public sealed class ToolRegistry : IToolRegistry
     /// <inheritdoc />
     public bool TryGetDefinition(string alias, out ToolDefinition? definition)
     {
-        definition = ToolMap.Find(alias);
+        definition = _catalog.Find(alias);
         return definition is not null;
     }
 
@@ -94,7 +77,7 @@ public sealed class ToolRegistry : IToolRegistry
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(alias);
         ArgumentNullException.ThrowIfNull(executionContext);
-        var definition = ToolMap.Find(alias)
+        var definition = _catalog.Find(alias)
             ?? throw new WorkflowValidationException($"Unknown Tool Map alias '{alias}'.");
         if (!definition.IsAgentTool)
         {
@@ -148,7 +131,7 @@ public sealed class ToolRegistry : IToolRegistry
                 nameof(arguments));
         }
 
-        var functions = CreateFunctions(executionContext);
+        var functions = CreateFunctions(whitelist, executionContext);
         var result = await functions[definition.Alias]
             .InvokeAsync(new AIFunctionArguments(suppliedArguments), cancellationToken)
             .ConfigureAwait(false);
@@ -163,48 +146,52 @@ public sealed class ToolRegistry : IToolRegistry
         };
     }
 
-    private IReadOnlyDictionary<string, AIFunction> CreateFunctions(
+    private Dictionary<string, AIFunction> CreateFunctions(
+        HashSet<string> whitelist,
         ToolExecutionContext executionContext)
     {
-        var targets = new Dictionary<Type, object>
-        {
-            [typeof(GmailTool)] = _gmailTool,
-            [typeof(CalendarTool)] = _calendarTool,
-            [typeof(DropboxTool)] = _dropboxToolFactory.Create(executionContext),
-            [typeof(FileSystemTool)] = _fileSystemToolFactory.Create(executionContext),
-            [typeof(HttpTool)] = _httpTool,
-            [typeof(WebSearchTool)] = _webSearchTool,
-        };
+        var targets = new Dictionary<Type, object>();
         var functions = new Dictionary<string, AIFunction>(StringComparer.OrdinalIgnoreCase);
-        foreach (var definition in ToolMap.Definitions.Where(static item => item.IsAgentTool))
+
+        var enabledDefinitions = _catalog.Definitions
+            .Where(def => def.IsAgentTool && whitelist.Contains(def.ToolGroup));
+
+        foreach (var definition in enabledDefinitions)
         {
-            var method = definition.DeclaringType.GetMethod(
-                definition.MethodName!,
-                BindingFlags.Instance | BindingFlags.Public)
+            if (!targets.TryGetValue(definition.DeclaringType, out var target))
+            {
+                target = _targetActivator.CreateTarget(definition.DeclaringType, executionContext);
+                targets[definition.DeclaringType] = target;
+            }
+
+            var method = definition.Method
+                ?? definition.DeclaringType.GetMethod(
+                    definition.MethodName!,
+                    BindingFlags.Instance | BindingFlags.Public)
                 ?? throw new InvalidOperationException(
-                    $"Tool Map method '{definition.DeclaringType.Name}.{definition.MethodName}' does not exist.");
-            var description = definition.Description;
+                    $"Tool method '{definition.DeclaringType.Name}.{definition.MethodName}' does not exist.");
+
             functions.Add(
                 definition.Alias,
                 AIFunctionFactory.Create(
                     method,
-                    targets[definition.DeclaringType],
+                    target,
                     definition.AgentFunctionName!,
-                    description,
+                    definition.Description,
                     ToolJson.Options));
         }
 
         return functions;
     }
 
-    private static HashSet<string> NormalizeWhitelist(
+    private HashSet<string> NormalizeWhitelist(
         IEnumerable<string> enabledToolGroups)
     {
         ArgumentNullException.ThrowIfNull(enabledToolGroups);
         var whitelist = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var group in enabledToolGroups)
         {
-            if (string.IsNullOrWhiteSpace(group) || !ToolGroups.All.Contains(group))
+            if (string.IsNullOrWhiteSpace(group) || !_catalog.TaskWhitelistNames.Contains(group))
             {
                 throw new ArgumentException(
                     $"Unknown tool group '{group}'.",

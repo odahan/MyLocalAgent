@@ -10,6 +10,13 @@ namespace OD.MyLocalAgent.Core;
 /// <summary>
 /// Searches the selected provider and protects the exact delivered result payload.
 /// </summary>
+[ToolGroup(
+    "web",
+    "Web search (web) (cloud)",
+    "Search the web through the configured cloud search provider.",
+    1100,
+    Activation = ToolActivationKind.Singleton,
+    ServiceContract = typeof(IWebSearchTool))]
 public sealed class WebSearchTool : IWebSearchTool
 {
     private const string TruncationMarker = "[truncated by OD.MyLocalAgent]";
@@ -58,10 +65,10 @@ public sealed class WebSearchTool : IWebSearchTool
     }
 
     /// <inheritdoc />
-    [Description("Searches the web through the configured cloud provider and returns one Guardrails-protected compact result set.")]
+    [Tool("web.search", "Searches the web through the configured cloud provider and returns one Guardrails-protected compact result set.", 100)]
     public Task<string> SearchAsync(
-        [Description("Search query sent to the configured cloud provider.")] string query,
-        [Description("Optional result limit; defaults to WebSearch:DefaultMaxResults.")] int? maxResults = null,
+        [ToolArgument(WorkflowArgumentKind.String, "Search query sent to the configured cloud provider.", Example = "local weather forecast")] string query,
+        [ToolArgument(WorkflowArgumentKind.Integer, "Optional result limit; defaults to WebSearch:DefaultMaxResults.", Example = "5")] int? maxResults = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(query);

@@ -44,49 +44,20 @@ public static class ToolGroups
     /// </remarks>
     public const string Ai = "ai";
 
-    private static readonly IReadOnlyList<ToolGroupDefinition> CatalogEntries =
-        Array.AsReadOnly<ToolGroupDefinition>(
-        [
-            TaskGroup(Gmail, "Gmail", "Read or send Gmail messages through the configured account."),
-            TaskGroup(Calendar, "Calendar", "Read or create Google Calendar events through the configured account."),
-            TaskGroup(Dropbox, "Dropbox", "List, upload, or download Dropbox content."),
-            TaskGroup(FileSystem, "File system", "Read or change files beneath authorized local paths."),
-            TaskGroup(Http, "HTTP", "Send HTTP requests to hosts allowed by Settings."),
-            TaskGroup(Web, "Web search (web) (cloud)", "Search the web through the configured cloud search provider."),
-            new ToolGroupDefinition(
-                Ai,
-                "Built-in AI",
-                "Run built-in AI workflow steps that do not require a task tool-group permission.",
-                IsTaskWhitelistGroup: false),
-        ]);
-
-    private static readonly IReadOnlyDictionary<string, ToolGroupDefinition> CatalogByName =
-        CatalogEntries.ToDictionary(
-            static definition => definition.Name,
-            StringComparer.OrdinalIgnoreCase);
-
-    private static readonly IReadOnlyList<ToolGroupDefinition> TaskGroupEntries =
-        Array.AsReadOnly(
-            CatalogEntries
-                .Where(static definition => definition.IsTaskWhitelistGroup)
-                .ToArray());
-
     /// <summary>
     /// Gets every tool group in stable display order, including authoring-only groups.
     /// </summary>
-    public static IReadOnlyList<ToolGroupDefinition> Catalog => CatalogEntries;
+    public static IReadOnlyList<ToolGroupDefinition> Catalog => ToolCatalog.Default.Groups;
 
     /// <summary>
     /// Gets task-whitelist groups in stable display and serialization order.
     /// </summary>
-    public static IReadOnlyList<ToolGroupDefinition> TaskWhitelist => TaskGroupEntries;
+    public static IReadOnlyList<ToolGroupDefinition> TaskWhitelist => ToolCatalog.Default.TaskWhitelistGroups;
 
     /// <summary>
     /// Gets all supported task-whitelist group names.
     /// </summary>
-    public static IReadOnlySet<string> All { get; } = new HashSet<string>(
-        TaskGroupEntries.Select(static definition => definition.Name),
-        StringComparer.OrdinalIgnoreCase);
+    public static IReadOnlySet<string> All => ToolCatalog.Default.TaskWhitelistNames;
 
     /// <summary>
     /// Resolves catalog metadata for a stable group name.
@@ -96,34 +67,17 @@ public static class ToolGroups
     public static ToolGroupDefinition? Find(string name)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        return CatalogByName.GetValueOrDefault(name);
+        return ToolCatalog.Default.FindGroup(name);
     }
 
     /// <summary>
     /// Gets the stable display position of a group.
     /// </summary>
     /// <param name="name">The case-insensitive tool-group name.</param>
-    /// <returns>The zero-based catalog position, or <see cref="int.MaxValue"/> when unknown.</returns>
+    /// <returns>The group display order, or <see cref="int.MaxValue"/> when unknown.</returns>
     public static int GetDisplayOrder(string name)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        for (var index = 0; index < CatalogEntries.Count; index++)
-        {
-            if (string.Equals(
-                    CatalogEntries[index].Name,
-                    name,
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                return index;
-            }
-        }
-
-        return int.MaxValue;
+        return ToolCatalog.Default.GetGroupDisplayOrder(name);
     }
-
-    private static ToolGroupDefinition TaskGroup(
-        string name,
-        string displayName,
-        string description) =>
-        new(name, displayName, description, IsTaskWhitelistGroup: true);
 }

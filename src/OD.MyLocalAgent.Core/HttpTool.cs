@@ -10,6 +10,13 @@ namespace OD.MyLocalAgent.Core;
 /// <summary>
 /// Implements allowlisted HTTP tools with compact protected GET delivery.
 /// </summary>
+[ToolGroup(
+    "http",
+    "HTTP",
+    "Send HTTP requests to hosts allowed by Settings.",
+    1000,
+    Activation = ToolActivationKind.Singleton,
+    ServiceContract = typeof(IHttpTool))]
 public sealed class HttpTool : IHttpTool
 {
     /// <summary>Gets the managed HTTP-client name.</summary>
@@ -57,9 +64,9 @@ public sealed class HttpTool : IHttpTool
     }
 
     /// <inheritdoc />
-    [Description("Performs an HTTP GET request to an allowed host.")]
+    [Tool("http.get", "Performs an HTTP GET request to an allowed host.", 100)]
     public Task<string> GetAsync(
-        [Description("Absolute HTTP or HTTPS URL.")] string url,
+        [ToolArgument(WorkflowArgumentKind.String, "Absolute HTTP or HTTPS URL.", Example = "https://api.github.com/zen")] string url,
         CancellationToken cancellationToken) =>
         ToolCallLog.ExecuteAsync(
             _logger,
@@ -111,11 +118,11 @@ public sealed class HttpTool : IHttpTool
             });
 
     /// <inheritdoc />
-    [Description("Performs an HTTP POST request when Safety:AllowHttpPost is enabled.")]
+    [Tool("http.post", "Performs an HTTP POST request when Safety:AllowHttpPost is enabled.", 200, SafetyFlag = "Safety:AllowHttpPost")]
     public Task<string> PostAsync(
-        [Description("Absolute HTTP or HTTPS URL.")] string url,
-        [Description("Request body.")] string body,
-        [Description("Request media type, such as application/json.")] string contentType,
+        [ToolArgument(WorkflowArgumentKind.String, "Absolute HTTP or HTTPS URL.", Example = "https://httpbin.org/post")] string url,
+        [ToolArgument(WorkflowArgumentKind.String, "Request body.", Example = "{ \"key\": \"value\" }")] string body,
+        [ToolArgument(WorkflowArgumentKind.String, "Request media type, such as application/json.", Example = "application/json")] string contentType,
         CancellationToken cancellationToken)
     {
         if (!_safetyOptions.Value.AllowHttpPost)
@@ -154,9 +161,9 @@ public sealed class HttpTool : IHttpTool
     }
 
     /// <inheritdoc />
-    [Description("Downloads an allowed web page and returns a protected factual summary.")]
+    [Tool("http.getText", "Downloads an allowed web page and returns a protected factual summary.", 300)]
     public Task<string> GetTextAsync(
-        [Description("Absolute HTTP or HTTPS URL.")] string url,
+        [ToolArgument(WorkflowArgumentKind.String, "Absolute HTTP or HTTPS URL.", Example = "https://example.com/article")] string url,
         CancellationToken cancellationToken) =>
         ToolCallLog.ExecuteAsync(
             _logger,

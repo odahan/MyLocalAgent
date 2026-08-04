@@ -10,6 +10,13 @@ namespace OD.MyLocalAgent.Core;
 /// <summary>
 /// Exposes compact-JSON Gmail operations with summary-only protected reads.
 /// </summary>
+[ToolGroup(
+    "gmail",
+    "Gmail",
+    "Read or send Gmail messages through the configured account.",
+    100,
+    Activation = ToolActivationKind.Singleton,
+    ServiceContract = typeof(IGmailTool))]
 public sealed class GmailTool : IGmailTool
 {
     private const string ReviewMarker =
@@ -52,9 +59,9 @@ public sealed class GmailTool : IGmailTool
     }
 
     /// <inheritdoc />
-    [Description("Reads Gmail messages received today.")]
+    [Tool("gmail.readToday", "Reads Gmail messages received today.", 100)]
     public Task<string> ReadTodayAsync(
-        [Description("Optional maximum number of messages to return.")] int? maxMessages = null,
+        [ToolArgument(WorkflowArgumentKind.Integer, "Optional maximum number of messages to return.", Example = "10")] int? maxMessages = null,
         CancellationToken cancellationToken = default) =>
         ReadAsync(
             "gmail.readToday",
@@ -63,9 +70,9 @@ public sealed class GmailTool : IGmailTool
             cancellationToken);
 
     /// <inheritdoc />
-    [Description("Reads unread Gmail messages.")]
+    [Tool("gmail.readUnread", "Reads unread Gmail messages.", 200)]
     public Task<string> ReadUnreadAsync(
-        [Description("Optional maximum number of messages to return.")] int? maxMessages = null,
+        [ToolArgument(WorkflowArgumentKind.Integer, "Optional maximum number of messages to return.", Example = "10")] int? maxMessages = null,
         CancellationToken cancellationToken = default) =>
         ReadAsync(
             "gmail.readUnread",
@@ -74,10 +81,10 @@ public sealed class GmailTool : IGmailTool
             cancellationToken);
 
     /// <inheritdoc />
-    [Description("Reads Gmail messages since the start of the local day a number of days ago.")]
+    [Tool("gmail.readRecent", "Reads Gmail messages since the start of the local day a number of days ago.", 300)]
     public Task<string> ReadRecentAsync(
-        [Description("Number of local calendar days before today to include; zero means today only.")] int daysBack,
-        [Description("Optional maximum number of messages to return.")] int? maxMessages = null,
+        [ToolArgument(WorkflowArgumentKind.Integer, "Number of local calendar days before today to include; zero means today only.", Example = "3")] int daysBack,
+        [ToolArgument(WorkflowArgumentKind.Integer, "Optional maximum number of messages to return.", Example = "10")] int? maxMessages = null,
         CancellationToken cancellationToken = default)
     {
         if (daysBack < 0 || daysBack > 3650)
@@ -97,11 +104,11 @@ public sealed class GmailTool : IGmailTool
     }
 
     /// <inheritdoc />
-    [Description("Sends a plain-text Gmail message when Safety:AllowSendEmail is enabled.")]
+    [Tool("gmail.send", "Sends a plain-text Gmail message when Safety:AllowSendEmail is enabled.", 400, SafetyFlag = "Safety:AllowSendEmail")]
     public Task<string> SendAsync(
-        [Description("Recipient email address.")] string to,
-        [Description("Message subject.")] string subject,
-        [Description("Plain-text message body.")] string body,
+        [ToolArgument(WorkflowArgumentKind.String, "Recipient email address.", Example = "someone@example.com")] string to,
+        [ToolArgument(WorkflowArgumentKind.String, "Message subject.", Example = "Daily report")] string subject,
+        [ToolArgument(WorkflowArgumentKind.String, "Plain-text message body.", Example = "Here is today's summary.")] string body,
         CancellationToken cancellationToken)
     {
         if (!_safetyOptions.Value.AllowSendEmail)

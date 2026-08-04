@@ -29,4 +29,9 @@ public enum WorkflowArgumentKind
     /// A value restricted to a closed set of enumeration names.
     /// </summary>
     Enumeration,
+
+    /// <summary>
+    /// A JSON object or structured argument value.
+    /// </summary>
+    Object,
 }

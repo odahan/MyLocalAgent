@@ -1,3 +1,5 @@
+using System.Reflection;
+
 namespace OD.MyLocalAgent.Core;
 
 /// <summary>
@@ -45,6 +47,21 @@ public sealed record ToolDefinition(
     /// Gets the local-path argument semantics used by deterministic authorization analysis.
     /// </summary>
     public IReadOnlyList<LocalPathArgumentDefinition> LocalPathArguments { get; init; } = [];
+
+    /// <summary>
+    /// Gets the group-local display order position.
+    /// </summary>
+    public int Order { get; init; }
+
+    /// <summary>
+    /// Gets the target activation lifetime strategy for invocable tools.
+    /// </summary>
+    public ToolActivationKind Activation { get; init; } = ToolActivationKind.Singleton;
+
+    /// <summary>
+    /// Gets the reflected method info for invocable tools.
+    /// </summary>
+    public MethodInfo? Method { get; init; }
 
     /// <summary>
     /// Gets a value indicating whether this entry is exposed as an agent tool.

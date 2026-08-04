@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -284,6 +285,7 @@ public sealed class ToolMapTests : IDisposable
 
     private ToolRegistry CreateRegistry()
     {
+        var services = new ServiceCollection();
         var fileSystemOptions = Options.Create(
             new FileSystemOptions { RootPath = _rootPath });
         var safetyOptions = Options.Create(new SafetyOptions());
@@ -306,53 +308,36 @@ public sealed class ToolMapTests : IDisposable
                 new WebSearchResult(
                     [],
                     WebSearchOptions.OllamaProvider));
-        return new ToolRegistry(
-            new GmailTool(
-                Mock.Of<IGmailConnector>(),
-                safetyOptions,
-                new MutableOptionsMonitor<GuardrailsOptions>(new GuardrailsOptions()),
-                new StubContentTrustService(),
-                new StubIncidentReporter(),
-                NullLogger<GmailTool>.Instance,
-                TimeProvider.System),
-            new CalendarTool(
-                Mock.Of<ICalendarConnector>(),
-                NullLogger<CalendarTool>.Instance,
-                TimeProvider.System),
-            new DelegateContextualToolFactory<DropboxTool>(
-                context => new DropboxTool(
-                    Mock.Of<IDropboxConnector>(),
-                    sandbox,
-                    NullLogger<DropboxTool>.Instance,
-                    TimeProvider.System,
-                    context)),
-            new DelegateContextualToolFactory<FileSystemTool>(
-                context => new FileSystemTool(
-                    sandbox,
-                    safetyOptions,
-                    fileSystemOptions,
-                    Mock.Of<IRecycleBinService>(),
-                    NullLogger<FileSystemTool>.Instance,
-                    TimeProvider.System,
-                    context)),
-            new HttpTool(
-                new StubHttpClientFactory(handler),
-                Options.Create(new HttpOptions()),
-                safetyOptions,
-                new MutableOptionsMonitor<GuardrailsOptions>(new GuardrailsOptions()),
-                new StubContentTrustService(),
-                new StubIncidentReporter(),
-                NullLogger<HttpTool>.Instance,
-                TimeProvider.System),
-            new WebSearchTool(
-                webSearchConnector.Object,
-                new MutableOptionsMonitor<WebSearchOptions>(
-                    new WebSearchOptions()),
-                new MutableOptionsMonitor<GuardrailsOptions>(
-                    new GuardrailsOptions()),
-                new StubContentTrustService(),
-                new StubIncidentReporter(),
-                NullLogger<WebSearchTool>.Instance,
-                TimeProvider.System));
+
+        services.AddSingleton<IPathSandbox>(sandbox);
+        services.AddSingleton(safetyOptions);
+        services.AddSingleton(fileSystemOptions);
+        services.AddSingleton<IRecycleBinService>(Mock.Of<IRecycleBinService>());
+        services.AddSingleton<IGmailConnector>(Mock.Of<IGmailConnector>());
+        services.AddSingleton<ICalendarConnector>(Mock.Of<ICalendarConnector>());
+        services.AddSingleton<IDropboxConnector>(Mock.Of<IDropboxConnector>());
+        services.AddSingleton<IWebSearchConnector>(webSearchConnector.Object);
+        services.AddSingleton<IHttpClientFactory>(new StubHttpClientFactory(handler));
+        services.AddSingleton<IOptions<HttpOptions>>(Options.Create(new HttpOptions()));
+        services.AddSingleton<IOptionsMonitor<GuardrailsOptions>>(new MutableOptionsMonitor<GuardrailsOptions>(new GuardrailsOptions()));
+        services.AddSingleton<IOptionsMonitor<WebSearchOptions>>(new MutableOptionsMonitor<WebSearchOptions>(new WebSearchOptions()));
+        services.AddSingleton<IContentTrustService, StubContentTrustService>();
+        services.AddSingleton<IIncidentReporter, StubIncidentReporter>();
+        services.AddSingleton(TimeProvider.System);
+        services.AddLogging();
+
+        services.AddSingleton<GmailTool>();
+        services.AddSingleton<CalendarTool>();
+        services.AddSingleton<DropboxTool>();
+        services.AddSingleton<FileSystemTool>();
+        services.AddSingleton<HttpTool>();
+        services.AddSingleton<WebSearchTool>();
+
+        var catalog = ToolCatalog.Default;
+        services.AddSingleton<IToolCatalog>(catalog);
+        services.AddSingleton<IToolTargetActivator, ToolTargetActivator>();
+
+        var provider = services.BuildServiceProvider();
+        return new ToolRegistry(catalog, provider.GetRequiredService<IToolTargetActivator>());
     }
 }

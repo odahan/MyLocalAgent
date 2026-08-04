@@ -1,3 +1,4 @@
+using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -64,34 +65,41 @@ public static class HostApplicationBuilderExtensions
 
         builder.Services.AddSingleton<IPathSandbox, PathSandbox>();
         builder.Services.AddSingleton<IRecycleBinService, WindowsRecycleBinService>();
-        builder.Services.AddSingleton<IContextualToolFactory<FileSystemTool>,
-            ContextualToolFactory<FileSystemTool>>();
-        builder.Services.AddSingleton<IContextualToolFactory<DropboxTool>,
-            ContextualToolFactory<DropboxTool>>();
-        builder.Services.AddSingleton(
-            static services => services
-                .GetRequiredService<IContextualToolFactory<FileSystemTool>>()
-                .Create(ToolExecutionContext.Taskless));
-        builder.Services.AddSingleton<IFileSystemTool>(
-            static services => services.GetRequiredService<FileSystemTool>());
-        builder.Services.AddSingleton<GmailTool>();
-        builder.Services.AddSingleton<IGmailTool>(
-            static services => services.GetRequiredService<GmailTool>());
-        builder.Services.AddSingleton<CalendarTool>();
-        builder.Services.AddSingleton<ICalendarTool>(
-            static services => services.GetRequiredService<CalendarTool>());
-        builder.Services.AddSingleton(
-            static services => services
-                .GetRequiredService<IContextualToolFactory<DropboxTool>>()
-                .Create(ToolExecutionContext.Taskless));
-        builder.Services.AddSingleton<IDropboxTool>(
-            static services => services.GetRequiredService<DropboxTool>());
-        builder.Services.AddSingleton<HttpTool>();
-        builder.Services.AddSingleton<IHttpTool>(
-            static services => services.GetRequiredService<HttpTool>());
-        builder.Services.AddSingleton<WebSearchTool>();
-        builder.Services.AddSingleton<IWebSearchTool>(
-            static services => services.GetRequiredService<WebSearchTool>());
+
+        var catalog = ToolCatalog.Default;
+        builder.Services.AddSingleton<IToolCatalog>(catalog);
+        builder.Services.AddSingleton<IToolTargetActivator, ToolTargetActivator>();
+
+        var registeredTypes = new HashSet<Type>();
+        foreach (var group in catalog.Groups)
+        {
+            var def = catalog.Definitions.FirstOrDefault(d => d.ToolGroup == group.Name);
+            if (def is null || registeredTypes.Contains(def.DeclaringType))
+            {
+                continue;
+            }
+
+            registeredTypes.Add(def.DeclaringType);
+            var toolType = def.DeclaringType;
+            var groupAttr = toolType.GetCustomAttribute<ToolGroupAttribute>();
+
+            if (def.Activation == ToolActivationKind.Singleton)
+            {
+                builder.Services.AddSingleton(toolType);
+            }
+            else if (groupAttr?.ServiceContract is not null && groupAttr.RegisterTasklessProjection)
+            {
+                builder.Services.AddSingleton(toolType, sp =>
+                    sp.GetRequiredService<IToolTargetActivator>().CreateTarget(toolType, ToolExecutionContext.Taskless));
+            }
+
+            if (groupAttr?.ServiceContract is not null)
+            {
+                var serviceContract = groupAttr.ServiceContract;
+                builder.Services.AddSingleton(serviceContract, sp => sp.GetRequiredService(toolType));
+            }
+        }
+
         builder.Services.AddSingleton<IToolRegistry, ToolRegistry>();
 
         builder.Services.AddSingleton<SummarizeTextSkill>();

@@ -7,6 +7,13 @@ namespace OD.MyLocalAgent.Core;
 /// <summary>
 /// Exposes compact-JSON Dropbox connector operations.
 /// </summary>
+[ToolGroup(
+    "dropbox",
+    "Dropbox",
+    "List, upload, or download Dropbox content.",
+    300,
+    Activation = ToolActivationKind.Contextual,
+    ServiceContract = typeof(IDropboxTool))]
 public sealed class DropboxTool : IDropboxTool
 {
     private readonly IDropboxConnector _connector;
@@ -38,10 +45,11 @@ public sealed class DropboxTool : IDropboxTool
     }
 
     /// <inheritdoc />
-    [Description("Uploads an authorized local file to Dropbox.")]
+    [ToolLocalPath("localPath", LocalPathTargetKind.File, FileSystemAccessMode.ReadOnly)]
+    [Tool("dropbox.upload", "Uploads an authorized local file to Dropbox.", 100)]
     public Task<string> UploadAsync(
-        [Description("Relative global-root or task-authorized absolute local source path.")] string localPath,
-        [Description("Dropbox destination path.")] string dropboxPath,
+        [ToolArgument(WorkflowArgumentKind.String, "Relative global-root or task-authorized absolute local source path.", Example = "reports/summary.txt")] string localPath,
+        [ToolArgument(WorkflowArgumentKind.String, "Dropbox destination path.", Example = "/Reports/summary.txt")] string dropboxPath,
         CancellationToken cancellationToken) =>
         ToolCallLog.ExecuteAsync(
             _logger,
@@ -64,10 +72,11 @@ public sealed class DropboxTool : IDropboxTool
             SummarizeDropboxResult);
 
     /// <inheritdoc />
-    [Description("Downloads a Dropbox file into an authorized local path.")]
+    [ToolLocalPath("localPath", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite)]
+    [Tool("dropbox.download", "Downloads a Dropbox file into an authorized local path.", 200)]
     public Task<string> DownloadAsync(
-        [Description("Dropbox source path.")] string dropboxPath,
-        [Description("Relative global-root or task-authorized absolute local destination path.")] string localPath,
+        [ToolArgument(WorkflowArgumentKind.String, "Dropbox source path.", Example = "/Reports/summary.txt")] string dropboxPath,
+        [ToolArgument(WorkflowArgumentKind.String, "Relative global-root or task-authorized absolute local destination path.", Example = "reports/summary.txt")] string localPath,
         CancellationToken cancellationToken) =>
         ToolCallLog.ExecuteAsync(
             _logger,
@@ -96,9 +105,9 @@ public sealed class DropboxTool : IDropboxTool
             SummarizeDropboxResult);
 
     /// <inheritdoc />
-    [Description("Lists the immediate children of a Dropbox folder.")]
+    [Tool("dropbox.list", "Lists the immediate children of a Dropbox folder.", 300)]
     public Task<string> ListAsync(
-        [Description("Dropbox folder path.")] string folderPath,
+        [ToolArgument(WorkflowArgumentKind.String, "Dropbox folder path.", Example = "/Reports")] string folderPath,
         CancellationToken cancellationToken) =>
         ToolCallLog.ExecuteAsync(
             _logger,
