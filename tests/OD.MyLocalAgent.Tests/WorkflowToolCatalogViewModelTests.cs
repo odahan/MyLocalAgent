@@ -31,6 +31,10 @@ public sealed class WorkflowToolCatalogViewModelTests
             .Select(static group => group.Name);
 
         actualGroups.Should().Equal(expectedGroups);
+        var aliases = viewModel.Items.Select(static item => item.Alias).ToArray();
+        aliases.Should().Contain("filesystem.moveToBin");
+        aliases.Should().Contain("filesystem.markdownToHtml");
+        aliases.Should().Contain("filesystem.htmlToText");
     }
 
     /// <summary>

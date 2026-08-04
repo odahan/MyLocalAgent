@@ -21,6 +21,11 @@ public sealed class SafetyOptions
     public bool AllowFileDelete { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether moving files to the Recycle Bin is allowed.
+    /// </summary>
+    public bool AllowMoveToBin { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether HTTP POST requests are allowed.
     /// </summary>
     public bool AllowHttpPost { get; set; }
@@ -36,6 +41,7 @@ public sealed class SafetyOptions
         {
             "Safety:AllowSendEmail" => AllowSendEmail,
             "Safety:AllowFileDelete" => AllowFileDelete,
+            "Safety:AllowMoveToBin" => AllowMoveToBin,
             "Safety:AllowHttpPost" => AllowHttpPost,
             _ => false,
         };

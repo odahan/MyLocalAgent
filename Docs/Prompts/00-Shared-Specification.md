@@ -86,7 +86,8 @@ build + green tests. This document alone describes the *final, complete* product
 - **R9 — Safe by default.** Destructive or outbound-side-effect operations are gated by the
   `Safety` configuration section (§8.2) and throw a typed `SafetyException` when disabled:
   `AllowSendEmail` (default `false`) gates `gmail.send`; `AllowFileDelete` (default `false`)
-  gates `filesystem.delete`; `AllowHttpPost` (default `false`) gates `http.post`.
+  gates `filesystem.delete`; `AllowMoveToBin` (default `false`) gates
+  `filesystem.moveToBin`; `AllowHttpPost` (default `false`) gates `http.post`.
   `Http:AllowedHosts` is an optional host allowlist for HttpTool (empty = all hosts allowed;
   document the risk in the README). Relative file-system operations are sandboxed under
   `FileSystem:RootPath`; absolute paths additionally require a matching per-task §14 rule.
@@ -223,8 +224,9 @@ client id/secret from configuration. OAuth consent is an interactive, UI-side op
   source of truth, guarded by a reflection-based consistency test (§7.7).
 - **Tools** (interface + class; `[Description]`-annotated methods; connectors/services
   injected; agent-facing function names exactly as in the Tool Map):
-  - `FileSystemTool` — list directory, read text file (size-capped), write, move, delete,
-    create directory. Relative paths are **sandboxed under `FileSystem:RootPath`** and
+  - `FileSystemTool` — list directory, read text file (size-capped), write, move, move to the
+    Windows Recycle Bin, delete, create directory, Markdown-to-HTML conversion, and
+    HTML-to-text/Markdown extraction. Relative paths are **sandboxed under `FileSystem:RootPath`** and
     absolute paths require the current task's §14 authorization; escape attempts throw
     `PathSandboxException`.
     `delete` additionally requires `Safety:AllowFileDelete` (R9).
@@ -398,7 +400,8 @@ card layout, busy indicators, snackbars.
 ### 7.7 `OD.MyLocalAgent.Tests` — unit tests (xUnit + Moq + FluentAssertions)
 
 - `FileSystemTool` — all operations + sandbox-escape rejection (temp directory) + `delete`
-  blocked when `AllowFileDelete=false`.
+  blocked when `AllowFileDelete=false` + Move to Bin blocked when
+  `AllowMoveToBin=false` + deterministic restricted document conversions.
 - `OllamaClientService` — happy path, timeout, endpoint down, model missing, streaming
   concatenation (mocked `HttpMessageHandler`).
 - `GmailTool` / `CalendarTool` / `DropboxTool` — mocked connectors; argument mapping, DTO→JSON
@@ -481,7 +484,7 @@ if `workflow` is non-empty; optional task `generationOptions` follows §17. Ship
   "FileSystem": { "RootPath": "C:\\OD.MyLocalAgent" },
   "Http": { "TimeoutSeconds": 30, "UserAgent": "OD.MyLocalAgent/1.0", "AllowedHosts": [] },
   "Scheduler": { "TaskFolder": "OD.MyLocalAgent", "RunWhenLoggedOff": false, "RunnerPath": "" },
-  "Safety": { "AllowSendEmail": false, "AllowFileDelete": false, "AllowHttpPost": false },
+  "Safety": { "AllowSendEmail": false, "AllowFileDelete": false, "AllowMoveToBin": false, "AllowHttpPost": false },
   "Logging": { "MinimumLevel": "Information" }
 }
 ```
@@ -547,8 +550,11 @@ is invalid. Context-window configuration is never valid in task or workflow JSON
 | `filesystem.read` | `filesystem_read` | `FileSystemTool.ReadAsync` | `path` |
 | `filesystem.write` | `filesystem_write` | `FileSystemTool.WriteAsync` | `path`, `content` |
 | `filesystem.move` | `filesystem_move` | `FileSystemTool.MoveAsync` | `from`, `to` |
+| `filesystem.moveToBin` ⚠ R9 | `filesystem_move_to_bin` | `FileSystemTool.MoveToBinAsync` | `path` |
 | `filesystem.delete` ⚠ R9 | `filesystem_delete` | `FileSystemTool.DeleteAsync` | `path` |
 | `filesystem.createDirectory` | `filesystem_create_directory` | `FileSystemTool.CreateDirectoryAsync` | `path` |
+| `filesystem.markdownToHtml` | `filesystem_markdown_to_html` | `FileSystemTool.MarkdownToHtmlAsync` | `sourcePath`, `destinationPath` (optional), `theme` (optional) |
+| `filesystem.htmlToText` | `filesystem_html_to_text` | `FileSystemTool.HtmlToTextAsync` | `sourcePath`, `format` (optional) |
 | `http.get` | `http_get` | `HttpTool.GetAsync` | `url` |
 | `http.post` ⚠ R9 | `http_post` | `HttpTool.PostAsync` | `url`, `body`, `contentType` |
 | `http.getText` | `http_get_text` | `HttpTool.GetTextAsync` | `url` |
@@ -661,8 +667,9 @@ plus the stage-specific checks. Stage 6 executes the **final acceptance checklis
 - [ ] Exception drill via the "Trigger test incident" button **and** a faulted background
   task: both are caught, written to `incidents.jsonl` with correlation ids, shown as
   non-blocking notifications — the app keeps running.
-- [ ] Safety defaults verified: with flags off, `filesystem.delete`, `gmail.send` and
-  `http.post` fail with `SafetyException` (runner `test-tool` is the quickest probe).
+- [ ] Safety defaults verified: with flags off, `filesystem.delete`, `filesystem.moveToBin`,
+  `gmail.send` and `http.post` fail with `SafetyException` (runner `test-tool` is the quickest
+  probe).
 - [ ] `resync-schedules` repairs a stale registration (delete the task from Task Scheduler,
   run the command, verify it is recreated with the correct next occurrence).
 
@@ -938,7 +945,10 @@ so a read-write child may be declared beneath a read-only parent.
 - `filesystem.list` and `filesystem.read` require read access.
 - `filesystem.write` and `filesystem.createDirectory` require read-write access.
 - Both source and destination of `filesystem.move` require read-write access.
+- `filesystem.moveToBin` requires read-write access plus `Safety:AllowMoveToBin`.
 - `filesystem.delete` requires read-write access plus `Safety:AllowFileDelete`.
+- `filesystem.markdownToHtml` requires read access to its source and read-write access to its
+  explicit or `.html`-derived destination. `filesystem.htmlToText` requires read access.
 - `dropbox.upload` requires read access to `localPath`.
 - `dropbox.download` requires read-write access to `localPath`.
 - Tool tester and AI playground executions that are not associated with a saved task receive
@@ -1827,6 +1837,46 @@ Task editor projection, local-path relevance, dirty/load/save/Apply/Undo behavio
 order, unknown-group rejection, and all prior whitelist regressions. The gate remains a warning-
 clean Release build and deterministic tests with `-m:1`, documentation parity, and
 `git diff --check`.
+
+## 21C. Stage 18C addendum — File-system Recycle Bin and document conversions
+
+This addendum extends R9, §7.3, §8.2–§8.3, §14, §20, and §21A with three aliases in the existing
+`filesystem` group. The standalone
+`Docs/Prompts/18C-Stage18C-FileSystemRecycleAndDocumentConversions.md` prompt is the complete
+implementation contract.
+
+### 21C.1 Aliases, authorization, and Safety
+
+`filesystem.moveToBin(path)` accepts an existing file or directory, requires effective ReadWrite
+authorization and independently enabled `Safety:AllowMoveToBin`, and uses the Windows Recycle Bin
+without UI or permanent-delete fallback. The gate ships false and is persisted in Settings.
+
+`filesystem.markdownToHtml(sourcePath, destinationPath?, theme?)` reads an authorized Markdown
+file and writes an independently authorized UTF-8 HTML destination. Omission derives `.html`;
+`theme` is `Dark` by default or `Light`. `filesystem.htmlToText(sourcePath, format?)` reads an
+authorized HTML file and returns `Text` by default or principal `Markdown` structure. It performs
+no implicit write.
+
+### 21C.2 Deterministic inactive conversion
+
+Conversion uses the existing Markdig and HtmlAgilityPack packages. Raw Markdown HTML is disabled.
+Standalone HTML embeds restricted CSS and a CSP blocking scripts and remote resources. HTML
+extraction removes active/non-content nodes, executes nothing, performs no network request, and
+preserves headings, lists, emphasis, links, quotes, and code in Markdown mode. Both sources obey
+`FileSystem:MaxReadBytes`.
+
+Local conversion content remains outside Guardrails classification. Tool results and logs follow
+existing compact/privacy rules; logs never contain source or generated document content.
+
+### 21C.3 Stage 18A integration and verification
+
+Tool Map descriptions, ordered arguments, enum values, optionality, Safety flags, and local-path
+metadata drive Tool catalog, Tool tester, helper, whitelist, validation, and authorization
+proposals. No parallel group/alias UI list is added. Automated coverage includes both authorization
+layers, Safety defaults, fake recycle dispatch, conversion output/restrictions, settings
+persistence, reflection metadata, catalog visibility, and regressions. The gate remains a warning-
+clean Release build and deterministic tests with `-m:1`, EN/FR manual parity, sample validation,
+and `git diff --check`.
 
 ## 22. Stage 19 addendum — SQLite Tool
 

@@ -340,6 +340,12 @@
                                Style="{StaticResource CaptionTextStyle}"
                                Text="Permits filesystem.delete inside the configured sandbox root." />
                     <CheckBox Margin="0,12,0,0"
+                              Content="Allow moving files to the Recycle Bin"
+                              IsChecked="{Binding AllowMoveToBin, Mode=TwoWay}" />
+                    <TextBlock Margin="24,2,0,0"
+                               Style="{StaticResource CaptionTextStyle}"
+                               Text="Permits filesystem.moveToBin for authorized files and directories." />
+                    <CheckBox Margin="0,12,0,0"
                               Content="Allow HTTP POST"
                               IsChecked="{Binding AllowHttpPost, Mode=TwoWay}" />
                     <TextBlock Margin="24,2,0,0"

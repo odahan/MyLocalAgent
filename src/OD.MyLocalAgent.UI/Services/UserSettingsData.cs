@@ -19,6 +19,7 @@ namespace OD.MyLocalAgent.UI.Services;
 /// <param name="RunnerPath">The optional runner path.</param>
 /// <param name="AllowSendEmail">Whether email sending is enabled.</param>
 /// <param name="AllowFileDelete">Whether file deletion is enabled.</param>
+/// <param name="AllowMoveToBin">Whether moving files to the Recycle Bin is enabled.</param>
 /// <param name="AllowHttpPost">Whether HTTP POST is enabled.</param>
 /// <param name="GuardrailsScreeningEnabled">Whether LLM guardrails processing is enabled.</param>
 /// <param name="GuardrailsCleanThreshold">The clean-delivery threshold.</param>
@@ -52,6 +53,7 @@ public sealed record UserSettingsData(
     string RunnerPath,
     bool AllowSendEmail,
     bool AllowFileDelete,
+    bool AllowMoveToBin,
     bool AllowHttpPost,
     bool GuardrailsScreeningEnabled,
     int GuardrailsCleanThreshold,

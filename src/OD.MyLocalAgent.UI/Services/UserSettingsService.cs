@@ -282,6 +282,7 @@ internal sealed class UserSettingsService : IUserSettingsService
             {
                 ["AllowSendEmail"] = settings.AllowSendEmail,
                 ["AllowFileDelete"] = settings.AllowFileDelete,
+                ["AllowMoveToBin"] = settings.AllowMoveToBin,
                 ["AllowHttpPost"] = settings.AllowHttpPost,
             },
             ["Guardrails"] = new Dictionary<string, object>

@@ -73,6 +73,39 @@ public sealed class ToolMapTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies Stage 18C aliases expose their exact optional, enum, path, and Safety metadata.
+    /// </summary>
+    [Fact]
+    public void FileSystemConversionAndRecycleMetadataIsComplete()
+    {
+        var recycle = ToolMap.Find("filesystem.moveToBin");
+        var markdown = ToolMap.Find("filesystem.markdownToHtml");
+        var html = ToolMap.Find("filesystem.htmlToText");
+
+        recycle.Should().NotBeNull();
+        recycle!.SafetyFlag.Should().Be("Safety:AllowMoveToBin");
+        recycle.LocalPathArguments.Should().ContainSingle()
+            .Which.RequiredAccess.Should().Be(FileSystemAccessMode.ReadWrite);
+
+        markdown.Should().NotBeNull();
+        markdown!.OptionalArguments.Should().Equal("destinationPath", "theme");
+        markdown.ArgumentDefinitions.Single(item => item.Name == "theme")
+            .AllowedValues.Should().Equal("Dark", "Light");
+        markdown.LocalPathArguments.Should().HaveCount(2);
+        markdown.LocalPathArguments.Should().Contain(item =>
+            item.RequiredAccess == FileSystemAccessMode.ReadOnly);
+        markdown.LocalPathArguments.Should().Contain(item =>
+            item.RequiredAccess == FileSystemAccessMode.ReadWrite &&
+            item.Derivation == LocalPathDerivationKind.OptionalDestinationOrSameDirectoryExtension &&
+            item.DefaultValue == ".html");
+
+        html.Should().NotBeNull();
+        html!.OptionalArguments.Should().Equal("format");
+        html.ArgumentDefinitions.Single(item => item.Name == "format")
+            .AllowedValues.Should().Equal("Text", "Markdown");
+    }
+
+    /// <summary>
     /// Verifies only selected groups are exposed and agent names come from the map.
     /// </summary>
     [Fact]
@@ -149,6 +182,43 @@ public sealed class ToolMapTests : IDisposable
             .GetInt32()
             .Should()
             .Be(0);
+    }
+
+    /// <summary>
+    /// Verifies the registry binds Stage 18C optional enum arguments and defaults.
+    /// </summary>
+    [Fact]
+    public async Task RegistryBindsFileSystemConversionEnumsAndDefaults()
+    {
+        Directory.CreateDirectory(_rootPath);
+        await File.WriteAllTextAsync(
+            Path.Combine(_rootPath, "source.md"),
+            "# Source");
+        await File.WriteAllTextAsync(
+            Path.Combine(_rootPath, "source-page.html"),
+            "<h1>Source</h1><p><strong>Text</strong></p>");
+        var registry = CreateRegistry();
+        using var markdownArguments = JsonDocument.Parse(
+            """{"sourcePath":"source.md","theme":"Light"}""");
+        using var htmlArguments = JsonDocument.Parse(
+            """{"sourcePath":"source-page.html","format":"Markdown"}""");
+
+        var markdownOutput = await registry.InvokeAsync(
+            "filesystem.markdownToHtml",
+            markdownArguments.RootElement,
+            [ToolGroups.FileSystem],
+            CancellationToken.None);
+        var htmlOutput = await registry.InvokeAsync(
+            "filesystem.htmlToText",
+            htmlArguments.RootElement,
+            [ToolGroups.FileSystem],
+            CancellationToken.None);
+
+        JsonDocument.Parse(markdownOutput).RootElement.GetProperty("theme")
+            .GetString().Should().Be("Light");
+        File.Exists(Path.Combine(_rootPath, "source.html")).Should().BeTrue();
+        JsonDocument.Parse(htmlOutput).RootElement.GetProperty("content")
+            .GetString().Should().Contain("# Source").And.Contain("**Text**");
     }
 
     /// <summary>
@@ -261,6 +331,7 @@ public sealed class ToolMapTests : IDisposable
                     sandbox,
                     safetyOptions,
                     fileSystemOptions,
+                    Mock.Of<IRecycleBinService>(),
                     NullLogger<FileSystemTool>.Instance,
                     TimeProvider.System,
                     context)),

@@ -2539,8 +2539,8 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
                             </tr>
                             <tr>
                                 <td>File system</td>
-                                <td><code>filesystem.list</code>, <code>read</code>, <code>write</code>, <code>move</code>, <code>rename</code>, <code>setExtension</code>, <code>delete</code>, <code>createDirectory</code></td>
-                                <td>RootPath et emplacements autorisés de la tâche ; <code>delete</code> exige AllowFileDelete.</td>
+                                <td><code>filesystem.list</code>, <code>read</code>, <code>write</code>, <code>move</code>, <code>moveToBin</code>, <code>rename</code>, <code>setExtension</code>, <code>delete</code>, <code>createDirectory</code>, <code>markdownToHtml</code>, <code>htmlToText</code></td>
+                                <td>RootPath et emplacements autorisés de la tâche ; delete et Move to Bin ont des autorisations Safety indépendantes.</td>
                             </tr>
                             <tr>
                                 <td>HTTP</td>
@@ -2584,10 +2584,13 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
                                     <tr><td><code>filesystem.read</code></td><td><code>path</code></td><td>Lecture texte avec limite de taille.</td></tr>
                                     <tr><td><code>filesystem.write</code></td><td><code>path</code>, <code>content</code></td><td>Crée ou remplace le contenu.</td></tr>
                                     <tr><td><code>filesystem.move</code></td><td><code>from</code>, <code>to</code></td><td>Les deux chemins exigent une autorisation en lecture et écriture.</td></tr>
+                                    <tr><td><code>filesystem.moveToBin</code></td><td><code>path</code></td><td>Déplace un fichier ou dossier dans la Corbeille Windows. Exige une autorisation en lecture-écriture et AllowMoveToBin.</td></tr>
                                     <tr><td><code>filesystem.rename</code></td><td><code>path</code>, <code>newName</code></td><td>Renomme un fichier sur place. <code>newName</code> ne peut pas contenir de dossier.</td></tr>
                                     <tr><td><code>filesystem.setExtension</code></td><td><code>path</code>, <code>extension</code></td><td>Change uniquement l’extension ; accepte <code>md</code> ou <code>.md</code>.</td></tr>
                                     <tr><td><code>filesystem.delete</code></td><td><code>path</code></td><td>Exige AllowFileDelete.</td></tr>
                                     <tr><td><code>filesystem.createDirectory</code></td><td><code>path</code></td><td>Crée un dossier relatif.</td></tr>
+                                    <tr><td><code>filesystem.markdownToHtml</code></td><td><code>sourcePath</code>, <code>destinationPath</code> facultatif, <code>theme</code> facultatif</td><td>Écrit un HTML UTF-8 autonome. La destination prend l’extension <code>.html</code> par défaut ; le thème vaut <code>Dark</code> par défaut ou <code>Light</code>.</td></tr>
+                                    <tr><td><code>filesystem.htmlToText</code></td><td><code>sourcePath</code>, <code>format</code> facultatif</td><td>Retourne le <code>content</code> extrait en <code>Text</code> par défaut ou avec les principales structures <code>Markdown</code>. N’écrit aucun fichier.</td></tr>
                                     <tr><td><code>http.get</code></td><td><code>url</code></td><td>Retourne une réponse HTTP compacte.</td></tr>
                                     <tr><td><code>http.getText</code></td><td><code>url</code></td><td>Retourne uniquement un résumé factuel protégé du texte lisible compact.</td></tr>
                                     <tr><td><code>http.post</code></td><td><code>url</code>, <code>body</code>, <code>contentType</code></td><td>Exige AllowHttpPost.</td></tr>
@@ -2601,6 +2604,19 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
                         </div>
                     </div>
                 </details>
+
+                <h3>Conversions locales de documents</h3>
+                <p>
+                    La conversion Markdown vérifie la source en lecture puis contrôle séparément
+                    la destination HTML explicite ou dérivée en lecture-écriture. Le document
+                    produit intègre son style et une politique restrictive qui bloque scripts et
+                    ressources distantes. L’extraction HTML supprime les éléments actifs et
+                    n’effectue aucune requête réseau. Pour enregistrer le texte ou le Markdown
+                    extrait, enchaînez <code>filesystem.htmlToText</code> avec
+                    <code>filesystem.write</code> en utilisant
+                    <code>{{extract.output.content}}</code>. Le contenu des documents locaux n’est
+                    pas classifié par Guardrails : n’autorisez que les dossiers nécessaires.
+                </p>
 
                 <h3>Passer des arguments dans un workflow</h3>
                 <p>
@@ -2906,7 +2922,7 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
                             </tr>
                             <tr>
                                 <td>Safety gates</td>
-                                <td>Bloque par défaut l’envoi d’e-mail, la suppression de fichier et HTTP POST.</td>
+                                <td>Bloque par défaut l’envoi d’e-mail, la suppression de fichier, le déplacement vers la Corbeille et HTTP POST.</td>
                             </tr>
                             <tr>
                                 <td>File-system root path</td>
@@ -2937,6 +2953,7 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
                         <tbody>
                             <tr><td><code>gmail.send</code></td><td>Allow sending email</td><td>Vérifier destinataire, contenu et source des données.</td></tr>
                             <tr><td><code>filesystem.delete</code></td><td>Allow file deletion</td><td>Vérifier la racine, le chemin et la récupération possible.</td></tr>
+                            <tr><td><code>filesystem.moveToBin</code></td><td>Allow moving files to the Recycle Bin</td><td>Vérifier la cible autorisée et la récupération attendue dans Windows.</td></tr>
                             <tr><td><code>http.post</code></td><td>Allow HTTP POST</td><td>Définir une liste d’hôtes et examiner les données envoyées.</td></tr>
                         </tbody>
                     </table>

@@ -227,3 +227,12 @@ Release XAML compilation and ViewModel tests verify the generated item order, se
 dirty state, and metadata-driven Authorized locations visibility. The application was not launched
 for this pass, so wrapping at narrow widths, tooltip contrast, keyboard traversal, and focus visuals
 in Light and Dark remain explicit manual checks.
+
+## Stage 18C Recycle Bin Safety setting
+
+Settings adds one standard Material checkbox, **Allow moving files to the Recycle Bin**, and one
+caption in the existing Safety gates stack. It reuses the current checkbox, caption, spacing,
+focus, disabled, and Light/Dark palette resources; no new brush, template, page, dialog, or theme
+was introduced. Release XAML compilation and ViewModel tests cover the binding and persistence.
+The application was not launched for Stage 18C, so live wrapping, keyboard traversal, and
+Light/Dark focus and contrast remain explicit manual checks.

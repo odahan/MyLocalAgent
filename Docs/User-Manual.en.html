@@ -2155,7 +2155,7 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
                             <tr><td>Gmail</td><td><code>gmail.readToday</code>, <code>gmail.readUnread</code>, <code>gmail.readRecent</code>, <code>gmail.send</code></td><td><code>gmail.send</code> needs AllowSendEmail.</td></tr>
                             <tr><td>Calendar</td><td><code>calendar.today</code>, <code>calendar.read</code>, <code>calendar.create</code></td><td>Create uses explicit ISO 8601 dates.</td></tr>
                             <tr><td>Dropbox</td><td><code>dropbox.upload</code>, <code>dropbox.download</code>, <code>dropbox.list</code></td><td>Dropbox secrets use DPAPI.</td></tr>
-                            <tr><td>File system</td><td><code>filesystem.list</code>, <code>read</code>, <code>write</code>, <code>move</code>, <code>rename</code>, <code>setExtension</code>, <code>delete</code>, <code>createDirectory</code></td><td>RootPath plus task-authorized locations; delete needs AllowFileDelete.</td></tr>
+                            <tr><td>File system</td><td><code>filesystem.list</code>, <code>read</code>, <code>write</code>, <code>move</code>, <code>moveToBin</code>, <code>rename</code>, <code>setExtension</code>, <code>delete</code>, <code>createDirectory</code>, <code>markdownToHtml</code>, <code>htmlToText</code></td><td>RootPath plus task-authorized locations; delete and Move to Bin have independent Safety gates.</td></tr>
                             <tr><td>HTTP</td><td><code>http.get</code>, <code>http.getText</code>, <code>http.post</code></td><td>Host allowlist; post needs AllowHttpPost.</td></tr>
                             <tr><td>Web</td><td><code>web.search</code></td><td>Explicit Ollama cloud opt-in; mandatory Guardrails envelope.</td></tr>
                             <tr><td>AI</td><td><code>ai.summarize</code>, <code>ai.extractActionItems</code>, <code>ai.classifyEmail</code>, <code>ai.prompt</code></td><td>Skills execute without tools.</td></tr>
@@ -2184,10 +2184,13 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
                                     <tr><td><code>filesystem.read</code></td><td><code>path</code></td><td>Text read with size cap.</td></tr>
                                     <tr><td><code>filesystem.write</code></td><td><code>path</code>, <code>content</code></td><td>Creates or replaces content.</td></tr>
                                     <tr><td><code>filesystem.move</code></td><td><code>from</code>, <code>to</code></td><td>Both paths require read-write authorization.</td></tr>
+                                    <tr><td><code>filesystem.moveToBin</code></td><td><code>path</code></td><td>Moves a file or directory to the Windows Recycle Bin. Requires read-write authorization and AllowMoveToBin.</td></tr>
                                     <tr><td><code>filesystem.rename</code></td><td><code>path</code>, <code>newName</code></td><td>Renames one file in place. <code>newName</code> cannot contain a directory.</td></tr>
                                     <tr><td><code>filesystem.setExtension</code></td><td><code>path</code>, <code>extension</code></td><td>Changes only the extension; accepts <code>md</code> or <code>.md</code>.</td></tr>
                                     <tr><td><code>filesystem.delete</code></td><td><code>path</code></td><td>Requires AllowFileDelete.</td></tr>
                                     <tr><td><code>filesystem.createDirectory</code></td><td><code>path</code></td><td>Creates a relative directory.</td></tr>
+                                    <tr><td><code>filesystem.markdownToHtml</code></td><td><code>sourcePath</code>, optional <code>destinationPath</code>, optional <code>theme</code></td><td>Writes standalone UTF-8 HTML. Destination defaults to <code>.html</code>; theme is <code>Dark</code> by default or <code>Light</code>.</td></tr>
+                                    <tr><td><code>filesystem.htmlToText</code></td><td><code>sourcePath</code>, optional <code>format</code></td><td>Returns extracted <code>content</code> as <code>Text</code> by default or principal <code>Markdown</code> structure. It does not write a file.</td></tr>
                                     <tr><td><code>http.get</code></td><td><code>url</code></td><td>Returns a compact HTTP result.</td></tr>
                                     <tr><td><code>http.getText</code></td><td><code>url</code></td><td>Returns only a protected factual summary of compact readable text.</td></tr>
                                     <tr><td><code>http.post</code></td><td><code>url</code>, <code>body</code>, <code>contentType</code></td><td>Requires AllowHttpPost.</td></tr>
@@ -2201,6 +2204,18 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
                         </div>
                     </div>
                 </details>
+
+                <h3>Local document conversions</h3>
+                <p>
+                    Markdown conversion reads its source with read authorization and checks its
+                    explicit or derived HTML destination independently for read-write access. The
+                    generated document contains embedded styling and a restrictive policy that
+                    blocks scripts and remote resources. HTML extraction removes active elements
+                    and performs no network request. To save extracted text or Markdown, follow
+                    <code>filesystem.htmlToText</code> with <code>filesystem.write</code> using
+                    <code>{{extract.output.content}}</code>. Local document content is not classified
+                    by Guardrails; grant only the folders the task needs.
+                </p>
 
                 <h3>Passing arguments in a workflow</h3>
                 <p>
@@ -2478,7 +2493,7 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
                         <thead><tr><th>Layer</th><th>Purpose</th></tr></thead>
                         <tbody>
                             <tr><td>Tool whitelist</td><td>Limits tool groups visible to a task or workflow.</td></tr>
-                            <tr><td>Safety gates</td><td>Blocks email sending, file deletion, and HTTP POST by default.</td></tr>
+                            <tr><td>Safety gates</td><td>Blocks email sending, file deletion, Move to Bin, and HTTP POST by default.</td></tr>
                             <tr><td>File-system root path</td><td>Confines relative file operations below an absolute root.</td></tr>
                             <tr><td>Task authorized locations</td><td>Allows only declared absolute directories with read-only or read-write access.</td></tr>
                             <tr><td>HTTP Allowed Hosts</td><td>Restricts HTTP destinations by exact host name.</td></tr>
@@ -2494,6 +2509,7 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
                         <tbody>
                             <tr><td><code>gmail.send</code></td><td>Allow sending email</td><td>Recipient, content, and source data.</td></tr>
                             <tr><td><code>filesystem.delete</code></td><td>Allow file deletion</td><td>Root, target path, and recovery.</td></tr>
+                            <tr><td><code>filesystem.moveToBin</code></td><td>Allow moving files to the Recycle Bin</td><td>Authorized target and expected Windows recovery behavior.</td></tr>
                             <tr><td><code>http.post</code></td><td>Allow HTTP POST</td><td>Destination allowlist and submitted data.</td></tr>
                         </tbody>
                     </table>

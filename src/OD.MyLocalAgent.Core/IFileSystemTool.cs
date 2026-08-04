@@ -26,6 +26,11 @@ public interface IFileSystemTool
     Task<string> MoveAsync(string from, string to, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Moves a file or directory to the Windows Recycle Bin.
+    /// </summary>
+    Task<string> MoveToBinAsync(string path, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Renames a file while keeping it in the same directory.
     /// </summary>
     Task<string> RenameAsync(
@@ -50,4 +55,21 @@ public interface IFileSystemTool
     /// Creates a directory.
     /// </summary>
     Task<string> CreateDirectoryAsync(string path, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Converts an authorized Markdown file to a standalone HTML file.
+    /// </summary>
+    Task<string> MarkdownToHtmlAsync(
+        string sourcePath,
+        string? destinationPath = null,
+        MarkdownHtmlTheme theme = MarkdownHtmlTheme.Dark,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Extracts plain text or principal Markdown structure from an authorized HTML file.
+    /// </summary>
+    Task<string> HtmlToTextAsync(
+        string sourcePath,
+        HtmlTextFormat format = HtmlTextFormat.Text,
+        CancellationToken cancellationToken = default);
 }

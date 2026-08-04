@@ -898,6 +898,7 @@ public sealed partial class TaskEditorViewModel :
             {
                 AllowSendEmail = safety.AllowSendEmail,
                 AllowFileDelete = safety.AllowFileDelete,
+                AllowMoveToBin = safety.AllowMoveToBin,
                 AllowHttpPost = safety.AllowHttpPost,
             })
         {

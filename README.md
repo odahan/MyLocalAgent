@@ -37,6 +37,7 @@ its own navigation, search, styles, and scripts in one file.
 | 17 | Deterministic workflow authoring aids: Tool catalog and Workflow prompt editor | Complete with documented human GUI checks |
 | 18 | Compact External-Content Guardrails | Complete |
 | 18A | Extensible Tool Integration Foundation | Complete with automated verification |
+| 18C | File-system Recycle Bin and document conversions | Complete with automated verification |
 | 19 | SQLite Tool | TO DO |
 | 20 | Agent Prompt Placeholders | Complete with documented, human task test done |
 | 21 | Model Information Placeholders | Complete with automated verification |
@@ -314,11 +315,12 @@ The following side effects are disabled by default:
 |---|---|
 | `gmail.send` | `Safety:AllowSendEmail` |
 | `filesystem.delete` | `Safety:AllowFileDelete` |
+| `filesystem.moveToBin` | `Safety:AllowMoveToBin` |
 | `http.post` | `Safety:AllowHttpPost` |
 
 A blocked operation throws `SafetyException` and names the required flag. This design keeps a
 task definition, model response, or imported workflow from silently sending mail, deleting
-files, or issuing outbound POST requests.
+files, moving files to the Windows Recycle Bin, or issuing outbound POST requests.
 
 Relative filesystem paths are confined to the absolute `FileSystem:RootPath`. A task may
 authorize additional absolute directories in its **Authorized locations** editor section;
@@ -817,10 +819,13 @@ JSON, and every new-task whitelist choice starts disabled.
 | `filesystem.read` | `filesystem_read` | `FileSystemTool.ReadAsync` | `path` | — |
 | `filesystem.write` | `filesystem_write` | `FileSystemTool.WriteAsync` | `path`, `content` | — |
 | `filesystem.move` | `filesystem_move` | `FileSystemTool.MoveAsync` | `from`, `to` | — |
+| `filesystem.moveToBin` | `filesystem_move_to_bin` | `FileSystemTool.MoveToBinAsync` | `path` | `Safety:AllowMoveToBin` |
 | `filesystem.rename` | `filesystem_rename` | `FileSystemTool.RenameAsync` | `path`, `newName` | — |
 | `filesystem.setExtension` | `filesystem_set_extension` | `FileSystemTool.SetExtensionAsync` | `path`, `extension` | — |
 | `filesystem.delete` | `filesystem_delete` | `FileSystemTool.DeleteAsync` | `path` | `Safety:AllowFileDelete` |
 | `filesystem.createDirectory` | `filesystem_create_directory` | `FileSystemTool.CreateDirectoryAsync` | `path` | — |
+| `filesystem.markdownToHtml` | `filesystem_markdown_to_html` | `FileSystemTool.MarkdownToHtmlAsync` | `sourcePath`, optional `destinationPath`, optional `theme` | — |
+| `filesystem.htmlToText` | `filesystem_html_to_text` | `FileSystemTool.HtmlToTextAsync` | `sourcePath`, optional `format` | — |
 | `http.get` | `http_get` | `HttpTool.GetAsync` | `url` | — |
 | `http.post` | `http_post` | `HttpTool.PostAsync` | `url`, `body`, `contentType` | `Safety:AllowHttpPost` |
 | `http.getText` | `http_get_text` | `HttpTool.GetTextAsync` | `url` | — |
@@ -900,6 +905,17 @@ Action extraction uses the same batch pattern:
 `filesystem.setExtension` keeps the directory and base name and accepts `md` or `.md`.
 Neither overwrites an existing destination. Both require read-write authorization for the
 source and destination, just like `filesystem.move`.
+
+`filesystem.moveToBin` moves an authorized file or directory to the Windows Recycle Bin and
+never falls back to permanent deletion. It requires read-write path access and the independent
+`Safety:AllowMoveToBin` opt-in. `filesystem.markdownToHtml` reads Markdown and writes standalone
+UTF-8 HTML; `destinationPath` defaults to the same name with `.html`, and `theme` defaults to
+`Dark` with `Light` also available. Raw Markdown HTML and remote resources are disabled.
+`filesystem.htmlToText` returns compact JSON containing extracted `content`; its optional
+`format` is `Text` by default or `Markdown` to preserve principal headings, lists, emphasis,
+links, quotes, and code. It does not write a file automatically—chain `filesystem.write` when
+a `.txt` or `.md` artifact is required. Conversion sources remain subject to the filesystem
+read-size cap and local-file content remains outside Guardrails classification.
 
 ```json
 [

@@ -2,6 +2,7 @@ using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Moq;
 using OD.MyLocalAgent.Core;
 using Xunit;
 
@@ -71,6 +72,188 @@ public sealed class FileSystemToolTests : IDisposable
             CancellationToken.None);
         JsonDocument.Parse(deleteJson).RootElement.GetProperty("deleted").GetBoolean()
             .Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Verifies moving to the Recycle Bin requires both write authorization and its dedicated Safety gate.
+    /// </summary>
+    [Fact]
+    public async Task MoveToBinRequiresWriteAuthorizationAndDedicatedSafetyGate()
+    {
+        Directory.CreateDirectory(_rootPath);
+        var path = Path.Combine(_rootPath, "discard.txt");
+        await File.WriteAllTextAsync(path, "discard");
+        var recycleBin = new Mock<IRecycleBinService>(MockBehavior.Strict);
+        recycleBin
+            .Setup(instance => instance.MoveToBinAsync(path, CancellationToken.None))
+            .Returns(Task.CompletedTask);
+        var blockedTool = CreateTool(
+            allowDelete: false,
+            allowMoveToBin: false,
+            recycleBinService: recycleBin.Object);
+        var blocked = () => blockedTool.MoveToBinAsync(
+            "discard.txt",
+            CancellationToken.None);
+
+        await blocked.Should().ThrowAsync<SafetyException>()
+            .Where(exception => exception.RequiredFlag == "Safety:AllowMoveToBin");
+
+        var allowedTool = CreateTool(
+            allowDelete: false,
+            allowMoveToBin: true,
+            recycleBinService: recycleBin.Object);
+        var json = await allowedTool.MoveToBinAsync(
+            "discard.txt",
+            CancellationToken.None);
+
+        JsonDocument.Parse(json).RootElement.GetProperty("movedToBin")
+            .GetBoolean().Should().BeTrue();
+        recycleBin.VerifyAll();
+    }
+
+    /// <summary>
+    /// Verifies Markdown conversion writes standalone themed HTML with raw HTML disabled.
+    /// </summary>
+    [Fact]
+    public async Task MarkdownToHtmlWritesDerivedDarkDocumentAndSupportsLightTheme()
+    {
+        Directory.CreateDirectory(_rootPath);
+        var tool = CreateTool(allowDelete: false);
+        await File.WriteAllTextAsync(
+            Path.Combine(_rootPath, "report.md"),
+            "# Report\n\n**Safe** <script>alert(1)</script>");
+
+        var darkJson = await tool.MarkdownToHtmlAsync(
+            "report.md",
+            cancellationToken: CancellationToken.None);
+        var lightJson = await tool.MarkdownToHtmlAsync(
+            "report.md",
+            "light.html",
+            MarkdownHtmlTheme.Light,
+            CancellationToken.None);
+
+        var dark = await File.ReadAllTextAsync(Path.Combine(_rootPath, "report.html"));
+        var light = await File.ReadAllTextAsync(Path.Combine(_rootPath, "light.html"));
+        dark.Should().Contain("color-scheme:dark").And.Contain(">Report</h1>");
+        dark.Should().NotContain("<script>");
+        light.Should().Contain("color-scheme:light");
+        JsonDocument.Parse(darkJson).RootElement.GetProperty("theme").GetString()
+            .Should().Be("Dark");
+        JsonDocument.Parse(lightJson).RootElement.GetProperty("destinationPath").GetString()
+            .Should().Be("light.html");
+    }
+
+    /// <summary>
+    /// Verifies Markdown conversion authorizes its source and destination independently.
+    /// </summary>
+    [Fact]
+    public async Task MarkdownToHtmlRequiresReadSourceAndWriteDestination()
+    {
+        Directory.CreateDirectory(_rootPath);
+        var sourceRoot = Path.Combine(_authorizedPath, "source");
+        var destinationRoot = Path.Combine(_authorizedPath, "destination");
+        Directory.CreateDirectory(sourceRoot);
+        Directory.CreateDirectory(destinationRoot);
+        var sourcePath = Path.Combine(sourceRoot, "report.md");
+        var destinationPath = Path.Combine(destinationRoot, "report.html");
+        await File.WriteAllTextAsync(sourcePath, "# Authorized");
+        var readOnlyDestination = new ToolExecutionContext(
+            "conversion",
+            [
+                new FileSystemAccessRule
+                {
+                    Path = sourceRoot,
+                    Access = FileSystemAccessMode.ReadOnly,
+                },
+                new FileSystemAccessRule
+                {
+                    Path = destinationRoot,
+                    Access = FileSystemAccessMode.ReadOnly,
+                },
+            ]);
+        var blockedTool = CreateTool(allowDelete: false, readOnlyDestination);
+        var blocked = () => blockedTool.MarkdownToHtmlAsync(
+            sourcePath,
+            destinationPath,
+            cancellationToken: CancellationToken.None);
+
+        await blocked.Should().ThrowAsync<PathSandboxException>()
+            .WithMessage("*read-only*");
+
+        var allowedTool = CreateTool(
+            allowDelete: false,
+            new ToolExecutionContext(
+                "conversion",
+                [
+                    new FileSystemAccessRule
+                    {
+                        Path = sourceRoot,
+                        Access = FileSystemAccessMode.ReadOnly,
+                    },
+                    new FileSystemAccessRule
+                    {
+                        Path = destinationRoot,
+                        Access = FileSystemAccessMode.ReadWrite,
+                    },
+                ]));
+        _ = await allowedTool.MarkdownToHtmlAsync(
+            sourcePath,
+            destinationPath,
+            cancellationToken: CancellationToken.None);
+
+        File.Exists(destinationPath).Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Verifies HTML extraction defaults to plain text and can preserve principal Markdown structure.
+    /// </summary>
+    [Fact]
+    public async Task HtmlToTextReturnsPlainTextOrStructuredMarkdown()
+    {
+        Directory.CreateDirectory(_rootPath);
+        var tool = CreateTool(allowDelete: false);
+        await File.WriteAllTextAsync(
+            Path.Combine(_rootPath, "page.html"),
+            "<html><body><h1>Title</h1><p>Hello <strong>world</strong>.</p><ul><li>One</li><li>Two</li></ul><script>bad()</script></body></html>");
+
+        var textJson = await tool.HtmlToTextAsync(
+            "page.html",
+            cancellationToken: CancellationToken.None);
+        var markdownJson = await tool.HtmlToTextAsync(
+            "page.html",
+            HtmlTextFormat.Markdown,
+            CancellationToken.None);
+        var text = JsonDocument.Parse(textJson).RootElement.GetProperty("content").GetString();
+        var markdown = JsonDocument.Parse(markdownJson).RootElement.GetProperty("content").GetString();
+
+        text.Should().Contain("Title").And.Contain("Hello world.").And.NotContain("bad()");
+        markdown.Should().Contain("# Title").And.Contain("**world**").And.Contain("- One");
+    }
+
+    /// <summary>
+    /// Verifies document conversions enforce the existing source read-size cap.
+    /// </summary>
+    [Fact]
+    public async Task DocumentConversionsEnforceReadSizeCap()
+    {
+        Directory.CreateDirectory(_rootPath);
+        await File.WriteAllTextAsync(Path.Combine(_rootPath, "large.md"), "12345");
+        var fileSystemOptions = Options.Create(
+            new FileSystemOptions { RootPath = _rootPath, MaxReadBytes = 4 });
+        var tool = new FileSystemTool(
+            new PathSandbox(fileSystemOptions),
+            Options.Create(new SafetyOptions()),
+            fileSystemOptions,
+            Mock.Of<IRecycleBinService>(),
+            NullLogger<FileSystemTool>.Instance,
+            TimeProvider.System,
+            ToolExecutionContext.Taskless);
+        var action = () => tool.MarkdownToHtmlAsync(
+            "large.md",
+            cancellationToken: CancellationToken.None);
+
+        await action.Should().ThrowAsync<IOException>()
+            .WithMessage("*read limit*");
     }
 
     /// <summary>
@@ -406,14 +589,22 @@ public sealed class FileSystemToolTests : IDisposable
 
     private FileSystemTool CreateTool(
         bool allowDelete,
-        ToolExecutionContext? context = null)
+        ToolExecutionContext? context = null,
+        bool allowMoveToBin = false,
+        IRecycleBinService? recycleBinService = null)
     {
         var fileSystemOptions = Options.Create(
             new FileSystemOptions { RootPath = _rootPath });
         return new FileSystemTool(
             new PathSandbox(fileSystemOptions),
-            Options.Create(new SafetyOptions { AllowFileDelete = allowDelete }),
+            Options.Create(
+                new SafetyOptions
+                {
+                    AllowFileDelete = allowDelete,
+                    AllowMoveToBin = allowMoveToBin,
+                }),
             fileSystemOptions,
+            recycleBinService ?? Mock.Of<IRecycleBinService>(),
             NullLogger<FileSystemTool>.Instance,
             TimeProvider.System,
             context ?? ToolExecutionContext.Taskless);

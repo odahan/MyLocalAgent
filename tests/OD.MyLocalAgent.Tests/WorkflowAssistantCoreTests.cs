@@ -198,8 +198,11 @@ public sealed class WorkflowAssistantCoreTests
             "filesystem.createDirectory",
             "filesystem.delete",
             "filesystem.move",
+            "filesystem.moveToBin",
             "filesystem.rename",
             "filesystem.setExtension",
+            "filesystem.markdownToHtml",
+            "filesystem.htmlToText",
             "dropbox.upload",
             "dropbox.download",
         };
@@ -223,8 +226,10 @@ public sealed class WorkflowAssistantCoreTests
     [InlineData("filesystem.createDirectory", FileSystemAccessMode.ReadWrite, 1)]
     [InlineData("filesystem.delete", FileSystemAccessMode.ReadWrite, 1)]
     [InlineData("filesystem.move", FileSystemAccessMode.ReadWrite, 2)]
+    [InlineData("filesystem.moveToBin", FileSystemAccessMode.ReadWrite, 1)]
     [InlineData("filesystem.rename", FileSystemAccessMode.ReadWrite, 2)]
     [InlineData("filesystem.setExtension", FileSystemAccessMode.ReadWrite, 2)]
+    [InlineData("filesystem.htmlToText", FileSystemAccessMode.ReadOnly, 1)]
     [InlineData("dropbox.upload", FileSystemAccessMode.ReadOnly, 1)]
     [InlineData("dropbox.download", FileSystemAccessMode.ReadWrite, 1)]
     public void LocalPathMetadataHasExpectedAccess(
@@ -236,6 +241,57 @@ public sealed class WorkflowAssistantCoreTests
 
         paths.Should().HaveCount(count);
         paths.Should().OnlyContain(item => item.RequiredAccess == access);
+    }
+
+    /// <summary>
+    /// Verifies Markdown conversion proposes its explicit destination and warns for a dynamic one.
+    /// </summary>
+    [Fact]
+    public void AnalyzerDerivesMarkdownDestinationAndPreservesDynamicWarning()
+    {
+        var sourceRoot = Path.Combine(Path.GetTempPath(), "OD.Stage18C.Source");
+        var destinationRoot = Path.Combine(Path.GetTempPath(), "OD.Stage18C.Destination");
+        var explicitWorkflow = WorkflowDefinitionSerializer.Deserialize(
+            $$"""
+            [{
+              "step": "filesystem.markdownToHtml",
+              "args": {
+                "sourcePath": {{JsonSerializer.Serialize(Path.Combine(sourceRoot, "source.md"))}},
+                "destinationPath": {{JsonSerializer.Serialize(Path.Combine(destinationRoot, "result.html"))}}
+              }
+            }]
+            """);
+        var dynamicWorkflow = WorkflowDefinitionSerializer.Deserialize(
+            $$"""
+            [{
+              "step": "filesystem.markdownToHtml",
+              "args": {
+                "sourcePath": {{JsonSerializer.Serialize(Path.Combine(sourceRoot, "source.md"))}},
+                "destinationPath": {{JsonSerializer.Serialize("{{previous.output}}")}}
+              }
+            }]
+            """);
+
+        var explicitAnalysis = WorkflowRequirementAnalyzer.Analyze(
+            explicitWorkflow,
+            [ToolGroups.FileSystem],
+            [],
+            new SafetyOptions());
+        var dynamicAnalysis = WorkflowRequirementAnalyzer.Analyze(
+            dynamicWorkflow,
+            [ToolGroups.FileSystem],
+            [],
+            new SafetyOptions());
+
+        explicitAnalysis.MissingPathRequirements.Should().Contain(item =>
+            item.DirectoryPath == ScheduledTaskValidator.NormalizeAccessPath(sourceRoot) &&
+            item.RequiredAccess == FileSystemAccessMode.ReadOnly);
+        explicitAnalysis.MissingPathRequirements.Should().Contain(item =>
+            item.DirectoryPath == ScheduledTaskValidator.NormalizeAccessPath(destinationRoot) &&
+            item.RequiredAccess == FileSystemAccessMode.ReadWrite);
+        dynamicAnalysis.Warnings.Should().Contain(item =>
+            item.Contains("destinationPath", StringComparison.Ordinal) &&
+            item.Contains("placeholder", StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>

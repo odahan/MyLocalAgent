@@ -13,4 +13,10 @@ public sealed record LocalPathArgumentDefinition(
     LocalPathTargetKind TargetKind,
     FileSystemAccessMode RequiredAccess,
     LocalPathDerivationKind Derivation = LocalPathDerivationKind.Direct,
-    string? ValueArgumentName = null);
+    string? ValueArgumentName = null)
+{
+    /// <summary>
+    /// Gets the fixed fallback value used by an optional derived path.
+    /// </summary>
+    public string? DefaultValue { get; init; }
+}

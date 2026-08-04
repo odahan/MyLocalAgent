@@ -103,6 +103,8 @@ public sealed class UserSettingsServiceTests : IDisposable
         generation.GetProperty("TopP").GetDouble().Should().Be(1);
         generation.GetProperty("ContextWindowTokens").GetInt32()
             .Should().Be(8192);
+        root.GetProperty("Safety").GetProperty("AllowMoveToBin")
+            .GetBoolean().Should().BeFalse();
         secrets.VerifyAll();
         Directory.GetFiles(_directoryPath, "*.tmp")
             .Should().BeEmpty();
@@ -169,6 +171,7 @@ public sealed class UserSettingsServiceTests : IDisposable
             "\\OD.MyLocalAgent",
             false,
             string.Empty,
+            false,
             false,
             false,
             false,

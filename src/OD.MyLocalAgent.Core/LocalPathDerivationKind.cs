@@ -19,4 +19,9 @@ public enum LocalPathDerivationKind
     /// A destination is formed by replacing the source extension.
     /// </summary>
     SameDirectoryExtension,
+
+    /// <summary>
+    /// Uses an optional destination argument or replaces the source extension with a fixed default.
+    /// </summary>
+    OptionalDestinationOrSameDirectoryExtension,
 }

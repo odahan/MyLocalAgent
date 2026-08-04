@@ -2139,3 +2139,80 @@ No package or package version changed.
   catalog metadata, Tool Map entries, concrete registration, authorization/Safety design, tests,
   and documentation. Live Light/Dark inspection of generated checkbox wrapping/tooltips remains a
   manual follow-up.
+
+### Stage 18C — File-system Recycle Bin and document conversions — 2026-08-04
+
+#### Scope and locked behavior
+
+- Added `Docs/Prompts/18C-Stage18C-FileSystemRecycleAndDocumentConversions.md` and normative
+  shared-specification §21C after Stage 18A. Exactly three aliases were added to the existing
+  `filesystem` group; no group, task field, migration, page, provider/model call, connector,
+  external service, or runtime plug-in mechanism was added.
+- `filesystem.moveToBin(path)` accepts files or directories, requires effective ReadWrite path
+  access plus independently enabled `Safety:AllowMoveToBin`, and never falls back to permanent
+  deletion. The shipped gate is false and is loaded, saved, and displayed with the other WPF
+  Safety settings.
+- `filesystem.markdownToHtml(sourcePath, destinationPath?, theme?)` reads an authorized Markdown
+  source and independently authorizes the explicit or `.html`-derived destination. `Dark` is the
+  default and `Light` is explicit. Repeated conversion replaces the destination, while identical
+  source/destination paths are rejected.
+- `filesystem.htmlToText(sourcePath, format?)` defaults to normalized `Text` and optionally
+  returns principal `Markdown` structure in compact JSON. It performs no implicit file write.
+
+#### Public API and implementation surface
+
+- Added `MarkdownHtmlTheme`, `HtmlTextFormat`, and `IRecycleBinService`.
+- Added `IFileSystemTool.MoveToBinAsync`, `MarkdownToHtmlAsync`, and `HtmlToTextAsync` with matching
+  `FileSystemTool` implementations and agent functions `filesystem_move_to_bin`,
+  `filesystem_markdown_to_html`, and `filesystem_html_to_text`.
+- Added `SafetyOptions.AllowMoveToBin` and its fail-closed `IsEnabled` mapping.
+- Added `LocalPathDerivationKind.OptionalDestinationOrSameDirectoryExtension` plus
+  `LocalPathArgumentDefinition.DefaultValue`, allowing the Stage 13 analyzer to represent an
+  optional explicit destination or deterministic `.html` fallback without inventing grants.
+- Added the internal `WindowsRecycleBinService`, which uses the Windows Shell delete-with-undo
+  operation with confirmation, progress, and error UI suppressed. Tests inject
+  `IRecycleBinService` and never touch the real Recycle Bin.
+- Added the internal deterministic `HtmlDocumentConverter`. It removes active/non-content nodes,
+  prefers main/article/body, decodes entities, and produces normalized Text or Markdown headings,
+  lists, emphasis, links, quotes, inline/fenced code, and line breaks.
+- Core now directly references the already centrally pinned Markdig 1.3.2 package. No version or
+  new package pin was added. Markdown raw HTML remains disabled; standalone output embeds only CSS
+  and a restrictive CSP blocking scripts and remote resources. Both conversion sources retain the
+  existing `FileSystem:MaxReadBytes` cap and remain outside Guardrails classification.
+
+#### Stage 18A, WPF, privacy, and documentation
+
+- Tool Map owns descriptions, ordered required/optional arguments, enum values, Safety metadata,
+  and read/write path semantics. The WPF Tool catalog, Tool tester, AI Workflow Helper, workflow
+  validation, task whitelist, and authorization proposals derive the new aliases without a new
+  checkbox, group-order array, or alias list.
+- Settings gained one English `Allow moving files to the Recycle Bin` checkbox through the
+  existing MVVM Toolkit load/dirty/save pipeline. User settings persistence and Task editor helper
+  Safety snapshots include the new value.
+- Tool logs never contain Markdown, HTML, extracted content, or generated HTML. Local document
+  data receives no new durable logging, incident payload, provider call, network request, or
+  Guardrails delivery path.
+- Updated README, prompt index, appsettings defaults, and the standalone French and English user
+  manuals. Both manuals document aliases, arguments, defaults, authorization, Safety, restricted
+  output, and explicit chaining with `filesystem.write` in semantic parity.
+
+#### Verification and residual checks
+
+- Initial restore using the isolated temporary CLI cache reproduced the ledgered invalid Cronos
+  cache (`NU5037`). `dotnet restore OD.MyLocalAgent.sln -m:1` with the normal user cache then
+  succeeded with every project current.
+- `dotnet build OD.MyLocalAgent.sln --no-restore --configuration Release -m:1` succeeded for all
+  eight projects with zero warnings and zero errors.
+- `dotnet test tests/OD.MyLocalAgent.Tests/OD.MyLocalAgent.Tests.csproj --no-build --no-restore
+  --configuration Release -m:1` completed with 459 passed, zero failed, and one intentionally
+  skipped local Ollama integration probe (460 total).
+- Tests cover dedicated gate/fake recycle dispatch, read/write authorization, source size cap,
+  default/explicit destinations, Dark/Light restricted HTML, inactive HTML extraction, enum/default
+  registry binding, Tool Map reflection, analyzer derivation/dynamic warning, catalog/tester
+  visibility, and settings persistence.
+- All five sample JSON files parsed. Both manuals retain 22 balanced sections and 30 unique ids,
+  no duplicate id, missing internal anchor, or external resource, with identical Stage 18C alias
+  occurrence counts.
+- The WPF application was not launched and the production Windows Recycle Bin adapter was not
+  invoked in this implementation pass. Live Settings/catalog rendering and a disposable manual
+  Recycle Bin recovery check remain explicit operator follow-ups.

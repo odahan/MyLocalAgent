@@ -360,3 +360,26 @@ Date: 2026-08-04
 
 The application was not launched during this pass. Live verification of generated checkbox
 wrapping, tooltips, keyboard traversal, and Light/Dark focus/contrast remains an operator check.
+
+## Stage 18C File-system Recycle Bin and document conversions
+
+Date: 2026-08-04
+
+| Checklist item | Status | Executed evidence |
+|---|---:|---|
+| Exactly three aliases extend the existing File system group. | ✅ | Tool Map reflection and explicit metadata tests cover `moveToBin`, `markdownToHtml`, and `htmlToText`; Stage 18A group/catalog tests remain green. |
+| Move to Bin has independent authorization and Safety. | ✅ automated / ⏳ live shell | Tests prove the disabled `Safety:AllowMoveToBin` gate, resolved-path dispatch through a strict fake, and compact success JSON. The real Windows Recycle Bin was deliberately not mutated. |
+| Markdown conversion independently checks source and destination. | ✅ | Isolated absolute-path tests prove a ReadOnly source is accepted, a ReadOnly destination is rejected, and a ReadWrite destination succeeds. |
+| HTML output is standalone, themed, and inactive. | ✅ | Tests cover `.html` derivation, explicit destination, Dark/Light CSS, CSP presence, UTF-8 output, and raw Markdown HTML escaping. |
+| HTML extraction defaults to Text and optionally preserves Markdown. | ✅ | Tests cover heading, paragraph, bold, list, script removal, default Text, and explicit Markdown through both direct and registry-bound calls. |
+| Existing read cap and privacy boundaries remain. | ✅ | Oversized conversion input fails through `FileSystem:MaxReadBytes`; source/generated content is absent from tool log metadata and no provider/Guardrails/network dependency was added. |
+| WPF Tool catalog and Tool tester expose all aliases through metadata. | ✅ automated / ⏳ visual | Dynamic catalog/tester tests assert all three aliases and shared group order. The app was not launched for visual inspection. |
+| `AllowMoveToBin` is shipped false and persists through Settings. | ✅ automated / ⏳ visual | appsettings, options mapping, MVVM load/save state, JSON persistence assertion, and the Settings XAML checkbox are present. Live rendering was not inspected. |
+| EN/FR user manuals remain structurally and semantically aligned. | ✅ | Each manual has 22 balanced sections, 30 unique ids, no duplicate or missing anchor, no external resource, and equal Stage 18C alias occurrence counts. |
+| Release gate is clean. | ✅ | Restore succeeded with the normal user cache; Release build has zero warnings/errors; 459 tests passed, 1 expected Ollama probe was skipped, all five sample JSON files parsed, and `git diff --check` passed. Every dotnet command used `-m:1`. |
+
+### Stage 18C human follow-up
+
+Launch Settings and the Tool catalog in both themes, then use a disposable file to confirm the
+production Windows shell places it in the Recycle Bin and Windows can restore it. No user file was
+used for that check during automated implementation.

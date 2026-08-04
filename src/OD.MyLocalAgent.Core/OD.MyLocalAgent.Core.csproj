@@ -12,6 +12,7 @@
   <ItemGroup>
     <PackageReference Include="Cronos" />
     <PackageReference Include="HtmlAgilityPack" />
+    <PackageReference Include="Markdig" />
     <PackageReference Include="Microsoft.Agents.AI" />
     <PackageReference Include="Microsoft.Extensions.AI" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" />

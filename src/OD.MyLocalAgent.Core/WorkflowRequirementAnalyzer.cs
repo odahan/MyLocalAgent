@@ -164,6 +164,19 @@ public static partial class WorkflowRequirementAnalyzer
             return;
         }
 
+        if (definition.Derivation ==
+                LocalPathDerivationKind.OptionalDestinationOrSameDirectoryExtension &&
+            TryGetStringArgument(
+                step.Args,
+                definition.ValueArgumentName!,
+                out var optionalDestination) &&
+            IsDynamic(optionalDestination))
+        {
+            warnings.Add(
+                $"{tool.Alias}.{definition.ValueArgumentName} contains a placeholder or unexpanded variable; runtime authorization remains authoritative.");
+            return;
+        }
+
         string path;
         try
         {
@@ -226,6 +239,20 @@ public static partial class WorkflowRequirementAnalyzer
         if (definition.Derivation == LocalPathDerivationKind.Direct)
         {
             return source;
+        }
+
+        if (definition.Derivation ==
+            LocalPathDerivationKind.OptionalDestinationOrSameDirectoryExtension)
+        {
+            if (TryGetStringArgument(
+                    arguments,
+                    definition.ValueArgumentName!,
+                    out var optionalDestination))
+            {
+                return optionalDestination;
+            }
+
+            return Path.ChangeExtension(source, definition.DefaultValue);
         }
 
         if (!TryGetStringArgument(

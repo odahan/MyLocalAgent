@@ -99,6 +99,13 @@ public static class ToolMap
                 Path("from", LocalPathTargetKind.FileOrDirectory, FileSystemAccessMode.ReadWrite),
                 Path("to", LocalPathTargetKind.FileOrDirectory, FileSystemAccessMode.ReadWrite),
             ]),
+        Tool("filesystem.moveToBin", "filesystem_move_to_bin", ToolGroups.FileSystem, typeof(FileSystemTool), nameof(FileSystemTool.MoveToBinAsync),
+            "Moves an authorized local file or directory to the Windows Recycle Bin when Safety:AllowMoveToBin is enabled.",
+            [
+                Arg("path", WorkflowArgumentKind.String, required: true, "Relative global-root or task-authorized absolute file or directory path.", "inbox/obsolete.txt"),
+            ],
+            "Safety:AllowMoveToBin",
+            localPaths: [Path("path", LocalPathTargetKind.FileOrDirectory, FileSystemAccessMode.ReadWrite)]),
         Tool("filesystem.rename", "filesystem_rename", ToolGroups.FileSystem, typeof(FileSystemTool), nameof(FileSystemTool.RenameAsync),
             "Renames an authorized local file without changing its directory.",
             [
@@ -134,6 +141,33 @@ public static class ToolMap
                 Arg("path", WorkflowArgumentKind.String, required: true, "Relative global-root or task-authorized absolute directory path.", "reports/2026"),
             ],
             localPaths: [Path("path", LocalPathTargetKind.Directory, FileSystemAccessMode.ReadWrite)]),
+        Tool("filesystem.markdownToHtml", "filesystem_markdown_to_html", ToolGroups.FileSystem, typeof(FileSystemTool), nameof(FileSystemTool.MarkdownToHtmlAsync),
+            "Converts an authorized Markdown file to a standalone UTF-8 HTML file using a dark or light theme.",
+            [
+                Arg("sourcePath", WorkflowArgumentKind.String, required: true, "Relative global-root or task-authorized absolute Markdown source file path.", "reports/summary.md"),
+                Arg("destinationPath", WorkflowArgumentKind.String, required: false, "Optional HTML destination path; omit to replace the source extension with '.html'.", "reports/summary.html"),
+                Arg("theme", WorkflowArgumentKind.Enumeration, required: false, "Standalone HTML theme: Dark or Light. Dark is the default.", "Dark", Enum.GetNames<MarkdownHtmlTheme>()),
+            ],
+            localPaths:
+            [
+                Path("sourcePath", LocalPathTargetKind.File, FileSystemAccessMode.ReadOnly),
+                new LocalPathArgumentDefinition(
+                    "sourcePath",
+                    LocalPathTargetKind.File,
+                    FileSystemAccessMode.ReadWrite,
+                    LocalPathDerivationKind.OptionalDestinationOrSameDirectoryExtension,
+                    "destinationPath")
+                {
+                    DefaultValue = ".html",
+                },
+            ]),
+        Tool("filesystem.htmlToText", "filesystem_html_to_text", ToolGroups.FileSystem, typeof(FileSystemTool), nameof(FileSystemTool.HtmlToTextAsync),
+            "Extracts normalized plain text or principal Markdown structure from an authorized HTML file.",
+            [
+                Arg("sourcePath", WorkflowArgumentKind.String, required: true, "Relative global-root or task-authorized absolute HTML source file path.", "inbox/page.html"),
+                Arg("format", WorkflowArgumentKind.Enumeration, required: false, "Output format: Text or Markdown. Text is the default.", "Text", Enum.GetNames<HtmlTextFormat>()),
+            ],
+            localPaths: [Path("sourcePath", LocalPathTargetKind.File, FileSystemAccessMode.ReadOnly)]),
         Tool("http.get", "http_get", ToolGroups.Http, typeof(HttpTool), nameof(HttpTool.GetAsync),
             "Performs an HTTP GET request to an allowed host.",
             [Url()]),

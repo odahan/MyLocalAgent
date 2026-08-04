@@ -50,6 +50,7 @@ public sealed partial class SettingsViewModel :
         nameof(RunnerPath),
         nameof(AllowSendEmail),
         nameof(AllowFileDelete),
+        nameof(AllowMoveToBin),
         nameof(AllowHttpPost),
         nameof(GuardrailsScreeningEnabled),
         nameof(GuardrailsCleanThreshold),
@@ -169,6 +170,9 @@ public sealed partial class SettingsViewModel :
 
     [ObservableProperty]
     private bool _allowFileDelete;
+
+    [ObservableProperty]
+    private bool _allowMoveToBin;
 
     [ObservableProperty]
     private bool _allowHttpPost;
@@ -514,6 +518,7 @@ public sealed partial class SettingsViewModel :
                 requireExists: false);
             AllowSendEmail = safety.AllowSendEmail;
             AllowFileDelete = safety.AllowFileDelete;
+            AllowMoveToBin = safety.AllowMoveToBin;
             AllowHttpPost = safety.AllowHttpPost;
             GuardrailsScreeningEnabled = guardrails.ScreeningEnabled;
             GuardrailsCleanThreshold = guardrails.CleanThreshold;
@@ -598,6 +603,7 @@ public sealed partial class SettingsViewModel :
                 RunnerPath.Trim(),
                 AllowSendEmail,
                 AllowFileDelete,
+                AllowMoveToBin,
                 AllowHttpPost,
                 GuardrailsScreeningEnabled,
                 GuardrailsCleanThreshold,

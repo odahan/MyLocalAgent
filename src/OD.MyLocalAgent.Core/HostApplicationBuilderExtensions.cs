@@ -63,6 +63,7 @@ public static class HostApplicationBuilderExtensions
         builder.Services.AddHttpClient(HttpTool.HttpClientName);
 
         builder.Services.AddSingleton<IPathSandbox, PathSandbox>();
+        builder.Services.AddSingleton<IRecycleBinService, WindowsRecycleBinService>();
         builder.Services.AddSingleton<IContextualToolFactory<FileSystemTool>,
             ContextualToolFactory<FileSystemTool>>();
         builder.Services.AddSingleton<IContextualToolFactory<DropboxTool>,

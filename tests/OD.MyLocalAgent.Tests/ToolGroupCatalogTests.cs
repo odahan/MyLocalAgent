@@ -131,6 +131,10 @@ public sealed class ToolGroupCatalogTests
             .Select(static alias => alias.Group)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Should().Equal(expectedGroups);
+        var aliases = viewModel.Aliases.Select(static alias => alias.Alias).ToArray();
+        aliases.Should().Contain("filesystem.moveToBin");
+        aliases.Should().Contain("filesystem.markdownToHtml");
+        aliases.Should().Contain("filesystem.htmlToText");
     }
 
     /// <summary>
