@@ -6,6 +6,12 @@
 > must later consume the read-only bridge defined here; this stage must not depend on the
 > Stage 19 public tool surface.
 
+## 0. Read first (mandatory)
+- Docs/Prompts/00-Shared-Specification.md — full read, including addenda §12–§19. §19 is the normative contract for this stage.
+- Docs/ARCHITECTURE-LEDGER.md — full read; recorded APIs, privacy boundaries, protocol channels, and concurrency constraints are binding.
+- The post-Stage-18D implementations
+
+
 ## 1. Mission
 
 Add a reusable Web research foundation for workflows that need to discover current documents,

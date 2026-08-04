@@ -43,9 +43,9 @@ its own navigation, search, styles, and scripts in one file.
 | 20 | Agent Prompt Placeholders | Complete with documented, human task test done |
 | 21 | Model Information Placeholders | Complete with automated verification |
 | 22 | Archive, Office, and PDF Tools | TO DO |
-| 23 | Web Discovery, Retrieval, Research Storage, and named Storage Spaces | Specified — TO DO |
-| 24 | Publications and Markdown Reports | Specified — depends on Stage 23 |
-| 25 | Human Workflow Text Editing with advanced JSON mode | Specified — TO DO |
+| 23 | Web Discovery, Retrieval, Research Storage, and named Storage Spaces | TO DO |
+| 24 | Publications and Markdown Reports | TODO depends on Stage 23 |
+| 25 | Human Workflow Text Editing with advanced JSON mode | TO DO |
 
 See [Docs/acceptance-report.md](Docs/acceptance-report.md) for the executed acceptance
 evidence and any remaining environment-dependent checks.

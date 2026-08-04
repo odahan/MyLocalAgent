@@ -4,6 +4,12 @@
 > Markdown reporting. It is intentionally generic: Microsoft MVP reporting is one useful report
 > profile, not a product-specific data model.
 
+## 0. Read first (mandatory)
+- Docs/Prompts/00-Shared-Specification.md — full read, including addenda §12–§19. §19 is the normative contract for this stage.
+- Docs/ARCHITECTURE-LEDGER.md — full read; recorded APIs, privacy boundaries, protocol channels, and concurrency constraints are binding.
+
+
+
 ## 1. Mission
 
 Let a user record published work, review it by period and theme, and export a concise Markdown

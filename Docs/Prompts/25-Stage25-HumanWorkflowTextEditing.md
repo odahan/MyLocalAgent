@@ -6,6 +6,11 @@
 > is independent of Stages 19, 22, 23 and 24, although their metadata must participate when they
 > are present.
 
+## 0. Read first (mandatory)
+- Docs/Prompts/00-Shared-Specification.md — full read, including addenda §12–§19. §19 is the normative contract for this stage.
+- Docs/ARCHITECTURE-LEDGER.md — full read; recorded APIs, privacy boundaries, protocol channels, and concurrency constraints are binding.
+- The post-Stage-18D implementations
+
 ## 1. Mission
 
 Replace the default large raw-JSON workflow textbox with a text-first workflow editor that a
