@@ -28,12 +28,12 @@ its own navigation, search, styles, and scripts in one file.
 | 8 | Ollama cloud Web Search with mandatory Guardrails protection | Complete with documented live-key/UI checks |
 | 9 | Not implemented |
 | 10 | Not implemented |
-| 11 | PER-TASK FILE-SYSTEM AUTHORIZATION |
-| 12 | Sequential workflow context & guided JSON authoring |
-| 13 | AI Workflow Helper |
-| 14 | Hierarchical AI Generation Settings |
+| 11 | PER-TASK FILE-SYSTEM AUTHORIZATION | Complete |
+| 12 | Sequential workflow context & guided JSON authoring | Complete |
+| 13 | AI Workflow Helper | Complete |
+| 14 | Hierarchical AI Generation Settings | Complete |
 | 15 | Not Implemented |
-| 16 | Windowless Runner and Run Monitor |
+| 16 | Windowless Runner and Run Monitor | Complete |
 | 17 | Deterministic workflow authoring aids: Tool catalog and Workflow prompt editor | Complete with documented human GUI checks |
 | 18 | Compact External-Content Guardrails | Complete |
 | 18A | Extensible Tool Integration Foundation | Complete with automated verification |
@@ -41,6 +41,7 @@ its own navigation, search, styles, and scripts in one file.
 | 19 | SQLite Tool | TO DO |
 | 20 | Agent Prompt Placeholders | Complete with documented, human task test done |
 | 21 | Model Information Placeholders | Complete with automated verification |
+| 22 | Archive, Office, and PDF Tools | TO DO |
 
 See [Docs/acceptance-report.md](Docs/acceptance-report.md) for the executed acceptance
 evidence and any remaining environment-dependent checks.
