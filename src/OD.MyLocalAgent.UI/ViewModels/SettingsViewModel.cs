@@ -52,6 +52,14 @@ public sealed partial class SettingsViewModel :
         nameof(AllowFileDelete),
         nameof(AllowMoveToBin),
         nameof(AllowHttpPost),
+        nameof(AllowSqliteWrite),
+        nameof(SqliteDefaultMaxRows),
+        nameof(SqliteMaxRows),
+        nameof(SqliteMaxResultCharacters),
+        nameof(SqliteMaxBlobBytes),
+        nameof(SqliteMaxSqlCharacters),
+        nameof(SqliteCommandTimeoutSeconds),
+        nameof(SqliteGuardrailsEnabledByDefault),
         nameof(GuardrailsScreeningEnabled),
         nameof(GuardrailsCleanThreshold),
         nameof(GuardrailsCautionThreshold),
@@ -75,6 +83,7 @@ public sealed partial class SettingsViewModel :
     private readonly IOptionsMonitor<SafetyOptions> _safetyOptions;
     private readonly IOptionsMonitor<GuardrailsOptions> _guardrailsOptions;
     private readonly IOptionsMonitor<LoggingOptions> _loggingOptions;
+    private readonly IOptionsMonitor<SQLiteOptions>? _sqliteOptions;
     private readonly ILlmClientFactory _llmClientFactory;
     private readonly IOllamaModelCatalog _ollamaModelCatalog;
     private readonly ISecretStore _secretStore;
@@ -178,6 +187,19 @@ public sealed partial class SettingsViewModel :
     private bool _allowHttpPost;
 
     [ObservableProperty]
+    private bool _allowSqliteWrite;
+
+    [ObservableProperty] private int _sqliteDefaultMaxRows = 100;
+    [ObservableProperty] private int _sqliteMaxRows = 1_000;
+    [ObservableProperty] private int _sqliteMaxResultCharacters = 64_000;
+    [ObservableProperty] private int _sqliteMaxBlobBytes = 4_096;
+    [ObservableProperty] private int _sqliteMaxSqlCharacters = 16_000;
+    [ObservableProperty] private int _sqliteCommandTimeoutSeconds = 30;
+    [ObservableProperty] private bool _sqliteGuardrailsEnabledByDefault = true;
+    [ObservableProperty] private string _sqliteValidationText = "SQLite settings are valid.";
+    [ObservableProperty] private bool _hasSqliteValidationError;
+
+    [ObservableProperty]
     private bool _guardrailsScreeningEnabled = true;
 
     [ObservableProperty]
@@ -259,7 +281,8 @@ public sealed partial class SettingsViewModel :
         ILogManagementService logManagementService,
         IDesktopInteractionService desktopInteraction,
         IMessenger messenger,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IOptionsMonitor<SQLiteOptions>? sqliteOptions = null)
         : base(messenger)
     {
         _aiOptions = aiOptions;
@@ -271,6 +294,7 @@ public sealed partial class SettingsViewModel :
         _safetyOptions = safetyOptions;
         _guardrailsOptions = guardrailsOptions;
         _loggingOptions = loggingOptions;
+        _sqliteOptions = sqliteOptions;
         _llmClientFactory = llmClientFactory;
         _ollamaModelCatalog = ollamaModelCatalog;
         _secretStore = secretStore;
@@ -464,6 +488,18 @@ public sealed partial class SettingsViewModel :
     partial void OnContextWindowTokensTextChanged(string value) =>
         UpdateGenerationValidation();
 
+    partial void OnSqliteDefaultMaxRowsChanged(int value) => UpdateSqliteValidation();
+
+    partial void OnSqliteMaxRowsChanged(int value) => UpdateSqliteValidation();
+
+    partial void OnSqliteMaxResultCharactersChanged(int value) => UpdateSqliteValidation();
+
+    partial void OnSqliteMaxBlobBytesChanged(int value) => UpdateSqliteValidation();
+
+    partial void OnSqliteMaxSqlCharactersChanged(int value) => UpdateSqliteValidation();
+
+    partial void OnSqliteCommandTimeoutSecondsChanged(int value) => UpdateSqliteValidation();
+
     [RelayCommand]
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
@@ -480,6 +516,7 @@ public sealed partial class SettingsViewModel :
             var safety = _safetyOptions.CurrentValue;
             var guardrails = _guardrailsOptions.CurrentValue;
             var logging = _loggingOptions.CurrentValue;
+            var sqlite = _sqliteOptions?.CurrentValue ?? new SQLiteOptions();
 
             IsOllamaProvider = string.Equals(
                 ai.Provider,
@@ -520,6 +557,15 @@ public sealed partial class SettingsViewModel :
             AllowFileDelete = safety.AllowFileDelete;
             AllowMoveToBin = safety.AllowMoveToBin;
             AllowHttpPost = safety.AllowHttpPost;
+            AllowSqliteWrite = safety.AllowSqliteWrite;
+            SqliteDefaultMaxRows = sqlite.DefaultMaxRows;
+            SqliteMaxRows = sqlite.MaxRows;
+            SqliteMaxResultCharacters = sqlite.MaxResultCharacters;
+            SqliteMaxBlobBytes = sqlite.MaxBlobBytes;
+            SqliteMaxSqlCharacters = sqlite.MaxSqlCharacters;
+            SqliteCommandTimeoutSeconds = sqlite.CommandTimeoutSeconds;
+            SqliteGuardrailsEnabledByDefault = sqlite.GuardrailsEnabledByDefault;
+            UpdateSqliteValidation();
             GuardrailsScreeningEnabled = guardrails.ScreeningEnabled;
             GuardrailsCleanThreshold = guardrails.CleanThreshold;
             GuardrailsCautionThreshold = guardrails.CautionThreshold;
@@ -583,6 +629,12 @@ public sealed partial class SettingsViewModel :
                 return;
             }
 
+            if (!TryGetSqliteOptions(out _))
+            {
+                UpdateSqliteValidation();
+                return;
+            }
+
             var currentScheduler = _schedulerOptions.CurrentValue;
             var settings = new UserSettingsData(
                 IsOpenAIProvider
@@ -619,7 +671,15 @@ public sealed partial class SettingsViewModel :
                 SelectedTheme,
                 generationDefaults.Temperature,
                 generationDefaults.TopP,
-                generationDefaults.ContextWindowTokens);
+                generationDefaults.ContextWindowTokens,
+                AllowSqliteWrite,
+                SqliteDefaultMaxRows,
+                SqliteMaxRows,
+                SqliteMaxResultCharacters,
+                SqliteMaxBlobBytes,
+                SqliteMaxSqlCharacters,
+                SqliteCommandTimeoutSeconds,
+                SqliteGuardrailsEnabledByDefault);
             await _userSettingsService
                 .SaveAsync(
                     settings,
@@ -896,14 +956,15 @@ public sealed partial class SettingsViewModel :
             EditablePropertyNames.Contains(e.PropertyName))
         {
             IsDirty = true;
-            SaveStatus = HasGenerationValidationError
+            SaveStatus = HasGenerationValidationError || HasSqliteValidationError
                 ? "Fix the validation errors before saving."
                 : "Unsaved changes.";
         }
     }
 
     private bool CanSave() =>
-        IsDirty && !IsBusy && TryGetGenerationDefaults(out _);
+        IsDirty && !IsBusy && TryGetGenerationDefaults(out _) &&
+        TryGetSqliteOptions(out _);
 
     private bool CanDiscardChanges() => IsDirty && !IsBusy;
 
@@ -992,6 +1053,69 @@ public sealed partial class SettingsViewModel :
         if (error is not null)
         {
             GenerationValidationText = error;
+            return false;
+        }
+
+        return true;
+    }
+
+    private void UpdateSqliteValidation()
+    {
+        HasSqliteValidationError = !TryGetSqliteOptions(out _);
+        if (!HasSqliteValidationError)
+        {
+            SqliteValidationText = "SQLite settings are valid.";
+        }
+
+        SaveCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool TryGetSqliteOptions(out SQLiteOptions options)
+    {
+        options = new SQLiteOptions
+        {
+            DefaultMaxRows = SqliteDefaultMaxRows,
+            MaxRows = SqliteMaxRows,
+            MaxResultCharacters = SqliteMaxResultCharacters,
+            MaxBlobBytes = SqliteMaxBlobBytes,
+            MaxSqlCharacters = SqliteMaxSqlCharacters,
+            CommandTimeoutSeconds = SqliteCommandTimeoutSeconds,
+            GuardrailsEnabledByDefault = SqliteGuardrailsEnabledByDefault,
+        };
+
+        if (options.DefaultMaxRows < 1 || options.DefaultMaxRows > options.MaxRows)
+        {
+            SqliteValidationText = "Default maximum rows must be at least 1 and no greater than maximum rows per call.";
+            return false;
+        }
+
+        if (options.MaxRows is < 1 or > 10_000)
+        {
+            SqliteValidationText = "Maximum rows per call must be from 1 through 10000.";
+            return false;
+        }
+
+        if (options.MaxResultCharacters is < 4_096 or > 1_000_000)
+        {
+            SqliteValidationText = "Maximum result characters must be from 4096 through 1000000.";
+            return false;
+        }
+
+        if (options.MaxBlobBytes is < 0 or > 1_000_000)
+        {
+            SqliteValidationText = "Maximum BLOB bytes must be from 0 through 1000000.";
+            return false;
+        }
+
+        if (options.MaxSqlCharacters is < 256 or > 1_000_000)
+        {
+            SqliteValidationText = "Maximum SQL characters must be from 256 through 1000000.";
+            return false;
+        }
+
+        if (options.CommandTimeoutSeconds is < 1 or > 300)
+        {
+            SqliteValidationText = "Command timeout must be from 1 through 300 seconds.";
             return false;
         }
 

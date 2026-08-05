@@ -293,6 +293,20 @@ therefore still describes tools from its previous prompt source while the Tool c
 the richer typed metadata. This divergence is intentional for this pass and is recorded in the
 ledger rather than silently reconciled.
 
+## Stage 19 SQLite Tool
+
+| Checklist item | Status | Executed evidence |
+|---|---:|---|
+| Bounded SQLite operations use the Windows-serviced provider and synthetic databases only. | ✅ automated | 51 targeted SQLite tests passed: read/write execution, parameter binding, SQL restrictions, result/BLOB/character bounds, Safety behavior, and provider assets were exercised without a personal database. |
+| SQLite group, aliases, Settings/task persistence, and dynamic projections remain consistent. | ✅ automated | Catalog, Tool Map, ViewModel, persistence, and generation-surface tests passed; the catalog contract requires `sqlite` after File system and before HTTP and validates the four SQLite aliases. |
+| Non-GUI regression gate is clean. | ✅ | `dotnet test OD.MyLocalAgent.sln --configuration Release -m:1 --no-restore` completed with 528 passed, 0 failed, and 1 explicitly skipped local Ollama probe. `dotnet build OD.MyLocalAgent.sln --configuration Release -m:1 --no-restore` completed with 0 warnings and 0 errors. |
+| WPF interactive verification of Settings, Task editor, Tool Tester, AI Playground, and Tool catalog. | ✅ manual | Manual verification confirmed the SQLite Settings section and bounds validation; task-editor group, authorization card, dirty state, and persisted Guardrails preference; four Tool Tester aliases; SQLite in AI Playground Allow Tools; and catalog order after File system and before HTTP. No personal database, task, configuration, or real LLM was used. |
+
+### Stage 19 residual
+
+No Stage 19 discrepancy is known after automated and manual verification. The documented
+examples remain synthetic and should be used before any sensitive or personal database.
+
 ## Stage 20 agent prompt placeholders
 
 Date: 2026-08-03
@@ -314,7 +328,6 @@ Date: 2026-08-03
 
 ### Stage 20 residuals
 
-- Stage 19 remains intentionally unimplemented. Stage 20 has no dependency on it.
 - The application was not launched for this pass. Prompt editor callout rendering in Light/Dark
   and a real scheduled crossing-midnight execution remain operator checks; deterministic tests
   cover the non-environmental behavior.

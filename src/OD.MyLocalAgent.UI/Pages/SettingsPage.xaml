@@ -351,6 +351,40 @@
                     <TextBlock Margin="24,2,0,0"
                                Style="{StaticResource CaptionTextStyle}"
                                Text="Permits http.post to send data to allowed hosts." />
+                    <CheckBox Margin="0,12,0,0"
+                              Content="Allow SQLite writes"
+                              IsChecked="{Binding AllowSqliteWrite, Mode=TwoWay}" />
+                    <TextBlock Margin="24,2,0,0"
+                               Style="{StaticResource CaptionTextStyle}"
+                               Text="Permits sqlite.execute against an authorized ReadWrite database path." />
+
+                    <Separator Margin="0,22,0,20"
+                               Background="{DynamicResource DividerBrush}" />
+                    <TextBlock FontWeight="SemiBold"
+                               Text="SQLite" />
+                    <CheckBox Margin="0,12,0,0"
+                              Content="Use Guardrails by default for new SQLite tasks"
+                              IsChecked="{Binding SqliteGuardrailsEnabledByDefault, Mode=TwoWay}" />
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="16" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <TextBox Text="{Binding SqliteDefaultMaxRows, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Default maximum rows" />
+                        <TextBox Grid.Column="2" Text="{Binding SqliteMaxRows, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Maximum rows per call" />
+                    </Grid>
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="16" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <TextBox Text="{Binding SqliteMaxResultCharacters, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Maximum result characters" />
+                        <TextBox Grid.Column="2" Text="{Binding SqliteMaxBlobBytes, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Maximum BLOB bytes (0 omits BLOBs)" />
+                    </Grid>
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="16" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <TextBox Text="{Binding SqliteMaxSqlCharacters, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Maximum SQL characters" />
+                        <TextBox Grid.Column="2" Text="{Binding SqliteCommandTimeoutSeconds, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Command timeout (seconds)" />
+                    </Grid>
+                    <TextBlock Margin="0,8,0,0"
+                               Foreground="{DynamicResource ErrorBrush}"
+                               Text="{Binding SqliteValidationText}"
+                               TextWrapping="Wrap"
+                               Visibility="{Binding HasSqliteValidationError, Converter={StaticResource BooleanToVisibilityConverter}}" />
 
                     <Separator Margin="0,22,0,20"
                                Background="{DynamicResource DividerBrush}" />

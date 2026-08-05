@@ -1,0 +1,25 @@
+{
+  "id": "sqlite-read-example",
+  "name": "SQLite read example",
+  "schedule": "0 8 * * 1-5",
+  "prompt": "Inspect the authorized local SQLite data and report the bounded result.",
+  "tools": ["sqlite"],
+  "fileSystemAccess": [],
+  "sqliteGuardrailsEnabled": true,
+  "workflow": [
+    {
+      "step": "sqlite.query",
+      "id": "readItems",
+      "args": {
+        "databasePath": "data/sample.db",
+        "sql": "SELECT id, name FROM items WHERE id >= @minimumId ORDER BY id",
+        "parameters": {
+          "@minimumId": 1
+        },
+        "maxRows": 25
+      }
+    }
+  ],
+  "enabled": false,
+  "errorPolicy": "StopOnError"
+}

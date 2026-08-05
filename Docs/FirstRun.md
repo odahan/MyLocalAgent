@@ -209,8 +209,12 @@ La clé est protégée par Windows DPAPI. Activer ensuite le groupe d’outils
 - **HTTP** : aucune clé n’est requise. Définir dans **Settings** les hôtes HTTP
   autorisés avant une tâche non supervisée. Une liste vide autorise tous les
   hôtes HTTP/HTTPS et convient seulement à un essai contrôlé.
+- **SQLite** : utilisez uniquement un fichier local jetable dans la racine autorisée.
+  Les lectures restent soumises à l’autorisation du chemin ; une écriture exige en plus
+  `Safety:AllowSqliteWrite`. Chaque tâche conserve son choix de filtrage Guardrails pour les
+  résultats SQLite bornés ; si ce filtrage est demandé mais indisponible, le résultat est retenu.
 - Les opérations sensibles restent désactivées par défaut : envoi d’e-mail,
-  suppression de fichiers et HTTP POST. Les activer uniquement lorsqu’une tâche
+  suppression de fichiers, HTTP POST et écriture SQLite. Les activer uniquement lorsqu’une tâche
   précise le justifie.
 
 ## 10. Contrôle final avant la première tâche

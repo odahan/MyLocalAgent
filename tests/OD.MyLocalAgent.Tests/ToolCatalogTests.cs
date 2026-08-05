@@ -38,7 +38,7 @@ public sealed class ToolCatalogTests
         var catalog = ToolCatalog.Default;
         var whitelistGroupNames = catalog.TaskWhitelistGroups.Select(g => g.Name).ToList();
 
-        whitelistGroupNames.Should().Equal("gmail", "calendar", "dropbox", "filesystem", "http", "web");
+        whitelistGroupNames.Should().Equal("gmail", "calendar", "dropbox", "filesystem", "sqlite", "http", "web");
 
         catalog.FindGroup("gmail")!.DisplayName.Should().Be("Gmail");
         catalog.FindGroup("calendar")!.DisplayName.Should().Be("Calendar");
@@ -71,6 +71,12 @@ public sealed class ToolCatalogTests
         catalog.Find("filesystem.createDirectory").Should().NotBeNull();
         catalog.Find("filesystem.markdownToHtml").Should().NotBeNull();
         catalog.Find("filesystem.htmlToText").Should().NotBeNull();
+
+        catalog.FindGroup("sqlite")!.DisplayName.Should().Be("SQLite");
+        catalog.Find("sqlite.listObjects").Should().NotBeNull();
+        catalog.Find("sqlite.describeTable").Should().NotBeNull();
+        catalog.Find("sqlite.query").Should().NotBeNull();
+        catalog.Find("sqlite.execute").Should().NotBeNull();
 
         catalog.Find("http.get").Should().NotBeNull();
         catalog.Find("http.post").Should().NotBeNull();

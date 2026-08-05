@@ -668,6 +668,203 @@ public sealed class ContentTrustService : IContentTrustService
         return new CompactExternalContentBatchResult(completedResults, failures);
     }
 
+    /// <inheritdoc />
+    public async Task<CompactExternalContentBatchResult> ScreenCompactAsync(
+        IReadOnlyList<CompactExternalContentItem> items,
+        CancellationToken cancellationToken)
+    {
+        ValidateCompactItems(items);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var options = _guardrailsOptions.CurrentValue;
+        if (!options.ScreeningEnabled)
+        {
+            return new CompactExternalContentBatchResult(
+                items.Select(CreateDisabledCompactResult).ToArray(),
+                []);
+        }
+
+        var provider = _clientFactory.Create();
+        var snapshot = CaptureSnapshot(provider);
+        var operationStarted = _timeProvider.GetTimestamp();
+        var screeningPolicy = GenerationPolicyResolver.ResolveInternal(
+            InternalGenerationPolicies.GuardrailScreening,
+            _aiOptions.CurrentValue.GenerationDefaults);
+        var results = new CompactExternalContentResult?[items.Count];
+        var failures = new List<CompactExternalContentBatchFailure>();
+        var partitions = PartitionCompactItems(items, options.MaxContentChars);
+        var sourceCalls = 0;
+        var sourceCacheHits = 0;
+        long sourceLatencyMs = 0;
+
+        foreach (var batch in partitions)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var batchStarted = _timeProvider.GetTimestamp();
+            var states = batch
+                .Select(index => new CompactItemState(index, items[index]))
+                .ToArray();
+
+            foreach (var state in states.Where(static state => state.Item.Content.Length == 0))
+            {
+                results[state.Index] = new CompactExternalContentResult(
+                    state.Item.Id,
+                    null,
+                    CreateDeterministicTrust(string.Empty),
+                    null,
+                    CompactExternalContentStatus.Screened,
+                    false,
+                    0);
+            }
+
+            var activeStates = states
+                .Where(static state => state.Item.Content.Length > 0)
+                .ToArray();
+            if (activeStates.Length == 0)
+            {
+                continue;
+            }
+
+            try
+            {
+                EnsureSnapshot(snapshot);
+                var misses = new List<CompactItemState>();
+                foreach (var state in activeStates)
+                {
+                    var key = CreateCompactVerdictCacheKey(snapshot, state.Item.Content);
+                    if (options.CacheResults && TryGetVerdictCache(key, out var cached))
+                    {
+                        sourceCacheHits++;
+                        state.SourceVerdict = new VerdictCallResult(
+                            cached.Score,
+                            cached.Indicators,
+                            0);
+                    }
+                    else
+                    {
+                        misses.Add(state);
+                    }
+                }
+
+                if (misses.Count > 0)
+                {
+                    sourceCalls++;
+                    var call = await CallProviderAsync(
+                            provider,
+                            snapshot,
+                            CompactContentBatchScreenerPrompt.System,
+                            BuildCompactScreeningRequest(misses),
+                            options,
+                            screeningPolicy,
+                            requireStableConfiguration: true,
+                            cancellationToken,
+                            CalculateScreeningOutputTokens(misses.Count))
+                        .ConfigureAwait(false);
+                    sourceLatencyMs += call.LatencyMs;
+                    if (call.Text.Length > CalculateScreeningResponseCharacterLimit(
+                            misses.Select(static state => state.Item).ToArray()))
+                    {
+                        throw new FormatException(
+                            "The compact screening response exceeded its strict bound.");
+                    }
+
+                    var parsed = ParseCompactVerdicts(
+                        call.Text,
+                        misses.Select(static state => state.Item).ToArray());
+                    foreach (var state in misses)
+                    {
+                        var verdict = parsed[state.Item.Id];
+                        state.SourceVerdict = new VerdictCallResult(
+                            verdict.Score,
+                            verdict.Indicators,
+                            call.LatencyMs);
+                        if (options.CacheResults)
+                        {
+                            _verdictCache[CreateCompactVerdictCacheKey(
+                                snapshot,
+                                state.Item.Content)] = new VerdictCacheEntry(
+                                    verdict.Score,
+                                    verdict.Indicators,
+                                    _timeProvider.GetUtcNow());
+                        }
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
+                var failure = CreateCompactFailure(
+                    "SourceScreening",
+                    snapshot,
+                    activeStates.Length,
+                    batchStarted);
+                failures.Add(failure);
+                foreach (var state in activeStates)
+                {
+                    results[state.Index] = new CompactExternalContentResult(
+                        state.Item.Id,
+                        null,
+                        CreateFailedTrust(state.Item.Content, provider.ProviderName),
+                        null,
+                        CompactExternalContentStatus.SourceScreeningUnavailable,
+                        true,
+                        GetFailureLatency(failure));
+                }
+
+                continue;
+            }
+
+            foreach (var state in activeStates)
+            {
+                var verdict = state.SourceVerdict
+                    ?? throw new InvalidOperationException("Compact source verdict is missing.");
+                var trust = CreateScreenedTrust(
+                    state.Item.Content,
+                    verdict,
+                    provider.ProviderName);
+                results[state.Index] = verdict.Score < options.CautionThreshold
+                    ? new CompactExternalContentResult(
+                        state.Item.Id,
+                        null,
+                        trust,
+                        null,
+                        CompactExternalContentStatus.SourceWithheld,
+                        true,
+                        verdict.LatencyMs)
+                    : new CompactExternalContentResult(
+                        state.Item.Id,
+                        null,
+                        trust,
+                        null,
+                        CompactExternalContentStatus.Screened,
+                        false,
+                        verdict.LatencyMs);
+            }
+        }
+
+        var completedScreenResults = results.Select(static result => result
+                ?? throw new InvalidOperationException("A compact item result is missing."))
+                .ToArray();
+        _logger?.LogInformation(
+            "Screen-only compact Guardrails completed for provider {ProviderName}, model {ModelName}: items {ItemCount}, batches {BatchCount}, source calls {SourceCallCount}, source cache hits {SourceCacheHitCount}, screened {ScreenedCount}, withheld {WithheldCount}, human review {ReviewCount}, source characters {SourceCharacterCount}, source latency {SourceLatencyMs} ms, total {TotalLatencyMs} ms.",
+            snapshot.Provider,
+            snapshot.Model,
+            items.Count,
+            partitions.Count,
+            sourceCalls,
+            sourceCacheHits,
+            completedScreenResults.Count(static result => result.Status == CompactExternalContentStatus.Screened),
+            completedScreenResults.Count(static result => result.Status == CompactExternalContentStatus.SourceWithheld),
+            completedScreenResults.Count(static result => result.RequiresHumanReview),
+            items.Sum(static item => item.Content.Length),
+            sourceLatencyMs,
+            GetElapsedMilliseconds(operationStarted));
+        return new CompactExternalContentBatchResult(completedScreenResults, failures);
+    }
+
     private void ValidateCompactItems(IReadOnlyList<CompactExternalContentItem> items)
     {
         ArgumentNullException.ThrowIfNull(items);

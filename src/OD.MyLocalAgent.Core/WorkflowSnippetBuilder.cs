@@ -124,6 +124,7 @@ public static class WorkflowSnippetBuilder
         {
             WorkflowArgumentKind.Integer or WorkflowArgumentKind.Number => 0,
             WorkflowArgumentKind.Boolean => false,
+            WorkflowArgumentKind.Object => new Dictionary<string, object?>(),
             WorkflowArgumentKind.Enumeration => argument.AllowedValues.Count > 0
                 ? argument.AllowedValues[0]
                 : string.Empty,

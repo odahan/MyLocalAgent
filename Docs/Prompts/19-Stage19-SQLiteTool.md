@@ -54,7 +54,7 @@ agent context.
 | # | Decision |
 |---|---|
 | S19-D1 | **Four aliases, one group.** Add exactly `sqlite.listObjects`, `sqlite.describeTable`, `sqlite.query`, and `sqlite.execute` in the new whitelist group `sqlite`. No generic database provider or alias synonym is introduced. After Stage 23, `sqlite.query` additionally supports the documented managed-storage target mode; it is not a fifth alias. |
-| S19-D2 | **Microsoft.Data.Sqlite only.** Pin `Microsoft.Data.Sqlite` 10.0.10 centrally and reference it from Core. Do not add EF Core, Dapper, System.Data.SQLite, a migration framework, or a second SQLite bundle. |
+| S19-D2 | **Microsoft.Data.Sqlite API only.** Pin `Microsoft.Data.Sqlite.Core` 10.0.10 centrally and reference it from Core, with `SQLitePCLRaw.bundle_winsqlite3` 2.1.11 for the Windows-serviced native runtime. Do not add EF Core, Dapper, System.Data.SQLite, a migration framework, or a second SQLite bundle. |
 | S19-D3 | **Paths, not connection strings.** Every alias accepts `databasePath`. Connection strings, URI filenames, `:memory:`, named in-memory databases, passwords, VFS names, cache modes, and arbitrary provider options are forbidden inputs. |
 | S19-D4 | **Existing authorization model.** Read aliases require `ReadOnly` local-path access; `sqlite.execute` requires `ReadWrite`. Relative paths use `FileSystem:RootPath`; absolute paths use immutable task grants. Reparse-point checks remain authoritative. The Stage 23 managed-storage query mode resolves only an immutable `storageSpaceId` snapshot and does not accept, reveal, or authorize a path. |
 | S19-D5 | **Context-bound instances.** `SqliteTool` declares Stage 18D `Contextual` activation and is created by the generic target activator for each execution context. Singleton mutable task id, current path, current Guardrails flag, connection, or transaction state is forbidden. |
@@ -107,9 +107,9 @@ Add centrally:
 ```
 
 Add one Core package reference to `Microsoft.Data.Sqlite`. The package's compatible
-`SQLitePCLRaw.bundle_e_sqlite3` and `SQLitePCLRaw.core` dependencies provide the native SQLite
-runtime and interrupt API. Do not add separate direct SQLitePCLRaw package references or version
-entries; use the transitive API version resolved by the pinned provider package.
+`SQLitePCLRaw.bundle_winsqlite3` and `SQLitePCLRaw.core` provide the Windows-serviced native
+SQLite runtime and interrupt API. Pin the bundle centrally because it is the deliberate runtime
+selection; do not add another SQLite bundle or provider.
 
 Both the UI and Runner publish outputs must contain the correct Windows native asset. Tests that
 run only against the build output do not replace a published-output smoke test. Record the

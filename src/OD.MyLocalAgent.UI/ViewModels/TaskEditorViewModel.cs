@@ -36,6 +36,7 @@ public sealed partial class TaskEditorViewModel :
         nameof(TemperatureOverrideText),
         nameof(UseGlobalTopP),
         nameof(TopPOverrideText),
+        nameof(SqliteGuardrailsEnabled),
     ];
 
     private readonly ITaskStore _taskStore;
@@ -49,6 +50,7 @@ public sealed partial class TaskEditorViewModel :
     private readonly IWorkflowPromptEditorDialogService? _promptEditorDialog;
     private readonly IOptionsMonitor<SafetyOptions>? _safetyOptions;
     private readonly IOptionsMonitor<AIOptions>? _aiOptions;
+    private readonly IOptionsMonitor<SQLiteOptions>? _sqliteOptions;
     private readonly ObservableCollection<ToolGroupSelectionItem> _toolGroupSelectionItems;
     private string? _requestedTaskId;
     private string? _originalTaskId;
@@ -103,6 +105,9 @@ public sealed partial class TaskEditorViewModel :
 
     [ObservableProperty]
     private bool _isEnabled = true;
+
+    [ObservableProperty]
+    private bool _sqliteGuardrailsEnabled = true;
 
     [ObservableProperty]
     private WorkflowErrorPolicy _selectedErrorPolicy =
@@ -183,7 +188,8 @@ public sealed partial class TaskEditorViewModel :
         IWorkflowToolCatalogDialogService? toolCatalogDialog = null,
         IWorkflowPromptEditorDialogService? promptEditorDialog = null,
         IOptionsMonitor<SafetyOptions>? safetyOptions = null,
-        IOptionsMonitor<AIOptions>? aiOptions = null)
+        IOptionsMonitor<AIOptions>? aiOptions = null,
+        IOptionsMonitor<SQLiteOptions>? sqliteOptions = null)
     {
         _taskStore = taskStore;
         _scheduler = scheduler;
@@ -196,6 +202,7 @@ public sealed partial class TaskEditorViewModel :
         _promptEditorDialog = promptEditorDialog;
         _safetyOptions = safetyOptions;
         _aiOptions = aiOptions;
+        _sqliteOptions = sqliteOptions;
         ErrorPolicies = Enum.GetValues<WorkflowErrorPolicy>();
         WorkflowAliases = ToolMap.Definitions;
         _toolGroupSelectionItems = new ObservableCollection<ToolGroupSelectionItem>(
@@ -369,6 +376,8 @@ public sealed partial class TaskEditorViewModel :
                     CultureInfo.CurrentCulture);
             UpdateGenerationState();
             IsEnabled = task?.Enabled ?? true;
+            SqliteGuardrailsEnabled = task?.SqliteGuardrailsEnabled ??
+                (_sqliteOptions?.CurrentValue.GuardrailsEnabledByDefault ?? true);
             SelectedErrorPolicy =
                 task?.ErrorPolicy ?? WorkflowErrorPolicy.StopOnError;
             SetSelectedToolGroups(task?.Tools ?? []);
@@ -431,6 +440,7 @@ public sealed partial class TaskEditorViewModel :
                     .ToArray(),
                 Workflow = workflow,
                 Enabled = IsEnabled,
+                SqliteGuardrailsEnabled = SqliteGuardrailsEnabled,
                 ErrorPolicy = SelectedErrorPolicy,
             };
             ScheduledTaskValidator.Validate(task);

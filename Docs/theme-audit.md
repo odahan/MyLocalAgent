@@ -236,3 +236,16 @@ focus, disabled, and Light/Dark palette resources; no new brush, template, page,
 was introduced. Release XAML compilation and ViewModel tests cover the binding and persistence.
 The application was not launched for Stage 18C, so live wrapping, keyboard traversal, and
 Light/Dark focus and contrast remain explicit manual checks.
+
+## Stage 19 SQLite controls
+
+Settings adds the SQLite write Safety checkbox, the default Guardrails checkbox for new tasks,
+and six existing outlined numeric text fields for the row, result, BLOB, SQL, and timeout limits.
+The Task editor adds one standard checkbox and caption for its persisted SQLite Guardrails
+preference. All controls reuse existing Material styles, semantic brushes, focus behavior,
+validation text, spacing, and the application Light/Dark palette resources; no new template,
+brush, page, or dialog was introduced.
+
+Release XAML compilation and ViewModel tests cover the bindings, validation, persistence, and
+new-task default snapshot. The WPF application was not launched for this pass, so live wrapping,
+keyboard traversal, focus visuals, and contrast in both themes remain explicit manual checks.

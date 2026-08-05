@@ -207,8 +207,12 @@ tool group only for tasks that need it.
 - **HTTP**: no key is required. Define allowed HTTP hosts in **Settings** before
   running an unattended task. An empty list allows all HTTP/HTTPS hosts and is
   suitable only for a controlled test.
+- **SQLite**: use only a disposable local database file beneath an authorized root.
+  Reads still require path authorization; a write also requires
+  `Safety:AllowSqliteWrite`. Each task stores whether its bounded SQLite read results are
+  screened by Guardrails; requested but unavailable screening withholds the result.
 - Sensitive operations remain disabled by default: sending email, deleting
-  files, and HTTP POST. Enable them only when a specific task justifies them.
+  files, HTTP POST, and SQLite writes. Enable them only when a specific task justifies them.
 
 ## 10. Final check before the first task
 

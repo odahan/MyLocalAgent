@@ -63,6 +63,20 @@ public sealed class WorkflowSnippetBuilderTests
     }
 
     /// <summary>
+    /// Verifies that an optional JSON-object argument emits an object rather than a JSON string.
+    /// </summary>
+    [Fact]
+    public void ObjectArgumentEmitsAnEmptyJsonObject()
+    {
+        var step = Build(
+            "sqlite.query",
+            new WorkflowSnippetOptions { IncludeOptionalArguments = true });
+
+        step.Args.GetProperty("parameters").ValueKind.Should().Be(JsonValueKind.Object);
+        step.Args.GetProperty("parameters").EnumerateObject().Should().BeEmpty();
+    }
+
+    /// <summary>
     /// Verifies that path and safety-gated steps emit their required arguments in order.
     /// </summary>
     [Fact]

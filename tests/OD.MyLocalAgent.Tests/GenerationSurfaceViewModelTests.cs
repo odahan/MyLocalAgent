@@ -295,10 +295,10 @@ public sealed class GenerationSurfaceViewModelTests
     }
 
     /// <summary>
-    /// Verifies invalid Settings generation input exposes validation and disables Save.
+    /// Verifies invalid Settings input exposes validation and disables Save.
     /// </summary>
     [Fact]
-    public void SettingsInvalidGenerationInputDisablesSave()
+    public void SettingsInvalidInputDisablesSave()
     {
         var viewModel = new SettingsViewModel(
             new MutableOptionsMonitor<AIOptions>(new AIOptions()),
@@ -339,6 +339,17 @@ public sealed class GenerationSurfaceViewModelTests
         viewModel.ContextWindowTokensText = "16384";
 
         viewModel.HasGenerationValidationError.Should().BeFalse();
+        viewModel.SaveCommand.CanExecute(null).Should().BeTrue();
+
+        viewModel.SqliteDefaultMaxRows = 0;
+
+        viewModel.HasSqliteValidationError.Should().BeTrue();
+        viewModel.SqliteValidationText.Should().Contain("Default maximum rows");
+        viewModel.SaveCommand.CanExecute(null).Should().BeFalse();
+
+        viewModel.SqliteDefaultMaxRows = 100;
+
+        viewModel.HasSqliteValidationError.Should().BeFalse();
         viewModel.SaveCommand.CanExecute(null).Should().BeTrue();
     }
 

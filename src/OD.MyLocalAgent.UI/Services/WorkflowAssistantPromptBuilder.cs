@@ -11,7 +11,7 @@ public static class WorkflowAssistantPromptBuilder
     /// <summary>
     /// Gets the generation prompt version.
     /// </summary>
-    public const string GenerationVersion = "workflow-generation-v1";
+    public const string GenerationVersion = "workflow-generation-v3";
 
     /// <summary>
     /// Gets the explanation prompt version.
@@ -47,14 +47,35 @@ public static class WorkflowAssistantPromptBuilder
                           ToolMap.PromptAlias,
                           StringComparison.OrdinalIgnoreCase)))
                 .ToArray();
+            var kinds = definition.ArgumentDefinitions.Count == 0
+                ? "<none>"
+                : string.Join(",", definition.ArgumentDefinitions.Select(argument => $"{argument.Name}:{argument.Kind}"));
+            var paths = definition.LocalPathArguments.Count == 0
+                ? "<none>"
+                : string.Join(",", definition.LocalPathArguments.Select(path => $"{path.ArgumentName}:{path.RequiredAccess}"));
             builder.Append("- ").Append(definition.Alias)
                 .Append(" | group=").Append(definition.ToolGroup)
                 .Append(" | AI=").Append(definition.IsAiStep)
                 .Append(" | required=").Append(required.Length == 0 ? "<none>" : string.Join(",", required))
                 .Append(" | optional=").Append(definition.OptionalArguments.Count == 0 ? "<none>" : string.Join(",", definition.OptionalArguments))
                 .Append(" | ordered=").Append(definition.Arguments.Count == 0 ? "<none>" : string.Join(",", definition.Arguments))
+                .Append(" | kinds=").Append(kinds)
+                .Append(" | pathAccess=").Append(paths)
                 .Append(" | safety=").AppendLine(definition.SafetyFlag ?? "<none>");
         }
+
+        builder.AppendLine("SQLite rules:");
+        builder.AppendLine("The sqlite group has exactly four aliases: sqlite.listObjects, sqlite.describeTable, sqlite.query, and sqlite.execute.");
+        builder.AppendLine("Every SQLite alias takes databasePath, never a connection string, URI filename, :memory:, or provider option. Relative paths resolve under the configured filesystem root; absolute paths require an existing task directory grant.");
+        builder.AppendLine("sqlite.query and sqlite.execute accept exactly one SQL statement with at most one trailing semicolon. Never emit multi-statement batches or transaction-control statements.");
+        builder.AppendLine("sqlite.query is read-only and result-producing; sqlite.execute is a single modifying statement and rejects read-only statements.");
+        builder.AppendLine("parameters is an optional JSON object of named scalar values only (null, boolean, number, string). Arrays and nested objects are invalid. Placeholders remain valid inside nested string parameter values; parameter values are bound as data and never concatenated into SQL.");
+        builder.AppendLine("Row and result sizes are bounded by validated SQLite settings; maxRows and maxResults must be positive and may be clamped by configuration.");
+        builder.AppendLine("Read aliases require ReadOnly path authorization; sqlite.execute requires ReadWrite authorization and the global Safety:AllowSqliteWrite opt-in, which ships disabled.");
+        builder.AppendLine("Each task persists its own SQLite Guardrails choice for read results; the Settings default applies only to new or taskless contexts.");
+        builder.AppendLine("A missing database file fails unless sqlite.execute sets createIfMissing=true. Read aliases never create files and no parent directory is created implicitly.");
+        builder.AppendLine("Forbidden SQLite features: ATTACH, extension loading, journal/WAL or other persistent PRAGMA changes, encryption, in-memory databases, saved connections, sessions, and caller transactions.");
+        builder.AppendLine("Never claim that a database, table, path, or statement exists or is authorized; static generation cannot open a database.");
 
         builder.AppendLine($"Placeholder catalog version: {WorkflowPlaceholderCatalog.Version}");
         foreach (var definition in WorkflowPlaceholderCatalog.Definitions)

@@ -36,6 +36,11 @@ public static class ToolGroups
     public const string Web = "web";
 
     /// <summary>
+    /// Gets the SQLite tool-group name.
+    /// </summary>
+    public const string Sqlite = "sqlite";
+
+    /// <summary>
     /// Gets the synthetic built-in AI group name.
     /// </summary>
     /// <remarks>

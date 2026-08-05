@@ -1919,6 +1919,51 @@ ollama list</code></pre>
                     <code>gmail.readUnread</code>, <code>calendar.today</code> ou
                     <code>dropbox.list</code>.
                 </div>
+                <div class="callout warning">
+                    <strong>SQLite (avancé).</strong>
+                    <p>Le groupe <code>sqlite</code> fournit quatre alias pour un seul fichier de
+                    base local autorisé : <code>sqlite.listObjects</code>,
+                    <code>sqlite.describeTable</code>, <code>sqlite.query</code> et
+                    <code>sqlite.execute</code>. Ajoutez <code>sqlite</code> aux outils autorisés
+                    de la tâche. Les chemins relatifs restent sous
+                    <code>FileSystem:RootPath</code> ; un chemin absolu requiert une autorisation
+                    dans Authorized locations. Les trois premiers alias requièrent ReadOnly.
+                    <code>sqlite.execute</code> exige aussi ReadWrite et
+                    <code>Safety:AllowSqliteWrite</code>.</p>
+                    <p>Utilisez un chemin de base, jamais une chaîne de connexion, une URI, une
+                    base réseau ou <code>:memory:</code>. Une lecture ne crée jamais de fichier.
+                    Une écriture ne crée un fichier manquant qu’avec
+                    <code>"createIfMissing": true</code>. Query et execute acceptent exactement
+                    une instruction. N’utilisez ni transactions, <code>ATTACH</code>,
+                    <code>PRAGMA</code>, <code>VACUUM</code>, extensions ni objets internes
+                    <code>sqlite_</code>.</p>
+                    <p>Les paramètres sont un objet JSON de scalaires nommés. Conservez le préfixe
+                    SQLite natif dans chaque clé (<code>@</code>, <code>:</code> ou <code>$</code>) ;
+                    les valeurs sont liées de manière sûre et ne doivent jamais être concaténées au
+                    SQL.</p>
+                    <div class="code-block"><pre><code>{
+  "databasePath": "data/sample.db",
+  "sql": "SELECT id, name FROM items WHERE id >= @minimumId ORDER BY id",
+  "parameters": { "@minimumId": 1 },
+  "maxRows": 25
+}</code></pre></div>
+                    <p>Sélectionnez <code>sqlite.query</code> dans Tool tester et utilisez cet
+                    objet pour lire une base synthétique. Pour inspecter son schéma, sélectionnez
+                    plutôt <code>sqlite.listObjects</code> :</p>
+                    <div class="code-block"><pre><code>{
+  "databasePath": "data/sample.db",
+  "objectType": "Table",
+  "namePattern": "item%",
+  "maxResults": 25
+}</code></pre></div>
+                    <p>Settings → SQLite contrôle les lignes par défaut et maximales, les
+                    caractères de résultat, octets BLOB, caractères SQL et le délai d’attente.
+                    Chaque tâche conserve son propre choix
+                    <strong>Protect SQLite read results with Guardrails</strong> ; le réglage des
+                    nouvelles tâches n’est copié qu’à leur création. Les résultats protégés par
+                    Guardrails sont protégés ou retenus si le filtrage ne peut pas se terminer de
+                    manière sûre. Commencez avec des données jetables et non sensibles.</p>
+                </div>
             </section>
 
             <section id="scenario-openai" data-title="Scénario : activer OpenAI-compatible">

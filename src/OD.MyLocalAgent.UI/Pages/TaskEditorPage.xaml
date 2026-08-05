@@ -304,6 +304,12 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                    <CheckBox Margin="0,8,0,0"
+                              Content="Screen SQLite read results with Guardrails"
+                              IsChecked="{Binding SqliteGuardrailsEnabled, Mode=TwoWay}" />
+                    <TextBlock Margin="24,2,0,0"
+                               Style="{StaticResource CaptionTextStyle}"
+                               Text="This saved task preference applies only to SQLite read results." />
                 </StackPanel>
             </materialDesign:Card>
 

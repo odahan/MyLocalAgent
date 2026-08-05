@@ -284,6 +284,17 @@ internal sealed class UserSettingsService : IUserSettingsService
                 ["AllowFileDelete"] = settings.AllowFileDelete,
                 ["AllowMoveToBin"] = settings.AllowMoveToBin,
                 ["AllowHttpPost"] = settings.AllowHttpPost,
+                ["AllowSqliteWrite"] = settings.AllowSqliteWrite,
+            },
+            ["SQLite"] = new Dictionary<string, object>
+            {
+                ["DefaultMaxRows"] = settings.SQLiteDefaultMaxRows,
+                ["MaxRows"] = settings.SQLiteMaxRows,
+                ["MaxResultCharacters"] = settings.SQLiteMaxResultCharacters,
+                ["MaxBlobBytes"] = settings.SQLiteMaxBlobBytes,
+                ["MaxSqlCharacters"] = settings.SQLiteMaxSqlCharacters,
+                ["CommandTimeoutSeconds"] = settings.SQLiteCommandTimeoutSeconds,
+                ["GuardrailsEnabledByDefault"] = settings.SQLiteGuardrailsEnabledByDefault,
             },
             ["Guardrails"] = new Dictionary<string, object>
             {
@@ -385,6 +396,20 @@ internal sealed class UserSettingsService : IUserSettingsService
         {
             throw new InvalidOperationException(
                 "Guardrails thresholds, content limits, timeout, or Gmail limit are invalid.");
+        }
+
+        if (!SQLiteOptions.IsValid(new SQLiteOptions
+            {
+                DefaultMaxRows = settings.SQLiteDefaultMaxRows,
+                MaxRows = settings.SQLiteMaxRows,
+                MaxResultCharacters = settings.SQLiteMaxResultCharacters,
+                MaxBlobBytes = settings.SQLiteMaxBlobBytes,
+                MaxSqlCharacters = settings.SQLiteMaxSqlCharacters,
+                CommandTimeoutSeconds = settings.SQLiteCommandTimeoutSeconds,
+                GuardrailsEnabledByDefault = settings.SQLiteGuardrailsEnabledByDefault,
+            }))
+        {
+            throw new InvalidOperationException("SQLite limits or timeout are invalid.");
         }
 
         if (!Enum.TryParse<LogEventLevel>(

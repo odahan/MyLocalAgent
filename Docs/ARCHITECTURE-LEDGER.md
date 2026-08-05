@@ -1685,3 +1685,59 @@ Modified:
 - Refactored `ToolGroups` and `ToolMap` into lightweight compatibility façades over `ToolCatalog.Default`.
 - Added `IToolTargetActivator` / `ToolTargetActivator` for generic instance resolution.
 - Refactored `ToolRegistry` and `HostApplicationBuilderExtensions` to perform dynamic catalog registration and activation without per-type factory wiring. Removed `IContextualToolFactory` and `ContextualToolFactory`.
+
+### Stage 19 — SQLite native runtime security correction — 2026-08-05
+
+- The original `Microsoft.Data.Sqlite` 10.0.10 meta-package transitively selected
+  `SQLitePCLRaw.bundle_e_sqlite3` / `SQLitePCLRaw.lib.e_sqlite3` 2.1.11. NuGet reports that
+  embedded native bundle as affected by GHSA-2m69-gcr7-jv3q, with no patched package version
+  available at the time of implementation.
+- Core now uses `Microsoft.Data.Sqlite.Core` 10.0.10 with the deliberate direct runtime
+  selection `SQLitePCLRaw.bundle_winsqlite3` 2.1.11. This preserves the Microsoft ADO.NET API
+  while using the SQLite runtime serviced by Windows and removes the vulnerable embedded bundle
+  from the transitive graph. No NuGet-audit suppression is retained.
+
+### Stage 19 — Bounded local SQLite tool — 2026-08-05
+
+#### Public surface and safety boundary
+
+- Added the contextual `SqliteTool` / `ISqliteTool` with exactly four declarative aliases in the
+  `sqlite` group: `sqlite.listObjects`, `sqlite.describeTable`, `sqlite.query`, and
+  `sqlite.execute`. The central catalog places the group after `filesystem` and before `http`;
+  the Task editor, Tool catalog, Tool tester, AI Playground, workflow validation, snippets, and
+  helper projections derive it from that metadata.
+- Every call receives an authorized database file path, never a caller-controlled connection
+  string. Read aliases require existing ReadOnly path access; `sqlite.execute` requires ReadWrite
+  access, the task whitelist, and the disabled-by-default `Safety:AllowSqliteWrite` switch.
+  Missing files are created only for an explicit write with `createIfMissing=true`.
+- Query and execute allow one prepared statement only. Parameters are named scalar JSON values
+  bound by the provider; transaction controls, attachments, extensions, memory modes, unsafe
+  SQLite administration statements, and internal schema objects are rejected. Writes run in one
+  application-owned transaction with foreign keys enabled and roll back on error or cancellation.
+
+#### Limits, privacy, and Guardrails
+
+- `SQLiteOptions` owns validated limits for default and maximum rows, result characters, BLOB
+  bytes, SQL characters, and busy timeout. Read results retain ordered column metadata and
+  array-shaped rows; oversized data is omitted or truncated at deterministic object/row
+  boundaries.
+- A task persists `SqliteGuardrailsEnabled`. The Settings default is copied only for a newly
+  created task. Enabled reads use screen-only Guardrails on the complete bounded payload and fail
+  closed; explicit opt-out returns the bounded structured result without claiming screening.
+- SQL, paths, parameters, identifiers, database values, BLOBs, protected data, and raw provider
+  exceptions remain excluded from logs and incidents. The tool uses private non-pooled
+  connections and the Windows-serviced `winsqlite3` runtime; no `e_sqlite3.dll` or alternate
+  native bundle is shipped.
+
+#### Verification and documentation
+
+- Targeted SQLite automated coverage passed 51 tests. The complete non-interactive Release suite
+  passed 528 tests with zero failures and one explicitly skipped local Ollama probe; the
+  sequential Release build completed with zero warnings and zero errors.
+- Manual WPF verification confirmed the SQLite Settings controls and validation, task-editor
+  selection/Guardrails persistence, and dynamic Tool Tester, AI Playground, and Tool catalog
+  projections. The checks used no personal database, personal task, user configuration, or real
+  LLM request.
+- README, both standalone user guides, the SQLite task sample, acceptance report, and this ledger
+  document the file-path-only syntax, authorization, named scalar parameters, limits, Guardrails,
+  and synthetic examples.

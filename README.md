@@ -39,7 +39,7 @@ its own navigation, search, styles, and scripts in one file.
 | 18A | Extensible Tool Integration Foundation | Complete with automated verification |
 | 18C | File-system Recycle Bin and document conversions | Complete with automated verification |
 | 18D | Declarative Dynamic Tooling | Complete with automated verification |
-| 19 | SQLite Tool | TO DO |
+| 19 | SQLite Tool | Complete — bounded local core, Windows-serviced runtime, Guardrails delivery, dynamic tooling, automated gate, and manual GUI checks verified |
 | 20 | Agent Prompt Placeholders | Complete with documented, human task test done |
 | 21 | Model Information Placeholders | Complete with automated verification |
 | 22 | Archive, Office, and PDF Tools | TO DO |
@@ -322,10 +322,12 @@ The following side effects are disabled by default:
 | `filesystem.delete` | `Safety:AllowFileDelete` |
 | `filesystem.moveToBin` | `Safety:AllowMoveToBin` |
 | `http.post` | `Safety:AllowHttpPost` |
+| `sqlite.execute` | `Safety:AllowSqliteWrite` |
 
 A blocked operation throws `SafetyException` and names the required flag. This design keeps a
 task definition, model response, or imported workflow from silently sending mail, deleting
-files, moving files to the Windows Recycle Bin, or issuing outbound POST requests.
+files, moving files to the Windows Recycle Bin, issuing outbound POST requests, or modifying a
+SQLite database.
 
 Relative filesystem paths are confined to the absolute `FileSystem:RootPath`. A task may
 authorize additional absolute directories in its **Authorized locations** editor section;
@@ -793,6 +795,65 @@ options, so manual formatting of the workflow array is normalized.
 Workflow JSON, prompt text, argument values, and paths are never logged, incident-reported, or
 persisted by these dialogs; the only outbound copy is the explicit Copy placeholder action.
 
+### SQLite
+
+The `sqlite` group provides four bounded operations against one authorized local database file:
+`sqlite.listObjects`, `sqlite.describeTable`, `sqlite.query`, and `sqlite.execute`. Add
+`"sqlite"` to the task `tools` list. Relative paths stay under `FileSystem:RootPath`; absolute
+paths need an **Authorized locations** grant. Read aliases require ReadOnly access.
+`sqlite.execute` additionally requires ReadWrite access and `Safety:AllowSqliteWrite=true`.
+
+Use a database path, never a connection string, URI, network endpoint, `:memory:` database,
+attachment, extension, or caller-managed transaction. Reads never create a missing file;
+`sqlite.execute` creates one only with `createIfMissing=true`. Query and execute allow exactly one
+statement. Transaction controls, `ATTACH`, `DETACH`, `PRAGMA`, `VACUUM`, extensions, and internal
+`sqlite_` objects are rejected.
+
+| Alias | Required arguments | Optional arguments | Purpose |
+|---|---|---|---|
+| `sqlite.listObjects` | `databasePath` | `objectType` (`All`, `Table`, `View`, `Index`, `Trigger`), `namePattern`, `maxResults` | Lists schema objects. |
+| `sqlite.describeTable` | `databasePath`, `tableName` | — | Describes one table or view. |
+| `sqlite.query` | `databasePath`, `sql` | `parameters`, `maxRows` | Runs one read-only result-producing statement. |
+| `sqlite.execute` | `databasePath`, `sql` | `parameters`, `createIfMissing` | Runs one modifying statement in an application-owned transaction. |
+
+Parameters are a JSON object whose keys retain the native `$`, `:`, or `@` prefix; values may be
+null, Boolean, integer, finite number, or string. Values are bound by SQLite, never concatenated
+into SQL.
+
+```json
+{
+  "step": "sqlite.query",
+  "args": {
+    "databasePath": "data/sample.db",
+    "sql": "SELECT id, name FROM items WHERE id >= @minimumId ORDER BY id",
+    "parameters": { "@minimumId": 1 },
+    "maxRows": 25
+  }
+}
+```
+
+```json
+{
+  "step": "sqlite.listObjects",
+  "args": {
+    "databasePath": "data/sample.db",
+    "objectType": "Table",
+    "namePattern": "item%",
+    "maxResults": 25
+  }
+}
+```
+
+Read output preserves declaration order and duplicate names with `columns` metadata and
+array-shaped `rows`. **Settings → SQLite** limits rows, result and SQL characters, BLOB bytes,
+and busy timeout. Each task persists **Protect SQLite read results with Guardrails**; the new-task
+default is copied only at creation. If requested screening is unavailable, complete data is
+protected or withheld.
+
+`Microsoft.Data.Sqlite.Core 10.0.10` and `SQLitePCLRaw.bundle_winsqlite3 2.1.11` use the native
+SQLite runtime serviced by Windows. Start with synthetic, non-sensitive data and never place SQL,
+paths, parameters, database content, or BLOBs in logs or incidents.
+
 ### Tool Map
 
 Tool groups are described once by the ordered Core `ToolGroups.Catalog`: stable persisted name,
@@ -831,6 +892,10 @@ JSON, and every new-task whitelist choice starts disabled.
 | `filesystem.createDirectory` | `filesystem_create_directory` | `FileSystemTool.CreateDirectoryAsync` | `path` | — |
 | `filesystem.markdownToHtml` | `filesystem_markdown_to_html` | `FileSystemTool.MarkdownToHtmlAsync` | `sourcePath`, optional `destinationPath`, optional `theme` | — |
 | `filesystem.htmlToText` | `filesystem_html_to_text` | `FileSystemTool.HtmlToTextAsync` | `sourcePath`, optional `format` | — |
+| `sqlite.listObjects` | `sqlite_list_objects` | `SqliteTool.ListObjectsAsync` | `databasePath`, optional `objectType`, optional `namePattern`, optional `maxResults` | — |
+| `sqlite.describeTable` | `sqlite_describe_table` | `SqliteTool.DescribeTableAsync` | `databasePath`, `tableName` | — |
+| `sqlite.query` | `sqlite_query` | `SqliteTool.QueryAsync` | `databasePath`, `sql`, optional object `parameters`, optional `maxRows`, optional `storageSpaceId` | — |
+| `sqlite.execute` | `sqlite_execute` | `SqliteTool.ExecuteAsync` | `databasePath`, `sql`, optional object `parameters`, optional `createIfMissing` | `Safety:AllowSqliteWrite` |
 | `http.get` | `http_get` | `HttpTool.GetAsync` | `url` | — |
 | `http.post` | `http_post` | `HttpTool.PostAsync` | `url`, `body`, `contentType` | `Safety:AllowHttpPost` |
 | `http.getText` | `http_get_text` | `HttpTool.GetTextAsync` | `url` | — |

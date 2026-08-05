@@ -31,6 +31,11 @@ public sealed class SafetyOptions
     public bool AllowHttpPost { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether modifying SQLite statements are allowed.
+    /// </summary>
+    public bool AllowSqliteWrite { get; set; }
+
+    /// <summary>
     /// Determines whether the gate identified by a Tool Map safety flag is enabled.
     /// </summary>
     /// <param name="configurationKey">The Tool Map safety flag, such as <c>Safety:AllowHttpPost</c>.</param>
@@ -43,6 +48,7 @@ public sealed class SafetyOptions
             "Safety:AllowFileDelete" => AllowFileDelete,
             "Safety:AllowMoveToBin" => AllowMoveToBin,
             "Safety:AllowHttpPost" => AllowHttpPost,
+            "Safety:AllowSqliteWrite" => AllowSqliteWrite,
             _ => false,
         };
 }

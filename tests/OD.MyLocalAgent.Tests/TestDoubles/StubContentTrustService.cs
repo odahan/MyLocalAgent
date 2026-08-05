@@ -13,11 +13,16 @@ internal sealed class StubContentTrustService : IContentTrustService
     public Func<IReadOnlyList<CompactExternalContentItem>, CancellationToken,
         Task<CompactExternalContentBatchResult>>? CompactHandler { get; set; }
 
+    public Func<IReadOnlyList<CompactExternalContentItem>, CancellationToken,
+        Task<CompactExternalContentBatchResult>>? ScreenCompactHandler { get; set; }
+
     public List<string> ScreenedContents { get; } = [];
 
     public List<string> SummarizedContents { get; } = [];
 
     public List<IReadOnlyList<CompactExternalContentItem>> CompactBatches { get; } = [];
+
+    public List<IReadOnlyList<CompactExternalContentItem>> ScreenBatches { get; } = [];
 
     public Task<ContentTrustResult> ScreenAsync(
         string content,
@@ -95,6 +100,28 @@ internal sealed class StubContentTrustService : IContentTrustService
                     false,
                     0);
             }).ToArray();
+        return Task.FromResult(new CompactExternalContentBatchResult(results, []));
+    }
+
+    public Task<CompactExternalContentBatchResult> ScreenCompactAsync(
+        IReadOnlyList<CompactExternalContentItem> items,
+        CancellationToken cancellationToken)
+    {
+        ScreenBatches.Add(items.ToArray());
+        if (ScreenCompactHandler is not null)
+        {
+            return ScreenCompactHandler(items, cancellationToken);
+        }
+
+        var results = items.Select(
+            item => new CompactExternalContentResult(
+                item.Id,
+                null,
+                CreateTrust(item.Content),
+                null,
+                CompactExternalContentStatus.Screened,
+                false,
+                0)).ToArray();
         return Task.FromResult(new CompactExternalContentBatchResult(results, []));
     }
 

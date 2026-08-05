@@ -45,6 +45,11 @@ public sealed record ScheduledTask
     public IReadOnlyList<FileSystemAccessRule> FileSystemAccess { get; init; } = [];
 
     /// <summary>
+    /// Gets a value indicating whether SQLite read results require Guardrails protection.
+    /// </summary>
+    public bool SqliteGuardrailsEnabled { get; init; } = true;
+
+    /// <summary>
     /// Gets the optional deterministic workflow.
     /// </summary>
     public IReadOnlyList<WorkflowStepDefinition> Workflow { get; init; } = [];

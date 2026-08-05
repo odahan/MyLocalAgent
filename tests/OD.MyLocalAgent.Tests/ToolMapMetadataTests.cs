@@ -46,7 +46,8 @@ public sealed class ToolMapMetadataTests
 
                 if (argument.Kind is WorkflowArgumentKind.Integer
                     or WorkflowArgumentKind.Number
-                    or WorkflowArgumentKind.Boolean)
+                    or WorkflowArgumentKind.Boolean
+                    or WorkflowArgumentKind.Object)
                 {
                     argument.SupportsPlaceholders.Should().BeFalse(
                         $"argument '{definition.Alias}.{argument.Name}' is not JSON-string bound");
@@ -208,6 +209,10 @@ public sealed class ToolMapMetadataTests
             ["filesystem.createDirectory"] = (["path"], []),
             ["filesystem.markdownToHtml"] = (["sourcePath", "destinationPath", "theme"], ["destinationPath", "theme"]),
             ["filesystem.htmlToText"] = (["sourcePath", "format"], ["format"]),
+            ["sqlite.listObjects"] = (["databasePath", "objectType", "namePattern", "maxResults"], ["objectType", "namePattern", "maxResults"]),
+            ["sqlite.describeTable"] = (["databasePath", "tableName"], []),
+            ["sqlite.query"] = (["databasePath", "sql", "parameters", "maxRows", "storageSpaceId"], ["parameters", "maxRows", "storageSpaceId"]),
+            ["sqlite.execute"] = (["databasePath", "sql", "parameters", "createIfMissing"], ["parameters", "createIfMissing"]),
             ["http.get"] = (["url"], []),
             ["http.post"] = (["url", "body", "contentType"], []),
             ["http.getText"] = (["url"], []),
@@ -272,6 +277,11 @@ public sealed class ToolMapMetadataTests
 
     private static WorkflowArgumentKind ExpectedKind(Type type)
     {
+        if (type == typeof(System.Text.Json.JsonElement))
+        {
+            return WorkflowArgumentKind.Object;
+        }
+
         if (type.IsEnum)
         {
             return WorkflowArgumentKind.Enumeration;

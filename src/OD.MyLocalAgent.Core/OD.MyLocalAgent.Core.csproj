@@ -13,6 +13,7 @@
     <PackageReference Include="Cronos" />
     <PackageReference Include="HtmlAgilityPack" />
     <PackageReference Include="Markdig" />
+    <PackageReference Include="Microsoft.Data.Sqlite.Core" />
     <PackageReference Include="Microsoft.Agents.AI" />
     <PackageReference Include="Microsoft.Extensions.AI" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" />
@@ -23,5 +24,6 @@
     <PackageReference Include="Serilog.Extensions.Hosting" />
     <PackageReference Include="Serilog.Sinks.File" />
     <PackageReference Include="TaskScheduler" />
+    <PackageReference Include="SQLitePCLRaw.bundle_winsqlite3" />
   </ItemGroup>
 </Project>

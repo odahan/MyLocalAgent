@@ -105,6 +105,12 @@ public sealed class UserSettingsServiceTests : IDisposable
             .Should().Be(8192);
         root.GetProperty("Safety").GetProperty("AllowMoveToBin")
             .GetBoolean().Should().BeFalse();
+        root.GetProperty("Safety").GetProperty("AllowSqliteWrite")
+            .GetBoolean().Should().BeFalse();
+        var sqlite = root.GetProperty("SQLite");
+        sqlite.GetProperty("DefaultMaxRows").GetInt32().Should().Be(100);
+        sqlite.GetProperty("MaxRows").GetInt32().Should().Be(1_000);
+        sqlite.GetProperty("GuardrailsEnabledByDefault").GetBoolean().Should().BeTrue();
         secrets.VerifyAll();
         Directory.GetFiles(_directoryPath, "*.tmp")
             .Should().BeEmpty();
@@ -142,6 +148,61 @@ public sealed class UserSettingsServiceTests : IDisposable
         await action.Should().ThrowAsync<InvalidOperationException>();
         (await File.ReadAllTextAsync(settingsPath)).Should().Be(original);
         secrets.VerifyNoOtherCalls();
+    }
+
+    /// <summary>
+    /// Verifies every SQLite setting and its Safety gate persist, preserve unrelated sections, and reload into configuration.
+    /// </summary>
+    [Fact]
+    public async Task SavePersistsAllSqliteSettingsAndReloadsConfiguration()
+    {
+        Directory.CreateDirectory(_directoryPath);
+        var settingsPath = Path.Combine(_directoryPath, "settings.json");
+        await File.WriteAllTextAsync(
+            settingsPath,
+            """
+            {
+              "Custom": { "Keep": "yes" },
+              "Secrets": { "Preserve": "unchanged" }
+            }
+            """);
+        var configuration = new ConfigurationBuilder()
+            .AddJsonFile(settingsPath, optional: false, reloadOnChange: false)
+            .Build();
+        var settings = ValidSettings() with
+        {
+            AllowSqliteWrite = true,
+            SQLiteDefaultMaxRows = 321,
+            SQLiteMaxRows = 654,
+            SQLiteMaxResultCharacters = 12_345,
+            SQLiteMaxBlobBytes = 678,
+            SQLiteMaxSqlCharacters = 9_876,
+            SQLiteCommandTimeoutSeconds = 45,
+            SQLiteGuardrailsEnabledByDefault = false,
+        };
+        var service = new UserSettingsService(
+            configuration,
+            Mock.Of<ISecretStore>(),
+            settingsPath);
+
+        await service.SaveAsync(settings, replacementApiKey: null, CancellationToken.None);
+
+        using var document = JsonDocument.Parse(await File.ReadAllTextAsync(settingsPath));
+        var root = document.RootElement;
+        root.GetProperty("Custom").GetProperty("Keep").GetString().Should().Be("yes");
+        root.GetProperty("Secrets").GetProperty("Preserve").GetString().Should().Be("unchanged");
+        root.GetProperty("Safety").GetProperty("AllowSqliteWrite").GetBoolean().Should().BeTrue();
+        var sqlite = root.GetProperty("SQLite");
+        sqlite.GetProperty("DefaultMaxRows").GetInt32().Should().Be(321);
+        sqlite.GetProperty("MaxRows").GetInt32().Should().Be(654);
+        sqlite.GetProperty("MaxResultCharacters").GetInt32().Should().Be(12_345);
+        sqlite.GetProperty("MaxBlobBytes").GetInt32().Should().Be(678);
+        sqlite.GetProperty("MaxSqlCharacters").GetInt32().Should().Be(9_876);
+        sqlite.GetProperty("CommandTimeoutSeconds").GetInt32().Should().Be(45);
+        sqlite.GetProperty("GuardrailsEnabledByDefault").GetBoolean().Should().BeFalse();
+        configuration["Safety:AllowSqliteWrite"].Should().Be("True");
+        configuration["SQLite:MaxResultCharacters"].Should().Be("12345");
+        configuration["SQLite:GuardrailsEnabledByDefault"].Should().Be("False");
     }
 
     /// <summary>

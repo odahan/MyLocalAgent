@@ -1585,6 +1585,47 @@ ollama list</code></pre>
                     <code>gmail.readUnread</code>, <code>calendar.today</code>, or
                     <code>dropbox.list</code>.
                 </div>
+                <div class="callout warning">
+                    <strong>SQLite (advanced).</strong>
+                    <p>The <code>sqlite</code> group has four aliases for one authorized local
+                    database file: <code>sqlite.listObjects</code>,
+                    <code>sqlite.describeTable</code>, <code>sqlite.query</code>, and
+                    <code>sqlite.execute</code>. Add <code>sqlite</code> to the task's allowed
+                    tools. Relative paths stay below <code>FileSystem:RootPath</code>; an absolute
+                    path needs an Authorized locations grant. The first three aliases require
+                    ReadOnly access. <code>sqlite.execute</code> additionally requires ReadWrite
+                    access and <code>Safety:AllowSqliteWrite</code>.</p>
+                    <p>Use a database path, never a connection string, URI, network database, or
+                    <code>:memory:</code> database. A read never creates a file. A write creates a
+                    missing file only with <code>"createIfMissing": true</code>. Query and execute
+                    accept exactly one statement. Do not use transactions, <code>ATTACH</code>,
+                    <code>PRAGMA</code>, <code>VACUUM</code>, extensions, or internal
+                    <code>sqlite_</code> objects.</p>
+                    <p>Parameters are a JSON object of named scalar values. Keep the SQLite native
+                    prefix in every key (<code>@</code>, <code>:</code>, or <code>$</code>); values
+                    are bound safely and must not be concatenated into SQL.</p>
+                    <div class="code-block"><pre><code>{
+  "databasePath": "data/sample.db",
+  "sql": "SELECT id, name FROM items WHERE id >= @minimumId ORDER BY id",
+  "parameters": { "@minimumId": 1 },
+  "maxRows": 25
+}</code></pre></div>
+                    <p>Select <code>sqlite.query</code> in Tool tester and use this object to read
+                    a synthetic database. To inspect its schema instead, select
+                    <code>sqlite.listObjects</code>:</p>
+                    <div class="code-block"><pre><code>{
+  "databasePath": "data/sample.db",
+  "objectType": "Table",
+  "namePattern": "item%",
+  "maxResults": 25
+}</code></pre></div>
+                    <p>Settings → SQLite controls the default and maximum rows, result characters,
+                    BLOB bytes, SQL characters, and busy timeout. A task stores its own
+                    <strong>Protect SQLite read results with Guardrails</strong> choice; the setting
+                    for new tasks is copied only at task creation. Guardrails-protected read data is
+                    protected or withheld if screening cannot safely complete. Start with
+                    disposable, non-sensitive data.</p>
+                </div>
             </section>
 
             <section id="scenario-openai" data-title="Scenario: enable an OpenAI-compatible provider">

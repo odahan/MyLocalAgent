@@ -36,6 +36,14 @@ namespace OD.MyLocalAgent.UI.Services;
 /// <param name="GenerationTemperature">The global default sampling temperature.</param>
 /// <param name="GenerationTopP">The global default nucleus-sampling value.</param>
 /// <param name="ContextWindowTokens">The declared global context-window budget.</param>
+/// <param name="AllowSqliteWrite">Whether modifying SQLite statements are enabled.</param>
+/// <param name="SQLiteDefaultMaxRows">The default SQLite row limit.</param>
+/// <param name="SQLiteMaxRows">The maximum SQLite row limit.</param>
+/// <param name="SQLiteMaxResultCharacters">The maximum serialized SQLite result size.</param>
+/// <param name="SQLiteMaxBlobBytes">The maximum delivered SQLite BLOB size.</param>
+/// <param name="SQLiteMaxSqlCharacters">The maximum SQLite SQL size.</param>
+/// <param name="SQLiteCommandTimeoutSeconds">The SQLite command timeout.</param>
+/// <param name="SQLiteGuardrailsEnabledByDefault">The SQLite Guardrails default for new tasks.</param>
 public sealed record UserSettingsData(
     string Provider,
     string OllamaEndpoint,
@@ -69,4 +77,12 @@ public sealed record UserSettingsData(
     string Theme,
     double GenerationTemperature,
     double GenerationTopP,
-    int ContextWindowTokens);
+    int ContextWindowTokens,
+    bool AllowSqliteWrite = false,
+    int SQLiteDefaultMaxRows = 100,
+    int SQLiteMaxRows = 1_000,
+    int SQLiteMaxResultCharacters = 64_000,
+    int SQLiteMaxBlobBytes = 4_096,
+    int SQLiteMaxSqlCharacters = 16_000,
+    int SQLiteCommandTimeoutSeconds = 30,
+    bool SQLiteGuardrailsEnabledByDefault = true);

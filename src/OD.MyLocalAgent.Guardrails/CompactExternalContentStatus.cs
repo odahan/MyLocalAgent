@@ -19,4 +19,7 @@ public enum CompactExternalContentStatus
 
     /// <summary>The generated summary could not be screened safely.</summary>
     FinalScreeningUnavailable,
+
+    /// <summary>The source passed screen-only classification without summarization.</summary>
+    Screened,
 }
