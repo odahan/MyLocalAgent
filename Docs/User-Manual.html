@@ -1941,6 +1941,22 @@ ollama list</code></pre>
                     SQLite natif dans chaque clé (<code>@</code>, <code>:</code> ou <code>$</code>) ;
                     les valeurs sont liées de manière sûre et ne doivent jamais être concaténées au
                     SQL.</p>
+                    <h3>Préparer la tâche et les réglages</h3>
+                    <ol class="steps">
+                        <li>Dans l’éditeur de tâche, cochez uniquement <code>sqlite</code> dans <span class="ui-label">Tool whitelist</span>.</li>
+                        <li>Pour les lectures, utilisez un chemin relatif sous <code>FileSystem:RootPath</code> ou accordez au fichier absolu une autorisation ReadOnly dans <span class="ui-label">Authorized locations</span>.</li>
+                        <li>Pour une écriture, accordez ReadWrite au même emplacement, puis activez explicitement <span class="ui-label">Settings → Safety gates → Allow SQLite write</span>. Ces trois conditions sont indépendantes.</li>
+                        <li>Dans <span class="ui-label">Settings → SQLite</span>, définissez le nombre de lignes par défaut et maximal, les limites de caractères de résultat et de SQL, la limite BLOB et le délai d’attente. Les limites tronquent la réponse ; elles ne garantissent pas un nombre total de lignes ou d’objets.</li>
+                    </ol>
+                    <p>La case <strong>Protect SQLite read results with Guardrails</strong> de l’éditeur est enregistrée avec chaque tâche. Le réglage homonyme de Settings sert seulement de valeur initiale aux nouvelles tâches et aux essais sans tâche (Tool tester et AI Playground) ; modifier Settings ne change pas une tâche existante.</p>
+                    <h3>Les quatre alias</h3>
+                    <ul>
+                        <li><code>sqlite.listObjects</code> — <code>databasePath</code>, <code>objectType</code> (<code>All</code>, <code>Table</code>, <code>View</code>, <code>Index</code> ou <code>Trigger</code>), <code>namePattern</code> (motif SQLite LIKE) et <code>maxResults</code>. Renvoie les objets de schéma visibles, dans un ordre stable, sans leur SQL brut.</li>
+                        <li><code>sqlite.describeTable</code> — <code>databasePath</code> et <code>tableName</code> exact. Renvoie les colonnes, clés étrangères et index de cette table ou vue ; les corps de déclencheurs ne sont jamais renvoyés.</li>
+                        <li><code>sqlite.query</code> — <code>databasePath</code>, une instruction de lecture dans <code>sql</code>, <code>parameters</code> et <code>maxRows</code>. Dans cette version, fournissez un chemin de base : <code>storageSpaceId</code> est réservé et ne doit pas être renseigné.</li>
+                        <li><code>sqlite.execute</code> — <code>databasePath</code>, une instruction de modification dans <code>sql</code>, <code>parameters</code> et <code>createIfMissing</code>. L’appel est exécuté dans une transaction possédée par l’application.</li>
+                    </ul>
+                    <p>Les lectures doivent être productrices de résultats (<code>SELECT</code>, <code>WITH</code>, <code>VALUES</code> ou <code>EXPLAIN</code>). Les écritures acceptent notamment <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>, <code>CREATE</code>, <code>ALTER</code> et <code>DROP</code>, mais pas <code>RETURNING</code>. Un seul énoncé est autorisé, avec au plus un point-virgule final et des commentaires de fin. Les paramètres doivent correspondre exactement aux paramètres nommés du SQL ; les objets, tableaux, paramètres positionnels et valeurs non finies ne sont pas acceptés.</p>
                     <div class="code-block"><pre><code>{
   "databasePath": "data/sample.db",
   "sql": "SELECT id, name FROM items WHERE id >= @minimumId ORDER BY id",
@@ -1956,13 +1972,29 @@ ollama list</code></pre>
   "namePattern": "item%",
   "maxResults": 25
 }</code></pre></div>
+                    <p>Pour décrire une table :</p>
+                    <div class="code-block"><pre><code>{
+  "databasePath": "data/sample.db",
+  "tableName": "items"
+}</code></pre></div>
+                    <p>Pour créer une base synthétique puis une table vide, activez d’abord les trois autorisations d’écriture ci-dessus et appelez <code>sqlite.execute</code> une seule fois avec :</p>
+                    <div class="code-block"><pre><code>{
+  "databasePath": "data/sample.db",
+  "sql": "CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT NOT NULL)",
+  "createIfMissing": true
+}</code></pre></div>
+                    <p>Un accusé d’écriture contient seulement <code>rowsAffected</code>, <code>lastInsertRowId</code> lorsqu’il est significatif, <code>databaseCreated</code> et <code>committed</code> ; il ne réaffiche ni SQL, ni paramètres, ni données de la base.</p>
+                    <h3>Lire les résultats et protéger les données</h3>
+                    <p>Les trois alias de lecture retournent une enveloppe avec <code>data</code> ou <code>protectedData</code>, jamais les deux, ainsi que <code>contentEncoding</code>, <code>screened</code>, <code>sqliteGuardrailsEnabled</code>, les champs de confiance, <code>screeningChunkCount</code> et <code>resultCharacterCount</code>. Pour une lecture propre, <code>data</code> contient le résultat logique. Une requête expose des <code>columns</code> ordonnées (<code>name</code>, <code>ordinal</code>, <code>declaredType</code>) et des <code>rows</code> sous forme de tableaux afin de préserver l’ordre et les noms de colonnes dupliqués. Les objets et descriptions signalent aussi leur troncature ; <code>query</code> fournit <code>hasMoreRows</code>, <code>truncated</code> et <code>resultTruncated</code>.</p>
+                    <p>Les BLOB sont décrits par <code>$type</code>, <code>byteLength</code>, <code>base64</code> et <code>omitted</code>. Quand la limite BLOB est nulle ou dépassée, le contenu Base64 est omis. Les résultats s’arrêtent aux limites d’objets ou de lignes, puis de taille complète ; les données absentes ne doivent donc pas être interprétées comme inexistantes.</p>
                     <p>Settings → SQLite contrôle les lignes par défaut et maximales, les
                     caractères de résultat, octets BLOB, caractères SQL et le délai d’attente.
                     Chaque tâche conserve son propre choix
                     <strong>Protect SQLite read results with Guardrails</strong> ; le réglage des
                     nouvelles tâches n’est copié qu’à leur création. Les résultats protégés par
                     Guardrails sont protégés ou retenus si le filtrage ne peut pas se terminer de
-                    manière sûre. Commencez avec des données jetables et non sensibles.</p>
+                    manière sûre. Avec un fournisseur OpenAI-compatible, ce filtrage peut envoyer le contenu borné de la base au fournisseur cloud configuré. Désactiver ce filtrage pour une tâche renvoie les données en clair au workflow ou au modèle suivant. Guardrails est probabiliste et le Base64 est une défense en profondeur, non une isolation ni un chiffrement.</p>
+                    <p>SQLite ne fournit ici ni chiffrement, sauvegarde ou restauration, migration en lot, réglage automatique WAL, base distante ou réseau, <code>ATTACH</code>, extension ou transaction contrôlée par l’appelant. Le délai d’attente traite l’attente de verrou, pas une limite de calcul ; l’annulation du Runner interrompt l’opération native. Une instruction autorisée peut toujours modifier beaucoup de lignes ou d’objets : aucun filtrage SQL ne peut prouver l’intention métier. Commencez avec des données jetables et non sensibles.</p>
                 </div>
             </section>
 

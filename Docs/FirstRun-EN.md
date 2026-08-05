@@ -214,6 +214,49 @@ tool group only for tasks that need it.
 - Sensitive operations remain disabled by default: sending email, deleting
   files, HTTP POST, and SQLite writes. Enable them only when a specific task justifies them.
 
+### First safe SQLite task
+
+Use a disposable database below the configured filesystem root, for example
+`data/sample.db`. Never provide a connection string, URI, network path, or
+`:memory:`.
+
+1. In the Task editor, select the **SQLite** group in **Tool whitelist**.
+2. For a read-only trial, keep only ReadOnly access to the path; relative paths
+   remain below `FileSystem:RootPath`.
+3. To create the demonstration database, temporarily grant ReadWrite access to
+   the same location and enable **Settings → Safety gates → Allow SQLite write**.
+   The group, ReadWrite access, and Safety setting are all required.
+4. In **Tool tester**, select `sqlite.execute` and create the table with one
+   statement:
+
+```json
+{
+  "databasePath": "data/sample.db",
+  "sql": "CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT NOT NULL)",
+  "createIfMissing": true
+}
+```
+
+5. Disable SQLite writes again, then select `sqlite.query` and verify the read
+   with:
+
+```json
+{
+  "databasePath": "data/sample.db",
+  "sql": "SELECT id, name FROM items WHERE id >= @minimumId ORDER BY id",
+  "parameters": { "@minimumId": 1 },
+  "maxRows": 25
+}
+```
+
+The read result is bounded and can be protected by Guardrails. The **Protect
+SQLite read results with Guardrails** option belongs to each task; its default in
+**Settings → SQLite** applies only to new tasks. With an OpenAI-compatible
+provider, screening can send bounded database content to the cloud provider.
+Clearing screening for a task delivers plaintext data to the workflow or later
+model. Remove the demonstration database afterward or leave write permission
+disabled.
+
 ## 10. Final check before the first task
 
 In **Tools**, verify that each required connector displays `Connected`:

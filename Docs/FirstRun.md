@@ -217,6 +217,49 @@ La clé est protégée par Windows DPAPI. Activer ensuite le groupe d’outils
   suppression de fichiers, HTTP POST et écriture SQLite. Les activer uniquement lorsqu’une tâche
   précise le justifie.
 
+### Première tâche SQLite sûre
+
+Utilisez une base jetable sous la racine de fichiers configurée, par exemple
+`data/sample.db`. Ne renseignez jamais une chaîne de connexion, une URI, un chemin
+réseau ou `:memory:`.
+
+1. Dans l’éditeur de tâche, cochez le groupe **SQLite** dans **Tool whitelist**.
+2. Pour un essai en lecture, conservez uniquement l’autorisation ReadOnly du
+   chemin ; les chemins relatifs restent sous `FileSystem:RootPath`.
+3. Pour créer la base de démonstration, accordez temporairement ReadWrite au
+   même emplacement et activez **Settings → Safety gates → Allow SQLite write**.
+   Le groupe, l’autorisation ReadWrite et ce réglage Safety sont tous requis.
+4. Dans **Tool tester**, sélectionnez `sqlite.execute` et créez la table avec une
+   seule instruction :
+
+```json
+{
+  "databasePath": "data/sample.db",
+  "sql": "CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT NOT NULL)",
+  "createIfMissing": true
+}
+```
+
+5. Désactivez à nouveau l’écriture SQLite, puis sélectionnez `sqlite.query` et
+   vérifiez la lecture avec :
+
+```json
+{
+  "databasePath": "data/sample.db",
+  "sql": "SELECT id, name FROM items WHERE id >= @minimumId ORDER BY id",
+  "parameters": { "@minimumId": 1 },
+  "maxRows": 25
+}
+```
+
+Le résultat de lecture est borné et peut être protégé par Guardrails. La case
+**Protect SQLite read results with Guardrails** appartient à chaque tâche ; son
+réglage par défaut dans **Settings → SQLite** ne s’applique qu’aux nouvelles tâches.
+Avec un fournisseur OpenAI-compatible, le filtrage peut envoyer le contenu borné
+de la base au fournisseur cloud. Désactiver le filtrage pour une tâche livre les
+données en clair au workflow ou au modèle suivant. Supprimez ensuite la base de
+démonstration ou laissez l’autorisation d’écriture désactivée.
+
 ## 10. Contrôle final avant la première tâche
 
 Dans **Tools**, vérifier que les connecteurs nécessaires affichent `Connected` :

@@ -1604,6 +1604,22 @@ ollama list</code></pre>
                     <p>Parameters are a JSON object of named scalar values. Keep the SQLite native
                     prefix in every key (<code>@</code>, <code>:</code>, or <code>$</code>); values
                     are bound safely and must not be concatenated into SQL.</p>
+                    <h3>Prepare the task and settings</h3>
+                    <ol class="steps">
+                        <li>In the Task editor, select only <code>sqlite</code> in <span class="ui-label">Tool whitelist</span>.</li>
+                        <li>For reads, use a relative path below <code>FileSystem:RootPath</code>, or grant the absolute database file ReadOnly access in <span class="ui-label">Authorized locations</span>.</li>
+                        <li>For a write, grant ReadWrite access to the same location, then explicitly enable <span class="ui-label">Settings → Safety gates → Allow SQLite write</span>. These three conditions are independent.</li>
+                        <li>In <span class="ui-label">Settings → SQLite</span>, set the default and maximum rows, result and SQL character limits, BLOB limit, and timeout. Limits truncate a response; they do not guarantee a total number of rows or objects.</li>
+                    </ol>
+                    <p>The Task editor’s <strong>Protect SQLite read results with Guardrails</strong> option is stored with each task. The identically named setting in Settings supplies only the initial value for new tasks and taskless tests (Tool tester and AI Playground); changing Settings does not modify an existing task.</p>
+                    <h3>The four aliases</h3>
+                    <ul>
+                        <li><code>sqlite.listObjects</code> — <code>databasePath</code>, <code>objectType</code> (<code>All</code>, <code>Table</code>, <code>View</code>, <code>Index</code>, or <code>Trigger</code>), <code>namePattern</code> (a SQLite LIKE pattern), and <code>maxResults</code>. Returns visible schema objects in stable order, without their raw SQL.</li>
+                        <li><code>sqlite.describeTable</code> — <code>databasePath</code> and exact <code>tableName</code>. Returns columns, foreign keys, and indexes for that table or view; trigger bodies are never returned.</li>
+                        <li><code>sqlite.query</code> — <code>databasePath</code>, one read statement in <code>sql</code>, <code>parameters</code>, and <code>maxRows</code>. In this release, provide a database path: <code>storageSpaceId</code> is reserved and must be left unset.</li>
+                        <li><code>sqlite.execute</code> — <code>databasePath</code>, one modifying statement in <code>sql</code>, <code>parameters</code>, and <code>createIfMissing</code>. The call executes in an application-owned transaction.</li>
+                    </ul>
+                    <p>Reads must produce results (<code>SELECT</code>, <code>WITH</code>, <code>VALUES</code>, or <code>EXPLAIN</code>). Writes include <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>, <code>CREATE</code>, <code>ALTER</code>, and <code>DROP</code>, but not <code>RETURNING</code>. Exactly one statement is allowed, with at most one final semicolon and trailing comments. Parameters must exactly match the SQL named parameters; objects, arrays, positional parameters, and non-finite values are rejected.</p>
                     <div class="code-block"><pre><code>{
   "databasePath": "data/sample.db",
   "sql": "SELECT id, name FROM items WHERE id >= @minimumId ORDER BY id",
@@ -1619,12 +1635,28 @@ ollama list</code></pre>
   "namePattern": "item%",
   "maxResults": 25
 }</code></pre></div>
+                    <p>To describe a table:</p>
+                    <div class="code-block"><pre><code>{
+  "databasePath": "data/sample.db",
+  "tableName": "items"
+}</code></pre></div>
+                    <p>To create a synthetic database and then an empty table, first enable the three write permissions above and call <code>sqlite.execute</code> once with:</p>
+                    <div class="code-block"><pre><code>{
+  "databasePath": "data/sample.db",
+  "sql": "CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT NOT NULL)",
+  "createIfMissing": true
+}</code></pre></div>
+                    <p>A write acknowledgement contains only <code>rowsAffected</code>, <code>lastInsertRowId</code> when meaningful, <code>databaseCreated</code>, and <code>committed</code>; it never echoes SQL, parameters, or database data.</p>
+                    <h3>Read results and data protection</h3>
+                    <p>The three read aliases return an envelope with either <code>data</code> or <code>protectedData</code>, never both, together with <code>contentEncoding</code>, <code>screened</code>, <code>sqliteGuardrailsEnabled</code>, trust fields, <code>screeningChunkCount</code>, and <code>resultCharacterCount</code>. For a clean read, <code>data</code> contains the logical result. A query exposes ordered <code>columns</code> (<code>name</code>, <code>ordinal</code>, <code>declaredType</code>) and array <code>rows</code> so order and duplicate column names are preserved. Object and description responses also signal truncation; <code>query</code> supplies <code>hasMoreRows</code>, <code>truncated</code>, and <code>resultTruncated</code>.</p>
+                    <p>BLOBs are described by <code>$type</code>, <code>byteLength</code>, <code>base64</code>, and <code>omitted</code>. When the BLOB limit is zero or exceeded, Base64 content is omitted. Results stop at object or row limits and then at the complete-size limit, so missing data must not be treated as proof that it does not exist.</p>
                     <p>Settings → SQLite controls the default and maximum rows, result characters,
                     BLOB bytes, SQL characters, and busy timeout. A task stores its own
                     <strong>Protect SQLite read results with Guardrails</strong> choice; the setting
                     for new tasks is copied only at task creation. Guardrails-protected read data is
                     protected or withheld if screening cannot safely complete. Start with
-                    disposable, non-sensitive data.</p>
+                    disposable, non-sensitive data. With an OpenAI-compatible provider, this screening can send bounded database content to the configured cloud provider. Clearing this task option sends database data as plaintext to the workflow or later model. Guardrails is probabilistic and Base64 is defense in depth, not isolation or encryption.</p>
+                    <p>This SQLite capability provides no encryption, backup or restore, migration batch, automatic WAL tuning, remote or network database, <code>ATTACH</code>, extension, or caller-controlled transaction. The timeout handles lock waiting, not a CPU deadline; Runner cancellation interrupts the native operation. An allowed statement can still modify many rows or schema objects: no SQL filter can prove business intent. Start with disposable, non-sensitive data.</p>
                 </div>
             </section>
 
