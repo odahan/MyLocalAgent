@@ -91,12 +91,19 @@ public sealed class FileSystemTool : IFileSystemTool
                             .Select(entry =>
                             {
                                 var attributes = File.GetAttributes(entry);
-                                var isDirectory = attributes.HasFlag(FileAttributes.Directory);
+                                return (entry, attributes);
+                            })
+                            .Where(static t =>
+                                !t.attributes.HasFlag(FileAttributes.Hidden) &&
+                                !t.attributes.HasFlag(FileAttributes.System))
+                            .Select(static t =>
+                            {
+                                var isDirectory = t.attributes.HasFlag(FileAttributes.Directory);
                                 return new
                                 {
-                                    name = Path.GetFileName(entry),
+                                    name = Path.GetFileName(t.entry),
                                     type = isDirectory ? "directory" : "file",
-                                    size = isDirectory ? (long?)null : new FileInfo(entry).Length,
+                                    size = isDirectory ? (long?)null : new FileInfo(t.entry).Length,
                                 };
                             })
                             .ToArray();
@@ -207,12 +214,26 @@ public sealed class FileSystemTool : IFileSystemTool
                     {
                         if (File.Exists(absoluteFrom))
                         {
+                            if (File.Exists(absoluteTo))
+                            {
+                                throw new IOException(
+                                    $"Destination file '{to}' already exists. " +
+                                    $"Choose a different destination name (e.g. add _2, _3, … before the extension) and retry.");
+                            }
+
                             File.Move(absoluteFrom, absoluteTo);
                             return;
                         }
 
                         if (Directory.Exists(absoluteFrom))
                         {
+                            if (Directory.Exists(absoluteTo))
+                            {
+                                throw new IOException(
+                                    $"Destination directory '{to}' already exists. " +
+                                    $"Choose a different destination name and retry.");
+                            }
+
                             Directory.Move(absoluteFrom, absoluteTo);
                             return;
                         }

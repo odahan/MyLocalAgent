@@ -116,6 +116,10 @@ public sealed class ContentTrustService : IContentTrustService
             var wrapped = returnBase64
                 ? ContentTrustEnvelope.WrapBase64(content)
                 : ContentTrustEnvelope.WrapPlaintext(content);
+            TaskTimingCollector.Current.Value?.Record(
+                TaskTimingCollector.GuardrailCategory,
+                "screen",
+                _timeProvider.GetElapsedTime(operationStart));
             return new ContentTrustResult(
                 verdict.Score,
                 wrapped,
@@ -131,6 +135,10 @@ public sealed class ContentTrustService : IContentTrustService
         }
         catch (Exception exception)
         {
+            TaskTimingCollector.Current.Value?.Record(
+                TaskTimingCollector.GuardrailCategory,
+                "screen",
+                _timeProvider.GetElapsedTime(operationStart));
             var fallback = new ContentTrustResult(
                 null,
                 ContentTrustEnvelope.WrapBase64(content),
@@ -186,6 +194,7 @@ public sealed class ContentTrustService : IContentTrustService
         }
 
         var providerName = GetConfiguredProviderName();
+        var summarizeStarted = _timeProvider.GetTimestamp();
         try
         {
             var provider = _clientFactory.Create();
@@ -223,6 +232,10 @@ public sealed class ContentTrustService : IContentTrustService
                     _timeProvider.GetUtcNow());
             }
 
+            TaskTimingCollector.Current.Value?.Record(
+                TaskTimingCollector.GuardrailCategory,
+                "summarize",
+                _timeProvider.GetElapsedTime(summarizeStarted));
             return result;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -231,6 +244,10 @@ public sealed class ContentTrustService : IContentTrustService
         }
         catch (Exception exception)
         {
+            TaskTimingCollector.Current.Value?.Record(
+                TaskTimingCollector.GuardrailCategory,
+                "summarize",
+                _timeProvider.GetElapsedTime(summarizeStarted));
             throw new GuardrailSummarizationException(
                 $"Guardrail summarization failed for provider '{providerName}' ({exception.GetType().Name}).",
                 exception);
@@ -665,6 +682,10 @@ public sealed class ContentTrustService : IContentTrustService
             summaryLatencyMs,
             finalLatencyMs,
             GetElapsedMilliseconds(operationStarted));
+        TaskTimingCollector.Current.Value?.Record(
+            TaskTimingCollector.GuardrailCategory,
+            "compact",
+            _timeProvider.GetElapsedTime(operationStarted));
         return new CompactExternalContentBatchResult(completedResults, failures);
     }
 
@@ -862,6 +883,10 @@ public sealed class ContentTrustService : IContentTrustService
             items.Sum(static item => item.Content.Length),
             sourceLatencyMs,
             GetElapsedMilliseconds(operationStarted));
+        TaskTimingCollector.Current.Value?.Record(
+            TaskTimingCollector.GuardrailCategory,
+            "screen-compact",
+            _timeProvider.GetElapsedTime(operationStarted));
         return new CompactExternalContentBatchResult(completedScreenResults, failures);
     }
 

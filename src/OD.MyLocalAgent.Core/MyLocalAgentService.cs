@@ -12,7 +12,7 @@ namespace OD.MyLocalAgent.Core;
 /// </summary>
 public sealed class MyLocalAgentService : IMyLocalAgentService
 {
-    private const int MaximumToolIterations = 8;
+    private const int MaximumToolIterations = int.MaxValue;
     private const int MaximumConsecutiveToolErrors = 2;
 
     /// <summary>
@@ -96,12 +96,17 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
                 resolvedPrompt,
                 generationPolicy,
                 []);
+            var promptStarted = _timeProvider.GetTimestamp();
             var response = await policyClient.GetResponseAsync(
                 [
                     new ChatMessage(ChatRole.System, systemPrompt),
                     new ChatMessage(ChatRole.User, resolvedPrompt),
                 ],
                 cancellationToken: cancellationToken).ConfigureAwait(false);
+            TaskTimingCollector.Current.Value?.Record(
+                TaskTimingCollector.AiPromptCategory,
+                "ai.prompt",
+                _timeProvider.GetElapsedTime(promptStarted));
             WriteLlmResponseTrace("ai.prompt", provider.ProviderName, response.Text);
             return new AgentRunResult(response.Text, provider.ProviderName);
         }
@@ -480,14 +485,21 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
 
     private sealed class AgentToolLoopGuard
     {
-        private const int MaximumIdenticalInvocations = 2;
+        // A "stuck record" is detected only when the exact same (tool, arguments,
+        // result) triple repeats WITHOUT any different call in between.
+        // Calling tool A, then B, then A again with the same result is not a loop.
+        private const int MaximumConsecutiveIdenticalResults = 3;
+
         private readonly object _syncRoot = new();
-        private readonly Dictionary<string, int> _invocations =
-            new(StringComparer.Ordinal);
+
+        // The signature+result of the last completed tool call.
+        private string? _lastKey;
+        // How many times in a row the current _lastKey has been observed.
+        private int _consecutiveCount;
 
         public string? RepeatedCallMessage { get; private set; }
 
-        public ValueTask<object?> InvokeAsync(
+        public async ValueTask<object?> InvokeAsync(
             FunctionInvocationContext context,
             CancellationToken cancellationToken)
         {
@@ -500,24 +512,44 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
             var argumentsJson = System.Text.Json.JsonSerializer.Serialize(
                 orderedArguments,
                 ToolJson.Options);
-            var signature = $"{context.Function.Name}:{argumentsJson}";
+            var callSignature = $"{context.Function.Name}:{argumentsJson}";
+
+            // Execute the tool first — the result is what matters, not the call alone.
+            var result = await context.Function.InvokeAsync(
+                context.Arguments,
+                cancellationToken).ConfigureAwait(false);
+
+            var resultText = result is null
+                ? string.Empty
+                : System.Text.Json.JsonSerializer.Serialize(result, ToolJson.Options);
+
+            var key = $"{callSignature}|{resultText}";
+
             lock (_syncRoot)
             {
-                _invocations.TryGetValue(signature, out var count);
-                count++;
-                _invocations[signature] = count;
-                if (count > MaximumIdenticalInvocations)
+                if (key == _lastKey)
+                {
+                    // Same tool, same arguments, same result, no different call in between.
+                    _consecutiveCount++;
+                }
+                else
+                {
+                    // Any different call resets the consecutive counter.
+                    _lastKey = key;
+                    _consecutiveCount = 1;
+                }
+
+                if (_consecutiveCount >= MaximumConsecutiveIdenticalResults)
                 {
                     context.Terminate = true;
                     RepeatedCallMessage =
-                        $"Agent execution stopped after tool '{context.Function.Name}' was requested more than {MaximumIdenticalInvocations} times with identical arguments.";
-                    return ValueTask.FromResult<object?>(RepeatedCallMessage);
+                        $"Agent execution stopped after tool '{context.Function.Name}' " +
+                        $"returned the same result {MaximumConsecutiveIdenticalResults} " +
+                        $"consecutive times without any different call in between.";
                 }
             }
 
-            return context.Function.InvokeAsync(
-                context.Arguments,
-                cancellationToken);
+            return result;
         }
 
         public void ThrowIfRepeatedCallDetected()

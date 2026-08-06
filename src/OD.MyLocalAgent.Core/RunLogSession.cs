@@ -105,6 +105,21 @@ public sealed class RunLogSession : IDisposable
     }
 
     /// <summary>
+    /// Writes the timing analysis report as visible task-log lines.
+    /// </summary>
+    /// <param name="report">The formatted timing report produced by <see cref="TaskTimingReport"/>.</param>
+    public void WriteTimingReport(string report)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(report);
+        foreach (var line in report.Split(
+                     Environment.NewLine,
+                     StringSplitOptions.None))
+        {
+            WriteLine(RunLogStream.Output, line);
+        }
+    }
+
+    /// <summary>
     /// Writes the terminal end record. Subsequent calls are ignored.
     /// </summary>
     /// <param name="exitCode">The runner exit code.</param>

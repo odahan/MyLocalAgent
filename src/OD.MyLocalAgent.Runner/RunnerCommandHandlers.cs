@@ -314,6 +314,8 @@ internal static class RunnerCommandHandlers
         WorkflowResult result;
         Exception? error = null;
 
+        TaskTimingCollector.Current.Value = new TaskTimingCollector();
+
         if (executeWorkflow)
         {
             var engine = services.GetRequiredService<IWorkflowEngine>();
@@ -338,12 +340,30 @@ internal static class RunnerCommandHandlers
             error = promptOutcome.Error;
         }
 
+        EmitTimingReport(services, output, result);
+
         var report = await reportWriter.WriteAsync(
             task,
             result,
             providerName,
             cancellationToken).ConfigureAwait(false);
         return new ExecutionOutcome(result, report, error);
+    }
+
+    private static void EmitTimingReport(
+        IServiceProvider services,
+        TextWriter output,
+        WorkflowResult result)
+    {
+        var entries = TaskTimingCollector.Current.Value?.GetEntries()
+            ?? [];
+        var timingReport = TaskTimingReport.Build(
+            result.StartedUtc,
+            result.EndedUtc,
+            entries);
+        // output is a RunLogTeeWriter: writing to it already mirrors each line
+        // to the active RunLogSession, so no explicit WriteTimingReport call needed.
+        output.Write(timingReport);
     }
 
     private static async Task<PromptExecutionOutcome> ExecutePromptOnlyAsync(

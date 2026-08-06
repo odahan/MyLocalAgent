@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using OD.MyLocalAgent.Ollama;
 
 namespace OD.MyLocalAgent.Core;
 
@@ -25,13 +26,15 @@ internal static class ToolCallLog
         try
         {
             var result = await operation().ConfigureAwait(false);
+            var elapsed = timeProvider.GetElapsedTime(started);
+            TaskTimingCollector.Current.Value?.Record(TaskTimingCollector.ToolCategory, name, elapsed);
             var summary = summarizeResult?.Invoke(result);
             if (string.IsNullOrWhiteSpace(summary))
             {
                 logger.LogInformation(
                     "Tool {ToolName} completed in {DurationMs} ms with outcome {Outcome}.",
                     name,
-                    timeProvider.GetElapsedTime(started).TotalMilliseconds,
+                    elapsed.TotalMilliseconds,
                     "Success");
             }
             else
@@ -39,7 +42,7 @@ internal static class ToolCallLog
                 logger.LogInformation(
                     "Tool {ToolName} completed in {DurationMs} ms with outcome {Outcome}. {ToolResultSummary}",
                     name,
-                    timeProvider.GetElapsedTime(started).TotalMilliseconds,
+                    elapsed.TotalMilliseconds,
                     "Success",
                     summary);
             }
@@ -47,10 +50,12 @@ internal static class ToolCallLog
         }
         catch (Exception exception)
         {
+            var elapsed = timeProvider.GetElapsedTime(started);
+            TaskTimingCollector.Current.Value?.Record(TaskTimingCollector.ToolCategory, name, elapsed);
             logger.LogWarning(
                 "Tool {ToolName} completed in {DurationMs} ms with outcome {Outcome} and exception type {ExceptionType}.",
                 name,
-                timeProvider.GetElapsedTime(started).TotalMilliseconds,
+                elapsed.TotalMilliseconds,
                 "Failure",
                 exception.GetType().Name);
             throw;
