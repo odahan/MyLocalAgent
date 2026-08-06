@@ -57,6 +57,19 @@ public interface IFileSystemTool
     Task<string> CreateDirectoryAsync(string path, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Computes a SHA-256 hash for an authorized file.
+    /// </summary>
+    Task<string> ComputeHashAsync(string path, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Compares two authorized files using SHA-256 hashes.
+    /// </summary>
+    Task<string> CompareByHashAsync(
+        string pathA,
+        string pathB,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Converts an authorized Markdown file to a standalone HTML file.
     /// </summary>
     Task<string> MarkdownToHtmlAsync(

@@ -75,6 +75,41 @@ public sealed class FileSystemToolTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies SHA-256 hashing and hash-based comparison return deterministic values.
+    /// </summary>
+    [Fact]
+    public async Task ComputeHashAndCompareByHashReturnStableSha256Results()
+    {
+        Directory.CreateDirectory(_rootPath);
+        var tool = CreateTool(allowDelete: false);
+        await File.WriteAllTextAsync(Path.Combine(_rootPath, "a.txt"), "hello");
+        await File.WriteAllTextAsync(Path.Combine(_rootPath, "b.txt"), "hello");
+        await File.WriteAllTextAsync(Path.Combine(_rootPath, "c.txt"), "world");
+
+        var hashJson = await tool.ComputeHashAsync("a.txt", CancellationToken.None);
+        var equalJson = await tool.CompareByHashAsync("a.txt", "b.txt", CancellationToken.None);
+        var differentJson = await tool.CompareByHashAsync("a.txt", "c.txt", CancellationToken.None);
+
+        using var hash = JsonDocument.Parse(hashJson);
+        hash.RootElement.GetProperty("algorithm").GetString().Should().Be("SHA-256");
+        hash.RootElement.GetProperty("hash").GetString()
+            .Should().Be("2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824");
+        hash.RootElement.GetProperty("fileSize").GetInt64().Should().Be(5);
+
+        using var equal = JsonDocument.Parse(equalJson);
+        equal.RootElement.GetProperty("isEqual").GetBoolean().Should().BeTrue();
+        equal.RootElement.GetProperty("hashA").GetString()
+            .Should().Be("2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824");
+        equal.RootElement.GetProperty("hashB").GetString()
+            .Should().Be("2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824");
+
+        using var different = JsonDocument.Parse(differentJson);
+        different.RootElement.GetProperty("isEqual").GetBoolean().Should().BeFalse();
+        different.RootElement.GetProperty("hashB").GetString()
+            .Should().Be("486ea46224d1bb4fb680f34f7c9ad96a8f24ec88be73ea8e5a6c65260e9cb8a7");
+    }
+
+    /// <summary>
     /// Verifies moving to the Recycle Bin requires both write authorization and its dedicated Safety gate.
     /// </summary>
     [Fact]

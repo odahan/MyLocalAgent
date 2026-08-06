@@ -2380,7 +2380,7 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
 </tr>
 <tr>
 <td>File system</td>
-<td><code>filesystem.list</code>, <code>read</code>, <code>write</code>, <code>move</code>, <code>moveToBin</code>, <code>rename</code>, <code>setExtension</code>, <code>delete</code>, <code>createDirectory</code>, <code>markdownToHtml</code>, <code>htmlToText</code></td>
+<td><code>filesystem.list</code>, <code>read</code>, <code>write</code>, <code>move</code>, <code>moveToBin</code>, <code>rename</code>, <code>setExtension</code>, <code>delete</code>, <code>createDirectory</code>, <code>computeHash</code>, <code>compareByHash</code>, <code>markdownToHtml</code>, <code>htmlToText</code></td>
 <td>RootPath et emplacements autorisés de la tâche ; delete et Move to Bin ont des autorisations Safety indépendantes.</td>
 </tr>
 <tr>
@@ -2428,6 +2428,8 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
 <tr><td><code>filesystem.setExtension</code></td><td><code>path</code>, <code>extension</code></td><td>Change uniquement l’extension ; accepte <code>md</code> ou <code>.md</code>.</td></tr>
 <tr><td><code>filesystem.delete</code></td><td><code>path</code></td><td>Exige AllowFileDelete.</td></tr>
 <tr><td><code>filesystem.createDirectory</code></td><td><code>path</code></td><td>Crée un dossier relatif.</td></tr>
+<tr><td><code>filesystem.computeHash</code></td><td><code>path</code></td><td>Calcule une empreinte <code>SHA-256</code> d’un fichier autorisé et retourne <code>hash</code> avec sa taille.</td></tr>
+<tr><td><code>filesystem.compareByHash</code></td><td><code>pathA</code>, <code>pathB</code></td><td>Compare deux fichiers autorisés via <code>SHA-256</code> et retourne <code>isEqual</code>, <code>hashA</code> et <code>hashB</code>.</td></tr>
 <tr><td><code>filesystem.markdownToHtml</code></td><td><code>sourcePath</code>, <code>destinationPath</code> facultatif, <code>theme</code> facultatif</td><td>Écrit un HTML UTF-8 autonome. La destination prend l’extension <code>.html</code> par défaut ; le thème vaut <code>Dark</code> par défaut ou <code>Light</code>.</td></tr>
 <tr><td><code>filesystem.htmlToText</code></td><td><code>sourcePath</code>, <code>format</code> facultatif</td><td>Retourne le <code>content</code> extrait en <code>Text</code> par défaut ou avec les principales structures <code>Markdown</code>. N’écrit aucun fichier.</td></tr>
 <tr><td><code>http.get</code></td><td><code>url</code></td><td>Retourne une réponse HTTP compacte.</td></tr>

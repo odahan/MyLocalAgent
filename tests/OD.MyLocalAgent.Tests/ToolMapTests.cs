@@ -80,6 +80,8 @@ public sealed class ToolMapTests : IDisposable
     public void FileSystemConversionAndRecycleMetadataIsComplete()
     {
         var recycle = ToolMap.Find("filesystem.moveToBin");
+        var computeHash = ToolMap.Find("filesystem.computeHash");
+        var compareByHash = ToolMap.Find("filesystem.compareByHash");
         var markdown = ToolMap.Find("filesystem.markdownToHtml");
         var html = ToolMap.Find("filesystem.htmlToText");
 
@@ -87,6 +89,22 @@ public sealed class ToolMapTests : IDisposable
         recycle!.SafetyFlag.Should().Be("Safety:AllowMoveToBin");
         recycle.LocalPathArguments.Should().ContainSingle()
             .Which.RequiredAccess.Should().Be(FileSystemAccessMode.ReadWrite);
+
+        computeHash.Should().NotBeNull();
+        computeHash!.OptionalArguments.Should().BeEmpty();
+        computeHash.LocalPathArguments.Should().ContainSingle(item =>
+            item.ArgumentName == "path" &&
+            item.RequiredAccess == FileSystemAccessMode.ReadOnly);
+
+        compareByHash.Should().NotBeNull();
+        compareByHash!.OptionalArguments.Should().BeEmpty();
+        compareByHash.LocalPathArguments.Should().HaveCount(2);
+        compareByHash.LocalPathArguments.Should().Contain(item =>
+            item.ArgumentName == "pathA" &&
+            item.RequiredAccess == FileSystemAccessMode.ReadOnly);
+        compareByHash.LocalPathArguments.Should().Contain(item =>
+            item.ArgumentName == "pathB" &&
+            item.RequiredAccess == FileSystemAccessMode.ReadOnly);
 
         markdown.Should().NotBeNull();
         markdown!.OptionalArguments.Should().Equal("destinationPath", "theme");

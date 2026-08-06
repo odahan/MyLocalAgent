@@ -2291,7 +2291,7 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
 <tr><td>Gmail</td><td><code>gmail.readToday</code>, <code>gmail.readUnread</code>, <code>gmail.readRecent</code>, <code>gmail.send</code></td><td><code>gmail.send</code> needs AllowSendEmail.</td></tr>
 <tr><td>Calendar</td><td><code>calendar.today</code>, <code>calendar.read</code>, <code>calendar.create</code></td><td>Create uses explicit ISO 8601 dates.</td></tr>
 <tr><td>Dropbox</td><td><code>dropbox.upload</code>, <code>dropbox.download</code>, <code>dropbox.list</code></td><td>Dropbox secrets use DPAPI.</td></tr>
-<tr><td>File system</td><td><code>filesystem.list</code>, <code>read</code>, <code>write</code>, <code>move</code>, <code>moveToBin</code>, <code>rename</code>, <code>setExtension</code>, <code>delete</code>, <code>createDirectory</code>, <code>markdownToHtml</code>, <code>htmlToText</code></td><td>RootPath plus task-authorized locations; delete and Move to Bin have independent Safety gates.</td></tr>
+<tr><td>File system</td><td><code>filesystem.list</code>, <code>read</code>, <code>write</code>, <code>move</code>, <code>moveToBin</code>, <code>rename</code>, <code>setExtension</code>, <code>delete</code>, <code>createDirectory</code>, <code>computeHash</code>, <code>compareByHash</code>, <code>markdownToHtml</code>, <code>htmlToText</code></td><td>RootPath plus task-authorized locations; delete and Move to Bin have independent Safety gates.</td></tr>
 <tr><td>HTTP</td><td><code>http.get</code>, <code>http.getText</code>, <code>http.post</code></td><td>Host allowlist; post needs AllowHttpPost.</td></tr>
 <tr><td>Web</td><td><code>web.search</code></td><td>Explicit Ollama cloud opt-in; mandatory Guardrails envelope.</td></tr>
 <tr><td>AI</td><td><code>ai.summarize</code>, <code>ai.extractActionItems</code>, <code>ai.classifyEmail</code>, <code>ai.prompt</code></td><td>Skills execute without tools.</td></tr>
@@ -2323,6 +2323,8 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
 <tr><td><code>filesystem.setExtension</code></td><td><code>path</code>, <code>extension</code></td><td>Changes only the extension; accepts <code>md</code> or <code>.md</code>.</td></tr>
 <tr><td><code>filesystem.delete</code></td><td><code>path</code></td><td>Requires AllowFileDelete.</td></tr>
 <tr><td><code>filesystem.createDirectory</code></td><td><code>path</code></td><td>Creates a relative directory.</td></tr>
+<tr><td><code>filesystem.computeHash</code></td><td><code>path</code></td><td>Computes a <code>SHA-256</code> hash for an authorized file and returns <code>hash</code> with file size.</td></tr>
+<tr><td><code>filesystem.compareByHash</code></td><td><code>pathA</code>, <code>pathB</code></td><td>Compares two authorized files via <code>SHA-256</code> and returns <code>isEqual</code>, <code>hashA</code>, and <code>hashB</code>.</td></tr>
 <tr><td><code>filesystem.markdownToHtml</code></td><td><code>sourcePath</code>, optional <code>destinationPath</code>, optional <code>theme</code></td><td>Writes standalone UTF-8 HTML. Destination defaults to <code>.html</code>; theme is <code>Dark</code> by default or <code>Light</code>.</td></tr>
 <tr><td><code>filesystem.htmlToText</code></td><td><code>sourcePath</code>, optional <code>format</code></td><td>Returns extracted <code>content</code> as <code>Text</code> by default or principal <code>Markdown</code> structure. It does not write a file.</td></tr>
 <tr><td><code>http.get</code></td><td><code>url</code></td><td>Returns a compact HTTP result.</td></tr>

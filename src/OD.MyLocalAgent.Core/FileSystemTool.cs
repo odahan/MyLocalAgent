@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Security.Cryptography;
 using System.Text;
 using Markdig;
 using Microsoft.Extensions.Logging;
@@ -473,6 +474,80 @@ public sealed class FileSystemTool : IFileSystemTool
             });
 
     /// <inheritdoc />
+    [ToolLocalPath("path", LocalPathTargetKind.File, FileSystemAccessMode.ReadOnly)]
+    [Tool("filesystem.computeHash", "Computes a SHA-256 hash for an authorized file.", 950)]
+    public Task<string> ComputeHashAsync(
+        [ToolArgument(WorkflowArgumentKind.String, "Relative global-root or task-authorized absolute file path.", Example = "reports/summary.md")] string path,
+        CancellationToken cancellationToken) =>
+        ToolCallLog.ExecuteAsync(
+            _logger,
+            _timeProvider,
+            "filesystem.computeHash",
+            new { path },
+            async () =>
+            {
+                var absolutePath = _sandbox.Resolve(
+                    path,
+                    FileSystemAccessMode.ReadOnly,
+                    _executionContext);
+                var fileHash = await ComputeFileHashAsync(
+                    absolutePath,
+                    path,
+                    cancellationToken).ConfigureAwait(false);
+                return ToolJson.Serialize(
+                    new
+                    {
+                        path = Normalize(path),
+                        algorithm = "SHA-256",
+                        hash = fileHash.Hash,
+                        fileSize = fileHash.FileSize,
+                    });
+            });
+
+    /// <inheritdoc />
+    [ToolLocalPath("pathA", LocalPathTargetKind.File, FileSystemAccessMode.ReadOnly)]
+    [ToolLocalPath("pathB", LocalPathTargetKind.File, FileSystemAccessMode.ReadOnly)]
+    [Tool("filesystem.compareByHash", "Compares two authorized files using SHA-256 hashes.", 960)]
+    public Task<string> CompareByHashAsync(
+        [ToolArgument(WorkflowArgumentKind.String, "Relative global-root or task-authorized absolute first file path.", Example = "reports/summary-a.md")] string pathA,
+        [ToolArgument(WorkflowArgumentKind.String, "Relative global-root or task-authorized absolute second file path.", Example = "reports/summary-b.md")] string pathB,
+        CancellationToken cancellationToken) =>
+        ToolCallLog.ExecuteAsync(
+            _logger,
+            _timeProvider,
+            "filesystem.compareByHash",
+            new { pathA, pathB },
+            async () =>
+            {
+                var absolutePathA = _sandbox.Resolve(
+                    pathA,
+                    FileSystemAccessMode.ReadOnly,
+                    _executionContext);
+                var absolutePathB = _sandbox.Resolve(
+                    pathB,
+                    FileSystemAccessMode.ReadOnly,
+                    _executionContext);
+                var fileHashA = await ComputeFileHashAsync(
+                    absolutePathA,
+                    pathA,
+                    cancellationToken).ConfigureAwait(false);
+                var fileHashB = await ComputeFileHashAsync(
+                    absolutePathB,
+                    pathB,
+                    cancellationToken).ConfigureAwait(false);
+                return ToolJson.Serialize(
+                    new
+                    {
+                        pathA = Normalize(pathA),
+                        pathB = Normalize(pathB),
+                        algorithm = "SHA-256",
+                        hashA = fileHashA.Hash,
+                        hashB = fileHashB.Hash,
+                        isEqual = string.Equals(fileHashA.Hash, fileHashB.Hash, StringComparison.Ordinal),
+                    });
+            });
+
+    /// <inheritdoc />
     [ToolLocalPath("sourcePath", LocalPathTargetKind.File, FileSystemAccessMode.ReadOnly)]
     [ToolLocalPath("sourcePath", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite, Derivation = LocalPathDerivationKind.OptionalDestinationOrSameDirectoryExtension, ValueArgumentName = "destinationPath", DefaultValue = ".html")]
     [Tool("filesystem.markdownToHtml", "Converts an authorized Markdown file to a standalone UTF-8 HTML file using a dark or light theme.", 1000)]
@@ -591,6 +666,31 @@ public sealed class FileSystemTool : IFileSystemTool
             absolutePath,
             Encoding.UTF8,
             cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<(string Hash, long FileSize)> ComputeFileHashAsync(
+        string absolutePath,
+        string displayPath,
+        CancellationToken cancellationToken)
+    {
+        var file = new FileInfo(absolutePath);
+        if (!file.Exists)
+        {
+            throw new FileNotFoundException(
+                $"File '{displayPath}' does not exist.",
+                displayPath);
+        }
+
+        await using var stream = new FileStream(
+            absolutePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize: 81920,
+            options: FileOptions.Asynchronous | FileOptions.SequentialScan);
+        var hash = await SHA256.HashDataAsync(stream, cancellationToken)
+            .ConfigureAwait(false);
+        return (Convert.ToHexString(hash).ToLowerInvariant(), file.Length);
     }
 
     private static string BuildStandaloneHtml(

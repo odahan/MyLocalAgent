@@ -8,24 +8,30 @@
                                                    ExtendedDelta="300" />
         <converters:NullOrEmptyToCollapsedConverter x:Key="NullOrEmptyToCollapsedConverter" />
     </UserControl.Resources>
-    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
-                  VerticalScrollBarVisibility="Auto">
-        <Grid>
-            <Grid.MinHeight>
-                <MultiBinding Converter="{StaticResource ViewportFillMinHeightConverter}">
-                    <Binding Path="ViewportHeight"
-                             RelativeSource="{RelativeSource AncestorType=ScrollViewer}" />
-                    <Binding Path="IsLargeRunnerOutput" />
-                </MultiBinding>
-            </Grid.MinHeight>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="360" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ScrollViewer Grid.Row="0"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+            <Grid>
+                <Grid.MinHeight>
+                    <MultiBinding Converter="{StaticResource ViewportFillMinHeightConverter}">
+                        <Binding Path="ViewportHeight"
+                                 RelativeSource="{RelativeSource AncestorType=ScrollViewer}" />
+                        <Binding Path="IsLargeRunnerOutput" />
+                    </MultiBinding>
+                </Grid.MinHeight>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="360" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
 
                 <Grid>
                     <StackPanel>
@@ -99,26 +105,26 @@
                             Margin="0,10,0,10"
                             Orientation="Horizontal"
                             VerticalAlignment="Center">
-                        <Button Command="{Binding NewTaskCommand}"
-                                Content="New"
-                                Style="{StaticResource PrimaryButtonStyle}" />
-                        <Button Command="{Binding EditTaskCommand}"
-                                Content="Edit" />
-                        <Button Command="{Binding EditPromptCommand}"
-                                Content="Prompt" />
-                        <Button Command="{Binding OpenTasksFolderCommand}"
-                                Content="Open Folder" />
-                        <Button Command="{Binding DeleteTaskCommand}"
-                                Content="Delete"
-                                Style="{StaticResource DangerButtonStyle}" />
-                        <Button Command="{Binding RegisterOrUnregisterCommand}"
-                                Content="{Binding SelectedTask.RegistrationAction, FallbackValue=Register}" />
-                        <Button Command="{Binding RunNowCommand}"
-                                Content="Run now" />
-                        <Button Command="{Binding RunNowCancelCommand}"
-                                Content="Cancel run"
-                                Style="{StaticResource DangerButtonStyle}"
-                                Visibility="{Binding IsRunning, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    <Button Command="{Binding NewTaskCommand}"
+                            Content="New"
+                            Style="{StaticResource PrimaryButtonStyle}" />
+                    <Button Command="{Binding EditTaskCommand}"
+                            Content="Edit" />
+                    <Button Command="{Binding EditPromptCommand}"
+                            Content="Prompt" />
+                    <Button Command="{Binding OpenTasksFolderCommand}"
+                            Content="Open Folder" />
+                    <Button Command="{Binding DeleteTaskCommand}"
+                            Content="Delete"
+                            Style="{StaticResource DangerButtonStyle}" />
+                    <Button Command="{Binding RegisterOrUnregisterCommand}"
+                            Content="{Binding SelectedTask.RegistrationAction, FallbackValue=Register}" />
+                    <Button Command="{Binding RunNowCommand}"
+                            Content="Run now" />
+                    <Button Command="{Binding RunNowCancelCommand}"
+                            Content="Cancel run"
+                            Style="{StaticResource DangerButtonStyle}"
+                            Visibility="{Binding IsRunning, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 </StackPanel>
 
                 <materialDesign:Card x:Name="RunnerOutputCard"
@@ -169,13 +175,14 @@
                                  VerticalScrollBarVisibility="Auto" />
                     </Grid>
                 </materialDesign:Card>
+            </Grid>
+        </ScrollViewer>
 
-                <TextBlock Grid.Row="5"
-                           Margin="0,8,0,0"
-                           Foreground="{DynamicResource MutedTextBrush}"
-                           Text="{Binding StatusText}"
-                           TextWrapping="Wrap"
-                           Visibility="{Binding StatusText, Converter={StaticResource NullOrEmptyToCollapsedConverter}, FallbackValue=Collapsed}" />
-        </Grid>
-    </ScrollViewer>
+        <TextBlock Grid.Row="1"
+                   Margin="0,8,0,0"
+                   Foreground="{DynamicResource MutedTextBrush}"
+                   Text="{Binding StatusText}"
+                   TextWrapping="Wrap"
+                   Visibility="{Binding StatusText, Converter={StaticResource NullOrEmptyToCollapsedConverter}, FallbackValue=Collapsed}" />
+    </Grid>
 </UserControl>
