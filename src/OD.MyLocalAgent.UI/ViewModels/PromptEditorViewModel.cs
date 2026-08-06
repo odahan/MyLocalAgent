@@ -270,8 +270,16 @@ public sealed partial class PromptEditorViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void BackToTasks() =>
+    private void BackToTasks()
+    {
+        if (_task is not null)
+        {
+            _messenger.Send(new EditTaskMessage(_task.Id));
+            return;
+        }
+
         _messenger.Send(new NavigateMessage(PageRoute.Tasks));
+    }
 
     private async Task SynchronizeRegistrationAsync(
         ScheduledTask task,

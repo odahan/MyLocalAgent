@@ -136,6 +136,7 @@ public sealed partial class TaskEditorViewModel :
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(OpenAIExplainCommand))]
+    [NotifyCanExecuteChangedFor(nameof(OpenPromptCommand))]
     private string _workflowText = "[]";
 
     [ObservableProperty]
@@ -836,7 +837,10 @@ public sealed partial class TaskEditorViewModel :
         }
     }
 
-    private bool CanOpenPrompt() => IsIdReadOnly;
+    private bool CanOpenPrompt() =>
+        IsIdReadOnly &&
+        (string.IsNullOrWhiteSpace(WorkflowText) ||
+         string.Equals(WorkflowText.Trim(), "[]", StringComparison.Ordinal));
 
     private void UpdateCronPreview()
     {
