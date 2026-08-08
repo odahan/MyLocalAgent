@@ -1,9 +1,9 @@
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
 using OpenAI;
+using System.Runtime.CompilerServices;
 using System.ClientModel;
 using System.ClientModel.Primitives;
-using System.Runtime.CompilerServices;
 
 namespace OD.MyLocalAgent.Ollama;
 
