@@ -1433,14 +1433,19 @@ not an agent tool context.
 Agent-capable calls outside `ai.prompt` retain the task whitelist and execution context, but a
 single request is bounded by all of the following:
 
-- at most eight function-invocation rounds;
+- there is no fixed function-invocation-round cap: the consecutive-identical-result guard
+  below is the only protection against an agent looping forever;
 - at most two consecutive tool errors;
 - unknown function calls terminate the request;
-- the same agent function with byte-equivalent serialized JSON arguments may execute twice;
-  its third request is not executed and raises the typed `AgentToolLoopException`.
+- the same tool call, evidenced by an identical (function, sanitized arguments, serialized
+  result) triple, may occur twice; its third consecutive occurrence, with no different call in
+  between, terminates the request and raises the typed `AgentToolLoopException`. That third
+  occurrence still executes so the repeated result can be observed; no fourth identical call
+  is attempted.
 
-The repeated-call signature contains only the function name and the application's sanitized
-argument serialization. It must not add credential values to traces or reports.
+The repeated-call signature contains the function name, the application's sanitized argument
+serialization, and the serialized result. It must not add credential values to traces or
+reports.
 
 ### 18.2 Extended Gmail and Calendar reads
 

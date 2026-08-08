@@ -1541,9 +1541,13 @@ Modified:
 
 #### Runtime safety and connector surface
 
-- Agent-capable executions are limited to eight function rounds and two consecutive function
-  errors, terminate unknown calls, and raise `AgentToolLoopException` before executing a third
-  strictly identical function-and-arguments request.
+- Agent-capable executions allow two consecutive function errors, terminate unknown calls, and
+  raise `AgentToolLoopException` when the same (function, sanitized arguments, serialized
+  result) triple occurs three times consecutively with no different call in between. The
+  earlier eight-function-round cap and the arguments-only repeated-call signature were
+  superseded by the v1.3.3 loop-guard hardening (2026-08-06): the guard keys on the repeated
+  result, the stuck third occurrence executes so its result can be observed, and no fourth
+  identical call is made.
 - Added `IMyLocalAgentService.RunPromptWithoutToolsAsync`; `SequentialWorkflowEngine` uses it
   exclusively for `ai.prompt`, including the step-effective generation policy.
 - Gmail read aliases accept optional positive `maxMessages`; new `gmail.readRecent` accepts

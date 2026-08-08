@@ -207,6 +207,8 @@ public sealed class ToolMapMetadataTests
             ["filesystem.setExtension"] = (["path", "extension"], []),
             ["filesystem.delete"] = (["path"], []),
             ["filesystem.createDirectory"] = (["path"], []),
+            ["filesystem.computeHash"] = (["path"], []),
+            ["filesystem.compareByHash"] = (["pathA", "pathB"], []),
             ["filesystem.markdownToHtml"] = (["sourcePath", "destinationPath", "theme"], ["destinationPath", "theme"]),
             ["filesystem.htmlToText"] = (["sourcePath", "format"], ["format"]),
             ["sqlite.listObjects"] = (["databasePath", "objectType", "namePattern", "maxResults"], ["objectType", "namePattern", "maxResults"]),

@@ -140,8 +140,8 @@ public sealed class MyLocalAgentServiceTests
             CancellationToken.None);
 
         await action.Should().ThrowAsync<AgentToolLoopException>()
-            .WithMessage("*repeat_tool*identical arguments*");
-        toolInvocationCount.Should().Be(2);
+            .WithMessage("*repeat_tool*returned the same result 3 consecutive times*");
+        toolInvocationCount.Should().Be(3);
         client.CallCount.Should().Be(3);
     }
 

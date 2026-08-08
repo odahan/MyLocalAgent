@@ -337,7 +337,7 @@ public sealed partial class DashboardViewModel :
     private sealed record ReportIndexLine(
         string TaskId,
         DateTimeOffset StartedUtc,
-        long DurationMs,
+        double DurationMs,
         string Status,
         string ReportPath);
 }

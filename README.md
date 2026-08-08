@@ -911,8 +911,9 @@ prompt. The snapshot is explicitly labeled as data rather than instructions. The
 `false`, preserving existing workflow behavior and avoiding unnecessary context growth.
 `ai.prompt` is a direct, tool-less model call: it cannot select a connector or a skill, even
 when the containing task whitelists them. Agent-capable prompt-only tasks retain their
-whitelisted tools, but stop after eight tool rounds, two consecutive tool errors, or a third
-strictly identical tool-and-arguments request.
+whitelisted tools, but stop after two consecutive tool errors, an unknown function call, or
+the same (tool, arguments, result) call repeated three times consecutively with no different
+call in between.
 
 `ai.extractActionItems` and `ai.classifyEmail` are tool-less LLM skills. With no
 `args.text`, they consume the previous step output; when first, they consume the task prompt.
