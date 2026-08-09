@@ -55,6 +55,18 @@ public sealed partial class SettingsViewModel :
         nameof(AllowHttpPost),
         nameof(AllowSqliteWrite),
         nameof(AllowProcessExecution),
+        nameof(AllowArchiveWrite),
+        nameof(FileContentMaxInputFileBytes),
+        nameof(FileContentMaxArchiveEntries),
+        nameof(FileContentMaxArchiveEntryBytes),
+        nameof(FileContentMaxArchiveTotalBytes),
+        nameof(FileContentMaxArchiveCompressionRatio),
+        nameof(FileContentMaxListedEntries),
+        nameof(FileContentMaxDocumentCharacters),
+        nameof(FileContentMaxSpreadsheetRows),
+        nameof(FileContentMaxSpreadsheetColumns),
+        nameof(FileContentMaxSpreadsheetCells),
+        nameof(FileContentMaxPdfPages),
         nameof(SqliteDefaultMaxRows),
         nameof(SqliteMaxRows),
         nameof(SqliteMaxResultCharacters),
@@ -86,6 +98,7 @@ public sealed partial class SettingsViewModel :
     private readonly IOptionsMonitor<GuardrailsOptions> _guardrailsOptions;
     private readonly IOptionsMonitor<LoggingOptions> _loggingOptions;
     private readonly IOptionsMonitor<SQLiteOptions>? _sqliteOptions;
+    private readonly IOptionsMonitor<FileContentOptions>? _fileContentOptions;
     private readonly ILlmClientFactory _llmClientFactory;
     private readonly IOllamaModelCatalog _ollamaModelCatalog;
     private readonly ISecretStore _secretStore;
@@ -197,6 +210,21 @@ public sealed partial class SettingsViewModel :
     [ObservableProperty]
     private bool _allowProcessExecution;
 
+    [ObservableProperty]
+    private bool _allowArchiveWrite;
+
+    [ObservableProperty] private long _fileContentMaxInputFileBytes = 104857600;
+    [ObservableProperty] private int _fileContentMaxArchiveEntries = 10000;
+    [ObservableProperty] private long _fileContentMaxArchiveEntryBytes = 262144000;
+    [ObservableProperty] private long _fileContentMaxArchiveTotalBytes = 1073741824;
+    [ObservableProperty] private int _fileContentMaxArchiveCompressionRatio = 200;
+    [ObservableProperty] private int _fileContentMaxListedEntries = 1000;
+    [ObservableProperty] private int _fileContentMaxDocumentCharacters = 64000;
+    [ObservableProperty] private int _fileContentMaxSpreadsheetRows = 1000;
+    [ObservableProperty] private int _fileContentMaxSpreadsheetColumns = 256;
+    [ObservableProperty] private int _fileContentMaxSpreadsheetCells = 25000;
+    [ObservableProperty] private int _fileContentMaxPdfPages = 100;
+
     [ObservableProperty] private int _sqliteDefaultMaxRows = 100;
     [ObservableProperty] private int _sqliteMaxRows = 1_000;
     [ObservableProperty] private int _sqliteMaxResultCharacters = 64_000;
@@ -290,7 +318,8 @@ public sealed partial class SettingsViewModel :
         IDesktopInteractionService desktopInteraction,
         IMessenger messenger,
         TimeProvider timeProvider,
-        IOptionsMonitor<SQLiteOptions>? sqliteOptions = null)
+        IOptionsMonitor<SQLiteOptions>? sqliteOptions = null,
+        IOptionsMonitor<FileContentOptions>? fileContentOptions = null)
         : base(messenger)
     {
         _aiOptions = aiOptions;
@@ -303,6 +332,7 @@ public sealed partial class SettingsViewModel :
         _guardrailsOptions = guardrailsOptions;
         _loggingOptions = loggingOptions;
         _sqliteOptions = sqliteOptions;
+        _fileContentOptions = fileContentOptions;
         _llmClientFactory = llmClientFactory;
         _ollamaModelCatalog = ollamaModelCatalog;
         _secretStore = secretStore;
@@ -525,6 +555,7 @@ public sealed partial class SettingsViewModel :
             var guardrails = _guardrailsOptions.CurrentValue;
             var logging = _loggingOptions.CurrentValue;
             var sqlite = _sqliteOptions?.CurrentValue ?? new SQLiteOptions();
+            var fileContent = _fileContentOptions?.CurrentValue ?? new FileContentOptions();
 
             IsOllamaProvider = string.Equals(
                 ai.Provider,
@@ -568,6 +599,18 @@ public sealed partial class SettingsViewModel :
             AllowHttpPost = safety.AllowHttpPost;
             AllowSqliteWrite = safety.AllowSqliteWrite;
             AllowProcessExecution = safety.AllowProcessExecution;
+            AllowArchiveWrite = safety.AllowArchiveWrite;
+            FileContentMaxInputFileBytes = fileContent.MaxInputFileBytes;
+            FileContentMaxArchiveEntries = fileContent.MaxArchiveEntries;
+            FileContentMaxArchiveEntryBytes = fileContent.MaxArchiveEntryBytes;
+            FileContentMaxArchiveTotalBytes = fileContent.MaxArchiveTotalBytes;
+            FileContentMaxArchiveCompressionRatio = fileContent.MaxArchiveCompressionRatio;
+            FileContentMaxListedEntries = fileContent.MaxListedEntries;
+            FileContentMaxDocumentCharacters = fileContent.MaxDocumentCharacters;
+            FileContentMaxSpreadsheetRows = fileContent.MaxSpreadsheetRows;
+            FileContentMaxSpreadsheetColumns = fileContent.MaxSpreadsheetColumns;
+            FileContentMaxSpreadsheetCells = fileContent.MaxSpreadsheetCells;
+            FileContentMaxPdfPages = fileContent.MaxPdfPages;
             SqliteDefaultMaxRows = sqlite.DefaultMaxRows;
             SqliteMaxRows = sqlite.MaxRows;
             SqliteMaxResultCharacters = sqlite.MaxResultCharacters;
@@ -691,7 +734,19 @@ public sealed partial class SettingsViewModel :
                 SqliteCommandTimeoutSeconds,
                 SqliteGuardrailsEnabledByDefault,
                 AllowProcessExecution,
-                GlobalSystemPrompt.Trim());
+                GlobalSystemPrompt.Trim(),
+                AllowArchiveWrite,
+                FileContentMaxInputFileBytes,
+                FileContentMaxArchiveEntries,
+                FileContentMaxArchiveEntryBytes,
+                FileContentMaxArchiveTotalBytes,
+                FileContentMaxArchiveCompressionRatio,
+                FileContentMaxListedEntries,
+                FileContentMaxDocumentCharacters,
+                FileContentMaxSpreadsheetRows,
+                FileContentMaxSpreadsheetColumns,
+                FileContentMaxSpreadsheetCells,
+                FileContentMaxPdfPages);
             await _userSettingsService
                 .SaveAsync(
                     settings,

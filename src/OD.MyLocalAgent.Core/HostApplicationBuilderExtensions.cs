@@ -129,6 +129,11 @@ public static class HostApplicationBuilderExtensions
         builder.Services
             .AddOptions<SafetyOptions>()
             .Bind(builder.Configuration.GetSection(SafetyOptions.SectionName));
+            builder.Services
+                .AddOptions<FileContentOptions>()
+                .Bind(builder.Configuration.GetSection(FileContentOptions.SectionName))
+                .Validate(FileContentOptions.IsValid, "FileContent settings are invalid.")
+                .ValidateOnStart();
         builder.Services
             .AddOptions<SQLiteOptions>()
             .Bind(builder.Configuration.GetSection(SQLiteOptions.SectionName))

@@ -1787,3 +1787,35 @@ Modified:
   task-selected model. Missing local models fail safely without configuration mutation.
 - Added round-trip and request-option tests. Release build and full Release test suite passed
   with `-m:1` (538 passed, one intentionally skipped local Ollama integration test).
+# Stage 22 — local content parsing
+
+Core centrally references SharpCompress 0.50.1 (MIT), DocumentFormat.OpenXml 3.5.1 (MIT),
+ExcelDataReader 3.9.0 (MIT), and PdfPig 0.1.15 (Apache-2.0). The public surface is contextual
+`IArchiveTool`, `IDocumentTool`, `ISpreadsheetTool`, and `IPdfTool`; its ten aliases are discovered
+from attributes. `FileContent` owns all parser limits and `Safety:AllowArchiveWrite` defaults to
+false. Parser output is compact JSON marked `untrustedContent`; parser errors use stable,
+content-free categories.
+
+Verification on 2026-08-09 confirmed the package nuspec licenses and that the published UI and
+Runner each contain SharpCompress, OpenXML, ExcelDataReader, and PdfPig runtime assemblies.
+The resolved Open XML transitive dependency is `DocumentFormat.OpenXml.Framework 3.5.1`, which
+resolves `System.IO.Packaging 10.0.2`; the other three parser packages add no separate NuGet
+dependency in Core's `net10.0` target. The NuGet.org direct/transitive vulnerability audit reported
+no known vulnerability in any solution project.
+
+Archive reads require an allowlisted extension and detected container agreement. ZIP-based Office,
+NuGet, JAR, and EPUB marker structures fail closed when renamed to `.zip`. Compressed TAR streams
+are expanded into bounded application-owned temporary TAR files so the seekable archive API can
+preflight the complete graph; raw BZIP2/LZIP/XZ/Zstandard streams use a bounded synthetic single
+entry and delete their owned temporary container on disposal. ZIP writes remain the only public
+archive mutation, are Safety-gated, stage a complete sibling, validate it, revalidate authorization,
+and only then replace the destination.
+
+The final Release gate restored cleanly, built with zero warnings/errors, and ran 567 tests
+(566 passed and the expected local Ollama probe skipped). Both self-contained `win-x64` publishes
+contain all parser/runtime assemblies. Reflection smoke tests loaded the published Core and read
+synthetic ZIP, DOCX, XLSX, and PDF content. Six JSON samples parse, both manuals have seven
+copyable Stage 22 scenarios with structural/anchor/parity tests and valid embedded JavaScript, and
+`git diff --check` passes. Live WPF inspection was attempted through the Windows-control bridge,
+but that bridge was unavailable in the execution environment; XAML, binding, persistence, and
+dynamic-catalog behavior are covered by compilation and deterministic tests.

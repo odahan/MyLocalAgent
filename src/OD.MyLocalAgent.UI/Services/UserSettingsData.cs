@@ -46,6 +46,18 @@ namespace OD.MyLocalAgent.UI.Services;
 /// <param name="SQLiteGuardrailsEnabledByDefault">The SQLite Guardrails default for new tasks.</param>
 /// <param name="AllowProcessExecution">Whether launching local processes is enabled.</param>
 /// <param name="GlobalSystemPrompt">The optional project-wide AI instructions.</param>
+/// <param name="AllowArchiveWrite">Whether archive writes and extraction are enabled.</param>
+/// <param name="FileContentMaxInputFileBytes">The maximum parser input size.</param>
+/// <param name="FileContentMaxArchiveEntries">The archive entry ceiling.</param>
+/// <param name="FileContentMaxArchiveEntryBytes">The per-entry extraction ceiling.</param>
+/// <param name="FileContentMaxArchiveTotalBytes">The total extraction ceiling.</param>
+/// <param name="FileContentMaxArchiveCompressionRatio">The archive compression-ratio ceiling.</param>
+/// <param name="FileContentMaxListedEntries">The archive list ceiling.</param>
+/// <param name="FileContentMaxDocumentCharacters">The document text ceiling.</param>
+/// <param name="FileContentMaxSpreadsheetRows">The spreadsheet row ceiling.</param>
+/// <param name="FileContentMaxSpreadsheetColumns">The spreadsheet column ceiling.</param>
+/// <param name="FileContentMaxSpreadsheetCells">The spreadsheet cell ceiling.</param>
+/// <param name="FileContentMaxPdfPages">The PDF page ceiling.</param>
 public sealed record UserSettingsData(
     string Provider,
     string OllamaEndpoint,
@@ -89,4 +101,16 @@ public sealed record UserSettingsData(
     int SQLiteCommandTimeoutSeconds = 30,
     bool SQLiteGuardrailsEnabledByDefault = true,
     bool AllowProcessExecution = false,
-    string GlobalSystemPrompt = "");
+    string GlobalSystemPrompt = "",
+    bool AllowArchiveWrite = false,
+    long FileContentMaxInputFileBytes = 104857600,
+    int FileContentMaxArchiveEntries = 10000,
+    long FileContentMaxArchiveEntryBytes = 262144000,
+    long FileContentMaxArchiveTotalBytes = 1073741824,
+    int FileContentMaxArchiveCompressionRatio = 200,
+    int FileContentMaxListedEntries = 1000,
+    int FileContentMaxDocumentCharacters = 64000,
+    int FileContentMaxSpreadsheetRows = 1000,
+    int FileContentMaxSpreadsheetColumns = 256,
+    int FileContentMaxSpreadsheetCells = 25000,
+    int FileContentMaxPdfPages = 100);

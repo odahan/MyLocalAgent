@@ -385,6 +385,37 @@
                     <TextBlock Margin="24,2,0,0"
                                Style="{StaticResource CaptionTextStyle}"
                                Text="Permits filesystem.shellExecute and filesystem.powerShell to launch local processes." />
+                    <CheckBox Margin="0,12,0,0"
+                              Content="Allow archive writes and extraction"
+                              IsChecked="{Binding AllowArchiveWrite, Mode=TwoWay}" />
+                    <TextBlock Margin="24,2,0,0"
+                               Style="{StaticResource CaptionTextStyle}"
+                               Text="Permits archive extraction and ZIP creation only when the task group and ReadWrite authorized destination are also configured." />
+
+                    <Separator Margin="0,22,0,20" Background="{DynamicResource DividerBrush}" />
+                    <TextBlock FontWeight="SemiBold" Text="File content limits" />
+                    <TextBlock Margin="0,4,0,12" Style="{StaticResource CaptionTextStyle}" Text="Bounds local archive, Office, and PDF parsing before content reaches a task." />
+                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="16" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <TextBox Text="{Binding FileContentMaxInputFileBytes, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Maximum input bytes" />
+                        <TextBox Grid.Column="2" Text="{Binding FileContentMaxDocumentCharacters, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Maximum document characters" />
+                    </Grid>
+                    <Grid Margin="0,16,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="16" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <TextBox Text="{Binding FileContentMaxSpreadsheetRows, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Maximum spreadsheet rows" />
+                        <TextBox Grid.Column="2" Text="{Binding FileContentMaxSpreadsheetColumns, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Maximum spreadsheet columns" />
+                    </Grid>
+                    <Grid Margin="0,16,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="16" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <TextBox Text="{Binding FileContentMaxSpreadsheetCells, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Maximum spreadsheet cells" />
+                        <TextBox Grid.Column="2" Text="{Binding FileContentMaxPdfPages, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Maximum PDF pages" />
+                    </Grid>
+                    <Grid Margin="0,16,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="16" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <TextBox Text="{Binding FileContentMaxArchiveEntries, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Maximum archive entries" />
+                        <TextBox Grid.Column="2" Text="{Binding FileContentMaxListedEntries, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Maximum listed archive entries" />
+                    </Grid>
+                    <Grid Margin="0,16,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="16" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <TextBox Text="{Binding FileContentMaxArchiveEntryBytes, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Maximum bytes per extracted entry" />
+                        <TextBox Grid.Column="2" Text="{Binding FileContentMaxArchiveTotalBytes, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Maximum total extracted bytes" />
+                    </Grid>
+                    <TextBox Margin="0,16,0,0" Width="260" HorizontalAlignment="Left" Text="{Binding FileContentMaxArchiveCompressionRatio, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Maximum archive compression ratio" />
 
                     <Separator Margin="0,22,0,20"
                                Background="{DynamicResource DividerBrush}" />

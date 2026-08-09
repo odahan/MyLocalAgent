@@ -287,6 +287,7 @@ internal sealed class UserSettingsService : IUserSettingsService
                 ["AllowHttpPost"] = settings.AllowHttpPost,
                 ["AllowSqliteWrite"] = settings.AllowSqliteWrite,
                 ["AllowProcessExecution"] = settings.AllowProcessExecution,
+                ["AllowArchiveWrite"] = settings.AllowArchiveWrite,
             },
             ["SQLite"] = new Dictionary<string, object>
             {
@@ -297,6 +298,20 @@ internal sealed class UserSettingsService : IUserSettingsService
                 ["MaxSqlCharacters"] = settings.SQLiteMaxSqlCharacters,
                 ["CommandTimeoutSeconds"] = settings.SQLiteCommandTimeoutSeconds,
                 ["GuardrailsEnabledByDefault"] = settings.SQLiteGuardrailsEnabledByDefault,
+            },
+            ["FileContent"] = new Dictionary<string, object>
+            {
+                ["MaxInputFileBytes"] = settings.FileContentMaxInputFileBytes,
+                ["MaxArchiveEntries"] = settings.FileContentMaxArchiveEntries,
+                ["MaxArchiveEntryBytes"] = settings.FileContentMaxArchiveEntryBytes,
+                ["MaxArchiveTotalBytes"] = settings.FileContentMaxArchiveTotalBytes,
+                ["MaxArchiveCompressionRatio"] = settings.FileContentMaxArchiveCompressionRatio,
+                ["MaxListedEntries"] = settings.FileContentMaxListedEntries,
+                ["MaxDocumentCharacters"] = settings.FileContentMaxDocumentCharacters,
+                ["MaxSpreadsheetRows"] = settings.FileContentMaxSpreadsheetRows,
+                ["MaxSpreadsheetColumns"] = settings.FileContentMaxSpreadsheetColumns,
+                ["MaxSpreadsheetCells"] = settings.FileContentMaxSpreadsheetCells,
+                ["MaxPdfPages"] = settings.FileContentMaxPdfPages,
             },
             ["Guardrails"] = new Dictionary<string, object>
             {
@@ -412,6 +427,24 @@ internal sealed class UserSettingsService : IUserSettingsService
             }))
         {
             throw new InvalidOperationException("SQLite limits or timeout are invalid.");
+        }
+
+        if (!FileContentOptions.IsValid(new FileContentOptions
+            {
+                MaxInputFileBytes = settings.FileContentMaxInputFileBytes,
+                MaxArchiveEntries = settings.FileContentMaxArchiveEntries,
+                MaxArchiveEntryBytes = settings.FileContentMaxArchiveEntryBytes,
+                MaxArchiveTotalBytes = settings.FileContentMaxArchiveTotalBytes,
+                MaxArchiveCompressionRatio = settings.FileContentMaxArchiveCompressionRatio,
+                MaxListedEntries = settings.FileContentMaxListedEntries,
+                MaxDocumentCharacters = settings.FileContentMaxDocumentCharacters,
+                MaxSpreadsheetRows = settings.FileContentMaxSpreadsheetRows,
+                MaxSpreadsheetColumns = settings.FileContentMaxSpreadsheetColumns,
+                MaxSpreadsheetCells = settings.FileContentMaxSpreadsheetCells,
+                MaxPdfPages = settings.FileContentMaxPdfPages,
+            }))
+        {
+            throw new InvalidOperationException("File content limits are invalid.");
         }
 
         if (!Enum.TryParse<LogEventLevel>(

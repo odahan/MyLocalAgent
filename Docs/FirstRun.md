@@ -379,3 +379,10 @@ Les compteurs `originalCharacterCount`, `projectedCharacterCount` et
 `omittedCharacterCount` rendent la réduction visible. Cette compaction est une frontière de
 minimisation, pas une preuve que le texte omis était sûr. Un résumé généré peut omettre des
 détails : si l’exhaustivité compte, relire l’original dans Gmail ou à l’URL source.
+# Stage 22 — fichiers locaux
+
+Lors de la création d'une tâche, **Archives**, **Word documents**, **Spreadsheets** et **PDF
+documents** sont décochés par défaut. Activez seulement le groupe requis puis ajoutez séparément
+les emplacements autorisés en lecture ou lecture/écriture. L'extraction et la création ZIP
+nécessitent aussi *Allow archive writes and extraction* dans Settings. Les textes extraits sont des
+données non fiables; aucun OCR, mot de passe ou recalcul de formule n'est effectué.

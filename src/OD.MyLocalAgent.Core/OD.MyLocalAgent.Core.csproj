@@ -11,6 +11,8 @@
 
   <ItemGroup>
     <PackageReference Include="Cronos" />
+    <PackageReference Include="DocumentFormat.OpenXml" />
+    <PackageReference Include="ExcelDataReader" />
     <PackageReference Include="HtmlAgilityPack" />
     <PackageReference Include="Markdig" />
     <PackageReference Include="Microsoft.Data.Sqlite.Core" />
@@ -20,10 +22,12 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Microsoft.Extensions.Http" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="PdfPig" />
     <PackageReference Include="Serilog" />
     <PackageReference Include="Serilog.Extensions.Hosting" />
     <PackageReference Include="Serilog.Sinks.File" />
     <PackageReference Include="TaskScheduler" />
     <PackageReference Include="SQLitePCLRaw.bundle_winsqlite3" />
+    <PackageReference Include="SharpCompress" />
   </ItemGroup>
 </Project>

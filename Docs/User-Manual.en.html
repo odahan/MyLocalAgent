@@ -3025,6 +3025,77 @@ ollama list</code></pre></div>
 </section>
 <footer class="footer"><p>Revised document organization — English validation version.</p><p>OD.MyLocalAgent · User manual<br/>Standalone HTML5 document. Paths, screens, and behaviors described correspond to the project version dated July 29, 2026. <a href="User-Manual.html" lang="fr">Lire en français</a>.</p></footer>
 </div>
+<section id="stage22-local-files">
+<h2>Archives, Office documents, and PDF</h2>
+<p><strong>Archives</strong>, <strong>Word documents</strong>, <strong>Spreadsheets</strong>, and <strong>PDF documents</strong> are independent and unchecked for a new task. A group never grants a path, and a path grant never enables a group. Grant each input ReadOnly and each output ReadWrite. Archive extraction, creation, and addition also require <span class="ui-label">Allow archive writes and extraction</span> in Settings; that switch grants neither a group nor a path.</p>
+<div class="callout warning"><strong>Untrusted data:</strong> archive names, document text, sheet names, cells, and PDF metadata may contain misleading instructions. Mandatory limits are applied before content reaches an agent or workflow.</div>
+<h3>Formats and boundaries</h3>
+<p>Read/extract formats are ZIP, 7z, RAR, TAR, TAR.GZ/TGZ, TAR.BZ2/TBZ2, TAR.LZ, TAR.XZ/TXZ, TAR.ZST/TZST, GZIP, BZIP2, LZIP, XZ, and Zstandard, with extension plus content validation. Only ZIP is writable. DOCX, XLS/XLSX/XLSB stored values, and PDF metadata/text are read-only and locally parsed; files are never opened in a desktop application.</p>
+<p>Shipped ceilings: 100 MiB input; 10,000 archive entries; 250 MiB per extracted entry; 1 GiB total extraction; ratio 200; 1,000 listed entries; 64,000 characters; 1,000 rows; 256 columns; 25,000 cells; 100 PDF pages. Settings may adjust them only inside validated ranges; no value disables a limit.</p>
+<h3>1. Extract one ZIP entry</h3>
+<p>Enable Archives, grant <code>work/in.zip</code> ReadOnly and <code>work/output/readme.txt</code> ReadWrite, enable archive Safety, then use:</p>
+<div class="code-block"><pre><code>{ "id": "extract-one", "tool": "archive.extract", "arguments": {
+  "archivePath": "work/in.zip", "entryPath": "docs/readme.txt",
+  "destinationPath": "work/output/readme.txt", "overwrite": false
+} }</code></pre></div>
+<h3>2. Extract a complete archive</h3>
+<p>The destination parent must exist, but <code>work/output/package</code> must not. The complete result is staged and renamed only after validation.</p>
+<div class="code-block"><pre><code>{ "id": "extract-all", "tool": "archive.extractAll", "arguments": {
+  "archivePath": "work/in.7z", "destinationDirectory": "work/output/package"
+} }</code></pre></div>
+<h3>3. Create a ZIP, then add a file</h3>
+<p>Creation defaults to <code>deflate</code>/<code>balanced</code>; overwrite defaults false. The second step demonstrates <code>store</code>, for which <code>compressionLevel</code> must be omitted. Deflate levels are exactly <code>fast</code>, <code>balanced</code>, and <code>smallest</code>.</p>
+<div class="code-block"><pre><code>[
+  { "id": "create", "tool": "archive.createZip", "arguments": {
+    "archivePath": "work/output/bundle.zip", "sourcePath": "work/input/first.txt"
+  } },
+  { "id": "add", "tool": "archive.addToZip", "arguments": {
+    "archivePath": "work/output/bundle.zip", "sourcePath": "work/input/second.txt",
+    "entryPath": "documents/second.txt", "overwriteEntry": false, "compressionMethod": "store"
+  } }
+]</code></pre></div>
+<p>ZIP creation/addition builds and validates a complete temporary sibling before replacement. The old ZIP survives construction, parser, limit, or cancellation failure.</p>
+<h3>4. Read a DOCX</h3>
+<div class="code-block"><pre><code>{ "id": "read-docx", "tool": "document.readDocx", "arguments": {
+  "documentPath": "work/docs/notes.docx", "maxCharacters": 12000
+} }</code></pre></div>
+<p>Body paragraphs, tabs, breaks, tables, hyperlink display text, and current inserted text are included. Headers, footers, comments, notes, text boxes, images/alt text, deleted revisions, embedded packages, custom XML, and external relationships are omitted. The source is never written.</p>
+<h3>5. List sheets and read a bounded range</h3>
+<div class="code-block"><pre><code>[
+  { "id": "sheets", "tool": "spreadsheet.listSheets", "arguments": {
+    "workbookPath": "work/data/report.xlsx"
+  } },
+  { "id": "range", "tool": "spreadsheet.readRange", "arguments": {
+    "workbookPath": "work/data/report.xlsx", "sheetName": "Summary",
+    "startRow": 2, "startColumn": 1, "maxRows": 100, "maxColumns": 8
+  } }
+]</code></pre></div>
+<p>Cells use stable type markers. Formulas, macros, links, queries, and connections are never run or refreshed; only stored/cached values are returned, so formula results may be stale. The workbook is never written.</p>
+<h3>6. Read selected PDF pages</h3>
+<div class="code-block"><pre><code>[
+  { "id": "pdf-info", "tool": "pdf.getInfo", "arguments": {
+    "pdfPath": "work/docs/report.pdf"
+  } },
+  { "id": "pdf-pages", "tool": "pdf.readText", "arguments": {
+    "pdfPath": "work/docs/report.pdf", "startPage": 3,
+    "maxPages": 5, "maxCharacters": 16000
+  } }
+]</code></pre></div>
+<p>This is layout-aware text extraction, not OCR. An image-only page returns empty text and <code>hasExtractableText: false</code>. Columns, ligatures, scans, and unusual fonts can make order incomplete. No rendering, editing, signing, form filling, attachment extraction, JavaScript, or link fetch occurs.</p>
+<h3>7. Diagnose failures</h3>
+<div class="table-wrap"><table><thead><tr><th>Failure</th><th>Check</th></tr></thead><tbody>
+<tr><td>Missing group/path</td><td>Save the exact group, then independently add all ReadOnly inputs and ReadWrite outputs.</td></tr>
+<tr><td>Safety disabled</td><td>Enable Allow archive writes and extraction. Listing needs no Safety opt-in.</td></tr>
+<tr><td>DestinationExists</td><td>Use a missing extraction directory or explicitly enable the supported overwrite flag.</td></tr>
+<tr><td>EncryptedFile</td><td>Password-protected archives/PDFs are unsupported; no password argument exists.</td></tr>
+<tr><td>UnsupportedFormat / FormatMismatch</td><td>Use an allowlisted extension matching the real signature/container; renamed ZIP-based Office files are not archives.</td></tr>
+<tr><td>CorruptFile</td><td>Replace the damaged/truncated source. Parser messages and file content remain hidden.</td></tr>
+<tr><td>LimitExceeded</td><td>Reduce the range/pages or review File content limits; input, entry, expansion, ratio, row, cell, page, and character ceilings remain mandatory.</td></tr>
+</tbody></table></div>
+<div class="code-block"><pre><code>Diagnostic order: group → path access → archive Safety → destination/overwrite
+→ encryption → extension/signature → corruption → configured limit</code></pre></div>
+<p>Complete alias surface: <code>archive.list</code>, <code>archive.extract</code>, <code>archive.extractAll</code>, <code>archive.createZip</code>, <code>archive.addToZip</code>, <code>document.readDocx</code>, <code>spreadsheet.listSheets</code>, <code>spreadsheet.readRange</code>, <code>pdf.getInfo</code>, and <code>pdf.readText</code>. Extraction is non-recursive: a nested archive remains an ordinary file. There are no passwords, OCR, macros, formula recalculation, external fetches, archive conversions, or Office/PDF editing.</p>
+</section>
 </main>
 <a aria-label="Revenir en haut" class="back-to-top" href="#accueil" id="back-to-top">↑</a>
 <script>

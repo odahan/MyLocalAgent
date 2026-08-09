@@ -205,6 +205,72 @@ public sealed class UserSettingsServiceTests : IDisposable
         configuration["SQLite:GuardrailsEnabledByDefault"].Should().Be("False");
     }
 
+    /// <summary>Verifies every Stage 22 file-content value and archive Safety gate persist atomically.</summary>
+    [Fact]
+    public async Task SavePersistsAllFileContentSettingsAndPreservesUnknownSections()
+    {
+        Directory.CreateDirectory(_directoryPath);
+        var settingsPath = Path.Combine(_directoryPath, "settings.json");
+        await File.WriteAllTextAsync(settingsPath, """{"Future":{"Keep":42}}""");
+        var configuration = new ConfigurationBuilder().AddJsonFile(settingsPath, optional: false, reloadOnChange: false).Build();
+        var settings = ValidSettings() with
+        {
+            AllowArchiveWrite = true,
+            FileContentMaxInputFileBytes = 2_000_000,
+            FileContentMaxArchiveEntries = 123,
+            FileContentMaxArchiveEntryBytes = 2_000_000,
+            FileContentMaxArchiveTotalBytes = 4_000_000,
+            FileContentMaxArchiveCompressionRatio = 25,
+            FileContentMaxListedEntries = 100,
+            FileContentMaxDocumentCharacters = 12_000,
+            FileContentMaxSpreadsheetRows = 200,
+            FileContentMaxSpreadsheetColumns = 20,
+            FileContentMaxSpreadsheetCells = 2_000,
+            FileContentMaxPdfPages = 25,
+        };
+        var service = new UserSettingsService(configuration, Mock.Of<ISecretStore>(), settingsPath);
+
+        await service.SaveAsync(settings, replacementApiKey: null, CancellationToken.None);
+
+        using var document = JsonDocument.Parse(await File.ReadAllTextAsync(settingsPath));
+        var root = document.RootElement;
+        root.GetProperty("Future").GetProperty("Keep").GetInt32().Should().Be(42);
+        root.GetProperty("Safety").GetProperty("AllowArchiveWrite").GetBoolean().Should().BeTrue();
+        var content = root.GetProperty("FileContent");
+        content.GetProperty("MaxInputFileBytes").GetInt64().Should().Be(2_000_000);
+        content.GetProperty("MaxArchiveEntries").GetInt32().Should().Be(123);
+        content.GetProperty("MaxArchiveEntryBytes").GetInt64().Should().Be(2_000_000);
+        content.GetProperty("MaxArchiveTotalBytes").GetInt64().Should().Be(4_000_000);
+        content.GetProperty("MaxArchiveCompressionRatio").GetInt32().Should().Be(25);
+        content.GetProperty("MaxListedEntries").GetInt32().Should().Be(100);
+        content.GetProperty("MaxDocumentCharacters").GetInt32().Should().Be(12_000);
+        content.GetProperty("MaxSpreadsheetRows").GetInt32().Should().Be(200);
+        content.GetProperty("MaxSpreadsheetColumns").GetInt32().Should().Be(20);
+        content.GetProperty("MaxSpreadsheetCells").GetInt32().Should().Be(2_000);
+        content.GetProperty("MaxPdfPages").GetInt32().Should().Be(25);
+        configuration["Safety:AllowArchiveWrite"].Should().Be("True");
+        configuration["FileContent:MaxPdfPages"].Should().Be("25");
+        Directory.GetFiles(_directoryPath, "*.tmp").Should().BeEmpty();
+    }
+
+    /// <summary>Verifies invalid Stage 22 bounds never mutate the settings file.</summary>
+    [Fact]
+    public async Task InvalidFileContentSettingsAreRejectedBeforePersistence()
+    {
+        Directory.CreateDirectory(_directoryPath);
+        var settingsPath = Path.Combine(_directoryPath, "settings.json");
+        const string original = """{"Future":{"Keep":true}}""";
+        await File.WriteAllTextAsync(settingsPath, original);
+        var configuration = new ConfigurationBuilder().AddJsonFile(settingsPath, optional: false, reloadOnChange: false).Build();
+        var service = new UserSettingsService(configuration, Mock.Of<ISecretStore>(), settingsPath);
+        var invalid = ValidSettings() with { FileContentMaxPdfPages = 0 };
+
+        var action = () => service.SaveAsync(invalid, replacementApiKey: null, CancellationToken.None);
+
+        await action.Should().ThrowAsync<InvalidOperationException>();
+        (await File.ReadAllTextAsync(settingsPath)).Should().Be(original);
+    }
+
     /// <summary>
     /// Deletes the isolated settings directory.
     /// </summary>

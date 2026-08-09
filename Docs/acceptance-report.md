@@ -396,3 +396,33 @@ Date: 2026-08-04
 Launch Settings and the Tool catalog in both themes, then use a disposable file to confirm the
 production Windows shell places it in the Recycle Bin and Windows can restore it. No user file was
 used for that check during automated implementation.
+# Stage 22 — Archive, Office and PDF tools
+
+The Stage 22 catalog exposes the independent `archive`, `document`, `spreadsheet`, and `pdf`
+task groups. Each remains disabled for new tasks until saved explicitly. Group selection never
+grants a file path: every operation is separately constrained by the task's ReadOnly/ReadWrite
+locations, and archive writes also require `Safety:AllowArchiveWrite`.
+
+The Core package inventory is SharpCompress 0.50.1 (MIT), DocumentFormat.OpenXml 3.5.1 (MIT),
+ExcelDataReader 3.9.0 (MIT), and PdfPig 0.1.15 (Apache-2.0). Output is bounded and marked
+`untrustedContent`; it must not be treated as instructions. Office and PDF operations are
+read-only; no OCR, password, macro, formula recalculation, external fetch, or Office automation
+is included.
+
+On 2026-08-09, `dotnet list OD.MyLocalAgent.sln package --vulnerable --include-transitive`
+against NuGet.org reported no vulnerable direct or transitive package in any project.
+
+| Stage 22 acceptance item | Status | Executed evidence |
+|---|---:|---|
+| Four independent contextual groups and exactly ten aliases | ✅ | Exact catalog tests cover order, service contracts, functions, ordered arguments, path access, and Safety metadata. |
+| Central stable permissive parser packages | ✅ | Assets/nuspec inspection confirms SharpCompress 0.50.1 (MIT), Open XML 3.5.1 (MIT), ExcelDataReader 3.9.0 (MIT), and PdfPig 0.1.15 (Apache-2.0), referenced by Core only. |
+| Archive safety and bounded reads/writes | ✅ | Synthetic tests cover ZIP lifecycle/atomic preservation, directory sources, overwrite defaults, Safety, unsafe names, collisions, renamed Office packages, ZIP, TAR, TAR.GZ, 7z, GZIP, and BZIP2 streams. All compressed-stream paths enforce output and ratio bounds while reading. |
+| Read-only DOCX, spreadsheet, and PDF results | ✅ | Synthetic DOCX/XLSX/PDF tests cover body text/counts/omissions, sheets and typed bounded cells, metadata, selected and image-only pages, layout extraction, and untrusted markers. |
+| Settings persistence and validation | ✅ | Tests persist every FileContent value and AllowArchiveWrite, preserve unknown sections, reload configuration, remove temporary files, and reject invalid values before disk mutation. |
+| Published runtime | ✅ | Self-contained UI and Runner contain SharpCompress, both Open XML assemblies, ExcelDataReader, PdfPig components, CodePages, and CoreCLR; published-Core smoke reads succeeded for ZIP, DOCX, XLSX, and PDF. |
+| Bilingual standalone guidance | ✅ | Each manual has seven copyable scenarios and matching aliases, formats, Safety, limits, errors, and boundaries; automated tests cover balanced sections, ids, anchors, external resources, language links, and parity; embedded JavaScript parses successfully. |
+| Final release gate | ✅ | Restore succeeded, online vulnerability audit is clean, Release build has 0 warnings/errors, 566 tests passed with 1 expected Ollama skip, six sample JSON files parsed, both publishes succeeded, and `git diff --check` passed. Every restore/build/test/publish command used `-m:1`. |
+
+The Windows-control bridge returned an environment-level launch error, so no live WPF screenshot is
+claimed. Settings XAML, MVVM bindings, persistence, dynamic whitelist projection, and catalog
+integration are nevertheless compiled and covered by deterministic tests.

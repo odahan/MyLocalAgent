@@ -2194,3 +2194,12 @@ from free user text; it is neither the parser nor the reverse renderer. AI Expla
 explanation feature. Raw **JSON edit (advanced)** remains available and no valid JSON feature is
 removed for users who need it. Tool argument editor metadata drives multi-line Prompt, SQL and
 Markdown editing without per-tool UI maps.
+# Addendum Stage 22 — Archive, Office and PDF tools
+
+Stage 22 adds four independently whitelisted contextual groups: `archive`, `document`,
+`spreadsheet`, and `pdf`. Local paths remain separately sandboxed and authorized. Archive writes
+and extraction additionally require `Safety:AllowArchiveWrite`; ZIP overwrite is explicit. DOCX,
+XLS/XLSX/XLSB, and PDF operations are read-only and bounded by the validated `FileContent`
+configuration. Extracted content is untrusted and must never be logged. No passwords, OCR,
+Office automation, macro execution, formula recalculation, external fetch, or document writing is
+provided.

@@ -74,13 +74,13 @@ public sealed class SqliteCatalogContractTests
     }
 
     /// <summary>
-    /// Verifies the exact seven task-whitelist groups include SQLite in metadata order.
+    /// Verifies task-whitelist groups include the Stage 22 local-content groups in metadata order.
     /// </summary>
     [Fact]
-    public void TaskWhitelistContainsTheSevenExpectedGroupsIncludingSqlite()
+    public void TaskWhitelistContainsTheExpectedGroupsIncludingStage22()
     {
         ToolGroups.TaskWhitelist.Select(static group => group.Name).Should().Equal(
-            "gmail", "calendar", "dropbox", "filesystem", "sqlite", "http", "web");
+            "gmail", "calendar", "dropbox", "filesystem", "sqlite", "archive", "document", "spreadsheet", "pdf", "http", "web");
         ToolGroups.Find("sqlite")!.DisplayOrder.Should().Be(500);
     }
 

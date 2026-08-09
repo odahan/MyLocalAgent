@@ -42,7 +42,7 @@ its own navigation, search, styles, and scripts in one file.
 | 19 | SQLite Tool | Complete — bounded local core, Windows-serviced runtime, Guardrails delivery, dynamic tooling, automated gate, and manual GUI checks verified |
 | 20 | Agent Prompt Placeholders | Complete with documented, human task test done |
 | 21 | Model Information Placeholders | Complete with automated verification |
-| 22 | Archive, Office, and PDF Tools | TO DO |
+| 22 | Archive, Office, and PDF Tools | Complete with automated verification |
 | 23 | Web Discovery, Retrieval, Research Storage, and named Storage Spaces | TO DO |
 | 24 | Publications and Markdown Reports | TODO depends on Stage 23 |
 | 25 | Human Workflow Text Editing with advanced JSON mode | TO DO |
@@ -1490,3 +1490,34 @@ never rewrites them. Tasks created or edited while debugging register against th
 runner; the next start of the deployed UI resynchronizes them back to the production
 runner. The Dashboard **Resync schedules** button stays available in Debug as an explicit,
 intentional action.
+# Stage 22 local file tools
+
+The task whitelist now includes **Archives**, **Word documents**, **Spreadsheets**, and **PDF
+documents**. They are disabled by default and do not grant a file path: every input/output must
+also be covered by the task's authorized locations. Archive extraction and ZIP creation require
+the global **Allow archive writes and extraction** Safety switch, which defaults to false.
+
+| Group / alias | Agent function | Ordered arguments (optional in brackets) | Local access | Safety |
+|---|---|---|---|---|
+| archive / `archive.list` | `archive_list` | `archivePath`, `[maxEntries]` | archive ReadOnly | — |
+| archive / `archive.extract` | `archive_extract` | `archivePath`, `entryPath`, `destinationPath`, `[overwrite]` | archive ReadOnly; destination ReadWrite | `AllowArchiveWrite` |
+| archive / `archive.extractAll` | `archive_extract_all` | `archivePath`, `destinationDirectory` | archive ReadOnly; destination ReadWrite | `AllowArchiveWrite` |
+| archive / `archive.createZip` | `archive_create_zip` | `archivePath`, `sourcePath`, `[entryPath]`, `[overwriteArchive]`, `[compressionMethod]`, `[compressionLevel]` | archive ReadWrite; source ReadOnly | `AllowArchiveWrite` |
+| archive / `archive.addToZip` | `archive_add_to_zip` | `archivePath`, `sourcePath`, `[entryPath]`, `[overwriteEntry]`, `[compressionMethod]`, `[compressionLevel]` | archive ReadWrite; source ReadOnly | `AllowArchiveWrite` |
+| document / `document.readDocx` | `document_read_docx` | `documentPath`, `[maxCharacters]` | ReadOnly | — |
+| spreadsheet / `spreadsheet.listSheets` | `spreadsheet_list_sheets` | `workbookPath` | ReadOnly | — |
+| spreadsheet / `spreadsheet.readRange` | `spreadsheet_read_range` | `workbookPath`, `[sheetName]`, `[startRow]`, `[startColumn]`, `[maxRows]`, `[maxColumns]` | ReadOnly | — |
+| pdf / `pdf.getInfo` | `pdf_get_info` | `pdfPath` | ReadOnly | — |
+| pdf / `pdf.readText` | `pdf_read_text` | `pdfPath`, `[startPage]`, `[maxPages]`, `[maxCharacters]` | ReadOnly | — |
+
+All returned document, cell, and PDF text is untrusted data. The tools do not support passwords,
+OCR, Office automation, formula recalculation, macro execution, external fetch, or writing Word,
+spreadsheet, or PDF files. `FileContent` bounds input size, archive entries, document characters,
+spreadsheet rows/cells, and PDF pages.
+
+Archive inputs are limited to ZIP, 7z, RAR, TAR, TAR.GZ/TGZ, TAR.BZ2/TBZ2, TAR.LZ,
+TAR.XZ/TXZ, TAR.ZST/TZST, GZIP, BZIP2, LZIP, XZ, and Zstandard. Both the extension and detected
+container must agree. ZIP is the only writable format. The defaults are `deflate` with `balanced` compression;
+the only alternatives are `store`, `fast`, and `smallest` as applicable. Existing output is never
+overwritten unless its explicit overwrite argument is true. ZIP replacement is staged and committed
+only after validation; extraction never recursively opens an archive found inside another archive.

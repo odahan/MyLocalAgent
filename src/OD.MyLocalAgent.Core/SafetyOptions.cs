@@ -40,6 +40,9 @@ public sealed class SafetyOptions
     /// </summary>
     public bool AllowProcessExecution { get; set; }
 
+    /// <summary>Gets or sets whether archive extraction and ZIP writes are allowed.</summary>
+    public bool AllowArchiveWrite { get; set; }
+
     /// <summary>
     /// Determines whether the gate identified by a Tool Map safety flag is enabled.
     /// </summary>
@@ -55,6 +58,7 @@ public sealed class SafetyOptions
             "Safety:AllowHttpPost" => AllowHttpPost,
             "Safety:AllowSqliteWrite" => AllowSqliteWrite,
             "Safety:AllowProcessExecution" => AllowProcessExecution,
+            "Safety:AllowArchiveWrite" => AllowArchiveWrite,
             _ => false,
         };
 }

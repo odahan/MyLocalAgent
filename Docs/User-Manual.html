@@ -3213,6 +3213,77 @@ ollama list</code></pre>
                 <a href="User-Manual.en.html" lang="en">Read in English</a>.
             </footer>
 </div>
+<section id="stage22-local-files">
+<h2>Archives, documents Office et PDF</h2>
+<p><strong>Archives</strong>, <strong>Word documents</strong>, <strong>Spreadsheets</strong> et <strong>PDF documents</strong> sont indépendants et décochés pour une nouvelle tâche. Un groupe n’accorde jamais un chemin, et un chemin n’active jamais un groupe. Accordez ReadOnly à chaque entrée et ReadWrite à chaque sortie. Extraction, création et ajout d’archives exigent aussi <span class="ui-label">Allow archive writes and extraction</span> dans Settings ; cet interrupteur n’accorde ni groupe ni chemin.</p>
+<div class="callout warning"><strong>Données non fiables :</strong> noms d’archives, textes, feuilles, cellules et métadonnées PDF peuvent contenir des instructions trompeuses. Les limites obligatoires sont appliquées avant l’entrée du contenu dans un agent ou workflow.</div>
+<h3>Formats et limites</h3>
+<p>Formats de lecture/extraction : ZIP, 7z, RAR, TAR, TAR.GZ/TGZ, TAR.BZ2/TBZ2, TAR.LZ, TAR.XZ/TXZ, TAR.ZST/TZST, GZIP, BZIP2, LZIP, XZ et Zstandard, avec validation de l’extension et du contenu. Seul ZIP est inscriptible. DOCX, valeurs stockées XLS/XLSX/XLSB, métadonnées et texte PDF sont en lecture seule et analysés localement ; aucune application de bureau n’est ouverte.</p>
+<p>Plafonds livrés : entrée 100 Mio ; 10 000 entrées d’archive ; 250 Mio par entrée extraite ; 1 Gio au total ; ratio 200 ; 1 000 entrées listées ; 64 000 caractères ; 1 000 lignes ; 256 colonnes ; 25 000 cellules ; 100 pages PDF. Settings permet uniquement des valeurs dans les bornes validées ; aucune valeur ne désactive une limite.</p>
+<h3>1. Extraire une entrée ZIP</h3>
+<p>Activez Archives, accordez ReadOnly à <code>work/in.zip</code> et ReadWrite à <code>work/output/readme.txt</code>, activez la Safety des archives, puis utilisez :</p>
+<div class="code-block"><pre><code>{ "id": "extract-one", "tool": "archive.extract", "arguments": {
+  "archivePath": "work/in.zip", "entryPath": "docs/readme.txt",
+  "destinationPath": "work/output/readme.txt", "overwrite": false
+} }</code></pre></div>
+<h3>2. Extraire une archive complète</h3>
+<p>Le parent de destination doit exister, mais <code>work/output/package</code> ne doit pas exister. Le résultat complet est préparé puis renommé seulement après validation.</p>
+<div class="code-block"><pre><code>{ "id": "extract-all", "tool": "archive.extractAll", "arguments": {
+  "archivePath": "work/in.7z", "destinationDirectory": "work/output/package"
+} }</code></pre></div>
+<h3>3. Créer un ZIP, puis ajouter un fichier</h3>
+<p>La création utilise <code>deflate</code>/<code>balanced</code> par défaut ; l’écrasement vaut false. La seconde étape montre <code>store</code>, qui interdit <code>compressionLevel</code>. Les niveaux Deflate sont exactement <code>fast</code>, <code>balanced</code> et <code>smallest</code>.</p>
+<div class="code-block"><pre><code>[
+  { "id": "create", "tool": "archive.createZip", "arguments": {
+    "archivePath": "work/output/bundle.zip", "sourcePath": "work/input/first.txt"
+  } },
+  { "id": "add", "tool": "archive.addToZip", "arguments": {
+    "archivePath": "work/output/bundle.zip", "sourcePath": "work/input/second.txt",
+    "entryPath": "documents/second.txt", "overwriteEntry": false, "compressionMethod": "store"
+  } }
+]</code></pre></div>
+<p>Création et ajout construisent puis valident un ZIP voisin complet avant remplacement. L’ancien ZIP survit aux erreurs de construction, d’analyse, de limite ou d’annulation.</p>
+<h3>4. Lire un DOCX</h3>
+<div class="code-block"><pre><code>{ "id": "read-docx", "tool": "document.readDocx", "arguments": {
+  "documentPath": "work/docs/notes.docx", "maxCharacters": 12000
+} }</code></pre></div>
+<p>Paragraphes du corps, tabulations, sauts, tableaux, texte affiché des hyperliens et insertions courantes sont inclus. En-têtes, pieds de page, commentaires, notes, zones de texte, images/texte alternatif, révisions supprimées, packages incorporés, XML personnalisé et relations externes sont omis. La source n’est jamais écrite.</p>
+<h3>5. Lister les feuilles et lire une plage bornée</h3>
+<div class="code-block"><pre><code>[
+  { "id": "sheets", "tool": "spreadsheet.listSheets", "arguments": {
+    "workbookPath": "work/data/report.xlsx"
+  } },
+  { "id": "range", "tool": "spreadsheet.readRange", "arguments": {
+    "workbookPath": "work/data/report.xlsx", "sheetName": "Summary",
+    "startRow": 2, "startColumn": 1, "maxRows": 100, "maxColumns": 8
+  } }
+]</code></pre></div>
+<p>Les cellules portent un type stable. Formules, macros, liens, requêtes et connexions ne sont jamais exécutés ni actualisés ; seules les valeurs stockées/en cache sont renvoyées, donc une formule peut être périmée. Le classeur n’est jamais écrit.</p>
+<h3>6. Lire des pages PDF sélectionnées</h3>
+<div class="code-block"><pre><code>[
+  { "id": "pdf-info", "tool": "pdf.getInfo", "arguments": {
+    "pdfPath": "work/docs/report.pdf"
+  } },
+  { "id": "pdf-pages", "tool": "pdf.readText", "arguments": {
+    "pdfPath": "work/docs/report.pdf", "startPage": 3,
+    "maxPages": 5, "maxCharacters": 16000
+  } }
+]</code></pre></div>
+<p>Il s’agit d’extraction textuelle tenant compte de la mise en page, pas d’OCR. Une page image renvoie un texte vide et <code>hasExtractableText: false</code>. Colonnes, ligatures, scans et polices inhabituelles peuvent rendre l’ordre incomplet. Aucun rendu, édition, signature, remplissage, extraction de pièce jointe, JavaScript ou accès à un lien.</p>
+<h3>7. Diagnostiquer les échecs</h3>
+<div class="table-wrap"><table><thead><tr><th>Échec</th><th>Vérification</th></tr></thead><tbody>
+<tr><td>Groupe/chemin absent</td><td>Enregistrez le groupe exact, puis ajoutez indépendamment toutes les entrées ReadOnly et sorties ReadWrite.</td></tr>
+<tr><td>Safety désactivée</td><td>Activez Allow archive writes and extraction. La liste ne demande pas cette autorisation.</td></tr>
+<tr><td>DestinationExists</td><td>Utilisez un dossier d’extraction absent ou activez explicitement le drapeau d’écrasement pris en charge.</td></tr>
+<tr><td>EncryptedFile</td><td>Archives/PDF protégés par mot de passe non pris en charge ; aucun argument de mot de passe n’existe.</td></tr>
+<tr><td>UnsupportedFormat / FormatMismatch</td><td>Utilisez une extension autorisée conforme à la signature réelle ; un fichier Office ZIP renommé n’est pas une archive.</td></tr>
+<tr><td>CorruptFile</td><td>Remplacez la source endommagée/tronquée. Messages du parseur et contenu restent masqués.</td></tr>
+<tr><td>LimitExceeded</td><td>Réduisez plage/pages ou vérifiez File content ; plafonds d’entrée, nombre, expansion, ratio, lignes, cellules, pages et caractères restent obligatoires.</td></tr>
+</tbody></table></div>
+<div class="code-block"><pre><code>Ordre du diagnostic : groupe → accès au chemin → Safety des archives → destination/écrasement
+→ chiffrement → extension/signature → corruption → limite configurée</code></pre></div>
+<p>Surface complète : <code>archive.list</code>, <code>archive.extract</code>, <code>archive.extractAll</code>, <code>archive.createZip</code>, <code>archive.addToZip</code>, <code>document.readDocx</code>, <code>spreadsheet.listSheets</code>, <code>spreadsheet.readRange</code>, <code>pdf.getInfo</code> et <code>pdf.readText</code>. L’extraction est non récursive : une archive imbriquée reste un fichier ordinaire. Aucun mot de passe, OCR, macro, recalcul de formule, accès externe, conversion d’archive ou édition Office/PDF.</p>
+</section>
 </main>
 <a aria-label="Revenir en haut" class="back-to-top" href="#accueil" id="back-to-top">↑</a>
 <script>

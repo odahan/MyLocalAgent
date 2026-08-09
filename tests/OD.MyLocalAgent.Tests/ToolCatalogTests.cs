@@ -38,7 +38,7 @@ public sealed class ToolCatalogTests
         var catalog = ToolCatalog.Default;
         var whitelistGroupNames = catalog.TaskWhitelistGroups.Select(g => g.Name).ToList();
 
-        whitelistGroupNames.Should().Equal("gmail", "calendar", "dropbox", "filesystem", "sqlite", "http", "web");
+        whitelistGroupNames.Should().Equal("gmail", "calendar", "dropbox", "filesystem", "sqlite", "archive", "document", "spreadsheet", "pdf", "http", "web");
 
         catalog.FindGroup("gmail")!.DisplayName.Should().Be("Gmail");
         catalog.FindGroup("calendar")!.DisplayName.Should().Be("Calendar");
@@ -79,6 +79,18 @@ public sealed class ToolCatalogTests
         catalog.Find("sqlite.describeTable").Should().NotBeNull();
         catalog.Find("sqlite.query").Should().NotBeNull();
         catalog.Find("sqlite.execute").Should().NotBeNull();
+
+        catalog.FindGroup("archive")!.DisplayName.Should().Be("Archives");
+        catalog.Find("archive.list").Should().NotBeNull();
+        catalog.Find("archive.extract").Should().NotBeNull();
+        catalog.Find("archive.extractAll").Should().NotBeNull();
+        catalog.Find("archive.createZip").Should().NotBeNull();
+        catalog.Find("archive.addToZip").Should().NotBeNull();
+        catalog.Find("document.readDocx").Should().NotBeNull();
+        catalog.Find("spreadsheet.listSheets").Should().NotBeNull();
+        catalog.Find("spreadsheet.readRange").Should().NotBeNull();
+        catalog.Find("pdf.getInfo").Should().NotBeNull();
+        catalog.Find("pdf.readText").Should().NotBeNull();
 
         catalog.Find("http.get").Should().NotBeNull();
         catalog.Find("http.post").Should().NotBeNull();

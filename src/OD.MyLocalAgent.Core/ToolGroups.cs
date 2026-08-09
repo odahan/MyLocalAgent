@@ -40,6 +40,18 @@ public static class ToolGroups
     /// </summary>
     public const string Sqlite = "sqlite";
 
+    /// <summary>Gets the archive tool-group name.</summary>
+    public const string Archive = "archive";
+
+    /// <summary>Gets the Word document tool-group name.</summary>
+    public const string Document = "document";
+
+    /// <summary>Gets the spreadsheet tool-group name.</summary>
+    public const string Spreadsheet = "spreadsheet";
+
+    /// <summary>Gets the PDF tool-group name.</summary>
+    public const string Pdf = "pdf";
+
     /// <summary>
     /// Gets the synthetic built-in AI group name.
     /// </summary>

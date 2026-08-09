@@ -33,7 +33,8 @@ public sealed class ToolMapMetadataTests
                 argument.Example.Should().NotBeNullOrWhiteSpace(
                     $"argument '{definition.Alias}.{argument.Name}' must show an example");
 
-                if (argument.Kind == WorkflowArgumentKind.Enumeration)
+                if (argument.Kind == WorkflowArgumentKind.Enumeration ||
+                    (argument.Kind == WorkflowArgumentKind.String && argument.AllowedValues.Count > 0))
                 {
                     argument.AllowedValues.Should().NotBeEmpty(
                         $"argument '{definition.Alias}.{argument.Name}' is an enumeration");
@@ -217,6 +218,16 @@ public sealed class ToolMapMetadataTests
             ["sqlite.describeTable"] = (["databasePath", "tableName"], []),
             ["sqlite.query"] = (["databasePath", "sql", "parameters", "maxRows", "storageSpaceId"], ["parameters", "maxRows", "storageSpaceId"]),
             ["sqlite.execute"] = (["databasePath", "sql", "parameters", "createIfMissing"], ["parameters", "createIfMissing"]),
+            ["archive.list"] = (["archivePath", "maxEntries"], ["maxEntries"]),
+            ["archive.extract"] = (["archivePath", "entryPath", "destinationPath", "overwrite"], ["overwrite"]),
+            ["archive.extractAll"] = (["archivePath", "destinationDirectory"], []),
+            ["archive.createZip"] = (["archivePath", "sourcePath", "entryPath", "overwriteArchive", "compressionMethod", "compressionLevel"], ["entryPath", "overwriteArchive", "compressionMethod", "compressionLevel"]),
+            ["archive.addToZip"] = (["archivePath", "sourcePath", "entryPath", "overwriteEntry", "compressionMethod", "compressionLevel"], ["entryPath", "overwriteEntry", "compressionMethod", "compressionLevel"]),
+            ["document.readDocx"] = (["documentPath", "maxCharacters"], ["maxCharacters"]),
+            ["spreadsheet.listSheets"] = (["workbookPath"], []),
+            ["spreadsheet.readRange"] = (["workbookPath", "sheetName", "startRow", "startColumn", "maxRows", "maxColumns"], ["sheetName", "startRow", "startColumn", "maxRows", "maxColumns"]),
+            ["pdf.getInfo"] = (["pdfPath"], []),
+            ["pdf.readText"] = (["pdfPath", "startPage", "maxPages", "maxCharacters"], ["startPage", "maxPages", "maxCharacters"]),
             ["http.get"] = (["url"], []),
             ["http.post"] = (["url", "body", "contentType"], []),
             ["http.getText"] = (["url"], []),

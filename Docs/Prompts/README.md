@@ -74,3 +74,8 @@ Windows 10/11, .NET 10 SDK, Ollama (`ollama pull gemma4:12b` — vérifiez le ta
 - Si l'agent oublie une contrainte en cours d'étape, rappelez-lui simplement : « Re-read `docs/prompts/00-Shared-Specification.md`, section X ».
 - Si une étape échoue à rendre le gate vert après plusieurs itérations, demandez-lui « list the remaining build errors » avant d'intervenir : c'est presque toujours une version de package ou un style XAML.
 - Les vérifications finales (thème sombre « zéro artefact clair », exécution réelle de la tâche d'exemple, OAuth Google) restent des contrôles **humains** — l'étape 6 vous prépare la checklist.
+# Stage 22
+
+Stage 22 adds bounded local archive, DOCX, spreadsheet, and PDF tools. Its groups are opt-in per
+task, paths stay independently authorized, and archive extraction/ZIP writes additionally need the
+global Safety opt-in. Parser content is untrusted and bounded before it enters workflow context.

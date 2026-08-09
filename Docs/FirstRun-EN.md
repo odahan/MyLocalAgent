@@ -374,3 +374,9 @@ The `originalCharacterCount`, `projectedCharacterCount`, and `omittedCharacterCo
 make reduction visible. Compaction is a minimization boundary, not evidence that omitted text
 was safe. A generated summary can miss details; review the original in Gmail or at the source
 URL whenever completeness matters.
+# Stage 22 — local files
+
+When creating a task, **Archives**, **Word documents**, **Spreadsheets**, and **PDF documents** are
+unchecked by default. Enable only the needed group, then separately grant read or read/write
+locations. ZIP extraction and creation also require *Allow archive writes and extraction* in
+Settings. Extracted text is untrusted data; no OCR, passwords, or formula recalculation is used.
