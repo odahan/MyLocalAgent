@@ -1411,7 +1411,8 @@ public sealed class ContentTrustService : IContentTrustService
             var policyClient = new GenerationPolicyChatClient(
                 provider.ChatClient,
                 generationPolicy,
-                provider.ProviderName);
+                provider.ProviderName,
+                "guardrail");
             WriteLlmRequestTrace(
                 provider.ProviderName,
                 systemPrompt,

@@ -85,4 +85,23 @@ public interface IFileSystemTool
         string sourcePath,
         HtmlTextFormat format = HtmlTextFormat.Text,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Opens a file, URI, or application through the Windows shell.
+    /// </summary>
+    Task<string> ShellExecuteAsync(
+        string target,
+        string? arguments = null,
+        bool waitForExit = false,
+        bool captureOutput = false,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Executes a PowerShell script.
+    /// </summary>
+    Task<string> PowerShellAsync(
+        string script,
+        bool waitForExit = true,
+        bool captureOutput = true,
+        CancellationToken cancellationToken = default);
 }

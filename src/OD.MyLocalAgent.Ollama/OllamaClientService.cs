@@ -10,7 +10,7 @@ namespace OD.MyLocalAgent.Ollama;
 /// <summary>
 /// Provides local language-model generation through Ollama.
 /// </summary>
-public sealed class OllamaClientService : ILlmClientService, IOllamaModelCatalog
+public sealed class OllamaClientService : ILlmClientService, IOllamaModelCatalog, ILlmModelWarmup
 {
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IOptionsMonitor<OllamaOptions> _options;
@@ -74,9 +74,10 @@ public sealed class OllamaClientService : ILlmClientService, IOllamaModelCatalog
         ValidatePrompt(prompt);
         ArgumentNullException.ThrowIfNull(policy);
         var current = _options.CurrentValue;
+        var model = ModelExecutionScope.ModelName ?? current.Model;
         _logger.LogInformation(
             "Starting Ollama generation with model {Model}.",
-            current.Model);
+            model);
 
         var policyClient = new GenerationPolicyChatClient(
             _chatClient,
@@ -84,13 +85,47 @@ public sealed class OllamaClientService : ILlmClientService, IOllamaModelCatalog
             ProviderName);
         var response = await policyClient.GetResponseAsync(
             [new ChatMessage(ChatRole.User, prompt)],
-            new ChatOptions { ModelId = current.Model },
+            new ChatOptions { ModelId = model },
             cancellationToken).ConfigureAwait(false);
 
         _logger.LogInformation(
             "Completed Ollama generation with model {Model}.",
-            current.Model);
+            model);
         return response.Text;
+    }
+
+    /// <inheritdoc />
+    public async Task WarmUpAsync(
+        EffectiveGenerationPolicy policy,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(policy);
+        var current = _options.CurrentValue;
+        var model = ModelExecutionScope.ModelName ?? current.Model;
+        var started = _timeProvider.GetTimestamp();
+        _logger.LogInformation(
+            "Starting Ollama model warm-up for {Model} with context window {ContextWindowTokens}.",
+            model,
+            policy.ContextWindowTokens);
+
+        var policyClient = new GenerationPolicyChatClient(
+            _chatClient,
+            policy,
+            ProviderName);
+        var response = await policyClient.GetResponseAsync(
+            [new ChatMessage(ChatRole.User, "Reply with READY only.")],
+            new ChatOptions
+            {
+                ModelId = model,
+                MaxOutputTokens = 1,
+            },
+            cancellationToken).ConfigureAwait(false);
+
+        _logger.LogInformation(
+            "Completed Ollama model warm-up for {Model} in {LatencyMs} ms; response received: {ResponseReceived}.",
+            model,
+            GetElapsedMilliseconds(started),
+            !string.IsNullOrWhiteSpace(response.Text));
     }
 
     /// <inheritdoc />
@@ -238,13 +273,13 @@ public sealed class OllamaClientService : ILlmClientService, IOllamaModelCatalog
         }
     }
 
-    internal async Task EnsureModelAvailableAsync(CancellationToken cancellationToken)
+    internal async Task EnsureModelAvailableAsync(string model, CancellationToken cancellationToken)
     {
         var current = _options.CurrentValue;
         var models = await ListLocalModelsAsync(current, cancellationToken).ConfigureAwait(false);
-        if (!IsConfiguredModelPresent(models, current.Model))
+        if (!IsConfiguredModelPresent(models, model))
         {
-            throw new OllamaModelMissingException(current.Model);
+            throw new OllamaModelMissingException(model);
         }
     }
 

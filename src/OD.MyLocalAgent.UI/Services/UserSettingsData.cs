@@ -44,6 +44,8 @@ namespace OD.MyLocalAgent.UI.Services;
 /// <param name="SQLiteMaxSqlCharacters">The maximum SQLite SQL size.</param>
 /// <param name="SQLiteCommandTimeoutSeconds">The SQLite command timeout.</param>
 /// <param name="SQLiteGuardrailsEnabledByDefault">The SQLite Guardrails default for new tasks.</param>
+/// <param name="AllowProcessExecution">Whether launching local processes is enabled.</param>
+/// <param name="GlobalSystemPrompt">The optional project-wide AI instructions.</param>
 public sealed record UserSettingsData(
     string Provider,
     string OllamaEndpoint,
@@ -85,4 +87,6 @@ public sealed record UserSettingsData(
     int SQLiteMaxBlobBytes = 4_096,
     int SQLiteMaxSqlCharacters = 16_000,
     int SQLiteCommandTimeoutSeconds = 30,
-    bool SQLiteGuardrailsEnabledByDefault = true);
+    bool SQLiteGuardrailsEnabledByDefault = true,
+    bool AllowProcessExecution = false,
+    string GlobalSystemPrompt = "");

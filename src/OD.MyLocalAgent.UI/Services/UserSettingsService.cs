@@ -244,6 +244,7 @@ internal sealed class UserSettingsService : IUserSettingsService
                     ["TopP"] = settings.GenerationTopP,
                     ["ContextWindowTokens"] = settings.ContextWindowTokens,
                 },
+                ["GlobalSystemPrompt"] = settings.GlobalSystemPrompt.Trim(),
             },
             ["Ollama"] = new Dictionary<string, object>
             {
@@ -285,6 +286,7 @@ internal sealed class UserSettingsService : IUserSettingsService
                 ["AllowMoveToBin"] = settings.AllowMoveToBin,
                 ["AllowHttpPost"] = settings.AllowHttpPost,
                 ["AllowSqliteWrite"] = settings.AllowSqliteWrite,
+                ["AllowProcessExecution"] = settings.AllowProcessExecution,
             },
             ["SQLite"] = new Dictionary<string, object>
             {

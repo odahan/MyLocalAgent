@@ -20,6 +20,32 @@ public interface IMyLocalAgentService
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// Generates one model response without tools and assigns its usage to a logical operation.
+    /// </summary>
+    /// <param name="prompt">The complete prompt.</param>
+    /// <param name="generationPolicy">The immutable effective generation policy.</param>
+    /// <param name="logicalOperation">The logical operation or workflow step identifier.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The model result.</returns>
+    Task<AgentRunResult> RunPromptWithoutToolsAsync(
+        string prompt,
+        EffectiveGenerationPolicy generationPolicy,
+        string logicalOperation,
+        CancellationToken cancellationToken) =>
+        RunPromptWithoutToolsAsync(prompt, generationPolicy, cancellationToken);
+
+    /// <summary>
+    /// Generates one model response without tools with an explicit project-instructions preference.
+    /// </summary>
+    Task<AgentRunResult> RunPromptWithoutToolsAsync(
+        string prompt,
+        EffectiveGenerationPolicy generationPolicy,
+        string logicalOperation,
+        bool useGlobalSystemPrompt,
+        CancellationToken cancellationToken) =>
+        RunPromptWithoutToolsAsync(prompt, generationPolicy, logicalOperation, cancellationToken);
+
+    /// <summary>
     /// Runs a prompt and returns the final concise report.
     /// </summary>
     /// <param name="prompt">The task prompt.</param>

@@ -29,8 +29,9 @@ internal sealed class DynamicOpenAIChatClient : IChatClient
         var current = GetValidatedOptions();
         using var timeoutSource = CreateTimeoutSource(current.TimeoutSeconds, cancellationToken);
         var effectiveOptions = options?.Clone() ?? new ChatOptions();
-        effectiveOptions.ModelId = current.Model;
-        using var client = CreateClient(current);
+        var model = options?.ModelId ?? current.Model;
+        effectiveOptions.ModelId = model;
+        using var client = CreateClient(current, model);
         return await client.GetResponseAsync(messages, effectiveOptions, timeoutSource.Token).ConfigureAwait(false);
     }
 
@@ -43,8 +44,9 @@ internal sealed class DynamicOpenAIChatClient : IChatClient
         var current = GetValidatedOptions();
         using var timeoutSource = CreateTimeoutSource(current.TimeoutSeconds, cancellationToken);
         var effectiveOptions = options?.Clone() ?? new ChatOptions();
-        effectiveOptions.ModelId = current.Model;
-        using var client = CreateClient(current);
+        var model = options?.ModelId ?? current.Model;
+        effectiveOptions.ModelId = model;
+        using var client = CreateClient(current, model);
 
         await foreach (var update in client
             .GetStreamingResponseAsync(messages, effectiveOptions, timeoutSource.Token)
@@ -64,7 +66,7 @@ internal sealed class DynamicOpenAIChatClient : IChatClient
     {
     }
 
-    private IChatClient CreateClient(OpenAIOptions options)
+    private IChatClient CreateClient(OpenAIOptions options, string model)
     {
         var httpClient = _httpClientFactory.CreateClient(LlmHttpClientNames.OpenAI);
         httpClient.Timeout = Timeout.InfiniteTimeSpan;
@@ -78,7 +80,7 @@ internal sealed class DynamicOpenAIChatClient : IChatClient
         var openAIClient = new OpenAIClient(
             new ApiKeyCredential(options.ApiKey!),
             clientOptions);
-        return openAIClient.GetChatClient(options.Model).AsIChatClient();
+        return openAIClient.GetChatClient(model).AsIChatClient();
     }
 
     private OpenAIOptions GetValidatedOptions()

@@ -9,12 +9,12 @@ internal sealed class DynamicOllamaChatClient : IChatClient
 {
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IOptionsMonitor<OllamaOptions> _options;
-    private readonly Func<CancellationToken, Task> _ensureModelAvailableAsync;
+    private readonly Func<string, CancellationToken, Task> _ensureModelAvailableAsync;
 
     public DynamicOllamaChatClient(
         IHttpClientFactory httpClientFactory,
         IOptionsMonitor<OllamaOptions> options,
-        Func<CancellationToken, Task> ensureModelAvailableAsync)
+        Func<string, CancellationToken, Task> ensureModelAvailableAsync)
     {
         _httpClientFactory = httpClientFactory;
         _options = options;
@@ -28,14 +28,15 @@ internal sealed class DynamicOllamaChatClient : IChatClient
     {
         ArgumentNullException.ThrowIfNull(messages);
         var current = _options.CurrentValue;
+        var model = options?.ModelId ?? current.Model;
         using var timeoutSource = CreateTimeoutSource(current.TimeoutSeconds, cancellationToken);
 
         try
         {
-            await _ensureModelAvailableAsync(timeoutSource.Token).ConfigureAwait(false);
+            await _ensureModelAvailableAsync(model, timeoutSource.Token).ConfigureAwait(false);
             var effectiveOptions = options?.Clone() ?? new ChatOptions();
-            effectiveOptions.ModelId = current.Model;
-            using var client = CreateClient(current);
+            effectiveOptions.ModelId = model;
+            using var client = CreateClient(current, model);
             return await client.GetResponseAsync(messages, effectiveOptions, timeoutSource.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
@@ -59,6 +60,7 @@ internal sealed class DynamicOllamaChatClient : IChatClient
     {
         ArgumentNullException.ThrowIfNull(messages);
         var current = _options.CurrentValue;
+        var model = options?.ModelId ?? current.Model;
         using var timeoutSource = CreateTimeoutSource(current.TimeoutSeconds, cancellationToken);
 
         IChatClient? client = null;
@@ -67,7 +69,7 @@ internal sealed class DynamicOllamaChatClient : IChatClient
         {
             try
             {
-                await _ensureModelAvailableAsync(timeoutSource.Token).ConfigureAwait(false);
+                await _ensureModelAvailableAsync(model, timeoutSource.Token).ConfigureAwait(false);
             }
             catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
             {
@@ -83,8 +85,8 @@ internal sealed class DynamicOllamaChatClient : IChatClient
             }
 
             var effectiveOptions = options?.Clone() ?? new ChatOptions();
-            effectiveOptions.ModelId = current.Model;
-            client = CreateClient(current);
+            effectiveOptions.ModelId = model;
+            client = CreateClient(current, model);
             enumerator = client
                 .GetStreamingResponseAsync(messages, effectiveOptions, timeoutSource.Token)
                 .GetAsyncEnumerator(timeoutSource.Token);
@@ -138,12 +140,12 @@ internal sealed class DynamicOllamaChatClient : IChatClient
     {
     }
 
-    private IChatClient CreateClient(OllamaOptions options)
+    private IChatClient CreateClient(OllamaOptions options, string model)
     {
         var httpClient = _httpClientFactory.CreateClient(LlmHttpClientNames.Ollama);
         httpClient.BaseAddress = LlmOptionsValidation.ParseEndpoint(options.Endpoint, OllamaOptions.SectionName);
         httpClient.Timeout = Timeout.InfiniteTimeSpan;
-        return new OllamaApiClient(httpClient, options.Model);
+        return new OllamaApiClient(httpClient, model);
     }
 
     private static CancellationTokenSource CreateTimeoutSource(

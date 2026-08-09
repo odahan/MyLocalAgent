@@ -29,10 +29,19 @@ public sealed record ScheduledTask
     public string Prompt { get; init; } = string.Empty;
 
     /// <summary>
+    /// Gets a value indicating whether project-wide AI instructions apply to this task.
+    /// </summary>
+    public bool UseGlobalSystemPrompt { get; init; } = true;
+
+    /// <summary>
     /// Gets the optional task-level Temperature and Top P overrides.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public GenerationOptions? GenerationOptions { get; init; }
+
+    /// <summary>Gets the optional model used only while this task executes.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Model { get; init; }
 
     /// <summary>
     /// Gets the whitelisted tool groups.

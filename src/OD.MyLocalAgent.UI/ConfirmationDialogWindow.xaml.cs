@@ -42,13 +42,15 @@ public partial class ConfirmationDialogWindow : Window
     /// <param name="secondaryButtonText">
     /// Optional text for a secondary action; omit it to hide that action.
     /// </param>
+    /// <param name="isInformational">Whether the notice is informational rather than an error.</param>
     public ConfirmationDialogWindow(
         string title,
         string message,
         bool requiresConfirmation = true,
         string? primaryButtonText = null,
         string? cancelButtonText = null,
-        string? secondaryButtonText = null)
+        string? secondaryButtonText = null,
+        bool isInformational = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
         ArgumentException.ThrowIfNullOrWhiteSpace(message);
@@ -68,7 +70,7 @@ public partial class ConfirmationDialogWindow : Window
             CancelButton.Visibility = Visibility.Collapsed;
             ConfirmButton.Content = "OK";
             StatusIcon.Foreground = (System.Windows.Media.Brush)FindResource(
-                "ErrorBrush");
+                isInformational ? "MutedTextBrush" : "ErrorBrush");
         }
     }
 

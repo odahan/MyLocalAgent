@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using Markdig;
@@ -642,6 +643,128 @@ public sealed class FileSystemTool : IFileSystemTool
                         content,
                     });
             });
+
+    /// <inheritdoc />
+    [Tool("filesystem.shellExecute", "Opens a file, URI, or application through the Windows shell when Safety:AllowProcessExecution is enabled.", 1200, SafetyFlag = "Safety:AllowProcessExecution")]
+    public Task<string> ShellExecuteAsync(
+        [ToolArgument(WorkflowArgumentKind.String, "File path, URI, or application to open through the Windows shell.", Example = "https://example.com")] string target,
+        [ToolArgument(WorkflowArgumentKind.String, "Optional arguments passed to an application target.", Example = "--help")] string? arguments = null,
+        [ToolArgument(WorkflowArgumentKind.Boolean, "Whether to wait for the started process to exit. False is the default.", Example = "false")] bool waitForExit = false,
+        [ToolArgument(WorkflowArgumentKind.Boolean, "Whether to capture standard output and error. Windows shell execution cannot capture output, so this must be false.", Example = "false")] bool captureOutput = false,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureProcessExecutionIsAllowed("filesystem.shellExecute");
+        if (captureOutput)
+        {
+            throw new ArgumentException(
+                "Windows shell execution cannot capture output. Set captureOutput to false.",
+                nameof(captureOutput));
+        }
+
+        return ExecuteProcessAsync(
+            "filesystem.shellExecute",
+            new ProcessStartInfo
+            {
+                FileName = target,
+                Arguments = arguments ?? string.Empty,
+                UseShellExecute = true,
+            },
+            target,
+            waitForExit,
+            captureOutput,
+            cancellationToken);
+    }
+
+    /// <inheritdoc />
+    [Tool("filesystem.powerShell", "Executes a PowerShell script when Safety:AllowProcessExecution is enabled.", 1300, SafetyFlag = "Safety:AllowProcessExecution")]
+    public Task<string> PowerShellAsync(
+        [ToolArgument(WorkflowArgumentKind.String, "PowerShell script to execute.", Example = "Get-Date")] string script,
+        [ToolArgument(WorkflowArgumentKind.Boolean, "Whether to wait for the PowerShell process to exit. True is the default.", Example = "true")] bool waitForExit = true,
+        [ToolArgument(WorkflowArgumentKind.Boolean, "Whether to return standard output and error. Requires waitForExit to be true.", Example = "true")] bool captureOutput = true,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureProcessExecutionIsAllowed("filesystem.powerShell");
+        if (captureOutput && !waitForExit)
+        {
+            throw new ArgumentException(
+                "Output can only be captured when waitForExit is true.",
+                nameof(captureOutput));
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(script);
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "powershell.exe",
+            UseShellExecute = false,
+            RedirectStandardOutput = captureOutput,
+            RedirectStandardError = captureOutput,
+            CreateNoWindow = true,
+        };
+        startInfo.ArgumentList.Add("-NoLogo");
+        startInfo.ArgumentList.Add("-NoProfile");
+        startInfo.ArgumentList.Add("-NonInteractive");
+        startInfo.ArgumentList.Add("-Command");
+        startInfo.ArgumentList.Add(script);
+
+        return ExecuteProcessAsync(
+            "filesystem.powerShell",
+            startInfo,
+            "powershell.exe",
+            waitForExit,
+            captureOutput,
+            cancellationToken);
+    }
+
+    private Task<string> ExecuteProcessAsync(
+        string operation,
+        ProcessStartInfo startInfo,
+        string target,
+        bool waitForExit,
+        bool captureOutput,
+        CancellationToken cancellationToken) =>
+        ToolCallLog.ExecuteAsync(
+            _logger,
+            _timeProvider,
+            operation,
+            new { target, waitForExit, captureOutput },
+            async () =>
+            {
+                using var process = Process.Start(startInfo)
+                    ?? throw new InvalidOperationException($"Unable to start '{target}'.");
+                if (!waitForExit)
+                {
+                    return ToolJson.Serialize(
+                        new { target, started = true, waitForExit = false, captureOutput = false });
+                }
+
+                Task<string>? outputTask = captureOutput
+                    ? process.StandardOutput.ReadToEndAsync(cancellationToken)
+                    : null;
+                Task<string>? errorTask = captureOutput
+                    ? process.StandardError.ReadToEndAsync(cancellationToken)
+                    : null;
+                await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+
+                return ToolJson.Serialize(
+                    new
+                    {
+                        target,
+                        started = true,
+                        waitForExit = true,
+                        exitCode = process.ExitCode,
+                        captureOutput,
+                        output = outputTask is null ? null : await outputTask.ConfigureAwait(false),
+                        error = errorTask is null ? null : await errorTask.ConfigureAwait(false),
+                    });
+            });
+
+    private void EnsureProcessExecutionIsAllowed(string operation)
+    {
+        if (!_safetyOptions.Value.AllowProcessExecution)
+        {
+            throw new SafetyException(operation, "Safety:AllowProcessExecution");
+        }
+    }
 
     private async Task<string> ReadAuthorizedTextAsync(
         string absolutePath,

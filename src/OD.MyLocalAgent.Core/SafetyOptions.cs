@@ -36,6 +36,11 @@ public sealed class SafetyOptions
     public bool AllowSqliteWrite { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether launching local processes is allowed.
+    /// </summary>
+    public bool AllowProcessExecution { get; set; }
+
+    /// <summary>
     /// Determines whether the gate identified by a Tool Map safety flag is enabled.
     /// </summary>
     /// <param name="configurationKey">The Tool Map safety flag, such as <c>Safety:AllowHttpPost</c>.</param>
@@ -49,6 +54,7 @@ public sealed class SafetyOptions
             "Safety:AllowMoveToBin" => AllowMoveToBin,
             "Safety:AllowHttpPost" => AllowHttpPost,
             "Safety:AllowSqliteWrite" => AllowSqliteWrite,
+            "Safety:AllowProcessExecution" => AllowProcessExecution,
             _ => false,
         };
 }

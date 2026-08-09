@@ -352,6 +352,7 @@ public sealed class WorkflowEngineTests
                 service => service.RunPromptWithoutToolsAsync(
                     "tool-output for Workflow test",
                     It.IsAny<EffectiveGenerationPolicy>(),
+                    It.IsAny<string>(),
                     It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AgentRunResult("prompt-output", "Test"));
         var engine = CreateEngine(registry, agentService: agent.Object);
@@ -388,6 +389,7 @@ public sealed class WorkflowEngineTests
                             policy.Temperature == 0.7 &&
                             policy.TopP == 0.85 &&
                             policy.ContextWindowTokens == 12_000),
+                    It.IsAny<string>(),
                     It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AgentRunResult("done", "Test"));
         var provider = new StubLlmClientService("unused")
@@ -498,6 +500,7 @@ public sealed class WorkflowEngineTests
                             prompt.Contains("\"source\"") &&
                             prompt.Contains("\"content\": \"Bonjour\"")),
                     It.IsAny<EffectiveGenerationPolicy>(),
+                    It.IsAny<string>(),
                     It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AgentRunResult("Hello", "Test"));
         var task = CreateTask(
@@ -731,12 +734,14 @@ public sealed class WorkflowEngineTests
                 service => service.RunPromptWithoutToolsAsync(
                     "Draft the report.",
                     It.IsAny<EffectiveGenerationPolicy>(),
+                    "draft",
                     It.IsAny<CancellationToken>()))
             .Callback<
                 string,
                 EffectiveGenerationPolicy,
+                string,
                 CancellationToken>(
-                (_, policy, _) => capturedPolicy = policy)
+                (_, policy, _, _) => capturedPolicy = policy)
             .ReturnsAsync(new AgentRunResult("draft", "Test"));
         var options = new MutableOptionsMonitor<AIOptions>(
             new AIOptions

@@ -225,6 +225,10 @@ public sealed class WorkflowToolCatalogViewModelTests
         {
         }
 
+        public void ShowInformation(string title, string message)
+        {
+        }
+
         public string? SelectSavePath(
             string title,
             string filter,

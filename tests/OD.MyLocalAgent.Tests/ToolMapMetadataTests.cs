@@ -211,6 +211,8 @@ public sealed class ToolMapMetadataTests
             ["filesystem.compareByHash"] = (["pathA", "pathB"], []),
             ["filesystem.markdownToHtml"] = (["sourcePath", "destinationPath", "theme"], ["destinationPath", "theme"]),
             ["filesystem.htmlToText"] = (["sourcePath", "format"], ["format"]),
+            ["filesystem.shellExecute"] = (["target", "arguments", "waitForExit", "captureOutput"], ["arguments", "waitForExit", "captureOutput"]),
+            ["filesystem.powerShell"] = (["script", "waitForExit", "captureOutput"], ["waitForExit", "captureOutput"]),
             ["sqlite.listObjects"] = (["databasePath", "objectType", "namePattern", "maxResults"], ["objectType", "namePattern", "maxResults"]),
             ["sqlite.describeTable"] = (["databasePath", "tableName"], []),
             ["sqlite.query"] = (["databasePath", "sql", "parameters", "maxRows", "storageSpaceId"], ["parameters", "maxRows", "storageSpaceId"]),

@@ -1745,3 +1745,45 @@ Modified:
 - README, both standalone user guides, the SQLite task sample, acceptance report, and this ledger
   document the file-path-only syntax, authorization, named scalar parameters, limits, Guardrails,
   and synthetic examples.
+
+### Process execution tools — 2026-08-09
+
+- Added `filesystem.shellExecute` and `filesystem.powerShell` to the existing contextual File
+  system group. Declarative catalog discovery automatically exposes both aliases to the Task
+  editor, Tool catalog, Tool tester, AI Playground, workflow validation, snippets, and agent
+  functions; no handwritten UI list or registry entry is needed.
+- Both aliases require the disabled-by-default `Safety:AllowProcessExecution` switch, persisted
+  through Settings. `waitForExit` controls whether a workflow waits for process completion.
+  PowerShell may return standard output and error with `captureOutput`; Windows shell execution
+  cannot capture output and rejects that option.
+
+### Project-wide AI instructions — 2026-08-09
+
+- Added the reloadable non-secret `AI:GlobalSystemPrompt` setting for stable project conventions.
+  It is appended to the existing agent system instructions and cannot replace built-in safety
+  rules, tool availability, or untrusted-data handling.
+- Added the persisted `ScheduledTask.UseGlobalSystemPrompt` opt-out, defaulting to `true` for
+  existing and new tasks. The preference flows through prompt-only agent execution and direct
+  workflow `ai.prompt` calls.
+- Settings and the Task editor document the scope. The task editor exposes the opt-out beside a
+  **View system prompt** modal action, without expanding the main editor layout.
+
+### Scoped task and workflow model selection — 2026-08-09
+
+- Added optional persisted `ScheduledTask.Model` and object-form `WorkflowStepDefinition.Model`.
+  A task model scopes every model call made by that task; a `model` declared on `ai.prompt`
+  scopes only that step and takes precedence. The workflow validator rejects empty model names
+  and step-level use outside `ai.prompt`.
+- `ModelExecutionScope` uses an asynchronous execution scope with deterministic restoration in
+  `Dispose`, so no provider option, Settings value, concurrent task, retry, cancellation, or
+  failure can retain a temporary model selection.
+- `ModelOverrideChatClient` clones request options and forces only the scoped `ModelId`.
+  Dynamic Ollama and OpenAI-compatible clients then instantiate their provider request with that
+  requested id rather than rewriting the configured default. Model placeholders use the same
+  effective name.
+- Runner wraps task execution and test-prompt execution in the task scope. A workflow
+  `ai.prompt` establishes its nested scope and, for Ollama, performs a real one-token warm-up
+  immediately before the selected step. The existing task-level warm-up likewise loads the
+  task-selected model. Missing local models fail safely without configuration mutation.
+- Added round-trip and request-option tests. Release build and full Release test suite passed
+  with `-m:1` (538 passed, one intentionally skipped local Ollama integration test).

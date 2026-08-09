@@ -117,6 +117,7 @@ public sealed class ToolCatalog : IToolCatalog
             "Safety:AllowMoveToBin",
             "Safety:AllowHttpPost",
             "Safety:AllowSqliteWrite",
+            "Safety:AllowProcessExecution",
             "Safety:AllowArchiveWrite",
         };
 

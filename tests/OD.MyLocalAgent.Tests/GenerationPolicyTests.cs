@@ -352,6 +352,52 @@ public sealed class GenerationPolicyTests
             OllamaOption.NumCtx.Name) ?? false).Should().BeFalse();
     }
 
+    /// <summary>
+    /// Verifies a temporary model selection supersedes a caller model without mutating its options.
+    /// </summary>
+    [Fact]
+    public async Task TemporaryModelSelectionOverridesOnlyTheScopedCall()
+    {
+        var capture = new StubChatClient("ok");
+        var client = new ModelOverrideChatClient(capture, "temporary-model");
+        var callerOptions = new ChatOptions { ModelId = "default-model" };
+
+        _ = await client.GetResponseAsync(
+            [new ChatMessage(ChatRole.User, "test")],
+            callerOptions,
+            CancellationToken.None);
+
+        callerOptions.ModelId.Should().Be("default-model");
+        capture.LastOptions!.ModelId.Should().Be("temporary-model");
+    }
+
+    /// <summary>
+    /// Verifies task and AI-step model selections survive canonical JSON round-tripping.
+    /// </summary>
+    [Fact]
+    public void TemporaryModelSelectionsRoundTrip()
+    {
+        var task = CreateTask() with
+        {
+            Model = "task-model",
+            Workflow =
+            [
+                new WorkflowStepDefinition
+                {
+                    Step = "ai.prompt",
+                    Id = "review",
+                    Args = JsonSerializer.SerializeToElement(new { prompt = "Review." }),
+                    Model = "step-model",
+                },
+            ],
+        };
+
+        var roundTrip = ScheduledTaskSerializer.Deserialize(ScheduledTaskSerializer.Serialize(task));
+
+        roundTrip.Model.Should().Be("task-model");
+        roundTrip.Workflow.Single().Model.Should().Be("step-model");
+    }
+
     private static ScheduledTask CreateTask() =>
         new()
         {

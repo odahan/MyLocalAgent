@@ -84,6 +84,27 @@ Dans **Settings** :
 Les boutons de copie permettent de récupérer séparément le dossier des rapports
 et le dossier de l’exécutable.
 
+### Instructions IA globales
+
+Dans **Settings → AI provider**, le champ **Project-wide AI instructions** permet de définir des
+conventions stables, par exemple la langue de réponse, le format de sortie ou des règles de
+nommage. Gardez-le court et réservez les demandes spécifiques au prompt de la tâche.
+
+Chaque tâche applique ces instructions par défaut. Dans l’éditeur de tâche, décochez
+**Apply project-wide AI instructions to this task** pour cette seule tâche, puis utilisez
+**View system prompt** pour consulter le texte effectivement configuré ou confirmer qu’il ne sera
+pas ajouté. Les garde-fous internes, les outils autorisés et les instructions de la tâche restent
+prioritaires.
+
+### Modèle temporaire pour une tâche
+
+Le modèle choisi dans **Settings** reste le défaut. Pour une tâche ponctuelle, ajoutez
+`"model": "nom-du-modèle"` dans son JSON ; pour une seule étape, ajoutez la même propriété à
+une étape objet `ai.prompt`. La valeur de l’étape est prioritaire. Elle est limitée à cette
+exécution et le défaut est restauré automatiquement. Avec Ollama, installez d’abord le tag exact
+avec `ollama pull nom-du-modèle` : l’application le préchauffe avant l’exécution et échoue sans
+modifier Settings s’il manque.
+
 ## 5. Valider le pipeline local de fichiers
 
 Le scénario d’acceptation suivant crée, écrit puis relit un fichier sous la
@@ -213,9 +234,12 @@ La clé est protégée par Windows DPAPI. Activer ensuite le groupe d’outils
   Les lectures restent soumises à l’autorisation du chemin ; une écriture exige en plus
   `Safety:AllowSqliteWrite`. Chaque tâche conserve son choix de filtrage Guardrails pour les
   résultats SQLite bornés ; si ce filtrage est demandé mais indisponible, le résultat est retenu.
+- **Exécution locale** : `filesystem.shellExecute` et `filesystem.powerShell` exigent
+  `Safety:AllowProcessExecution`. L’option est désactivée par défaut dans **Settings** ; activez-la
+  seulement pour une tâche dont le programme ou le script a été vérifié.
 - Les opérations sensibles restent désactivées par défaut : envoi d’e-mail,
-  suppression de fichiers, HTTP POST et écriture SQLite. Les activer uniquement lorsqu’une tâche
-  précise le justifie.
+  suppression de fichiers, HTTP POST, écriture SQLite et exécution de processus. Les activer
+  uniquement lorsqu’une tâche précise le justifie.
 
 ### Première tâche SQLite sûre
 

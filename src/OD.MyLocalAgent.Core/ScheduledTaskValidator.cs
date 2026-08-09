@@ -37,6 +37,8 @@ public static partial class ScheduledTaskValidator
                 $"Task 'generationOptions' is invalid. {generationError}");
         }
 
+        ValidateModelName(task.Model, "Task 'model'");
+
         if (string.IsNullOrWhiteSpace(task.Schedule))
         {
             throw new TaskValidationException("Task 'schedule' is required.");
@@ -214,6 +216,15 @@ public static partial class ScheduledTaskValidator
                 throw new WorkflowValidationException(
                     $"Workflow step '{step.EffectiveId}' cannot define 'generationOptions' because alias '{step.Step}' is not an AI step.");
             }
+
+            if (step.Model is not null &&
+                !string.Equals(step.Step, ToolMap.PromptAlias, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new WorkflowValidationException(
+                    $"Workflow step '{step.EffectiveId}' can define 'model' only for alias '{ToolMap.PromptAlias}'.");
+            }
+
+            ValidateModelName(step.Model, $"Workflow step '{step.EffectiveId}' model");
 
             if (step.GenerationOptions is not null &&
                 GenerationPolicyValidation.ValidateOverrides(step.GenerationOptions)
@@ -475,6 +486,14 @@ public static partial class ScheduledTaskValidator
         }
 
         return "a compatible JSON value";
+    }
+
+    private static void ValidateModelName(string? modelName, string property)
+    {
+        if (modelName is not null && string.IsNullOrWhiteSpace(modelName))
+        {
+            throw new TaskValidationException($"{property} cannot be empty or whitespace.");
+        }
     }
 
     [GeneratedRegex("^[a-z0-9-]+$", RegexOptions.CultureInvariant)]

@@ -39,13 +39,24 @@ internal sealed class DesktopInteractionService : IDesktopInteractionService
         _ = dialog.ShowDialog();
     }
 
+    public void ShowInformation(string title, string message)
+    {
+        var dialog = CreateDialog(
+            title,
+            message,
+            requiresConfirmation: false,
+            isInformational: true);
+        _ = dialog.ShowDialog();
+    }
+
     private static ConfirmationDialogWindow CreateDialog(
         string title,
         string message,
         bool requiresConfirmation,
         string? primaryButtonText = null,
         string? cancelButtonText = null,
-        string? secondaryButtonText = null)
+        string? secondaryButtonText = null,
+        bool isInformational = false)
     {
         var dialog = new ConfirmationDialogWindow(
             title,
@@ -53,7 +64,8 @@ internal sealed class DesktopInteractionService : IDesktopInteractionService
             requiresConfirmation,
             primaryButtonText,
             cancelButtonText,
-            secondaryButtonText);
+            secondaryButtonText,
+            isInformational);
         var owner = Application.Current?.Windows
             .OfType<Window>()
             .FirstOrDefault(static window => window.IsActive) ??

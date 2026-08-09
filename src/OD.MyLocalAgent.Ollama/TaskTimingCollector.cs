@@ -1,3 +1,5 @@
+using Microsoft.Extensions.AI;
+
 namespace OD.MyLocalAgent.Ollama;
 
 /// <summary>
@@ -26,6 +28,7 @@ public sealed class TaskTimingCollector
     public static readonly AsyncLocal<TaskTimingCollector?> Current = new();
 
     private readonly List<TaskTimingEntry> _entries = [];
+    private readonly List<TaskLlmUsageEntry> _llmUsageEntries = [];
     private readonly Lock _gate = new();
 
     /// <summary>
@@ -51,6 +54,36 @@ public sealed class TaskTimingCollector
         lock (_gate)
         {
             return [.. _entries];
+        }
+    }
+
+    /// <summary>
+    /// Records the provider-reported token usage for one language-model call.
+    /// </summary>
+    /// <param name="operation">The logical operation that made the model call.</param>
+    /// <param name="usage">The usage reported by the provider, if available.</param>
+    public void RecordLlmUsage(string operation, UsageDetails? usage)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operation);
+        var entry = new TaskLlmUsageEntry(
+            operation,
+            usage?.InputTokenCount,
+            usage?.OutputTokenCount,
+            usage?.TotalTokenCount);
+        lock (_gate)
+        {
+            _llmUsageEntries.Add(entry);
+        }
+    }
+
+    /// <summary>
+    /// Returns a snapshot of provider-reported token usage entries in call order.
+    /// </summary>
+    public IReadOnlyList<TaskLlmUsageEntry> GetLlmUsageEntries()
+    {
+        lock (_gate)
+        {
+            return [.. _llmUsageEntries];
         }
     }
 }

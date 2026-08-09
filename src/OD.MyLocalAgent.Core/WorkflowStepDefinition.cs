@@ -45,6 +45,9 @@ public sealed record WorkflowStepDefinition
     /// </summary>
     public GenerationOptions? GenerationOptions { get; init; }
 
+    /// <summary>Gets the optional model used only while this AI step executes.</summary>
+    public string? Model { get; init; }
+
     /// <summary>
     /// Gets a value indicating whether the step was read from string form.
     /// </summary>

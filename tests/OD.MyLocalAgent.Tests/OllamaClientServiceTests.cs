@@ -47,6 +47,39 @@ public sealed class OllamaClientServiceTests
     }
 
     /// <summary>
+    /// Verifies warm-up performs a real model generation with the task context policy.
+    /// </summary>
+    [Fact]
+    public async Task WarmUpAsyncLoadsModelAndLimitsResponseToOneToken()
+    {
+        string? requestBody = null;
+        var handler = new StubHttpMessageHandler(async (request, _) =>
+        {
+            if (request.RequestUri!.AbsolutePath == "/api/tags")
+            {
+                return JsonResponse(CreateTagsJson(Model));
+            }
+
+            requestBody = await request.Content!.ReadAsStringAsync();
+            return JsonResponse(CreateChatJson("READY"));
+        });
+        var service = CreateService(handler);
+        var policy = new EffectiveGenerationPolicy(
+            0.1,
+            1,
+            32_768,
+            GenerationOptionSource.Task,
+            GenerationOptionSource.Settings);
+
+        await service.WarmUpAsync(policy, CancellationToken.None);
+
+        requestBody.Should().NotBeNull();
+        requestBody.Should().Contain("Reply with READY only.");
+        requestBody.Should().Contain("\"num_ctx\":32768");
+        requestBody.Should().Contain("\"num_predict\":1");
+    }
+
+    /// <summary>
     /// Verifies that an unreachable endpoint produces health failure and a typed generation exception.
     /// </summary>
     [Fact]

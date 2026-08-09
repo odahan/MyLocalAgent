@@ -16,15 +16,18 @@ public sealed record ToolExecutionContext
     /// <param name="taskId">The task identifier, or <see langword="null"/>.</param>
     /// <param name="fileSystemAccess">The task's absolute-directory grants.</param>
     /// <param name="sqliteGuardrailsEnabled">The persisted SQLite Guardrails preference, or <see langword="null"/> for taskless use.</param>
+    /// <param name="useGlobalSystemPrompt">Whether project-wide AI instructions apply, or <see langword="null"/> for taskless use.</param>
     public ToolExecutionContext(
         string? taskId,
         IEnumerable<FileSystemAccessRule> fileSystemAccess,
-        bool? sqliteGuardrailsEnabled = null)
+        bool? sqliteGuardrailsEnabled = null,
+        bool? useGlobalSystemPrompt = null)
     {
         ArgumentNullException.ThrowIfNull(fileSystemAccess);
         TaskId = taskId;
         FileSystemAccess = fileSystemAccess.ToArray();
         SqliteGuardrailsEnabled = sqliteGuardrailsEnabled;
+        UseGlobalSystemPrompt = useGlobalSystemPrompt;
     }
 
     /// <summary>
@@ -43,6 +46,11 @@ public sealed record ToolExecutionContext
     public bool? SqliteGuardrailsEnabled { get; }
 
     /// <summary>
+    /// Gets whether project-wide AI instructions apply, or <see langword="null"/> for taskless use.
+    /// </summary>
+    public bool? UseGlobalSystemPrompt { get; }
+
+    /// <summary>
     /// Creates an execution context from a validated scheduled task.
     /// </summary>
     /// <param name="task">The task that owns the execution.</param>
@@ -50,6 +58,10 @@ public sealed record ToolExecutionContext
     public static ToolExecutionContext FromTask(ScheduledTask task)
     {
         ArgumentNullException.ThrowIfNull(task);
-        return new ToolExecutionContext(task.Id, task.FileSystemAccess, task.SqliteGuardrailsEnabled);
+        return new ToolExecutionContext(
+            task.Id,
+            task.FileSystemAccess,
+            task.SqliteGuardrailsEnabled,
+            task.UseGlobalSystemPrompt);
     }
 }

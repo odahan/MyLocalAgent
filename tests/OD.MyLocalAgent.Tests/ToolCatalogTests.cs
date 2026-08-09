@@ -71,6 +71,8 @@ public sealed class ToolCatalogTests
         catalog.Find("filesystem.createDirectory").Should().NotBeNull();
         catalog.Find("filesystem.markdownToHtml").Should().NotBeNull();
         catalog.Find("filesystem.htmlToText").Should().NotBeNull();
+        catalog.Find("filesystem.shellExecute").Should().NotBeNull();
+        catalog.Find("filesystem.powerShell").Should().NotBeNull();
 
         catalog.FindGroup("sqlite")!.DisplayName.Should().Be("SQLite");
         catalog.Find("sqlite.listObjects").Should().NotBeNull();
@@ -120,6 +122,8 @@ public sealed class ToolCatalogTests
         ToolCatalog.DeriveAgentFunctionName("filesystem.createDirectory").Should().Be("filesystem_create_directory");
         ToolCatalog.DeriveAgentFunctionName("filesystem.markdownToHtml").Should().Be("filesystem_markdown_to_html");
         ToolCatalog.DeriveAgentFunctionName("filesystem.htmlToText").Should().Be("filesystem_html_to_text");
+        ToolCatalog.DeriveAgentFunctionName("filesystem.shellExecute").Should().Be("filesystem_shell_execute");
+        ToolCatalog.DeriveAgentFunctionName("filesystem.powerShell").Should().Be("filesystem_power_shell");
 
         ToolCatalog.DeriveAgentFunctionName("http.get").Should().Be("http_get");
         ToolCatalog.DeriveAgentFunctionName("http.post").Should().Be("http_post");

@@ -147,6 +147,52 @@ public sealed class FileSystemToolTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies process execution is disabled by default and PowerShell can return output when enabled.
+    /// </summary>
+    [Fact]
+    public async Task PowerShellRequiresSafetyGateAndCanCaptureOutput()
+    {
+        var blockedTool = CreateTool(allowDelete: false);
+        var blocked = () => blockedTool.PowerShellAsync(
+            "Write-Output 'hello'",
+            cancellationToken: CancellationToken.None);
+
+        await blocked.Should().ThrowAsync<SafetyException>()
+            .Where(exception => exception.RequiredFlag == "Safety:AllowProcessExecution");
+
+        var allowedTool = CreateTool(allowDelete: false, allowProcessExecution: true);
+        var json = await allowedTool.PowerShellAsync(
+            "Write-Output 'hello'",
+            cancellationToken: CancellationToken.None);
+
+        using var document = JsonDocument.Parse(json);
+        document.RootElement.GetProperty("exitCode").GetInt32().Should().Be(0);
+        document.RootElement.GetProperty("output").GetString().Should().Contain("hello");
+    }
+
+    /// <summary>
+    /// Verifies incompatible output capture options are rejected before process execution.
+    /// </summary>
+    [Fact]
+    public async Task ProcessExecutionValidatesOutputCaptureOptions()
+    {
+        var tool = CreateTool(allowDelete: false, allowProcessExecution: true);
+
+        var detachedCapture = () => tool.PowerShellAsync(
+            "Write-Output 'hello'",
+            waitForExit: false,
+            captureOutput: true,
+            cancellationToken: CancellationToken.None);
+        var shellCapture = () => tool.ShellExecuteAsync(
+            "https://example.com",
+            captureOutput: true,
+            cancellationToken: CancellationToken.None);
+
+        await detachedCapture.Should().ThrowAsync<ArgumentException>();
+        await shellCapture.Should().ThrowAsync<ArgumentException>();
+    }
+
+    /// <summary>
     /// Verifies Markdown conversion writes standalone themed HTML with raw HTML disabled.
     /// </summary>
     [Fact]
@@ -626,7 +672,8 @@ public sealed class FileSystemToolTests : IDisposable
         bool allowDelete,
         ToolExecutionContext? context = null,
         bool allowMoveToBin = false,
-        IRecycleBinService? recycleBinService = null)
+        IRecycleBinService? recycleBinService = null,
+        bool allowProcessExecution = false)
     {
         var fileSystemOptions = Options.Create(
             new FileSystemOptions { RootPath = _rootPath });
@@ -637,6 +684,7 @@ public sealed class FileSystemToolTests : IDisposable
                 {
                     AllowFileDelete = allowDelete,
                     AllowMoveToBin = allowMoveToBin,
+                    AllowProcessExecution = allowProcessExecution,
                 }),
             fileSystemOptions,
             recycleBinService ?? Mock.Of<IRecycleBinService>(),

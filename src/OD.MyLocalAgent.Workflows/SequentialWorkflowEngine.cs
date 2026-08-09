@@ -21,6 +21,7 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
     private readonly ILogger<SequentialWorkflowEngine> _logger;
     private readonly IOptionsMonitor<AIOptions>? _aiOptions;
     private readonly ILlmClientFactory? _llmClientFactory;
+    private readonly ILlmModelWarmup? _modelWarmup;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SequentialWorkflowEngine"/> class.
@@ -32,7 +33,8 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
         TimeProvider timeProvider,
         ILogger<SequentialWorkflowEngine> logger,
         IOptionsMonitor<AIOptions>? aiOptions = null,
-        ILlmClientFactory? llmClientFactory = null)
+        ILlmClientFactory? llmClientFactory = null,
+        ILlmModelWarmup? modelWarmup = null)
     {
         ArgumentNullException.ThrowIfNull(toolRegistry);
         ArgumentNullException.ThrowIfNull(skills);
@@ -48,6 +50,7 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
         _logger = logger;
         _aiOptions = aiOptions;
         _llmClientFactory = llmClientFactory;
+        _modelWarmup = modelWarmup;
     }
 
     /// <inheritdoc />
@@ -139,8 +142,9 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                 task.GenerationOptions,
                 step.GenerationOptions)
             : null;
+        var selectedModel = step.Model ?? task.Model;
         var modelName = ContainsModelPlaceholder(step.Args)
-            ? _llmClientFactory?.Create().ModelName ?? "Unknown"
+            ? selectedModel ?? _llmClientFactory?.Create().ModelName ?? "Unknown"
             : "Unknown";
         var modelContext = new ModelPromptPlaceholderContext(
             modelName,
@@ -291,6 +295,7 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                     SerializerOptions);
 
             case PromptStep:
+            {
                 if (generationPolicy is null)
                 {
                     throw new InvalidOperationException(
@@ -308,11 +313,22 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                         context.ToJson());
                 }
 
-                var agentResult = await _agentService.RunPromptWithoutToolsAsync(
-                    prompt,
-                    generationPolicy,
-                    cancellationToken).ConfigureAwait(false);
+                using var modelScope = ModelExecutionScope.Push(step.Model ?? task.Model);
+                await WarmUpSelectedModelAsync(generationPolicy, cancellationToken).ConfigureAwait(false);
+                var agentResult = task.UseGlobalSystemPrompt
+                    ? await _agentService.RunPromptWithoutToolsAsync(
+                        prompt,
+                        generationPolicy,
+                        step.Id,
+                        cancellationToken).ConfigureAwait(false)
+                    : await _agentService.RunPromptWithoutToolsAsync(
+                        prompt,
+                        generationPolicy,
+                        step.Id,
+                        useGlobalSystemPrompt: false,
+                        cancellationToken: cancellationToken).ConfigureAwait(false);
                 return agentResult.Text;
+            }
 
             default:
                 throw new InvalidOperationException(
@@ -333,6 +349,16 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
             ? element.GetString() ?? string.Empty
             : throw new ArgumentException(
                 $"Workflow argument '{propertyName}' must be a string.");
+    }
+
+    private async Task WarmUpSelectedModelAsync(
+        EffectiveGenerationPolicy policy,
+        CancellationToken cancellationToken)
+    {
+        if (_modelWarmup is not null && ModelExecutionScope.ModelName is not null)
+        {
+            await _modelWarmup.WarmUpAsync(policy, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     private static string ReadRequiredString(

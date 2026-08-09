@@ -50,6 +50,7 @@ internal sealed class WorkflowStepDefinitionJsonConverter : JsonConverter<Workfl
             RetryCount = ReadOptionalInt32(root, "retryCount"),
             RetryBackoffSeconds = ReadOptionalInt32(root, "retryBackoffSeconds"),
             GenerationOptions = ReadGenerationOptions(root, options),
+            Model = ReadOptionalString(root, "model"),
         };
     }
 
@@ -64,7 +65,8 @@ internal sealed class WorkflowStepDefinitionJsonConverter : JsonConverter<Workfl
             value.OnError is null &&
             value.RetryCount is null &&
             value.RetryBackoffSeconds is null &&
-            (value.GenerationOptions is null || value.GenerationOptions.IsEmpty))
+            (value.GenerationOptions is null || value.GenerationOptions.IsEmpty) &&
+            value.Model is null)
         {
             writer.WriteStringValue(value.Step);
             return;
@@ -104,6 +106,11 @@ internal sealed class WorkflowStepDefinitionJsonConverter : JsonConverter<Workfl
             JsonSerializer.Serialize(writer, generationOptions, options);
         }
 
+        if (value.Model is not null)
+        {
+            writer.WriteString("model", value.Model);
+        }
+
         writer.WriteEndObject();
     }
 
@@ -118,6 +125,7 @@ internal sealed class WorkflowStepDefinitionJsonConverter : JsonConverter<Workfl
             "retryCount",
             "retryBackoffSeconds",
             "generationOptions",
+            "model",
         ];
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var property in root.EnumerateObject())

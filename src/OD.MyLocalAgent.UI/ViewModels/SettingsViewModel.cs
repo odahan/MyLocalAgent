@@ -41,6 +41,7 @@ public sealed partial class SettingsViewModel :
         nameof(GenerationTemperatureText),
         nameof(GenerationTopPText),
         nameof(ContextWindowTokensText),
+        nameof(GlobalSystemPrompt),
         nameof(ApiKeyReplacement),
         nameof(FileSystemRootPath),
         nameof(HttpTimeoutSeconds),
@@ -53,6 +54,7 @@ public sealed partial class SettingsViewModel :
         nameof(AllowMoveToBin),
         nameof(AllowHttpPost),
         nameof(AllowSqliteWrite),
+        nameof(AllowProcessExecution),
         nameof(SqliteDefaultMaxRows),
         nameof(SqliteMaxRows),
         nameof(SqliteMaxResultCharacters),
@@ -141,6 +143,9 @@ public sealed partial class SettingsViewModel :
     private string _contextWindowTokensText = "8192";
 
     [ObservableProperty]
+    private string _globalSystemPrompt = string.Empty;
+
+    [ObservableProperty]
     private string _generationValidationText =
         "Generation defaults are valid.";
 
@@ -188,6 +193,9 @@ public sealed partial class SettingsViewModel :
 
     [ObservableProperty]
     private bool _allowSqliteWrite;
+
+    [ObservableProperty]
+    private bool _allowProcessExecution;
 
     [ObservableProperty] private int _sqliteDefaultMaxRows = 100;
     [ObservableProperty] private int _sqliteMaxRows = 1_000;
@@ -532,6 +540,7 @@ public sealed partial class SettingsViewModel :
             ContextWindowTokensText =
                 ai.GenerationDefaults.ContextWindowTokens.ToString(
                     CultureInfo.CurrentCulture);
+            GlobalSystemPrompt = ai.GlobalSystemPrompt;
             UpdateGenerationValidation();
             OllamaEndpoint = ollama.Endpoint;
             OllamaModel = ollama.Model;
@@ -558,6 +567,7 @@ public sealed partial class SettingsViewModel :
             AllowMoveToBin = safety.AllowMoveToBin;
             AllowHttpPost = safety.AllowHttpPost;
             AllowSqliteWrite = safety.AllowSqliteWrite;
+            AllowProcessExecution = safety.AllowProcessExecution;
             SqliteDefaultMaxRows = sqlite.DefaultMaxRows;
             SqliteMaxRows = sqlite.MaxRows;
             SqliteMaxResultCharacters = sqlite.MaxResultCharacters;
@@ -679,7 +689,9 @@ public sealed partial class SettingsViewModel :
                 SqliteMaxBlobBytes,
                 SqliteMaxSqlCharacters,
                 SqliteCommandTimeoutSeconds,
-                SqliteGuardrailsEnabledByDefault);
+                SqliteGuardrailsEnabledByDefault,
+                AllowProcessExecution,
+                GlobalSystemPrompt.Trim());
             await _userSettingsService
                 .SaveAsync(
                     settings,

@@ -242,6 +242,26 @@ The DPAPI keys are `OpenAI:ApiKey`, `Dropbox:AccessToken`, `Dropbox:RefreshToken
 `Dropbox:AppKey`, and `WebSearch:ApiKey`. They must not be added to either JSON configuration
 file.
 
+## Project-wide AI instructions
+
+**Settings → AI provider → Project-wide AI instructions** is an optional, reloadable system-prompt
+addition for stable project conventions that would otherwise be repeated in every task, such as
+the response language, output format, naming conventions, or coding standards. Leave it empty to
+use only the application's built-in instructions.
+
+It is applied to agent-capable calls (including the AI Playground) and direct workflow `ai.prompt`
+calls. It does not apply to internal AI helper, workflow-authoring, Guardrails, or connector
+processing prompts. Keep it short and
+limited to genuine invariants; task-specific requirements belong in the task or workflow prompt.
+Built-in safety instructions, available-tool restrictions, and the current task remain
+authoritative, so this setting cannot enable unavailable tools or override the treatment of
+external content as untrusted data.
+
+Each task can disable these project-wide instructions in its editor. The choice is saved with the
+task, is enabled by default (including for existing tasks), and applies to both prompt-only agent
+execution and workflow `ai.prompt` steps. **View system prompt** next to the checkbox displays the
+currently configured project-wide text, or explains why no such text will be applied.
+
 ## AI generation policy
 
 **Settings → AI generation defaults** defines the policy used by new AI calls:
@@ -297,6 +317,38 @@ Prompt editor Test displays and uses the current unsaved task-effective values. 
 steps display configured overrides and deterministic provenance through AI Explain. The AI
 playground has no task, so it displays and uses the global policy.
 
+### Temporary model selection and warm-up
+
+Set `model` on a task to use a different configured-provider model for that task only. Set it
+on an object-form `ai.prompt` workflow step to use it only for that step; the step value takes
+precedence over the task value. The setting never rewrites Settings or affects another task.
+The previous/default model is restored automatically after the scoped call, including when it
+fails or is cancelled.
+
+```json
+{
+  "id": "research-brief",
+  "name": "Research brief",
+  "schedule": "0 9 * * 1",
+  "prompt": "Prepare the weekly brief.",
+  "model": "qwen3:32b",
+  "workflow": [
+    {
+      "step": "ai.prompt",
+      "id": "final-review",
+      "args": { "prompt": "Review {{draft.output}} for accuracy." },
+      "model": "qwen3:32b"
+    }
+  ]
+}
+```
+
+For Ollama, a selected temporary model is warmed up immediately before execution. The warm-up
+loads the requested model and requires it to be installed; an unavailable model fails the task
+or step without changing the configured default. `model` must be a non-empty string and is
+valid only on a task or an object-form `ai.prompt` workflow step. The `{{ModelName}}` and
+`{{ModelInfo}}` placeholders resolve to the scoped model for that step.
+
 Workflow authoring/refinement/repair, workflow explanation/repair, Guardrails screening, and
 Guardrails reduction deliberately use program-owned Temperature `0` and Top P `1`. User
 defaults and task/step overrides cannot change these deterministic internal policies, but they
@@ -323,6 +375,8 @@ The following side effects are disabled by default:
 | `filesystem.moveToBin` | `Safety:AllowMoveToBin` |
 | `http.post` | `Safety:AllowHttpPost` |
 | `sqlite.execute` | `Safety:AllowSqliteWrite` |
+| `filesystem.shellExecute` | `Safety:AllowProcessExecution` |
+| `filesystem.powerShell` | `Safety:AllowProcessExecution` |
 
 A blocked operation throws `SafetyException` and names the required flag. This design keeps a
 task definition, model response, or imported workflow from silently sending mail, deleting
@@ -892,6 +946,8 @@ JSON, and every new-task whitelist choice starts disabled.
 | `filesystem.createDirectory` | `filesystem_create_directory` | `FileSystemTool.CreateDirectoryAsync` | `path` | — |
 | `filesystem.markdownToHtml` | `filesystem_markdown_to_html` | `FileSystemTool.MarkdownToHtmlAsync` | `sourcePath`, optional `destinationPath`, optional `theme` | — |
 | `filesystem.htmlToText` | `filesystem_html_to_text` | `FileSystemTool.HtmlToTextAsync` | `sourcePath`, optional `format` | — |
+| `filesystem.shellExecute` | `filesystem_shell_execute` | `FileSystemTool.ShellExecuteAsync` | `target`, optional `arguments`, optional `waitForExit`, optional `captureOutput` | `Safety:AllowProcessExecution` |
+| `filesystem.powerShell` | `filesystem_power_shell` | `FileSystemTool.PowerShellAsync` | `script`, optional `waitForExit`, optional `captureOutput` | `Safety:AllowProcessExecution` |
 | `sqlite.listObjects` | `sqlite_list_objects` | `SqliteTool.ListObjectsAsync` | `databasePath`, optional `objectType`, optional `namePattern`, optional `maxResults` | — |
 | `sqlite.describeTable` | `sqlite_describe_table` | `SqliteTool.DescribeTableAsync` | `databasePath`, `tableName` | — |
 | `sqlite.query` | `sqlite_query` | `SqliteTool.QueryAsync` | `databasePath`, `sql`, optional object `parameters`, optional `maxRows`, optional `storageSpaceId` | — |
@@ -987,6 +1043,13 @@ UTF-8 HTML; `destinationPath` defaults to the same name with `.html`, and `theme
 links, quotes, and code. It does not write a file automatically—chain `filesystem.write` when
 a `.txt` or `.md` artifact is required. Conversion sources remain subject to the filesystem
 read-size cap and local-file content remains outside Guardrails classification.
+
+`filesystem.shellExecute` opens a file, URI, or application through the Windows shell.
+`filesystem.powerShell` runs a PowerShell script using a non-interactive session. Both require
+the disabled-by-default `Safety:AllowProcessExecution` opt-in. Their `waitForExit` argument
+controls whether the workflow waits for completion. `filesystem.powerShell` can return standard
+output and error with `captureOutput`; this requires `waitForExit=true`. Windows shell execution
+cannot capture output, so `filesystem.shellExecute` requires `captureOutput=false`.
 
 ```json
 [

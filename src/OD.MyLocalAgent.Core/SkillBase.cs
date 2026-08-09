@@ -67,7 +67,8 @@ public abstract class SkillBase : ISkill
         var policyClient = new GenerationPolicyChatClient(
             provider.ChatClient,
             generationPolicy,
-            provider.ProviderName);
+            provider.ProviderName,
+            $"skill:{Name}");
         var response = await policyClient.GetResponseAsync(
             prompt,
             cancellationToken: cancellationToken).ConfigureAwait(false);

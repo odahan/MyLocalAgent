@@ -84,6 +84,26 @@ In **Settings**:
 The copy buttons separately place the reports directory and the executable
 directory on the clipboard.
 
+### Project-wide AI instructions
+
+In **Settings → AI provider**, **Project-wide AI instructions** holds stable conventions such as
+the response language, output format, or naming rules. Keep it short; requirements specific to
+one task belong in that task's prompt.
+
+Every task applies these instructions by default. In the Task editor, clear **Apply project-wide
+AI instructions to this task** to opt out for that task only, then select **View system prompt** to
+inspect the configured text or confirm that it will not be added. Built-in safety rules, allowed
+tools, and the task's instructions remain authoritative.
+
+### Temporary model for a task
+
+The model selected in **Settings** remains the default. For a one-off task, add
+`"model": "model-name"` to its JSON; for one step only, add the same property to an
+object-form `ai.prompt` step. The step value takes precedence. It is limited to that execution
+and the default is restored automatically. With Ollama, install the exact tag first with
+`ollama pull model-name`: the application warms it up before execution and fails without changing
+Settings if it is missing.
+
 ## 5. Validate the local filesystem pipeline
 
 The following acceptance sample creates, writes, and reads a file below the
@@ -211,8 +231,12 @@ tool group only for tasks that need it.
   Reads still require path authorization; a write also requires
   `Safety:AllowSqliteWrite`. Each task stores whether its bounded SQLite read results are
   screened by Guardrails; requested but unavailable screening withholds the result.
+- **Local execution**: `filesystem.shellExecute` and `filesystem.powerShell` require
+  `Safety:AllowProcessExecution`. The setting is disabled by default in **Settings**; enable it
+  only for a task whose program or script has been reviewed.
 - Sensitive operations remain disabled by default: sending email, deleting
-  files, HTTP POST, and SQLite writes. Enable them only when a specific task justifies them.
+  files, HTTP POST, SQLite writes, and process execution. Enable them only when a specific task
+  justifies them.
 
 ### First safe SQLite task
 

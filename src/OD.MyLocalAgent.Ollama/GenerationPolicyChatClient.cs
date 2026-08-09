@@ -12,6 +12,7 @@ public sealed class GenerationPolicyChatClient : IChatClient
 {
     private readonly IChatClient _inner;
     private readonly bool _mapsOllamaContext;
+    private readonly string _operation;
 
     /// <summary>
     /// Initializes a new policy-bound chat client.
@@ -19,20 +20,24 @@ public sealed class GenerationPolicyChatClient : IChatClient
     /// <param name="inner">The shared provider chat client.</param>
     /// <param name="policy">The immutable effective policy.</param>
     /// <param name="providerName">The selected provider name.</param>
+    /// <param name="operation">The logical operation that initiated model calls.</param>
     public GenerationPolicyChatClient(
         IChatClient inner,
         EffectiveGenerationPolicy policy,
-        string providerName)
+        string providerName,
+        string operation = "llm")
     {
         ArgumentNullException.ThrowIfNull(inner);
         ArgumentNullException.ThrowIfNull(policy);
         ArgumentException.ThrowIfNullOrWhiteSpace(providerName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(operation);
         _inner = inner;
         Policy = policy;
         _mapsOllamaContext = string.Equals(
             providerName,
             AIOptions.OllamaProvider,
             StringComparison.OrdinalIgnoreCase);
+        _operation = operation;
     }
 
     /// <summary>
@@ -41,14 +46,18 @@ public sealed class GenerationPolicyChatClient : IChatClient
     public EffectiveGenerationPolicy Policy { get; }
 
     /// <inheritdoc />
-    public Task<ChatResponse> GetResponseAsync(
+    public async Task<ChatResponse> GetResponseAsync(
         IEnumerable<ChatMessage> messages,
         ChatOptions? options = null,
-        CancellationToken cancellationToken = default) =>
-        _inner.GetResponseAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var response = await _inner.GetResponseAsync(
             messages,
             CreateOptions(options),
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
+        TaskTimingCollector.Current.Value?.RecordLlmUsage(_operation, response.Usage);
+        return response;
+    }
 
     /// <inheritdoc />
     public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
@@ -56,14 +65,24 @@ public sealed class GenerationPolicyChatClient : IChatClient
         ChatOptions? options = null,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        await foreach (var update in _inner
-            .GetStreamingResponseAsync(
-                messages,
-                CreateOptions(options),
-                cancellationToken)
-            .ConfigureAwait(false))
+        UsageDetails? usage = null;
+        try
         {
-            yield return update;
+            await foreach (var update in _inner
+                .GetStreamingResponseAsync(
+                    messages,
+                    CreateOptions(options),
+                    cancellationToken)
+                .ConfigureAwait(false))
+            {
+                usage = update.Contents.OfType<UsageContent>()
+                    .LastOrDefault()?.Details ?? usage;
+                yield return update;
+            }
+        }
+        finally
+        {
+            TaskTimingCollector.Current.Value?.RecordLlmUsage(_operation, usage);
         }
     }
 

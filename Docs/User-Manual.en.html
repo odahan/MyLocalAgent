@@ -1443,6 +1443,10 @@ ollama list</code></pre>
                         </p>
 </li>
 <li>
+<strong>Configure project-wide AI instructions when needed.</strong>
+<p>Use <span class="ui-label">Project-wide AI instructions</span> only for durable project conventions, such as the response language or output format. In the Task editor, <span class="ui-label">Apply project-wide AI instructions to this task</span> is enabled by default; clear it to exclude one task. <span class="ui-label">View system prompt</span> displays the configured text or the opt-out state. Built-in safety rules, allowed tools, and the task remain authoritative.</p>
+</li>
+<li>
 <strong>Keep a suitable timeout.</strong>
 <p>The default 300 seconds allows for a slow first token from a large local model.</p>
 </li>
@@ -1951,10 +1955,33 @@ ollama list</code></pre>
                     changes—when running <span class="ui-label">Test</span>.
                 </p><div class="callout warning">
 <code>generationOptions</code> is rejected on non-AI steps. Unknown fields,
-                    null or out-of-range values, and context/provider/model/endpoint/credential
+                    null or out-of-range values, and context/provider/endpoint/credential
                     fields are rejected. Existing tasks without overrides remain valid; an
                     empty object is omitted by canonical save.
-                </div><div class="callout warning">
+                </div><h3>Temporary model selection and warm-up</h3><p>
+                    Add <code>"model": "model-name"</code> to a task to use a model from the
+                    active provider for that task only. You can also add it to an object-form
+                    <code>ai.prompt</code> step: that value takes precedence and applies only to
+                    the step. It never changes the model in Settings, and the default model is
+                    restored even after an error or cancellation.
+                </p><div class="code-block"><pre><code>{
+  "model": "qwen3:32b",
+  "workflow": [
+    {
+      "step": "ai.prompt",
+      "id": "review",
+      "args": { "prompt": "Review {{draft.output}}." },
+      "model": "qwen3:32b"
+    }
+  ]
+}</code></pre></div><p>
+                    With Ollama, the temporary model is loaded and checked by a short warm-up
+                    immediately before execution. It must therefore be installed locally; if it
+                    is unavailable, the task or step fails without changing configuration. The
+                    <code>model</code> value must be a non-empty string and is allowed on a step
+                    only for <code>ai.prompt</code>. <code>{{ModelName}}</code> and
+                    <code>{{ModelInfo}}</code> show the model actually selected.
+                </p><div class="callout warning">
 <strong>Model limitations.</strong>
                     Temperature and Top P can behave slightly differently across providers and
                     models. Changing both at once makes results harder to predict, and higher
@@ -2291,7 +2318,7 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
 <tr><td>Gmail</td><td><code>gmail.readToday</code>, <code>gmail.readUnread</code>, <code>gmail.readRecent</code>, <code>gmail.send</code></td><td><code>gmail.send</code> needs AllowSendEmail.</td></tr>
 <tr><td>Calendar</td><td><code>calendar.today</code>, <code>calendar.read</code>, <code>calendar.create</code></td><td>Create uses explicit ISO 8601 dates.</td></tr>
 <tr><td>Dropbox</td><td><code>dropbox.upload</code>, <code>dropbox.download</code>, <code>dropbox.list</code></td><td>Dropbox secrets use DPAPI.</td></tr>
-<tr><td>File system</td><td><code>filesystem.list</code>, <code>read</code>, <code>write</code>, <code>move</code>, <code>moveToBin</code>, <code>rename</code>, <code>setExtension</code>, <code>delete</code>, <code>createDirectory</code>, <code>computeHash</code>, <code>compareByHash</code>, <code>markdownToHtml</code>, <code>htmlToText</code></td><td>RootPath plus task-authorized locations; delete and Move to Bin have independent Safety gates.</td></tr>
+<tr><td>File system</td><td><code>filesystem.list</code>, <code>read</code>, <code>write</code>, <code>move</code>, <code>moveToBin</code>, <code>rename</code>, <code>setExtension</code>, <code>delete</code>, <code>createDirectory</code>, <code>computeHash</code>, <code>compareByHash</code>, <code>markdownToHtml</code>, <code>htmlToText</code>, <code>shellExecute</code>, <code>powerShell</code></td><td>RootPath plus task-authorized locations; delete, Move to Bin, and process execution have independent Safety gates.</td></tr>
 <tr><td>HTTP</td><td><code>http.get</code>, <code>http.getText</code>, <code>http.post</code></td><td>Host allowlist; post needs AllowHttpPost.</td></tr>
 <tr><td>Web</td><td><code>web.search</code></td><td>Explicit Ollama cloud opt-in; mandatory Guardrails envelope.</td></tr>
 <tr><td>AI</td><td><code>ai.summarize</code>, <code>ai.extractActionItems</code>, <code>ai.classifyEmail</code>, <code>ai.prompt</code></td><td>Skills execute without tools.</td></tr>
@@ -2327,6 +2354,8 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
 <tr><td><code>filesystem.compareByHash</code></td><td><code>pathA</code>, <code>pathB</code></td><td>Compares two authorized files via <code>SHA-256</code> and returns <code>isEqual</code>, <code>hashA</code>, and <code>hashB</code>.</td></tr>
 <tr><td><code>filesystem.markdownToHtml</code></td><td><code>sourcePath</code>, optional <code>destinationPath</code>, optional <code>theme</code></td><td>Writes standalone UTF-8 HTML. Destination defaults to <code>.html</code>; theme is <code>Dark</code> by default or <code>Light</code>.</td></tr>
 <tr><td><code>filesystem.htmlToText</code></td><td><code>sourcePath</code>, optional <code>format</code></td><td>Returns extracted <code>content</code> as <code>Text</code> by default or principal <code>Markdown</code> structure. It does not write a file.</td></tr>
+<tr><td><code>filesystem.shellExecute</code></td><td><code>target</code>, optional <code>arguments</code>, <code>waitForExit</code>, and <code>captureOutput</code></td><td>Opens a file, URI, or application through the Windows shell. Requires <code>AllowProcessExecution</code>. The shell cannot capture output, so <code>captureOutput</code> must remain false.</td></tr>
+<tr><td><code>filesystem.powerShell</code></td><td><code>script</code>, optional <code>waitForExit</code> and <code>captureOutput</code></td><td>Runs a non-interactive PowerShell script. Requires <code>AllowProcessExecution</code>. Standard output and errors are returned when both <code>captureOutput</code> and <code>waitForExit</code> are true.</td></tr>
 <tr><td><code>http.get</code></td><td><code>url</code></td><td>Returns a compact HTTP result.</td></tr>
 <tr><td><code>http.getText</code></td><td><code>url</code></td><td>Returns only a protected factual summary of compact readable text.</td></tr>
 <tr><td><code>http.post</code></td><td><code>url</code>, <code>body</code>, <code>contentType</code></td><td>Requires AllowHttpPost.</td></tr>
@@ -2673,7 +2702,7 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
 <thead><tr><th>Layer</th><th>Purpose</th></tr></thead>
 <tbody>
 <tr><td>Tool whitelist</td><td>Limits tool groups visible to a task or workflow.</td></tr>
-<tr><td>Safety gates</td><td>Blocks email sending, file deletion, Move to Bin, and HTTP POST by default.</td></tr>
+<tr><td>Safety gates</td><td>Blocks email sending, file deletion, Move to Bin, HTTP POST, and process execution by default.</td></tr>
 <tr><td>File-system root path</td><td>Confines relative file operations below an absolute root.</td></tr>
 <tr><td>Task authorized locations</td><td>Allows only declared absolute directories with read-only or read-write access.</td></tr>
 <tr><td>HTTP Allowed Hosts</td><td>Restricts HTTP destinations by exact host name.</td></tr>
@@ -2689,6 +2718,7 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
 <tr><td><code>gmail.send</code></td><td>Allow sending email</td><td>Recipient, content, and source data.</td></tr>
 <tr><td><code>filesystem.delete</code></td><td>Allow file deletion</td><td>Root, target path, and recovery.</td></tr>
 <tr><td><code>filesystem.moveToBin</code></td><td>Allow moving files to the Recycle Bin</td><td>Authorized target and expected Windows recovery behavior.</td></tr>
+<tr><td><code>filesystem.shellExecute</code> / <code>filesystem.powerShell</code></td><td>Allow process execution</td><td>Command or script, arguments, and expected effects.</td></tr>
 <tr><td><code>http.post</code></td><td>Allow HTTP POST</td><td>Destination allowlist and submitted data.</td></tr>
 </tbody>
 </table>

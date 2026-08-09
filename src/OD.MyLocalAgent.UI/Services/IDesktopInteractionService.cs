@@ -23,6 +23,11 @@ public interface IDesktopInteractionService
     void ShowError(string title, string message);
 
     /// <summary>
+    /// Displays non-error information that requires acknowledgement.
+    /// </summary>
+    void ShowInformation(string title, string message);
+
+    /// <summary>
     /// Lets the user select a destination file.
     /// </summary>
     string? SelectSavePath(

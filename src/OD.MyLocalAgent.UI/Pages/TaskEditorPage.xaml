@@ -68,6 +68,19 @@
                              VerticalScrollBarVisibility="Auto"
                              materialDesign:HintAssist.Hint="Task prompt" />
 
+                    <Grid Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <CheckBox VerticalAlignment="Center"
+                                  Content="Apply project-wide AI instructions to this task"
+                                  IsChecked="{Binding UseGlobalSystemPrompt, Mode=TwoWay}" />
+                        <Button Grid.Column="1"
+                                Command="{Binding ViewSystemPromptCommand}"
+                                Content="View system prompt" />
+                    </Grid>
+
                     <Grid Margin="0,16,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="240" />

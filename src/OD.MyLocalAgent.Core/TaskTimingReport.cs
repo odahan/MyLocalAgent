@@ -18,11 +18,13 @@ public static class TaskTimingReport
     /// <param name="startedUtc">The UTC start time.</param>
     /// <param name="endedUtc">The UTC end time.</param>
     /// <param name="entries">The per-step timing entries.</param>
+    /// <param name="llmUsageEntries">The provider-reported token usage entries.</param>
     /// <returns>The formatted report text.</returns>
     public static string Build(
         DateTimeOffset startedUtc,
         DateTimeOffset endedUtc,
-        IReadOnlyList<TaskTimingEntry> entries)
+        IReadOnlyList<TaskTimingEntry> entries,
+        IReadOnlyList<TaskLlmUsageEntry>? llmUsageEntries = null)
     {
         var totalDuration = endedUtc - startedUtc;
         var startedLocal = startedUtc.ToLocalTime();
@@ -41,6 +43,7 @@ public static class TaskTimingReport
 
         if (entries.Count == 0)
         {
+            AppendTokenUsage(sb, llmUsageEntries ?? []);
             sb.AppendLine(Separator);
             return sb.ToString();
         }
@@ -104,8 +107,62 @@ public static class TaskTimingReport
             sb.AppendLine("  * guardrail times are included within the tool times above.");
         }
 
+        AppendTokenUsage(sb, llmUsageEntries ?? []);
+
         sb.AppendLine(Separator);
         return sb.ToString();
+    }
+
+    private static void AppendTokenUsage(
+        StringBuilder sb,
+        IReadOnlyList<TaskLlmUsageEntry> entries)
+    {
+        if (entries.Count == 0)
+        {
+            return;
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("  LLM token usage (provider-reported):");
+        sb.AppendLine(
+            $"  Total ({entries.Count} calls): input {FormatAggregate(entries, static entry => entry.InputTokenCount)}, " +
+            $"output {FormatAggregate(entries, static entry => entry.OutputTokenCount)}, " +
+            $"total {FormatAggregate(entries, static entry => entry.TotalTokenCount)}");
+
+        for (var index = 0; index < entries.Count; index++)
+        {
+            var entry = entries[index];
+            var occurrences = entries.Count(
+                candidate => string.Equals(
+                    candidate.Operation,
+                    entry.Operation,
+                    StringComparison.Ordinal));
+            var occurrenceIndex = entries
+                .Take(index + 1)
+                .Count(candidate => string.Equals(
+                    candidate.Operation,
+                    entry.Operation,
+                    StringComparison.Ordinal));
+            var label = occurrences > 1
+                ? $"{entry.Operation} (call {occurrenceIndex})"
+                : entry.Operation;
+            sb.AppendLine(
+                $"  {label}: input {FormatTokenCount(entry.InputTokenCount)}, " +
+                $"output {FormatTokenCount(entry.OutputTokenCount)}, total {FormatTokenCount(entry.TotalTokenCount)}");
+        }
+    }
+
+    private static string FormatTokenCount(long? value) =>
+        value?.ToString("N0", CultureInfo.InvariantCulture) ?? "not reported";
+
+    private static string FormatAggregate(
+        IReadOnlyList<TaskLlmUsageEntry> entries,
+        Func<TaskLlmUsageEntry, long?> selector)
+    {
+        var values = entries.Select(selector).ToArray();
+        return values.All(static value => value.HasValue)
+            ? values.Sum(static value => value!.Value).ToString("N0", CultureInfo.InvariantCulture)
+            : "not fully reported";
     }
 
     private static string FormatLabel(string category, string name)

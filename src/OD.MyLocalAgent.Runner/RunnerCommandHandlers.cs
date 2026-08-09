@@ -116,6 +116,7 @@ internal static class RunnerCommandHandlers
             return RunnerExitCodes.TaskFailure;
         }
 
+        using var modelScope = ModelExecutionScope.Push(task.Model);
         var outcome = await ExecuteAndWriteReportAsync(
             services,
             task,
@@ -308,6 +309,7 @@ internal static class RunnerCommandHandlers
         TextWriter output,
         CancellationToken cancellationToken)
     {
+        using var modelScope = ModelExecutionScope.Push(task.Model);
         var reportWriter = services.GetRequiredService<IReportWriter>();
         var configuration = services.GetRequiredService<IConfiguration>();
         var providerName = configuration["AI:Provider"] ?? "Unknown";
@@ -315,6 +317,12 @@ internal static class RunnerCommandHandlers
         Exception? error = null;
 
         TaskTimingCollector.Current.Value = new TaskTimingCollector();
+
+        await WarmUpOllamaModelAsync(
+            services,
+            task,
+            output,
+            cancellationToken).ConfigureAwait(false);
 
         if (executeWorkflow)
         {
@@ -350,6 +358,37 @@ internal static class RunnerCommandHandlers
         return new ExecutionOutcome(result, report, error);
     }
 
+    private static async Task WarmUpOllamaModelAsync(
+        IServiceProvider services,
+        ScheduledTask task,
+        TextWriter output,
+        CancellationToken cancellationToken)
+    {
+        var aiOptions = services
+            .GetRequiredService<IOptionsMonitor<AIOptions>>()
+            .CurrentValue;
+        if (!string.Equals(
+                aiOptions.Provider,
+                AIOptions.OllamaProvider,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var warmup = services.GetService<ILlmModelWarmup>();
+        if (warmup is null)
+        {
+            return;
+        }
+
+        var policy = GenerationPolicyResolver.Resolve(
+            aiOptions.GenerationDefaults,
+            task.GenerationOptions);
+        output.WriteLine("Warming up the configured Ollama model before task execution.");
+        await warmup.WarmUpAsync(policy, cancellationToken).ConfigureAwait(false);
+        output.WriteLine("Ollama model warm-up completed.");
+    }
+
     private static void EmitTimingReport(
         IServiceProvider services,
         TextWriter output,
@@ -357,10 +396,13 @@ internal static class RunnerCommandHandlers
     {
         var entries = TaskTimingCollector.Current.Value?.GetEntries()
             ?? [];
+        var llmUsageEntries = TaskTimingCollector.Current.Value?.GetLlmUsageEntries()
+            ?? [];
         var timingReport = TaskTimingReport.Build(
             result.StartedUtc,
             result.EndedUtc,
-            entries);
+            entries,
+            llmUsageEntries);
         // output is a RunLogTeeWriter: writing to it already mirrors each line
         // to the active RunLogSession, so no explicit WriteTimingReport call needed.
         output.Write(timingReport);
@@ -474,7 +516,7 @@ internal static class RunnerCommandHandlers
         var generationPolicy = GenerationPolicyResolver.Resolve(
             aiOptions.GenerationDefaults,
             task.GenerationOptions);
-        var modelName = string.Equals(
+        var modelName = task.Model ?? (string.Equals(
             aiOptions.Provider,
             AIOptions.OpenAIProvider,
             StringComparison.OrdinalIgnoreCase)
@@ -483,7 +525,7 @@ internal static class RunnerCommandHandlers
                 .CurrentValue.Model
             : services
                 .GetRequiredService<IOptionsMonitor<OllamaOptions>>()
-                .CurrentValue.Model;
+                .CurrentValue.Model);
         var modelInfo = new ModelPromptPlaceholderContext(
             modelName,
             generationPolicy).ModelInfo;

@@ -37,6 +37,7 @@ public abstract class WorkflowStep
             definition.RetryBackoffSeconds ?? DefaultRetryBackoffSeconds;
         IsStringForm = definition.IsStringForm;
         GenerationOptions = definition.GenerationOptions;
+        Model = definition.Model;
     }
 
     /// <summary>
@@ -78,4 +79,7 @@ public abstract class WorkflowStep
     /// Gets the optional AI-step generation overrides.
     /// </summary>
     public GenerationOptions? GenerationOptions { get; }
+
+    /// <summary>Gets the optional model selected for this AI step.</summary>
+    public string? Model { get; }
 }

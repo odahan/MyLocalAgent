@@ -29,6 +29,7 @@ public sealed partial class TaskEditorViewModel :
         nameof(Name),
         nameof(Schedule),
         nameof(Prompt),
+        nameof(UseGlobalSystemPrompt),
         nameof(IsEnabled),
         nameof(SelectedErrorPolicy),
         nameof(WorkflowText),
@@ -71,6 +72,9 @@ public sealed partial class TaskEditorViewModel :
 
     [ObservableProperty]
     private string _prompt = string.Empty;
+
+    [ObservableProperty]
+    private bool _useGlobalSystemPrompt = true;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsTemperatureOverrideEnabled))]
@@ -361,6 +365,7 @@ public sealed partial class TaskEditorViewModel :
             Name = task?.Name ?? string.Empty;
             Schedule = task?.Schedule ?? "0 7 * * *";
             Prompt = task?.Prompt ?? string.Empty;
+            UseGlobalSystemPrompt = task?.UseGlobalSystemPrompt ?? true;
             var defaults = CurrentGenerationDefaults;
             UseGlobalTemperature =
                 task?.GenerationOptions?.Temperature is null;
@@ -434,6 +439,7 @@ public sealed partial class TaskEditorViewModel :
                 Name = Name.Trim(),
                 Schedule = Schedule.Trim(),
                 Prompt = Prompt.Trim(),
+                UseGlobalSystemPrompt = UseGlobalSystemPrompt,
                 GenerationOptions = generationOptions,
                 Tools = GetSelectedToolGroups(),
                 FileSystemAccess = AuthorizedLocations
@@ -519,6 +525,27 @@ public sealed partial class TaskEditorViewModel :
                     generationOptions,
                     UseGenerationOptionsSnapshot: true));
         }
+    }
+
+    [RelayCommand]
+    private void ViewSystemPrompt()
+    {
+        if (!UseGlobalSystemPrompt)
+        {
+            _desktopInteraction.ShowInformation(
+                "Applied system prompt",
+                "Project-wide AI instructions are disabled for this task. " +
+                "No project-wide instructions will be added; built-in safety instructions remain active.");
+            return;
+        }
+
+        var globalInstructions = _aiOptions?.CurrentValue.GlobalSystemPrompt;
+        _desktopInteraction.ShowInformation(
+            "Applied system prompt",
+            string.IsNullOrWhiteSpace(globalInstructions)
+                ? "No project-wide AI instructions are currently configured. " +
+                  "Built-in safety instructions remain active."
+                : globalInstructions.Trim());
     }
 
     [RelayCommand]

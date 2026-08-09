@@ -29,4 +29,9 @@ public sealed record AIOptions
     /// Gets the reloadable generation defaults shared by the active provider and model.
     /// </summary>
     public AIGenerationDefaults GenerationDefaults { get; init; } = new();
+
+    /// <summary>
+    /// Gets the optional project-wide instructions included in every task and workflow AI call.
+    /// </summary>
+    public string GlobalSystemPrompt { get; init; } = string.Empty;
 }
