@@ -6,6 +6,8 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>
     <ApplicationIcon>Assets\OD.MyLocalAgent.ico</ApplicationIcon>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
 
   <ItemGroup>
@@ -35,6 +37,13 @@
           Link="appsettings.json"
           CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+
+  <Target Name="RemoveWebView2XmlFiles" AfterTargets="Publish">
+    <ItemGroup>
+      <_WebView2XmlFiles Include="$(PublishDir)Microsoft.Web.WebView2.*.xml" />
+    </ItemGroup>
+    <Delete Files="@(_WebView2XmlFiles)" />
+  </Target>
 
   <!-- Debug-only: builds the runner with the UI so F5 debugging finds it. -->
   <ItemGroup Condition="'$(Configuration)' == 'Debug'">

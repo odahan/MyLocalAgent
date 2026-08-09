@@ -1,0 +1,51 @@
+# What's Where
+
+All file and folder locations used by OD.MyLocalAgent after deployment.
+
+## Installation Directory
+
+Default: `%LOCALAPPDATA%\Programs\OD.MyLocalAgent`
+
+| Path | Contents |
+|------|----------|
+| `UI\OD.MyLocalAgent.UI.exe` | UI executable |
+| `UI\appsettings.json` | Base configuration (UI) |
+| `Runner\OD.MyLocalAgent.Runner.exe` | Runner executable |
+| `Runner\appsettings.json` | Base configuration (Runner) |
+
+These files are replaced on each publish. Do not edit `appsettings.json` here — use user settings instead.
+
+## User Data Directory
+
+Default: `%LOCALAPPDATA%\OD.MyLocalAgent`
+
+| Path | Contents |
+|------|----------|
+| `settings.json` | User settings (overrides `appsettings.json`) |
+| `secrets.dat` | DPAPI-protected secrets (API keys, OAuth tokens) |
+| `tasks/` | Persisted task definitions (JSONL files) |
+| `reports/` | Generated reports |
+| `logs/` | Root log directory |
+| `logs/application-*.log` | Rolling application log |
+| `logs/incidents.jsonl` | Incident log |
+| `logs/runs/` | Per-execution runner output logs |
+
+## Configuration Layers
+
+Configuration is loaded in this priority order (last wins):
+
+1. **`appsettings.json`** (in each EXE folder) — base config, shipped with the app. Overwritten on publish.
+2. **`%LOCALAPPDATA%\OD.MyLocalAgent\settings.json`** — user overrides. Survives updates.
+3. **DPAPI secrets** — injected from `secrets.dat`. Highest priority.
+
+## File System Sandbox
+
+| Setting | Default | Purpose |
+|---------|---------|---------|
+| `FileSystem:RootPath` | `C:\OD.MyLocalAgent` | Workspace root where the agent operates |
+
+## Windows Task Scheduler
+
+| Setting | Default | Purpose |
+|---------|---------|---------|
+| `Scheduler:TaskFolder` | `OD.MyLocalAgent` | Folder in Windows Task Scheduler for scheduled tasks |

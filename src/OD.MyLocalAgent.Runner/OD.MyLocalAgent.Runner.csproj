@@ -6,6 +6,8 @@
     <SelfContained>true</SelfContained>
     <!-- Required by the LibraryImport source generator used for AttachConsole. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
 
   <ItemGroup>

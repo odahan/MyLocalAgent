@@ -60,6 +60,10 @@ function Invoke-ProjectPublish {
         $RuntimeIdentifier,
         '--self-contained',
         'true',
+        '-p:PublishSingleFile=true',
+        '-p:IncludeNativeLibrariesForSelfExtract=true',
+        '-p:DebugType=none',
+        '-p:GenerateDocumentationFile=false',
         '-m:1',
         '--nologo',
         '--output',
@@ -81,7 +85,14 @@ try {
 
     foreach ($outputPath in @($uiOutput, $runnerOutput)) {
         $publishedSettingsPath = Join-Path $outputPath 'appsettings.json'
-        Copy-Item -LiteralPath $appSettingsPath -Destination $publishedSettingsPath -Force
+        $existingSettingsPath = Join-Path $resolvedDestination (
+            $outputPath.Substring($deploymentOutput.Length + 1) + '\appsettings.json')
+        if (Test-Path -LiteralPath $existingSettingsPath) {
+            Copy-Item -LiteralPath $existingSettingsPath -Destination $publishedSettingsPath
+        }
+        else {
+            Copy-Item -LiteralPath $appSettingsPath -Destination $publishedSettingsPath
+        }
     }
 
     $uiPath = Join-Path $uiOutput 'OD.MyLocalAgent.UI.exe'
@@ -92,16 +103,6 @@ try {
 
     if (-not (Test-Path -LiteralPath $runnerPath -PathType Leaf)) {
         throw "The published runner executable was not produced at '$runnerPath'."
-    }
-
-    $uiWindowsBase = Get-Item -LiteralPath (Join-Path $uiOutput 'WindowsBase.dll')
-    if ($uiWindowsBase.Length -lt 1MB) {
-        throw 'The UI deployment did not preserve the self-contained WPF WindowsBase assembly.'
-    }
-
-    if (-not (Test-Path -LiteralPath (Join-Path $uiOutput 'coreclr.dll') -PathType Leaf) -or
-        -not (Test-Path -LiteralPath (Join-Path $runnerOutput 'coreclr.dll') -PathType Leaf)) {
-        throw 'One or both deployments are missing the self-contained .NET runtime.'
     }
 
     if (Test-Path -LiteralPath $resolvedDestination) {
@@ -127,7 +128,7 @@ try {
     $publishedRunnerPath = Join-Path $resolvedDestination 'Runner\OD.MyLocalAgent.Runner.exe'
     Write-Host ''
     Write-Host "Published OD.MyLocalAgent to: $resolvedDestination"
-    Write-Host "Deployment mode: self-contained ($RuntimeIdentifier)"
+    Write-Host "Deployment mode: self-contained single-file ($RuntimeIdentifier)"
     Write-Host "UI path: $publishedUiPath"
     Write-Host "Resolved runner path: $publishedRunnerPath"
     Write-Host 'Settings -> Scheduler:RunnerPath = ""'
