@@ -44,7 +44,7 @@ its own navigation, search, styles, and scripts in one file.
 | 21 | Model Information Placeholders | Complete with automated verification |
 | 22 | Archive, Office, and PDF Tools | Complete with automated verification |
 | 23 | Web Discovery Tool (`research.discover`) | TO DO — V3 spec, inline params, no profiles, no storage |
-| 24 | Publications and Markdown Reports | TODO depends on Stage 23 |
+| 24 | Not implemented | 
 | 25 | Human Workflow Text Editing with advanced JSON mode | TO DO |
 
 See [Docs/acceptance-report.md](Docs/acceptance-report.md) for the executed acceptance
@@ -1464,6 +1464,18 @@ that its action points to the stable published runner.
 dotnet restore OD.MyLocalAgent.sln -m:1
 dotnet build OD.MyLocalAgent.sln -m:1 --no-restore --configuration Release
 dotnet test OD.MyLocalAgent.sln -m:1 --no-build --no-restore --configuration Release
+```
+
+To exclude network integration tests (recommended for CI without API key):
+
+```powershell
+dotnet test OD.MyLocalAgent.sln -m:1 --no-build --no-restore --configuration Release --filter "Category!=Integration"
+```
+
+To run only integration tests (requires Ollama Web Search API key in DPAPI secret store):
+
+```powershell
+dotnet test OD.MyLocalAgent.sln -m:1 --no-build --no-restore --configuration Release --filter "Category=Integration"
 ```
 
 Warnings are errors. All public APIs require English XML documentation.

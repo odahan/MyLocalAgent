@@ -1819,3 +1819,52 @@ copyable Stage 22 scenarios with structural/anchor/parity tests and valid embedd
 `git diff --check` passes. Live WPF inspection was attempted through the Windows-control bridge,
 but that bridge was unavailable in the execution environment; XAML, binding, persistence, and
 dynamic-catalog behavior are covered by compilation and deterministic tests.
+
+### Stage 23 — web discovery tool
+
+Added the `research.discover` workflow tool for bounded web-document discovery with search-theme
+compilation, freshness-window expansion, document classification, and guardrails screening.
+
+#### Files created
+
+- `src/OD.MyLocalAgent.Core/ResearchDiscoverTool.cs` — main tool implementation (1136 lines)
+- `src/OD.MyLocalAgent.Core/IResearchDiscoverTool.cs` — tool interface
+- `src/OD.MyLocalAgent.Core/QueryCompiler.cs` — internal query compilation (themes → queries)
+- `src/OD.MyLocalAgent.Core/UrlCanonicalizer.cs` — internal URL normalization
+- `src/OD.MyLocalAgent.Core/SearchHit.cs` — data contract
+- `src/OD.MyLocalAgent.Core/WebDocument.cs` — data contract
+- `src/OD.MyLocalAgent.Core/WebDocumentKind.cs` — enum (Article, Documentation, ReleaseNote, Repository, Post, Video, Other)
+- `src/OD.MyLocalAgent.Core/PublicationDateStatus.cs` — enum (Verified, Unknown)
+- `src/OD.MyLocalAgent.Core/FreshnessWindow.cs` — enum (Sliding, None)
+- `src/OD.MyLocalAgent.Core/Theme.cs` — data contract
+- `tests/OD.MyLocalAgent.Tests/ResearchDiscoverContractTests.cs` — 20 contract tests (13 QueryCompiler/UrlCanonicalizer + 6 catalog + 1 ToolCatalog)
+- `tests/OD.MyLocalAgent.Tests/WebSearchIntegrationTests.cs` — 5 network integration tests
+
+#### Modified files
+
+- `src/OD.MyLocalAgent.Core/ToolGroups.cs` — added `Research = "research"` constant (display order 1200)
+- `src/OD.MyLocalAgent.Core/OD.MyLocalAgent.Core.csproj` — added `InternalsVisibleTo` for test project
+- `tests/OD.MyLocalAgent.Tests/ToolCatalogTests.cs` — added `"research"` to expected task whitelist
+- `tests/OD.MyLocalAgent.Tests/SqliteCatalogContractTests.cs` — added `"research"` to expected task whitelist
+- `tests/OD.MyLocalAgent.Tests/ToolMapMetadataTests.cs` — added `research.discover` to expected argument contracts
+- `tests/OD.MyLocalAgent.Tests/OD.MyLocalAgent.Tests.csproj` — documented test filter conventions
+- `AGENTS.md` — documented default test filter for agents
+
+#### Decisions and deviations
+
+- `QueryCompiler` and `UrlCanonicalizer` are `internal static` classes, exposed to tests via `InternalsVisibleTo`.
+- `CompiledQuery` record and `QueryIntent` enum are `internal` types, accessible from test project.
+- All parameters are inline (S23-D1); no profiles, no database, no Settings UI (S23-D1/D2).
+- `freshnessWindow = "sliding"`: 2→4→7 day expansion until dated docs ≥ `minimumDocuments`; `"none"`: no date filter.
+- Tool auto-discovered via `[ToolGroup]` / `[Tool]` attributes; `ToolCatalog.FromAssembly` reflection.
+- Reuses existing `IWebSearchConnector`, `IContentTrustService`, `IIncidentReporter`, `IHttpClientFactory` infrastructure.
+- Translation stub uses `IContentTrustService.SummarizeAsync` as a bounded LLM call; no dedicated translation service.
+- Document classification is URL-based heuristic; no AI classification step.
+- Integration tests read API key from DPAPI secret store (`%LOCALAPPDATA%\OD.MyLocalAgent\secrets.dat`).
+- Default test filter excludes integration tests: `dotnet test --filter "Category!=Integration"`.
+
+#### Verification
+
+- Build: 0 warnings, 0 errors
+- Tests: 594 passed (589 unit + 5 integration), 1 skipped (local Ollama)
+- Git tag `AVANTSPEC23` created and pushed

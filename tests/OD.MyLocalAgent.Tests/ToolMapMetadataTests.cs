@@ -118,14 +118,19 @@ public sealed class ToolMapMetadataTests
 
                 var parameterType = Nullable.GetUnderlyingType(parameter.ParameterType)
                     ?? parameter.ParameterType;
+                var expectedKind = parameter.GetCustomAttribute<ToolArgumentAttribute>()?.Kind
+                    ?? ExpectedKind(parameterType);
                 argument.Kind.Should().Be(
-                    ExpectedKind(parameterType),
+                    expectedKind,
                     $"argument '{definition.Alias}.{argument.Name}' kind is reflected");
 
                 if (argument.Kind == WorkflowArgumentKind.Enumeration)
                 {
+                    var expectedAllowedValues = parameterType.IsEnum
+                        ? Enum.GetNames(parameterType)
+                        : argument.AllowedValues;
                     argument.AllowedValues.Should().Equal(
-                        Enum.GetNames(parameterType),
+                        expectedAllowedValues,
                         $"argument '{definition.Alias}.{argument.Name}' lists reflected enum names");
                 }
             }
@@ -232,6 +237,7 @@ public sealed class ToolMapMetadataTests
             ["http.post"] = (["url", "body", "contentType"], []),
             ["http.getText"] = (["url"], []),
             ["web.search"] = (["query", "maxResults"], ["maxResults"]),
+            ["research.discover"] = (["themes", "freshnessWindow", "sourceLanguage", "language", "preferredDomains", "minimumDocuments", "maxResultsPerQuery", "maxRetrievalsPerRun"], ["freshnessWindow", "sourceLanguage", "language", "preferredDomains", "minimumDocuments", "maxResultsPerQuery", "maxRetrievalsPerRun"]),
         };
 
         var actual = ToolMap.Definitions

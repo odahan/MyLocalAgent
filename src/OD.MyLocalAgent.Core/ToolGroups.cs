@@ -52,6 +52,9 @@ public static class ToolGroups
     /// <summary>Gets the PDF tool-group name.</summary>
     public const string Pdf = "pdf";
 
+    /// <summary>Gets the research tool-group name.</summary>
+    public const string Research = "research";
+
     /// <summary>
     /// Gets the synthetic built-in AI group name.
     /// </summary>

@@ -38,7 +38,7 @@ public sealed class ToolCatalogTests
         var catalog = ToolCatalog.Default;
         var whitelistGroupNames = catalog.TaskWhitelistGroups.Select(g => g.Name).ToList();
 
-        whitelistGroupNames.Should().Equal("gmail", "calendar", "dropbox", "filesystem", "sqlite", "archive", "document", "spreadsheet", "pdf", "http", "web");
+        whitelistGroupNames.Should().Equal("gmail", "calendar", "dropbox", "filesystem", "sqlite", "archive", "document", "spreadsheet", "pdf", "http", "web", "research");
 
         catalog.FindGroup("gmail")!.DisplayName.Should().Be("Gmail");
         catalog.FindGroup("calendar")!.DisplayName.Should().Be("Calendar");
@@ -97,6 +97,9 @@ public sealed class ToolCatalogTests
         catalog.Find("http.getText").Should().NotBeNull();
 
         catalog.Find("web.search").Should().NotBeNull();
+
+        catalog.FindGroup("research")!.DisplayName.Should().Be("Web Discovery");
+        catalog.Find("research.discover").Should().NotBeNull();
 
         catalog.Find("ai.summarize").Should().NotBeNull();
         catalog.Find("ai.extractActionItems").Should().NotBeNull();
