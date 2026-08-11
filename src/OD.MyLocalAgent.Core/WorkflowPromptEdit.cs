@@ -9,4 +9,8 @@ namespace OD.MyLocalAgent.Core;
 public sealed record WorkflowPromptEdit(
     int Position,
     string PromptText,
-    bool IncludeContext);
+    bool IncludeContext)
+{
+    /// <summary>Gets the targeted long-text argument name.</summary>
+    public string ArgumentName { get; init; } = "prompt";
+}

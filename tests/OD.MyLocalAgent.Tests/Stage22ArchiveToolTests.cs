@@ -24,7 +24,6 @@ public sealed class Stage22ArchiveToolTests : IDisposable
         _tool = new ArchiveTool(
             new PathSandbox(Options.Create(new FileSystemOptions { RootPath = _root })),
             Options.Create(new FileContentOptions()),
-            Options.Create(new SafetyOptions { AllowArchiveWrite = true }),
             ToolExecutionContext.Taskless);
     }
 
@@ -53,20 +52,12 @@ public sealed class Stage22ArchiveToolTests : IDisposable
         Directory.EnumerateFiles(_root, "*.stage", SearchOption.AllDirectories).Should().BeEmpty();
     }
 
-    /// <summary>Verifies writes remain disabled without the independent Safety gate.</summary>
+    /// <summary>Verifies archive writes declare the independent task capability.</summary>
     [Fact]
-    public async Task ArchiveWritesRequireSafetyOptIn()
+    public void ArchiveWritesRequireTaskCapability()
     {
-        await File.WriteAllTextAsync(Path.Combine(_root, "source.txt"), "content");
-        var denied = new ArchiveTool(
-            new PathSandbox(Options.Create(new FileSystemOptions { RootPath = _root })),
-            Options.Create(new FileContentOptions()),
-            Options.Create(new SafetyOptions()),
-            ToolExecutionContext.Taskless);
-
-        var action = () => denied.CreateZipAsync("archive.zip", "source.txt");
-        await action.Should().ThrowAsync<SafetyException>();
-        File.Exists(Path.Combine(_root, "archive.zip")).Should().BeFalse();
+        ToolMap.Find("archive.createZip")!.RequiredCapability
+            .Should().Be(TaskCapability.ArchiveWrite);
     }
 
     /// <summary>Verifies unsafe existing ZIP entries prevent archive replacement.</summary>

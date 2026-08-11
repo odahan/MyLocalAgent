@@ -228,12 +228,11 @@ tool group only for tasks that need it.
   running an unattended task. An empty list allows all HTTP/HTTPS hosts and is
   suitable only for a controlled test.
 - **SQLite**: use only a disposable local database file beneath an authorized root.
-  Reads still require path authorization; a write also requires
-  `Safety:AllowSqliteWrite`. Each task stores whether its bounded SQLite read results are
+  Reads still require path authorization; a write also requires the task-owned
+  `SqliteWrite` capability. Each task stores whether its bounded SQLite read results are
   screened by Guardrails; requested but unavailable screening withholds the result.
-- **Local execution**: `filesystem.shellExecute` and `filesystem.powerShell` require
-  `Safety:AllowProcessExecution`. The setting is disabled by default in **Settings**; enable it
-  only for a task whose program or script has been reviewed.
+- **Local execution**: `filesystem.shellExecute` requires `ShellExecute`, while
+  `filesystem.powerShell` requires the separate `PowerShellExecution` task capability.
 - Sensitive operations remain disabled by default: sending email, deleting
   files, HTTP POST, SQLite writes, and process execution. Enable them only when a specific task
   justifies them.
@@ -248,8 +247,8 @@ Use a disposable database below the configured filesystem root, for example
 2. For a read-only trial, keep only ReadOnly access to the path; relative paths
    remain below `FileSystem:RootPath`.
 3. To create the demonstration database, temporarily grant ReadWrite access to
-   the same location and enable **Settings → Safety gates → Allow SQLite write**.
-   The group, ReadWrite access, and Safety setting are all required.
+   the same location and enable `SqliteWrite` under **Sensitive operation permissions**.
+   The group, ReadWrite access, and task capability are all required.
 4. In **Tool tester**, select `sqlite.execute` and create the table with one
    statement:
 
@@ -317,16 +316,15 @@ entirely deterministic: they call no model, tool, file, or network.
   and keeps the window open so several steps can be accumulated. **Cancel**
   discards the whole session. If the JSON cannot be parsed, the snippet is
   inserted verbatim with a manual-repair warning.
-- **Edit prompts**: the prompt editor lists the `ai.prompt` steps and lets you
-  write a multiline prompt comfortably, together with the `includeContext`
-  option. **Apply** writes every change at once. A prompt that is empty or only
-  whitespace is rejected.
+- **Edit workflow text**: the metadata-driven editor lists long-text arguments in order. It
+  edits `ai.prompt.prompt` with `includeContext` and `filesystem.powerShell.script` with a local
+  execution warning. **Apply** writes every change atomically.
 - **AI Helper**: model-assisted generation, best reserved for cases where an
   English description is faster than writing the workflow directly.
 
 A step coming from a tool group that the task does not allow shows a warning and
-an **unchecked** box: authorization is never widened silently. Safety settings are
-displayed read-only.
+an **unchecked** box: authorization is never widened silently. Required task capabilities are
+reported and must be granted explicitly in the task editor.
 
 The Task editor **Tool whitelist** is generated from the catalog built into the application.
 A future version can therefore add a group without another hard-coded list; the group appears
@@ -378,5 +376,13 @@ URL whenever completeness matters.
 
 When creating a task, **Archives**, **Word documents**, **Spreadsheets**, and **PDF documents** are
 unchecked by default. Enable only the needed group, then separately grant read or read/write
-locations. ZIP extraction and creation also require *Allow archive writes and extraction* in
-Settings. Extracted text is untrusted data; no OCR, passwords, or formula recalculation is used.
+locations. ZIP extraction and creation also require the task-owned `ArchiveWrite` capability.
+Extracted text is untrusted data; no OCR, passwords, or formula recalculation is used.
+
+# Per-task sensitive permissions
+
+Sensitive operations are denied by default. There is no global Safety setting: each task must
+explicitly grant the required capability in addition to its tool group and `fileSystemAccess`
+paths. PowerShell and Shell Execute are separate permissions. A legacy task without a
+`capabilities` field remains readable but receives no sensitive permission. Use **Edit workflow
+text** to edit long AI prompts and PowerShell scripts without changing step structure.

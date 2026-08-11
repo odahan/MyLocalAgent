@@ -17,10 +17,6 @@ namespace OD.MyLocalAgent.UI.Services;
 /// <param name="TaskFolder">The Windows Task Scheduler folder.</param>
 /// <param name="RunWhenLoggedOff">Whether S4U logon is enabled.</param>
 /// <param name="RunnerPath">The optional runner path.</param>
-/// <param name="AllowSendEmail">Whether email sending is enabled.</param>
-/// <param name="AllowFileDelete">Whether file deletion is enabled.</param>
-/// <param name="AllowMoveToBin">Whether moving files to the Recycle Bin is enabled.</param>
-/// <param name="AllowHttpPost">Whether HTTP POST is enabled.</param>
 /// <param name="GuardrailsScreeningEnabled">Whether LLM guardrails processing is enabled.</param>
 /// <param name="GuardrailsCleanThreshold">The clean-delivery threshold.</param>
 /// <param name="GuardrailsCautionThreshold">The caution-delivery threshold.</param>
@@ -36,7 +32,6 @@ namespace OD.MyLocalAgent.UI.Services;
 /// <param name="GenerationTemperature">The global default sampling temperature.</param>
 /// <param name="GenerationTopP">The global default nucleus-sampling value.</param>
 /// <param name="ContextWindowTokens">The declared global context-window budget.</param>
-/// <param name="AllowSqliteWrite">Whether modifying SQLite statements are enabled.</param>
 /// <param name="SQLiteDefaultMaxRows">The default SQLite row limit.</param>
 /// <param name="SQLiteMaxRows">The maximum SQLite row limit.</param>
 /// <param name="SQLiteMaxResultCharacters">The maximum serialized SQLite result size.</param>
@@ -44,9 +39,7 @@ namespace OD.MyLocalAgent.UI.Services;
 /// <param name="SQLiteMaxSqlCharacters">The maximum SQLite SQL size.</param>
 /// <param name="SQLiteCommandTimeoutSeconds">The SQLite command timeout.</param>
 /// <param name="SQLiteGuardrailsEnabledByDefault">The SQLite Guardrails default for new tasks.</param>
-/// <param name="AllowProcessExecution">Whether launching local processes is enabled.</param>
 /// <param name="GlobalSystemPrompt">The optional project-wide AI instructions.</param>
-/// <param name="AllowArchiveWrite">Whether archive writes and extraction are enabled.</param>
 /// <param name="FileContentMaxInputFileBytes">The maximum parser input size.</param>
 /// <param name="FileContentMaxArchiveEntries">The archive entry ceiling.</param>
 /// <param name="FileContentMaxArchiveEntryBytes">The per-entry extraction ceiling.</param>
@@ -73,10 +66,6 @@ public sealed record UserSettingsData(
     string TaskFolder,
     bool RunWhenLoggedOff,
     string RunnerPath,
-    bool AllowSendEmail,
-    bool AllowFileDelete,
-    bool AllowMoveToBin,
-    bool AllowHttpPost,
     bool GuardrailsScreeningEnabled,
     int GuardrailsCleanThreshold,
     int GuardrailsCautionThreshold,
@@ -92,7 +81,6 @@ public sealed record UserSettingsData(
     double GenerationTemperature,
     double GenerationTopP,
     int ContextWindowTokens,
-    bool AllowSqliteWrite = false,
     int SQLiteDefaultMaxRows = 100,
     int SQLiteMaxRows = 1_000,
     int SQLiteMaxResultCharacters = 64_000,
@@ -100,9 +88,7 @@ public sealed record UserSettingsData(
     int SQLiteMaxSqlCharacters = 16_000,
     int SQLiteCommandTimeoutSeconds = 30,
     bool SQLiteGuardrailsEnabledByDefault = true,
-    bool AllowProcessExecution = false,
     string GlobalSystemPrompt = "",
-    bool AllowArchiveWrite = false,
     long FileContentMaxInputFileBytes = 104857600,
     int FileContentMaxArchiveEntries = 10000,
     long FileContentMaxArchiveEntryBytes = 262144000,

@@ -50,7 +50,7 @@ public sealed class HttpToolTests
     /// Verifies disallowed hosts and disabled POST requests fail before transport.
     /// </summary>
     [Fact]
-    public async Task AllowlistAndPostSafetyGatesAreEnforced()
+    public async Task AllowlistIsEnforcedBeforeTransport()
     {
         var handler = new StubHttpMessageHandler(
             (_, _) => throw new InvalidOperationException("Transport should not be called."));
@@ -59,16 +59,8 @@ public sealed class HttpToolTests
         var disallowedGet = () => tool.GetAsync(
             "https://other.example/path",
             CancellationToken.None);
-        var blockedPost = () => tool.PostAsync(
-            "https://example.com/path",
-            "{}",
-            "application/json",
-            CancellationToken.None);
-
         await disallowedGet.Should().ThrowAsync<SafetyException>()
             .Where(exception => exception.RequiredFlag == "Http:AllowedHosts");
-        await blockedPost.Should().ThrowAsync<SafetyException>()
-            .Where(exception => exception.RequiredFlag == "Safety:AllowHttpPost");
     }
 
     /// <summary>
@@ -265,7 +257,6 @@ public sealed class HttpToolTests
                     TimeoutSeconds = 5,
                     MaxResponseCharacters = 10_000,
                 }),
-            Options.Create(new SafetyOptions { AllowHttpPost = allowPost }),
             new MutableOptionsMonitor<GuardrailsOptions>(
                 guardrailsOptions ?? new GuardrailsOptions()),
             contentTrustService ?? new StubContentTrustService(),

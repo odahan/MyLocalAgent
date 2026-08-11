@@ -129,20 +129,20 @@ public sealed partial class WorkflowToolCatalogViewModel : ObservableObject
             : SelectedItem.Tool.AgentFunctionName ?? "workflow-only AI step";
 
     /// <summary>
-    /// Gets the Safety snapshot line of the selected entry.
+    /// Gets the task-capability status line of the selected entry.
     /// </summary>
-    public string SelectedSafetyText
+    public string SelectedCapabilityText
     {
         get
         {
-            if (SelectedItem?.Tool.SafetyFlag is not { } flag || _request is null)
+            if (SelectedItem?.Tool.RequiredCapability is not { } capability || _request is null)
             {
-                return "No Safety gate is required.";
+                return "No sensitive task capability is required.";
             }
 
-            return _request.Safety.IsEnabled(flag)
-                ? $"{flag} is enabled."
-                : $"{flag} is disabled; execution will fail until it is enabled in Settings.";
+            return _request.Capabilities.Contains(capability)
+                ? $"{capability} is granted by this task."
+                : $"{capability} is not granted; execution will fail until it is enabled in task permissions.";
         }
     }
 
@@ -267,7 +267,7 @@ public sealed partial class WorkflowToolCatalogViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(SelectedFunctionName));
-        OnPropertyChanged(nameof(SelectedSafetyText));
+        OnPropertyChanged(nameof(SelectedCapabilityText));
         OnPropertyChanged(nameof(SelectedWhitelistText));
         OnPropertyChanged(nameof(SelectedLocalPathText));
         OnPropertyChanged(nameof(ShowsToolGroupOptIn));
@@ -366,6 +366,17 @@ public sealed partial class WorkflowToolCatalogViewModel : ObservableObject
             if (insertion.Warning is { } warning && !_warnings.Contains(warning))
             {
                 _warnings.Add(warning);
+            }
+
+            if (item.Tool.RequiredCapability is { } capability &&
+                !_request.Capabilities.Contains(capability))
+            {
+                var permissionWarning =
+                    $"Step '{item.Alias}' requires task capability '{capability}'. Grant it explicitly in Sensitive operation permissions.";
+                if (!_warnings.Contains(permissionWarning))
+                {
+                    _warnings.Add(permissionWarning);
+                }
             }
 
             if (!item.IsBuiltInAi && EnableMissingToolGroup)

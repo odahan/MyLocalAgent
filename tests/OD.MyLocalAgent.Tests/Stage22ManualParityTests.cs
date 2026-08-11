@@ -39,11 +39,11 @@ public sealed partial class Stage22ManualParityTests
             frenchStage.Should().Contain(format);
             englishStage.Should().Contain(format);
         }
-        foreach (var term in new[] { "Allow archive writes and extraction", "100 MiB", "10,000", "64,000", "25,000", "100 PDF" })
+        foreach (var term in new[] { "ArchiveWrite", "100 MiB", "10,000", "64,000", "25,000", "100 PDF" })
         {
             englishStage.Should().Contain(term);
         }
-        foreach (var term in new[] { "Allow archive writes and extraction", "100 Mio", "10 000", "64 000", "25 000", "100 pages PDF" })
+        foreach (var term in new[] { "ArchiveWrite", "100 Mio", "10 000", "64 000", "25 000", "100 pages PDF" })
         {
             frenchStage.Should().Contain(term);
         }

@@ -39,7 +39,6 @@ public sealed class ConnectorToolTests : IDisposable
             .ReturnsAsync([]);
         var tool = new GmailTool(
             connector.Object,
-            Options.Create(new SafetyOptions()),
             new MutableOptionsMonitor<GuardrailsOptions>(new GuardrailsOptions()),
             new StubContentTrustService(),
             new StubIncidentReporter(),
@@ -66,7 +65,6 @@ public sealed class ConnectorToolTests : IDisposable
         var logger = new RecordingLogger<GmailTool>();
         var tool = new GmailTool(
             connector.Object,
-            Options.Create(new SafetyOptions()),
             new MutableOptionsMonitor<GuardrailsOptions>(new GuardrailsOptions()),
             new StubContentTrustService(),
             new StubIncidentReporter(),
@@ -87,7 +85,7 @@ public sealed class ConnectorToolTests : IDisposable
     /// Verifies Gmail reads and blocks sends while the safety flag is disabled.
     /// </summary>
     [Fact]
-    public async Task GmailToolMapsMessagesAndEnforcesSendGate()
+    public async Task GmailToolMapsMessages()
     {
         var connector = new Mock<IGmailConnector>(MockBehavior.Strict);
         var message = new EmailMessageDto(
@@ -105,7 +103,6 @@ public sealed class ConnectorToolTests : IDisposable
             .ReturnsAsync([message]);
         var tool = new GmailTool(
             connector.Object,
-            Options.Create(new SafetyOptions()),
             new MutableOptionsMonitor<GuardrailsOptions>(new GuardrailsOptions()),
             new StubContentTrustService(),
             new StubIncidentReporter(),
@@ -113,16 +110,8 @@ public sealed class ConnectorToolTests : IDisposable
             TimeProvider.System);
 
         var json = await tool.ReadTodayAsync(cancellationToken: CancellationToken.None);
-        var send = () => tool.SendAsync(
-            "to@example.com",
-            "Subject",
-            "Body",
-            CancellationToken.None);
-
         JsonDocument.Parse(json).RootElement.GetProperty("messages")[0]
             .GetProperty("id").GetString().Should().Be("m1");
-        await send.Should().ThrowAsync<SafetyException>()
-            .Where(exception => exception.RequiredFlag == "Safety:AllowSendEmail");
     }
 
     /// <summary>
@@ -149,7 +138,6 @@ public sealed class ConnectorToolTests : IDisposable
                     false));
         var tool = new GmailTool(
             connector.Object,
-            Options.Create(new SafetyOptions { AllowSendEmail = true }),
             new MutableOptionsMonitor<GuardrailsOptions>(new GuardrailsOptions()),
             new StubContentTrustService(),
             new StubIncidentReporter(),
@@ -203,7 +191,6 @@ public sealed class ConnectorToolTests : IDisposable
         };
         var tool = new GmailTool(
             connector.Object,
-            Options.Create(new SafetyOptions()),
             new MutableOptionsMonitor<GuardrailsOptions>(new GuardrailsOptions()),
             trustService,
             new StubIncidentReporter(),
@@ -252,7 +239,6 @@ public sealed class ConnectorToolTests : IDisposable
         };
         var tool = new GmailTool(
             connector.Object,
-            Options.Create(new SafetyOptions()),
             new MutableOptionsMonitor<GuardrailsOptions>(options),
             trustService,
             new StubIncidentReporter(),
@@ -309,7 +295,6 @@ public sealed class ConnectorToolTests : IDisposable
         };
         var tool = new GmailTool(
             connector.Object,
-            Options.Create(new SafetyOptions()),
             new MutableOptionsMonitor<GuardrailsOptions>(options),
             trustService,
             new StubIncidentReporter(),
@@ -373,7 +358,6 @@ public sealed class ConnectorToolTests : IDisposable
         var reporter = new StubIncidentReporter();
         var tool = new GmailTool(
             connector.Object,
-            Options.Create(new SafetyOptions()),
             new MutableOptionsMonitor<GuardrailsOptions>(new GuardrailsOptions()),
             trustService,
             reporter,
@@ -445,7 +429,6 @@ public sealed class ConnectorToolTests : IDisposable
         var logger = new RecordingLogger<GmailTool>();
         var tool = new GmailTool(
             connector.Object,
-            Options.Create(new SafetyOptions()),
             new MutableOptionsMonitor<GuardrailsOptions>(new GuardrailsOptions()),
             trustService,
             reporter,

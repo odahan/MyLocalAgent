@@ -86,7 +86,7 @@ public sealed class ToolMapTests : IDisposable
         var html = ToolMap.Find("filesystem.htmlToText");
 
         recycle.Should().NotBeNull();
-        recycle!.SafetyFlag.Should().Be("Safety:AllowMoveToBin");
+        recycle!.RequiredCapability.Should().Be(TaskCapability.RecycleBin);
         recycle.LocalPathArguments.Should().ContainSingle()
             .Which.RequiredAccess.Should().Be(FileSystemAccessMode.ReadWrite);
 
@@ -138,9 +138,48 @@ public sealed class ToolMapTests : IDisposable
         tools.Select(static tool => tool.Name).Should().BeEquivalentTo(
             "gmail_read_today",
             "gmail_read_unread",
-            "gmail_read_recent",
-            "gmail_send");
+            "gmail_read_recent");
         tools.Should().OnlyContain(static tool => tool is AIFunction);
+    }
+
+    /// <summary>Verifies sensitive aliases are hidden and blocked unless the task grants them.</summary>
+    [Fact]
+    public async Task RegistryEnforcesTaskCapabilitiesForAgentAndDirectInvocation()
+    {
+        Directory.CreateDirectory(_rootPath);
+        var registry = CreateRegistry();
+        using var arguments = JsonDocument.Parse(
+            """{"to":"person@example.com","subject":"subject","body":"body"}""");
+
+        registry.GetAgentTools([ToolGroups.Gmail])
+            .Select(static tool => tool.Name).Should().NotContain("gmail_send");
+        var denied = () => registry.InvokeAsync(
+            "gmail.send", arguments.RootElement, [ToolGroups.Gmail],
+            ToolExecutionContext.Taskless, CancellationToken.None);
+
+        await denied.Should().ThrowAsync<TaskAuthorizationException>()
+            .WithMessage("*outside a task*GmailSend*");
+
+        var context = new ToolExecutionContext(
+            "mail-task", [], [TaskCapability.GmailSend]);
+        registry.GetAgentTools([ToolGroups.Gmail], context)
+            .Select(static tool => tool.Name).Should().Contain("gmail_send");
+    }
+
+    /// <summary>Verifies PowerShell and Shell Execute are independent grants.</summary>
+    [Fact]
+    public void ProcessCapabilitiesAreDistinct()
+    {
+        Directory.CreateDirectory(_rootPath);
+        var registry = CreateRegistry();
+        var context = new ToolExecutionContext(
+            "powershell-only", [], [TaskCapability.PowerShellExecution]);
+
+        var names = registry.GetAgentTools([ToolGroups.FileSystem], context)
+            .Select(static tool => tool.Name).ToArray();
+
+        names.Should().Contain("filesystem_power_shell");
+        names.Should().NotContain("filesystem_shell_execute");
     }
 
     /// <summary>
@@ -306,7 +345,6 @@ public sealed class ToolMapTests : IDisposable
         var services = new ServiceCollection();
         var fileSystemOptions = Options.Create(
             new FileSystemOptions { RootPath = _rootPath });
-        var safetyOptions = Options.Create(new SafetyOptions());
         var sandbox = new PathSandbox(fileSystemOptions);
         var handler = new StubHttpMessageHandler(
             (_, _) => Task.FromResult(
@@ -328,7 +366,6 @@ public sealed class ToolMapTests : IDisposable
                     WebSearchOptions.OllamaProvider));
 
         services.AddSingleton<IPathSandbox>(sandbox);
-        services.AddSingleton(safetyOptions);
         services.AddSingleton(fileSystemOptions);
         services.AddSingleton<IRecycleBinService>(Mock.Of<IRecycleBinService>());
         services.AddSingleton<IGmailConnector>(Mock.Of<IGmailConnector>());

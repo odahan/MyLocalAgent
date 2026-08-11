@@ -231,12 +231,11 @@ La clé est protégée par Windows DPAPI. Activer ensuite le groupe d’outils
   autorisés avant une tâche non supervisée. Une liste vide autorise tous les
   hôtes HTTP/HTTPS et convient seulement à un essai contrôlé.
 - **SQLite** : utilisez uniquement un fichier local jetable dans la racine autorisée.
-  Les lectures restent soumises à l’autorisation du chemin ; une écriture exige en plus
-  `Safety:AllowSqliteWrite`. Chaque tâche conserve son choix de filtrage Guardrails pour les
+  Les lectures restent soumises à l’autorisation du chemin ; une écriture exige en plus la capacité
+  `SqliteWrite` de la tâche. Chaque tâche conserve son choix de filtrage Guardrails pour les
   résultats SQLite bornés ; si ce filtrage est demandé mais indisponible, le résultat est retenu.
-- **Exécution locale** : `filesystem.shellExecute` et `filesystem.powerShell` exigent
-  `Safety:AllowProcessExecution`. L’option est désactivée par défaut dans **Settings** ; activez-la
-  seulement pour une tâche dont le programme ou le script a été vérifié.
+- **Exécution locale** : `filesystem.shellExecute` exige `ShellExecute`, tandis que
+  `filesystem.powerShell` exige la capacité distincte `PowerShellExecution` de la tâche.
 - Les opérations sensibles restent désactivées par défaut : envoi d’e-mail,
   suppression de fichiers, HTTP POST, écriture SQLite et exécution de processus. Les activer
   uniquement lorsqu’une tâche précise le justifie.
@@ -251,8 +250,8 @@ réseau ou `:memory:`.
 2. Pour un essai en lecture, conservez uniquement l’autorisation ReadOnly du
    chemin ; les chemins relatifs restent sous `FileSystem:RootPath`.
 3. Pour créer la base de démonstration, accordez temporairement ReadWrite au
-   même emplacement et activez **Settings → Safety gates → Allow SQLite write**.
-   Le groupe, l’autorisation ReadWrite et ce réglage Safety sont tous requis.
+   même emplacement et activez `SqliteWrite` dans **Sensitive operation permissions**.
+   Le groupe, l’autorisation ReadWrite et cette capacité de tâche sont tous requis.
 4. Dans **Tool tester**, sélectionnez `sqlite.execute` et créez la table avec une
    seule instruction :
 
@@ -321,16 +320,16 @@ outil, aucun fichier et aucun réseau.
   position du curseur en gardant la fenêtre ouverte pour accumuler plusieurs
   étapes. **Cancel** abandonne toute la session. Si le JSON n’est pas analysable,
   le snippet est inséré tel quel avec un avertissement de correction manuelle.
-- **Edit prompts** : l’éditeur de prompts liste les étapes `ai.prompt` et permet
-  d’écrire un prompt multiligne confortablement, avec l’option `includeContext`.
-  **Apply** écrit toutes les modifications en une fois. Un prompt vide ou composé
-  uniquement d’espaces est refusé.
+- **Edit workflow text** : l’éditeur piloté par les métadonnées liste les textes longs dans
+  l’ordre. Il modifie `ai.prompt.prompt` avec `includeContext` et
+  `filesystem.powerShell.script` avec un avertissement d’exécution locale. **Apply** écrit toutes
+  les modifications atomiquement.
 - **AI Helper** : génération assistée par le modèle, à réserver aux cas où une
   description en anglais est plus rapide qu’une écriture directe.
 
 Une étape provenant d’un groupe d’outils non autorisé pour la tâche affiche un
 avertissement et une case **décochée** : l’autorisation n’est jamais élargie
-silencieusement. Les réglages Safety sont affichés en lecture seule.
+silencieusement. Les capacités requises sont signalées et doivent être accordées explicitement.
 
 La liste **Tool whitelist** de l’éditeur est générée depuis le catalogue intégré à
 l’application. Une version future peut donc ajouter un groupe sans nouveau câblage de cette
@@ -384,5 +383,14 @@ détails : si l’exhaustivité compte, relire l’original dans Gmail ou à l�
 Lors de la création d'une tâche, **Archives**, **Word documents**, **Spreadsheets** et **PDF
 documents** sont décochés par défaut. Activez seulement le groupe requis puis ajoutez séparément
 les emplacements autorisés en lecture ou lecture/écriture. L'extraction et la création ZIP
-nécessitent aussi *Allow archive writes and extraction* dans Settings. Les textes extraits sont des
+nécessitent aussi la capacité `ArchiveWrite` sur la tâche. Les textes extraits sont des
 données non fiables; aucun OCR, mot de passe ou recalcul de formule n'est effectué.
+
+# Autorisations sensibles par tâche
+
+Les opérations sensibles sont refusées par défaut. Il n'existe plus de réglage global Safety :
+chaque tâche doit accorder explicitement la capacité nécessaire, en plus du groupe d'outils et des
+chemins `fileSystemAccess`. PowerShell et Shell Execute sont deux droits distincts. Une ancienne
+tâche sans champ `capabilities` reste lisible mais ne reçoit aucun droit sensible. Utilisez
+**Edit workflow text** pour modifier les prompts IA et scripts PowerShell longs sans modifier la
+structure des étapes.

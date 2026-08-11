@@ -21,6 +21,10 @@ public sealed partial class ToolTesterViewModel :
 
     private readonly IToolRegistry _toolRegistry;
     private readonly IIncidentReporter _incidentReporter;
+    private readonly ITaskStore? _taskStore;
+
+    [ObservableProperty]
+    private ScheduledTask? _selectedTask;
 
     [ObservableProperty]
     private ToolAliasItem? _selectedAlias;
@@ -48,10 +52,12 @@ public sealed partial class ToolTesterViewModel :
     /// </summary>
     public ToolTesterViewModel(
         IToolRegistry toolRegistry,
-        IIncidentReporter incidentReporter)
+        IIncidentReporter incidentReporter,
+        ITaskStore? taskStore = null)
     {
         _toolRegistry = toolRegistry;
         _incidentReporter = incidentReporter;
+        _taskStore = taskStore;
         Aliases = toolRegistry.Definitions
             .Where(static definition => definition.IsAgentTool)
             .OrderBy(static definition => ToolGroups.GetDisplayOrder(definition.ToolGroup))
@@ -62,7 +68,7 @@ public sealed partial class ToolTesterViewModel :
                     definition.ToolGroup,
                     definition.Arguments,
                     definition.OptionalArguments,
-                    definition.SafetyFlag))
+                    definition.RequiredCapability))
             .ToArray();
     }
 
@@ -71,10 +77,25 @@ public sealed partial class ToolTesterViewModel :
     /// </summary>
     public IReadOnlyList<ToolAliasItem> Aliases { get; }
 
+    /// <summary>Gets saved tasks available as explicit execution contexts.</summary>
+    public IReadOnlyList<ScheduledTask> Tasks { get; private set; } = [];
+
     /// <inheritdoc />
     public void Activate()
     {
         SelectedAlias ??= Aliases.FirstOrDefault();
+        _ = LoadTasksAsync();
+    }
+
+    private async Task LoadTasksAsync()
+    {
+        if (_taskStore is null)
+        {
+            return;
+        }
+
+        Tasks = await _taskStore.GetAllAsync(CancellationToken.None).ConfigureAwait(true);
+        OnPropertyChanged(nameof(Tasks));
     }
 
     partial void OnSelectedAliasChanged(ToolAliasItem? value)
@@ -98,9 +119,9 @@ public sealed partial class ToolTesterViewModel :
             static _ => string.Empty,
             StringComparer.Ordinal);
         ArgumentsJson = JsonSerializer.Serialize(template, PrettyJsonOptions);
-        ResultText = value.SafetyFlag is null
+        ResultText = value.RequiredCapability is null
             ? "Ready to run."
-            : $"Safety gate: {value.SafetyFlag}";
+            : $"Requires task capability: {value.RequiredCapability}";
         DurationText = "Not run";
         StatusState = "Unknown";
     }
@@ -129,11 +150,12 @@ public sealed partial class ToolTesterViewModel :
                 throw new JsonException("Tool arguments must be a JSON object.");
             }
 
-            var result = await _toolRegistry
-                .InvokeAsync(
+            var task = SelectedTask;
+            var result = await _toolRegistry.InvokeAsync(
                     SelectedAlias.Alias,
                     document.RootElement.Clone(),
-                    [SelectedAlias.Group],
+                    task?.Tools ?? [SelectedAlias.Group],
+                    task is null ? ToolExecutionContext.Taskless : ToolExecutionContext.FromTask(task),
                     cancellationToken)
                 .ConfigureAwait(true);
             stopwatch.Stop();
@@ -148,12 +170,10 @@ public sealed partial class ToolTesterViewModel :
             DurationText = $"{stopwatch.ElapsedMilliseconds} ms";
             StatusState = "Unknown";
         }
-        catch (Exception exception) when (Find<SafetyException>(exception) is { } safety)
+        catch (Exception exception) when (Find<TaskAuthorizationException>(exception) is { } authorization)
         {
             stopwatch.Stop();
-            ResultText =
-                $"{safety.Message}{Environment.NewLine}{Environment.NewLine}" +
-                $"Open Settings → General and enable {safety.RequiredFlag}.";
+            ResultText = authorization.Message;
             DurationText = $"{stopwatch.ElapsedMilliseconds} ms · blocked";
             StatusState = "Blocked";
         }

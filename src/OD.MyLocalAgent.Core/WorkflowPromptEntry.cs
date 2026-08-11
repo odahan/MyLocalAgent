@@ -7,6 +7,18 @@ namespace OD.MyLocalAgent.Core;
 /// </summary>
 public sealed record WorkflowPromptEntry
 {
+    /// <summary>Gets the Tool Map alias.</summary>
+    public string Alias { get; init; } = ToolMap.PromptAlias;
+
+    /// <summary>Gets the long-text argument name.</summary>
+    public string ArgumentName { get; init; } = "prompt";
+
+    /// <summary>Gets whether includeContext is an associated editable option.</summary>
+    public bool SupportsIncludeContext { get; init; } = true;
+
+    /// <summary>Gets whether local PowerShell execution warning applies.</summary>
+    public bool IsPowerShell => string.Equals(Alias, "filesystem.powerShell", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>
     /// Gets the zero-based workflow position, which is the authoritative edit key.
     /// </summary>

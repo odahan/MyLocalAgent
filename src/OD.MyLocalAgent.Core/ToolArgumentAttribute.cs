@@ -43,4 +43,9 @@ public sealed class ToolArgumentAttribute : DescriptionAttribute
     /// Gets or sets an explicit override for argument requiredness when reflection alone is ambiguous.
     /// </summary>
     public bool? IsRequired { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether authoring surfaces should provide a long-form text editor.
+    /// </summary>
+    public bool IsLongText { get; set; }
 }

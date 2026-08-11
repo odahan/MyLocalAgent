@@ -90,12 +90,12 @@ public sealed class SqliteCatalogContractTests
     [Fact]
     public void SqliteAliasesExposeTheirExactMetadata()
     {
-        var expected = new Dictionary<string, (string AgentName, string Method, string[] Arguments, string[] Optional, FileSystemAccessMode Access, string? Safety)>
+        var expected = new Dictionary<string, (string AgentName, string Method, string[] Arguments, string[] Optional, FileSystemAccessMode Access, TaskCapability? Capability)>
         {
             ["sqlite.listObjects"] = ("sqlite_list_objects", "ListObjectsAsync", ["databasePath", "objectType", "namePattern", "maxResults"], ["objectType", "namePattern", "maxResults"], FileSystemAccessMode.ReadOnly, null),
             ["sqlite.describeTable"] = ("sqlite_describe_table", "DescribeTableAsync", ["databasePath", "tableName"], [], FileSystemAccessMode.ReadOnly, null),
             ["sqlite.query"] = ("sqlite_query", "QueryAsync", ["databasePath", "sql", "parameters", "maxRows", "storageSpaceId"], ["parameters", "maxRows", "storageSpaceId"], FileSystemAccessMode.ReadOnly, null),
-            ["sqlite.execute"] = ("sqlite_execute", "ExecuteAsync", ["databasePath", "sql", "parameters", "createIfMissing"], ["parameters", "createIfMissing"], FileSystemAccessMode.ReadWrite, "Safety:AllowSqliteWrite"),
+            ["sqlite.execute"] = ("sqlite_execute", "ExecuteAsync", ["databasePath", "sql", "parameters", "createIfMissing"], ["parameters", "createIfMissing"], FileSystemAccessMode.ReadWrite, TaskCapability.SqliteWrite),
         };
 
         var definitions = ToolMap.Definitions.Where(static definition => definition.ToolGroup == ToolGroups.Sqlite).ToArray();
@@ -107,7 +107,7 @@ public sealed class SqliteCatalogContractTests
             definition.MethodName.Should().Be(contract.Method);
             definition.Arguments.Should().Equal(contract.Arguments);
             definition.OptionalArguments.Should().Equal(contract.Optional);
-            definition.SafetyFlag.Should().Be(contract.Safety);
+            definition.RequiredCapability.Should().Be(contract.Capability);
             definition.LocalPathArguments.Should().ContainSingle().Which.RequiredAccess.Should().Be(contract.Access);
         }
     }
@@ -134,7 +134,6 @@ public sealed class SqliteCatalogContractTests
         var services = new ServiceCollection();
         services.AddSingleton<IPathSandbox>(new PathSandbox(Options.Create(new FileSystemOptions { RootPath = Path.GetTempPath() })));
         services.AddSingleton<IOptions<SQLiteOptions>>(Options.Create(new SQLiteOptions()));
-        services.AddSingleton<IOptions<SafetyOptions>>(Options.Create(new SafetyOptions()));
         services.AddSingleton<IOptionsMonitor<GuardrailsOptions>>(new MutableOptionsMonitor<GuardrailsOptions>(new GuardrailsOptions()));
         services.AddSingleton<IContentTrustService, StubContentTrustService>();
         services.AddSingleton<IIncidentReporter, StubIncidentReporter>();

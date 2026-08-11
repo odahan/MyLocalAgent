@@ -437,7 +437,6 @@ public sealed class TaskEditorViewModelTests
             Mock.Of<IMessenger>(),
             TimeProvider.System,
             workflowHelperDialog: null,
-            safetyOptions: null,
             aiOptions: ai)
         {
             Id = "generation-editor",

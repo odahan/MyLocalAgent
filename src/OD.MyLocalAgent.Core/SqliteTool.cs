@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection;
 using OD.MyLocalAgent.Guardrails;
 
 namespace OD.MyLocalAgent.Core;
@@ -23,7 +24,6 @@ public sealed class SqliteTool : ISqliteTool
 
     private readonly IPathSandbox _sandbox;
     private readonly IOptions<SQLiteOptions> _options;
-    private readonly IOptions<SafetyOptions> _safety;
     private readonly IOptionsMonitor<GuardrailsOptions> _guardrailsOptions;
     private readonly IContentTrustService _contentTrustService;
     private readonly ToolExecutionContext _context;
@@ -37,11 +37,11 @@ public sealed class SqliteTool : ISqliteTool
     }
 
     /// <summary>Initializes a new instance of the <see cref="SqliteTool"/> class.</summary>
-    public SqliteTool(IPathSandbox sandbox, IOptions<SQLiteOptions> options, IOptions<SafetyOptions> safety, IOptionsMonitor<GuardrailsOptions> guardrailsOptions, IContentTrustService contentTrustService, ToolExecutionContext context, ILogger<SqliteTool> logger, TimeProvider timeProvider, IIncidentReporter incidentReporter)
+    [ActivatorUtilitiesConstructor]
+    public SqliteTool(IPathSandbox sandbox, IOptions<SQLiteOptions> options, IOptionsMonitor<GuardrailsOptions> guardrailsOptions, IContentTrustService contentTrustService, ToolExecutionContext context, ILogger<SqliteTool> logger, TimeProvider timeProvider, IIncidentReporter incidentReporter)
     {
         _sandbox = sandbox ?? throw new ArgumentNullException(nameof(sandbox));
         _options = options ?? throw new ArgumentNullException(nameof(options));
-        _safety = safety ?? throw new ArgumentNullException(nameof(safety));
         _guardrailsOptions = guardrailsOptions ?? throw new ArgumentNullException(nameof(guardrailsOptions));
         _contentTrustService = contentTrustService ?? throw new ArgumentNullException(nameof(contentTrustService));
         _context = context ?? throw new ArgumentNullException(nameof(context));
@@ -265,7 +265,7 @@ public sealed class SqliteTool : ISqliteTool
 
     /// <inheritdoc />
     [ToolLocalPath("databasePath", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite)]
-    [Tool("sqlite.execute", "Executes one modifying SQLite statement atomically and may create a database only when explicitly requested.", 400, SafetyFlag = "Safety:AllowSqliteWrite")]
+    [Tool("sqlite.execute", "Executes one modifying SQLite statement atomically and may create a database only when explicitly requested.", 400, RequiredCapability = TaskCapability.SqliteWrite)]
     public Task<string> ExecuteAsync(
         [ToolArgument(WorkflowArgumentKind.String, "Authorized SQLite database file path.", Example = "data/app.db")] string databasePath,
         [ToolArgument(WorkflowArgumentKind.String, "One modifying SQLite statement.", Example = "UPDATE items SET name = @name WHERE id = @id")] string sql,
@@ -273,7 +273,6 @@ public sealed class SqliteTool : ISqliteTool
         [ToolArgument(WorkflowArgumentKind.Boolean, "Whether a missing database file may be created.", Example = "false")] bool createIfMissing = false,
         CancellationToken cancellationToken = default) => ExecuteSanitizedAsync("sqlite.execute", createIfMissing ? "create" : "write", null, Task.Run(() =>
     {
-        if (!_safety.Value.AllowSqliteWrite) throw new SafetyException("sqlite.execute", "Safety:AllowSqliteWrite");
         ValidateDatabasePathInput(databasePath);
         var path = _sandbox.Resolve(databasePath, FileSystemAccessMode.ReadWrite, _context);
         if (Directory.Exists(path)) throw new InvalidOperationException("The SQLite database path must identify a file.");

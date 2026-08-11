@@ -111,7 +111,6 @@ public sealed class SettingsUtilityCommandTests
             new MutableOptionsMonitor<FileSystemOptions>(new FileSystemOptions()),
             new MutableOptionsMonitor<HttpOptions>(new HttpOptions()),
             new MutableOptionsMonitor<SchedulerOptions>(new SchedulerOptions()),
-            new MutableOptionsMonitor<SafetyOptions>(new SafetyOptions()),
             new MutableOptionsMonitor<GuardrailsOptions>(new GuardrailsOptions()),
             new MutableOptionsMonitor<LoggingOptions>(new LoggingOptions()),
             Mock.Of<ILlmClientFactory>(),

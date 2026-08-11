@@ -132,7 +132,7 @@ public sealed class WorkflowAssistantCoreTests
             workflow,
             [],
             [],
-            new SafetyOptions());
+            []);
 
         analysis.RequiredToolGroups.Should().BeEquivalentTo(
             [ToolGroups.FileSystem, ToolGroups.Dropbox]);
@@ -144,10 +144,10 @@ public sealed class WorkflowAssistantCoreTests
                 requirement.RequiredAccess == FileSystemAccessMode.ReadWrite);
         analysis.Warnings.Should().Contain(
             warning => warning.Contains("placeholder", StringComparison.OrdinalIgnoreCase));
-        analysis.SafetyRequirements.Should().ContainSingle(
+        analysis.CapabilityRequirements.Should().ContainSingle(
             requirement =>
-                requirement.ConfigurationKey == "Safety:AllowFileDelete" &&
-                !requirement.IsEnabled);
+                requirement.Capability == TaskCapability.PermanentFileDeletion &&
+                !requirement.IsGranted);
     }
 
     /// <summary>
@@ -178,7 +178,7 @@ public sealed class WorkflowAssistantCoreTests
                 new FileSystemAccessRule { Path = parent, Access = FileSystemAccessMode.ReadOnly },
                 new FileSystemAccessRule { Path = child, Access = FileSystemAccessMode.ReadWrite },
             ],
-            new SafetyOptions());
+            []);
 
         analysis.MissingToolGroups.Should().BeEmpty();
         analysis.MissingPathRequirements.Should().BeEmpty();
@@ -276,12 +276,12 @@ public sealed class WorkflowAssistantCoreTests
             explicitWorkflow,
             [ToolGroups.FileSystem],
             [],
-            new SafetyOptions());
+            []);
         var dynamicAnalysis = WorkflowRequirementAnalyzer.Analyze(
             dynamicWorkflow,
             [ToolGroups.FileSystem],
             [],
-            new SafetyOptions());
+            []);
 
         explicitAnalysis.MissingPathRequirements.Should().Contain(item =>
             item.DirectoryPath == ScheduledTaskValidator.NormalizeAccessPath(sourceRoot) &&
@@ -314,7 +314,7 @@ public sealed class WorkflowAssistantCoreTests
             workflow,
             [ToolGroups.FileSystem],
             [],
-            new SafetyOptions());
+            []);
 
         analysis.MissingPathRequirements.Should().Contain(
             item => item.IsVolumeRoot);

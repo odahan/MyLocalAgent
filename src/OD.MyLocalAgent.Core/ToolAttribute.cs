@@ -37,7 +37,7 @@ public sealed class ToolAttribute : DescriptionAttribute
     public string? AgentFunctionName { get; set; }
 
     /// <summary>
-    /// Gets or sets the optional required Safety configuration key.
+    /// Gets or sets the optional sensitive capability required for invocation.
     /// </summary>
-    public string? SafetyFlag { get; set; }
+    public TaskCapability RequiredCapability { get; set; }
 }

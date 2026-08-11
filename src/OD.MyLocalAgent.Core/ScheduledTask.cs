@@ -49,6 +49,11 @@ public sealed record ScheduledTask
     public IReadOnlyList<string> Tools { get; init; } = [];
 
     /// <summary>
+    /// Gets the sensitive side effects explicitly authorized for this task.
+    /// </summary>
+    public IReadOnlyList<TaskCapability> Capabilities { get; init; } = [];
+
+    /// <summary>
     /// Gets the absolute directories additionally authorized for this task.
     /// </summary>
     public IReadOnlyList<FileSystemAccessRule> FileSystemAccess { get; init; } = [];

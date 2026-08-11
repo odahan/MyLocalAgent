@@ -6,6 +6,7 @@
   "tools": [
     "filesystem"
   ],
+  "capabilities": [],
   "fileSystemAccess": [],
   "workflow": [
     {

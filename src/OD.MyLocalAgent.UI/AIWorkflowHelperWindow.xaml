@@ -28,7 +28,7 @@
                        Text="{Binding Title}" />
             <TextBlock Margin="0,5,0,0"
                        Style="{StaticResource CaptionTextStyle}"
-                       Text="The helper uses the provider selected in Settings. It does not execute workflow steps or change global Safety settings." />
+                       Text="The helper uses the provider selected in Settings. It does not execute workflow steps or grant sensitive task permissions without explicit approval." />
         </StackPanel>
 
         <ProgressBar Grid.Row="1"

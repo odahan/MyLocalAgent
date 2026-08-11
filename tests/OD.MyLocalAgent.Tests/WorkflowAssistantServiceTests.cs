@@ -329,7 +329,7 @@ public sealed class WorkflowAssistantServiceTests
             WorkflowErrorPolicy.StopOnError,
             [],
             [],
-            new SafetyOptions());
+            []);
 
     private sealed class CancellableAssistant : IWorkflowAssistantService
     {

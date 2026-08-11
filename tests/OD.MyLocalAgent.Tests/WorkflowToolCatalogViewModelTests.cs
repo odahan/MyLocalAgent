@@ -205,7 +205,7 @@ public sealed class WorkflowToolCatalogViewModelTests
                 workflowText.Length,
                 [],
                 [],
-                new SafetyOptions(),
+                [],
                 WorkflowErrorPolicy.StopOnError,
                 0.2,
                 1.0));

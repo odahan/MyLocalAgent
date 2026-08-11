@@ -1868,3 +1868,17 @@ compilation, freshness-window expansion, document classification, and guardrails
 - Build: 0 warnings, 0 errors
 - Tests: 594 passed (589 unit + 5 integration), 1 skipped (local Ollama)
 - Git tag `AVANTSPEC23` created and pushed
+
+### Per-task capability authorization and workflow long-text editing — 2026-08-11
+
+- Replaced global Safety configuration gates with stable `TaskCapability` values persisted on
+  `ScheduledTask`; missing collections default to empty and no migration infers grants.
+- `ToolRegistry` centrally filters agent tools and rejects every direct invocation whose immutable
+  `ToolExecutionContext` lacks the Tool Map-declared capability. Tool groups and path sandbox rules
+  remain independent mandatory checks.
+- Initial capabilities cover Gmail send, permanent deletion, Recycle Bin, HTTP POST, SQLite write,
+  PowerShell, Shell Execute, and archive write/extraction. PowerShell and Shell Execute are distinct.
+- Task editor, Tool catalog, AI Workflow Helper, and Tool Tester now operate on task permissions;
+  taskless AI Playground and Tool Tester contexts expose no sensitive aliases.
+- Tool argument metadata now includes `IsLongText`; the atomic **Edit workflow text** dialog edits
+  `ai.prompt.prompt` with `includeContext` and `filesystem.powerShell.script` with a local-execution warning.

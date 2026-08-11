@@ -280,7 +280,6 @@ public sealed class CompactContentTrustServiceTests
         var reporter = new StubIncidentReporter();
         var tool = new GmailTool(
             connector.Object,
-            Options.Create(new SafetyOptions()),
             new MutableOptionsMonitor<GuardrailsOptions>(options),
             service,
             reporter,

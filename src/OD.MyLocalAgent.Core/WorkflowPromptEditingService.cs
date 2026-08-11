@@ -43,34 +43,39 @@ public static class WorkflowPromptEditingService
         for (var position = 0; position < workflow.Count; position++)
         {
             var step = workflow[position];
-            if (!IsPromptStep(step))
+            var definition = ToolMap.Find(step.Step);
+            var longTextArguments = definition?.ArgumentDefinitions
+                .Where(static argument => argument.IsLongText)
+                .ToArray() ?? [];
+
+            foreach (var argument in longTextArguments)
             {
-                priorIds.Add(step.EffectiveId);
-                continue;
-            }
-
-            var hasPrompt = TryGetArgument(step, PromptArgument, out var promptValue) &&
-                promptValue.ValueKind == JsonValueKind.String;
-            var rawPrompt = hasPrompt ? promptValue.GetString() ?? string.Empty : string.Empty;
-
-            entries.Add(
-                new WorkflowPromptEntry
+                var hasText = TryGetArgument(step, argument.Name, out var textValue) &&
+                    textValue.ValueKind == JsonValueKind.String;
+                var rawText = hasText ? textValue.GetString() ?? string.Empty : string.Empty;
+                var supportsContext = IsPromptStep(step) &&
+                    string.Equals(argument.Name, PromptArgument, StringComparison.OrdinalIgnoreCase);
+                entries.Add(new WorkflowPromptEntry
                 {
+                    Alias = definition!.Alias,
+                    ArgumentName = argument.Name,
+                    SupportsIncludeContext = supportsContext,
                     Position = position,
                     ExplicitId = step.Id,
                     EffectiveId = step.EffectiveId,
-                    PromptText = NormalizeLineEndings(rawPrompt),
-                    IncludeContext = TryGetArgument(step, IncludeContextArgument, out var context) &&
+                    PromptText = NormalizeLineEndings(rawText),
+                    IncludeContext = supportsContext &&
+                        TryGetArgument(step, IncludeContextArgument, out var context) &&
                         context.ValueKind == JsonValueKind.True,
-                    RequiresLineEndingNormalization =
-                        rawPrompt.Contains('\r', StringComparison.Ordinal),
-                    IsRepairCase = !hasPrompt,
+                    RequiresLineEndingNormalization = rawText.Contains('\r', StringComparison.Ordinal),
+                    IsRepairCase = !hasText,
                     OnError = step.OnError,
                     RetryCount = step.RetryCount,
                     RetryBackoffSeconds = step.RetryBackoffSeconds,
                     GenerationOptions = step.GenerationOptions,
                     PriorStepIds = [.. priorIds],
                 });
+            }
 
             priorIds.Add(step.EffectiveId);
         }
@@ -98,17 +103,21 @@ public static class WorkflowPromptEditingService
         foreach (var edit in edits)
         {
             if (edit.Position < 0 || edit.Position >= updated.Count ||
-                !IsPromptStep(updated[edit.Position]))
+                ToolMap.Find(updated[edit.Position].Step)?.ArgumentDefinitions.Any(
+                    argument => argument.IsLongText && string.Equals(
+                        argument.Name,
+                        edit.ArgumentName,
+                        StringComparison.OrdinalIgnoreCase)) != true)
             {
                 throw new WorkflowValidationException(
-                    $"Workflow position {edit.Position} is not an '{ToolMap.PromptAlias}' step.");
+                    $"Workflow position {edit.Position} does not expose long-text argument '{edit.ArgumentName}'.");
             }
 
             var step = updated[edit.Position];
             updated[edit.Position] = step with
             {
                 IsStringForm = false,
-                Args = RewriteArguments(step.Args, edit),
+                Args = RewriteArguments(step, edit),
             };
         }
 
@@ -178,30 +187,30 @@ public static class WorkflowPromptEditingService
     }
 
     private static JsonElement RewriteArguments(
-        JsonElement arguments,
+        WorkflowStepDefinition step,
         WorkflowPromptEdit edit)
     {
         var buffer = new System.Buffers.ArrayBufferWriter<byte>();
         using (var writer = new Utf8JsonWriter(buffer))
         {
-            var promptWritten = false;
+            var textWritten = false;
             var contextWritten = false;
 
             writer.WriteStartObject();
-            if (arguments.ValueKind == JsonValueKind.Object)
+            if (step.Args.ValueKind == JsonValueKind.Object)
             {
-                foreach (var property in arguments.EnumerateObject())
+                foreach (var property in step.Args.EnumerateObject())
                 {
-                    if (property.NameEquals(PromptArgument))
+                    if (property.Name.Equals(edit.ArgumentName, StringComparison.OrdinalIgnoreCase))
                     {
                         writer.WriteString(
-                            PromptArgument,
+                            property.Name,
                             NormalizeLineEndings(edit.PromptText));
-                        promptWritten = true;
+                        textWritten = true;
                         continue;
                     }
 
-                    if (property.NameEquals(IncludeContextArgument))
+                    if (IsPromptStep(step) && property.NameEquals(IncludeContextArgument))
                     {
                         writer.WriteBoolean(IncludeContextArgument, edit.IncludeContext);
                         contextWritten = true;
@@ -212,12 +221,12 @@ public static class WorkflowPromptEditingService
                 }
             }
 
-            if (!promptWritten)
+            if (!textWritten)
             {
-                writer.WriteString(PromptArgument, NormalizeLineEndings(edit.PromptText));
+                writer.WriteString(edit.ArgumentName, NormalizeLineEndings(edit.PromptText));
             }
 
-            if (!contextWritten)
+            if (IsPromptStep(step) && !contextWritten)
             {
                 writer.WriteBoolean(IncludeContextArgument, edit.IncludeContext);
             }

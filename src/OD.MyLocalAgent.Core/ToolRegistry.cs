@@ -42,7 +42,9 @@ public sealed class ToolRegistry : IToolRegistry
         var functions = CreateFunctions(whitelist, executionContext);
         return _catalog.Definitions
             .Where(definition =>
-                definition.IsAgentTool && whitelist.Contains(definition.ToolGroup))
+                definition.IsAgentTool &&
+                whitelist.Contains(definition.ToolGroup) &&
+                IsAuthorized(definition, executionContext))
             .Select(definition => (AITool)functions[definition.Alias])
             .ToArray();
     }
@@ -91,6 +93,8 @@ public sealed class ToolRegistry : IToolRegistry
             throw new WorkflowValidationException(
                 $"Alias '{alias}' requires whitelisted tool group '{definition.ToolGroup}'.");
         }
+
+        EnsureAuthorized(definition, executionContext);
 
         if (arguments.ValueKind is not JsonValueKind.Undefined and not JsonValueKind.Object)
         {
@@ -154,7 +158,10 @@ public sealed class ToolRegistry : IToolRegistry
         var functions = new Dictionary<string, AIFunction>(StringComparer.OrdinalIgnoreCase);
 
         var enabledDefinitions = _catalog.Definitions
-            .Where(def => def.IsAgentTool && whitelist.Contains(def.ToolGroup));
+            .Where(def =>
+                def.IsAgentTool &&
+                whitelist.Contains(def.ToolGroup) &&
+                IsAuthorized(def, executionContext));
 
         foreach (var definition in enabledDefinitions)
         {
@@ -215,4 +222,21 @@ public sealed class ToolRegistry : IToolRegistry
                         StringComparer.OrdinalIgnoreCase)
                         ? $"{argument} (optional)"
                         : argument));
+
+    private static bool IsAuthorized(
+        ToolDefinition definition,
+        ToolExecutionContext context) =>
+        definition.RequiredCapability is not { } capability ||
+        context.Capabilities.Contains(capability);
+
+    private static void EnsureAuthorized(
+        ToolDefinition definition,
+        ToolExecutionContext context)
+    {
+        if (definition.RequiredCapability is { } capability &&
+            !context.Capabilities.Contains(capability))
+        {
+            throw new TaskAuthorizationException(context.TaskId, capability);
+        }
+    }
 }

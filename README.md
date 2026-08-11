@@ -43,9 +43,9 @@ its own navigation, search, styles, and scripts in one file.
 | 20 | Agent Prompt Placeholders | Complete with documented, human task test done |
 | 21 | Model Information Placeholders | Complete with automated verification |
 | 22 | Archive, Office, and PDF Tools | Complete with automated verification |
-| 23 | Web Discovery Tool (`research.discover`) | TO DO — V3 spec, inline params, no profiles, no storage |
-| 24 | Not implemented | 
-| 25 | Human Workflow Text Editing with advanced JSON mode | TO DO |
+| 23 | Web Discovery Tool (`research.discover`) | V3 spec, inline params, no profiles, no storage |
+| 24 | Not implemented |
+| 25 | Not implemented |
 
 See [Docs/acceptance-report.md](Docs/acceptance-report.md) for the executed acceptance
 evidence and any remaining environment-dependent checks.
@@ -364,21 +364,22 @@ controls at once can make results harder to predict; higher randomness can reduc
 structured-output and tool-selection reliability. OpenAI-compatible endpoints may also reject
 sampling ranges or oversized requests that another provider accepts.
 
-## Safety defaults
+## Sensitive task capability defaults
 
 The following side effects are disabled by default:
 
-| Alias | Required opt-in |
+| Alias | Required task capability |
 |---|---|
-| `gmail.send` | `Safety:AllowSendEmail` |
-| `filesystem.delete` | `Safety:AllowFileDelete` |
-| `filesystem.moveToBin` | `Safety:AllowMoveToBin` |
-| `http.post` | `Safety:AllowHttpPost` |
-| `sqlite.execute` | `Safety:AllowSqliteWrite` |
-| `filesystem.shellExecute` | `Safety:AllowProcessExecution` |
-| `filesystem.powerShell` | `Safety:AllowProcessExecution` |
+| `gmail.send` | `GmailSend` |
+| `filesystem.delete` | `PermanentFileDeletion` |
+| `filesystem.moveToBin` | `RecycleBin` |
+| `http.post` | `HttpPost` |
+| `sqlite.execute` | `SqliteWrite` |
+| `filesystem.shellExecute` | `ShellExecute` |
+| `filesystem.powerShell` | `PowerShellExecution` |
+| archive write/extract aliases | `ArchiveWrite` |
 
-A blocked operation throws `SafetyException` and names the required flag. This design keeps a
+A blocked operation throws `TaskAuthorizationException` and names the required capability. This design keeps a
 task definition, model response, or imported workflow from silently sending mail, deleting
 files, moving files to the Windows Recycle Bin, issuing outbound POST requests, or modifying a
 SQLite database.
@@ -602,7 +603,7 @@ absolute paths; relative paths continue beneath `FileSystem:RootPath`. Rules use
 
 Listing, reading, and Dropbox upload need read access. Writing, moving, directory creation,
 deletion, and Dropbox download need read-write access. Delete also requires
-`Safety:AllowFileDelete`. A declared location never grants NTFS rights, and a network path
+the `PermanentFileDeletion` task capability. A declared location never grants NTFS rights, and a network path
 can still fail in S4U.
 
 ### Agent prompt placeholders
@@ -855,7 +856,7 @@ The `sqlite` group provides four bounded operations against one authorized local
 `sqlite.listObjects`, `sqlite.describeTable`, `sqlite.query`, and `sqlite.execute`. Add
 `"sqlite"` to the task `tools` list. Relative paths stay under `FileSystem:RootPath`; absolute
 paths need an **Authorized locations** grant. Read aliases require ReadOnly access.
-`sqlite.execute` additionally requires ReadWrite access and `Safety:AllowSqliteWrite=true`.
+`sqlite.execute` additionally requires ReadWrite access and the `SqliteWrite` task capability.
 
 Use a database path, never a connection string, URI, network endpoint, `:memory:` database,
 attachment, extension, or caller-managed transaction. Reads never create a missing file;
@@ -928,7 +929,7 @@ JSON, and every new-task whitelist choice starts disabled.
 | `gmail.readToday` | `gmail_read_today` | `GmailTool.ReadTodayAsync` | optional `maxMessages` | — |
 | `gmail.readUnread` | `gmail_read_unread` | `GmailTool.ReadUnreadAsync` | optional `maxMessages` | — |
 | `gmail.readRecent` | `gmail_read_recent` | `GmailTool.ReadRecentAsync` | `daysBack`, optional `maxMessages` | — |
-| `gmail.send` | `gmail_send` | `GmailTool.SendAsync` | `to`, `subject`, `body` | `Safety:AllowSendEmail` |
+| `gmail.send` | `gmail_send` | `GmailTool.SendAsync` | `to`, `subject`, `body` | `GmailSend` |
 | `calendar.today` | `calendar_today` | `CalendarTool.TodayAsync` | none | — |
 | `calendar.read` | `calendar_read` | `CalendarTool.ReadAsync` | `period`: `Day`, `Week`, `Month`, or `Year` | — |
 | `calendar.create` | `calendar_create` | `CalendarTool.CreateAsync` | `summary`, `start`, `end`, `description` | — |
@@ -939,21 +940,21 @@ JSON, and every new-task whitelist choice starts disabled.
 | `filesystem.read` | `filesystem_read` | `FileSystemTool.ReadAsync` | `path` | — |
 | `filesystem.write` | `filesystem_write` | `FileSystemTool.WriteAsync` | `path`, `content` | — |
 | `filesystem.move` | `filesystem_move` | `FileSystemTool.MoveAsync` | `from`, `to` | — |
-| `filesystem.moveToBin` | `filesystem_move_to_bin` | `FileSystemTool.MoveToBinAsync` | `path` | `Safety:AllowMoveToBin` |
+| `filesystem.moveToBin` | `filesystem_move_to_bin` | `FileSystemTool.MoveToBinAsync` | `path` | `RecycleBin` |
 | `filesystem.rename` | `filesystem_rename` | `FileSystemTool.RenameAsync` | `path`, `newName` | — |
 | `filesystem.setExtension` | `filesystem_set_extension` | `FileSystemTool.SetExtensionAsync` | `path`, `extension` | — |
-| `filesystem.delete` | `filesystem_delete` | `FileSystemTool.DeleteAsync` | `path` | `Safety:AllowFileDelete` |
+| `filesystem.delete` | `filesystem_delete` | `FileSystemTool.DeleteAsync` | `path` | `PermanentFileDeletion` |
 | `filesystem.createDirectory` | `filesystem_create_directory` | `FileSystemTool.CreateDirectoryAsync` | `path` | — |
 | `filesystem.markdownToHtml` | `filesystem_markdown_to_html` | `FileSystemTool.MarkdownToHtmlAsync` | `sourcePath`, optional `destinationPath`, optional `theme` | — |
 | `filesystem.htmlToText` | `filesystem_html_to_text` | `FileSystemTool.HtmlToTextAsync` | `sourcePath`, optional `format` | — |
-| `filesystem.shellExecute` | `filesystem_shell_execute` | `FileSystemTool.ShellExecuteAsync` | `target`, optional `arguments`, optional `waitForExit`, optional `captureOutput` | `Safety:AllowProcessExecution` |
-| `filesystem.powerShell` | `filesystem_power_shell` | `FileSystemTool.PowerShellAsync` | `script`, optional `waitForExit`, optional `captureOutput` | `Safety:AllowProcessExecution` |
+| `filesystem.shellExecute` | `filesystem_shell_execute` | `FileSystemTool.ShellExecuteAsync` | `target`, optional `arguments`, optional `waitForExit`, optional `captureOutput` | `ShellExecute` |
+| `filesystem.powerShell` | `filesystem_power_shell` | `FileSystemTool.PowerShellAsync` | `script`, optional `waitForExit`, optional `captureOutput` | `PowerShellExecution` |
 | `sqlite.listObjects` | `sqlite_list_objects` | `SqliteTool.ListObjectsAsync` | `databasePath`, optional `objectType`, optional `namePattern`, optional `maxResults` | — |
 | `sqlite.describeTable` | `sqlite_describe_table` | `SqliteTool.DescribeTableAsync` | `databasePath`, `tableName` | — |
 | `sqlite.query` | `sqlite_query` | `SqliteTool.QueryAsync` | `databasePath`, `sql`, optional object `parameters`, optional `maxRows`, optional `storageSpaceId` | — |
-| `sqlite.execute` | `sqlite_execute` | `SqliteTool.ExecuteAsync` | `databasePath`, `sql`, optional object `parameters`, optional `createIfMissing` | `Safety:AllowSqliteWrite` |
+| `sqlite.execute` | `sqlite_execute` | `SqliteTool.ExecuteAsync` | `databasePath`, `sql`, optional object `parameters`, optional `createIfMissing` | `SqliteWrite` |
 | `http.get` | `http_get` | `HttpTool.GetAsync` | `url` | — |
-| `http.post` | `http_post` | `HttpTool.PostAsync` | `url`, `body`, `contentType` | `Safety:AllowHttpPost` |
+| `http.post` | `http_post` | `HttpTool.PostAsync` | `url`, `body`, `contentType` | `HttpPost` |
 | `http.getText` | `http_get_text` | `HttpTool.GetTextAsync` | `url` | — |
 | `web.search` | `web_search` | `WebSearchTool.SearchAsync` | `query`, optional `maxResults` | cloud opt-in |
 | `ai.summarize` | — | `SummarizeTextSkill` | optional `text` | — |
@@ -1035,7 +1036,7 @@ source and destination, just like `filesystem.move`.
 
 `filesystem.moveToBin` moves an authorized file or directory to the Windows Recycle Bin and
 never falls back to permanent deletion. It requires read-write path access and the independent
-`Safety:AllowMoveToBin` opt-in. `filesystem.markdownToHtml` reads Markdown and writes standalone
+the `RecycleBin` task capability. `filesystem.markdownToHtml` reads Markdown and writes standalone
 UTF-8 HTML; `destinationPath` defaults to the same name with `.html`, and `theme` defaults to
 `Dark` with `Light` also available. Raw Markdown HTML and remote resources are disabled.
 `filesystem.htmlToText` returns compact JSON containing extracted `content`; its optional
@@ -1046,7 +1047,7 @@ read-size cap and local-file content remains outside Guardrails classification.
 
 `filesystem.shellExecute` opens a file, URI, or application through the Windows shell.
 `filesystem.powerShell` runs a PowerShell script using a non-interactive session. Both require
-the disabled-by-default `Safety:AllowProcessExecution` opt-in. Their `waitForExit` argument
+their separate disabled-by-default `ShellExecute` and `PowerShellExecution` task capabilities. Their `waitForExit` argument
 controls whether the workflow waits for completion. `filesystem.powerShell` can return standard
 output and error with `captureOutput`; this requires `waitForExit=true`. Windows shell execution
 cannot capture output, so `filesystem.shellExecute` requires `captureOutput=false`.
@@ -1403,10 +1404,10 @@ normally. S4U and the runner cannot open consent. Confirm the OAuth client is a 
 the account is an allowed test user, the requested APIs/scopes are enabled, and the scheduled
 task uses the same Windows account.
 
-### A safety block is reported
+### A task capability block is reported
 
-Read the named `Safety:*` flag in the error. Enable it only after reviewing the workflow,
-tool whitelist, destination, and untrusted inputs. For `http.post`, also constrain
+Read the named capability in the error. Grant it in the task editor only after reviewing the
+workflow, tool whitelist, destination, and untrusted inputs. For `http.post`, also constrain
 `Http:AllowedHosts`.
 
 ### The runner cannot be found
@@ -1507,7 +1508,7 @@ intentional action.
 The task whitelist now includes **Archives**, **Word documents**, **Spreadsheets**, and **PDF
 documents**. They are disabled by default and do not grant a file path: every input/output must
 also be covered by the task's authorized locations. Archive extraction and ZIP creation require
-the global **Allow archive writes and extraction** Safety switch, which defaults to false.
+the task-owned `ArchiveWrite` capability, which defaults to absent.
 
 | Group / alias | Agent function | Ordered arguments (optional in brackets) | Local access | Safety |
 |---|---|---|---|---|
@@ -1533,3 +1534,17 @@ container must agree. ZIP is the only writable format. The defaults are `deflate
 the only alternatives are `store`, `fast`, and `smallest` as applicable. Existing output is never
 overwritten unless its explicit overwrite argument is true. ZIP replacement is staged and committed
 only after validation; extraction never recursively opens an archive found inside another archive.
+
+## Task-owned sensitive permissions
+
+Sensitive side effects are denied by default and are never enabled globally. A task must whitelist
+the tool group, satisfy every `fileSystemAccess` rule, and explicitly list each required stable
+`capabilities` value: `GmailSend`, `PermanentFileDeletion`, `RecycleBin`, `HttpPost`, `SqliteWrite`,
+`PowerShellExecution`, `ShellExecute`, or `ArchiveWrite`. PowerShell and Shell Execute are separate
+permissions. Existing task files without `capabilities` load with an empty list; no workflow is
+inspected to grant rights automatically. Tool Tester and AI Playground have no sensitive capability
+unless Tool Tester is explicitly bound to a saved task context.
+
+The task editor shows only permissions relevant to selected tool groups while preserving saved
+grants. **Edit workflow text** is metadata-driven and edits long-form `ai.prompt.prompt` and
+`filesystem.powerShell.script` values atomically without changing step identity or structure.

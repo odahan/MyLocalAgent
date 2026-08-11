@@ -56,6 +56,14 @@ internal sealed class UserSettingsService : IUserSettingsService
         {
             var document = await ReadDocumentAsync(cancellationToken)
                 .ConfigureAwait(false);
+            foreach (var legacySafetyKey in document
+                         .Select(static property => property.Key)
+                         .Where(static key => string.Equals(key, "Safety", StringComparison.OrdinalIgnoreCase))
+                         .ToArray())
+            {
+                _ = document.Remove(legacySafetyKey);
+            }
+
             foreach (var section in CreateDocument(
                          settings,
                          _configuration["Google:ClientId"] ?? string.Empty,
@@ -278,16 +286,6 @@ internal sealed class UserSettingsService : IUserSettingsService
                 ["TaskFolder"] = settings.TaskFolder,
                 ["RunWhenLoggedOff"] = settings.RunWhenLoggedOff,
                 ["RunnerPath"] = settings.RunnerPath,
-            },
-            ["Safety"] = new Dictionary<string, object>
-            {
-                ["AllowSendEmail"] = settings.AllowSendEmail,
-                ["AllowFileDelete"] = settings.AllowFileDelete,
-                ["AllowMoveToBin"] = settings.AllowMoveToBin,
-                ["AllowHttpPost"] = settings.AllowHttpPost,
-                ["AllowSqliteWrite"] = settings.AllowSqliteWrite,
-                ["AllowProcessExecution"] = settings.AllowProcessExecution,
-                ["AllowArchiveWrite"] = settings.AllowArchiveWrite,
             },
             ["SQLite"] = new Dictionary<string, object>
             {

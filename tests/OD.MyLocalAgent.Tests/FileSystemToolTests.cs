@@ -48,9 +48,6 @@ public sealed class FileSystemToolTests : IDisposable
             "reports/renamed.txt",
             "md",
             CancellationToken.None);
-        var blockedDelete = () => blockedTool.DeleteAsync(
-            "reports/renamed.md",
-            CancellationToken.None);
 
         JsonDocument.Parse(writeJson).RootElement.GetProperty("bytes").GetInt32()
             .Should().Be(5);
@@ -63,11 +60,7 @@ public sealed class FileSystemToolTests : IDisposable
         JsonDocument.Parse(extensionJson).RootElement.GetProperty("extension").GetString()
             .Should().Be(".md");
         File.Exists(Path.Combine(_rootPath, "reports", "renamed.md")).Should().BeTrue();
-        await blockedDelete.Should().ThrowAsync<SafetyException>()
-            .Where(exception => exception.RequiredFlag == "Safety:AllowFileDelete");
-
-        var allowedTool = CreateTool(allowDelete: true);
-        var deleteJson = await allowedTool.DeleteAsync(
+        var deleteJson = await blockedTool.DeleteAsync(
             "reports/renamed.md",
             CancellationToken.None);
         JsonDocument.Parse(deleteJson).RootElement.GetProperty("deleted").GetBoolean()
@@ -113,7 +106,7 @@ public sealed class FileSystemToolTests : IDisposable
     /// Verifies moving to the Recycle Bin requires both write authorization and its dedicated Safety gate.
     /// </summary>
     [Fact]
-    public async Task MoveToBinRequiresWriteAuthorizationAndDedicatedSafetyGate()
+    public async Task MoveToBinRequiresWriteAuthorization()
     {
         Directory.CreateDirectory(_rootPath);
         var path = Path.Combine(_rootPath, "discard.txt");
@@ -122,17 +115,6 @@ public sealed class FileSystemToolTests : IDisposable
         recycleBin
             .Setup(instance => instance.MoveToBinAsync(path, CancellationToken.None))
             .Returns(Task.CompletedTask);
-        var blockedTool = CreateTool(
-            allowDelete: false,
-            allowMoveToBin: false,
-            recycleBinService: recycleBin.Object);
-        var blocked = () => blockedTool.MoveToBinAsync(
-            "discard.txt",
-            CancellationToken.None);
-
-        await blocked.Should().ThrowAsync<SafetyException>()
-            .Where(exception => exception.RequiredFlag == "Safety:AllowMoveToBin");
-
         var allowedTool = CreateTool(
             allowDelete: false,
             allowMoveToBin: true,
@@ -150,16 +132,8 @@ public sealed class FileSystemToolTests : IDisposable
     /// Verifies process execution is disabled by default and PowerShell can return output when enabled.
     /// </summary>
     [Fact]
-    public async Task PowerShellRequiresSafetyGateAndCanCaptureOutput()
+    public async Task PowerShellCanCaptureOutput()
     {
-        var blockedTool = CreateTool(allowDelete: false);
-        var blocked = () => blockedTool.PowerShellAsync(
-            "Write-Output 'hello'",
-            cancellationToken: CancellationToken.None);
-
-        await blocked.Should().ThrowAsync<SafetyException>()
-            .Where(exception => exception.RequiredFlag == "Safety:AllowProcessExecution");
-
         var allowedTool = CreateTool(allowDelete: false, allowProcessExecution: true);
         var json = await allowedTool.PowerShellAsync(
             "Write-Output 'hello'",
@@ -323,7 +297,6 @@ public sealed class FileSystemToolTests : IDisposable
             new FileSystemOptions { RootPath = _rootPath, MaxReadBytes = 4 });
         var tool = new FileSystemTool(
             new PathSandbox(fileSystemOptions),
-            Options.Create(new SafetyOptions()),
             fileSystemOptions,
             Mock.Of<IRecycleBinService>(),
             NullLogger<FileSystemTool>.Instance,
@@ -586,23 +559,15 @@ public sealed class FileSystemToolTests : IDisposable
     /// Verifies absolute deletion requires both task write access and the Safety gate.
     /// </summary>
     [Fact]
-    public async Task AbsoluteDeleteRequiresLocationAndSafetyAuthorization()
+    public async Task AbsoluteDeleteRequiresLocationAuthorization()
     {
         Directory.CreateDirectory(_rootPath);
         Directory.CreateDirectory(_authorizedPath);
         var filePath = Path.Combine(_authorizedPath, "delete.txt");
         await File.WriteAllTextAsync(filePath, "delete");
         var context = CreateContext("delete-task", _authorizedPath);
-        var blockedTool = CreateTool(allowDelete: false, context);
-        var blockedAction = () => blockedTool.DeleteAsync(
-            filePath,
-            CancellationToken.None);
-
-        await blockedAction.Should().ThrowAsync<SafetyException>()
-            .Where(exception => exception.RequiredFlag == "Safety:AllowFileDelete");
-
-        var allowedTool = CreateTool(allowDelete: true, context);
-        _ = await allowedTool.DeleteAsync(filePath, CancellationToken.None);
+        var tool = CreateTool(allowDelete: true, context);
+        _ = await tool.DeleteAsync(filePath, CancellationToken.None);
 
         File.Exists(filePath).Should().BeFalse();
     }
@@ -679,13 +644,6 @@ public sealed class FileSystemToolTests : IDisposable
             new FileSystemOptions { RootPath = _rootPath });
         return new FileSystemTool(
             new PathSandbox(fileSystemOptions),
-            Options.Create(
-                new SafetyOptions
-                {
-                    AllowFileDelete = allowDelete,
-                    AllowMoveToBin = allowMoveToBin,
-                    AllowProcessExecution = allowProcessExecution,
-                }),
             fileSystemOptions,
             recycleBinService ?? Mock.Of<IRecycleBinService>(),
             NullLogger<FileSystemTool>.Instance,

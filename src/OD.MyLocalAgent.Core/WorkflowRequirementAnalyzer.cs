@@ -9,23 +9,23 @@ namespace OD.MyLocalAgent.Core;
 public static partial class WorkflowRequirementAnalyzer
 {
     /// <summary>
-    /// Analyzes a workflow against the current task authorization and Safety configuration.
+    /// Analyzes a workflow against the current task authorization.
     /// </summary>
     /// <param name="workflow">The ordered workflow definitions.</param>
     /// <param name="currentToolGroups">The task's current tool groups.</param>
     /// <param name="currentAccess">The task's current absolute-directory rules.</param>
-    /// <param name="safety">The current global Safety settings.</param>
+    /// <param name="currentCapabilities">The task's currently granted sensitive capabilities.</param>
     /// <returns>The deterministic requirement analysis.</returns>
     public static WorkflowRequirementAnalysis Analyze(
         IReadOnlyList<WorkflowStepDefinition> workflow,
         IEnumerable<string> currentToolGroups,
         IReadOnlyList<FileSystemAccessRule> currentAccess,
-        SafetyOptions safety)
+        IEnumerable<TaskCapability> currentCapabilities)
     {
         ArgumentNullException.ThrowIfNull(workflow);
         ArgumentNullException.ThrowIfNull(currentToolGroups);
         ArgumentNullException.ThrowIfNull(currentAccess);
-        ArgumentNullException.ThrowIfNull(safety);
+        ArgumentNullException.ThrowIfNull(currentCapabilities);
 
         var currentGroups = new HashSet<string>(
             currentToolGroups,
@@ -111,34 +111,34 @@ public static partial class WorkflowRequirementAnalyzer
             .OrderBy(static requirement => requirement.DirectoryPath, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        var safetyRequirements = workflow
+        var grantedCapabilities = currentCapabilities.ToHashSet();
+        var capabilityRequirements = workflow
             .Select(step => ToolMap.Find(step.Step))
-            .Where(static definition => !string.IsNullOrWhiteSpace(definition?.SafetyFlag))
+            .Where(static definition => definition?.RequiredCapability is not null)
             .GroupBy(
-                static definition => definition!.SafetyFlag!,
-                StringComparer.OrdinalIgnoreCase)
+                static definition => definition!.RequiredCapability!.Value)
             .Select(
-                group => new WorkflowSafetyRequirement(
+                group => new WorkflowCapabilityRequirement(
                     group.Key,
-                    IsSafetyEnabled(group.Key, safety),
+                    grantedCapabilities.Contains(group.Key),
                     group.Select(static definition => definition!.Alias)
                         .Distinct(StringComparer.OrdinalIgnoreCase)
                         .OrderBy(static alias => alias, StringComparer.OrdinalIgnoreCase)
                         .ToArray()))
-            .OrderBy(static requirement => requirement.ConfigurationKey, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static requirement => requirement.Capability)
             .ToArray();
 
-        foreach (var requirement in safetyRequirements.Where(static item => !item.IsEnabled))
+        foreach (var requirement in capabilityRequirements.Where(static item => !item.IsGranted))
         {
             warnings.Add(
-                $"{requirement.ConfigurationKey} is disabled; execution of {string.Join(", ", requirement.SourceAliases)} will fail until the user enables it in Settings.");
+                $"Capability '{requirement.Capability}' is not granted; execution of {string.Join(", ", requirement.SourceAliases)} will fail until it is enabled in the task permissions.");
         }
 
         return new WorkflowRequirementAnalysis(
             requiredGroups,
             missingGroups,
             pathRequirements,
-            safetyRequirements,
+            capabilityRequirements,
             warnings.Distinct(StringComparer.Ordinal).ToArray());
     }
 
@@ -335,9 +335,6 @@ public static partial class WorkflowRequirementAnalyzer
                 normalizedRoot + Path.DirectorySeparatorChar,
                 StringComparison.OrdinalIgnoreCase);
     }
-
-    private static bool IsSafetyEnabled(string key, SafetyOptions safety) =>
-        safety.IsEnabled(key);
 
     [GeneratedRegex(@"%[^%]+%", RegexOptions.CultureInvariant)]
     private static partial Regex EnvironmentVariablePattern();

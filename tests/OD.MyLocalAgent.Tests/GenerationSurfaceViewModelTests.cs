@@ -309,7 +309,6 @@ public sealed class GenerationSurfaceViewModelTests
             new MutableOptionsMonitor<HttpOptions>(new HttpOptions()),
             new MutableOptionsMonitor<SchedulerOptions>(
                 new SchedulerOptions()),
-            new MutableOptionsMonitor<SafetyOptions>(new SafetyOptions()),
             new MutableOptionsMonitor<GuardrailsOptions>(
                 new GuardrailsOptions()),
             new MutableOptionsMonitor<LoggingOptions>(new LoggingOptions()),

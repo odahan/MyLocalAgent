@@ -48,9 +48,9 @@ public sealed class WorkflowToolCatalogItem
     public string Description => Tool.Description;
 
     /// <summary>
-    /// Gets a value indicating whether the entry requires a Safety flag.
+    /// Gets a value indicating whether the entry requires a sensitive task capability.
     /// </summary>
-    public bool RequiresSafetyFlag => Tool.SafetyFlag is not null;
+    public bool RequiresCapability => Tool.RequiredCapability is not null;
 
     /// <summary>
     /// Gets a value indicating whether the entry is a built-in AI step needing no tool group.

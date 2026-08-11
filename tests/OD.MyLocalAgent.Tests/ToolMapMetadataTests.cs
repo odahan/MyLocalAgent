@@ -150,7 +150,7 @@ public sealed class ToolMapMetadataTests
             definition.ToolGroup.Should().Be("ai");
             definition.AgentFunctionName.Should().BeNull();
             definition.MethodName.Should().BeNull();
-            definition.SafetyFlag.Should().BeNull();
+            definition.RequiredCapability.Should().BeNull();
             definition.LocalPathArguments.Should().BeEmpty();
             ToolGroups.All.Should().NotContain(
                 definition.ToolGroup,

@@ -14,7 +14,7 @@ public enum FileSystemAccessMode
     ReadOnly,
 
     /// <summary>
-    /// Allows reads and mutations, subject to independent Safety gates.
+    /// Allows reads and mutations, subject to independent task capabilities.
     /// </summary>
     ReadWrite,
 }

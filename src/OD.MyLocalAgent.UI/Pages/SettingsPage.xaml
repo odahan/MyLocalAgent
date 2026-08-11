@@ -347,52 +347,6 @@
                     <Separator Margin="0,22,0,20"
                                Background="{DynamicResource DividerBrush}" />
 
-                    <TextBlock FontWeight="SemiBold"
-                               Text="Safety gates" />
-                    <CheckBox Margin="0,12,0,0"
-                              Content="Allow sending email"
-                              IsChecked="{Binding AllowSendEmail, Mode=TwoWay}" />
-                    <TextBlock Margin="24,2,0,0"
-                               Style="{StaticResource CaptionTextStyle}"
-                               Text="Permits gmail.send to transmit email from unattended tasks." />
-                    <CheckBox Margin="0,12,0,0"
-                              Content="Allow file deletion"
-                              IsChecked="{Binding AllowFileDelete, Mode=TwoWay}" />
-                    <TextBlock Margin="24,2,0,0"
-                               Style="{StaticResource CaptionTextStyle}"
-                               Text="Permits filesystem.delete inside the configured sandbox root." />
-                    <CheckBox Margin="0,12,0,0"
-                              Content="Allow moving files to the Recycle Bin"
-                              IsChecked="{Binding AllowMoveToBin, Mode=TwoWay}" />
-                    <TextBlock Margin="24,2,0,0"
-                               Style="{StaticResource CaptionTextStyle}"
-                               Text="Permits filesystem.moveToBin for authorized files and directories." />
-                    <CheckBox Margin="0,12,0,0"
-                              Content="Allow HTTP POST"
-                              IsChecked="{Binding AllowHttpPost, Mode=TwoWay}" />
-                    <TextBlock Margin="24,2,0,0"
-                               Style="{StaticResource CaptionTextStyle}"
-                               Text="Permits http.post to send data to allowed hosts." />
-                    <CheckBox Margin="0,12,0,0"
-                              Content="Allow SQLite writes"
-                              IsChecked="{Binding AllowSqliteWrite, Mode=TwoWay}" />
-                    <TextBlock Margin="24,2,0,0"
-                               Style="{StaticResource CaptionTextStyle}"
-                               Text="Permits sqlite.execute against an authorized ReadWrite database path." />
-                    <CheckBox Margin="0,12,0,0"
-                              Content="Allow process execution"
-                              IsChecked="{Binding AllowProcessExecution, Mode=TwoWay}" />
-                    <TextBlock Margin="24,2,0,0"
-                               Style="{StaticResource CaptionTextStyle}"
-                               Text="Permits filesystem.shellExecute and filesystem.powerShell to launch local processes." />
-                    <CheckBox Margin="0,12,0,0"
-                              Content="Allow archive writes and extraction"
-                              IsChecked="{Binding AllowArchiveWrite, Mode=TwoWay}" />
-                    <TextBlock Margin="24,2,0,0"
-                               Style="{StaticResource CaptionTextStyle}"
-                               Text="Permits archive extraction and ZIP creation only when the task group and ReadWrite authorized destination are also configured." />
-
-                    <Separator Margin="0,22,0,20" Background="{DynamicResource DividerBrush}" />
                     <TextBlock FontWeight="SemiBold" Text="File content limits" />
                     <TextBlock Margin="0,4,0,12" Style="{StaticResource CaptionTextStyle}" Text="Bounds local archive, Office, and PDF parsing before content reaches a task." />
                     <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="16" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>

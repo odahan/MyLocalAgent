@@ -75,6 +75,25 @@ public static partial class ScheduledTaskValidator
             }
         }
 
+        if (task.Capabilities is null)
+        {
+            throw new TaskValidationException("Task 'capabilities' must be an array.");
+        }
+
+        var capabilities = new HashSet<TaskCapability>();
+        foreach (var capability in task.Capabilities)
+        {
+            if (capability == TaskCapability.None || !Enum.IsDefined(capability))
+            {
+                throw new TaskValidationException($"Task capability '{capability}' is unknown.");
+            }
+
+            if (!capabilities.Add(capability))
+            {
+                throw new TaskValidationException($"Task capability '{capability}' is duplicated.");
+            }
+        }
+
         ValidateFileSystemAccess(task.FileSystemAccess);
 
         if (task.Workflow is null)

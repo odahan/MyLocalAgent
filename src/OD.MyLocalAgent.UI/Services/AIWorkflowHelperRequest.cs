@@ -16,7 +16,7 @@ namespace OD.MyLocalAgent.UI.Services;
 /// <param name="ErrorPolicy">The current task error policy.</param>
 /// <param name="ToolGroups">The current task tool groups.</param>
 /// <param name="FileSystemAccess">The current task filesystem rules.</param>
-/// <param name="Safety">The current global Safety settings.</param>
+/// <param name="Capabilities">The current task sensitive permissions.</param>
 public sealed record AIWorkflowHelperRequest(
     AIWorkflowHelperMode Mode,
     IReadOnlyList<WorkflowStepDefinition> Workflow,
@@ -27,7 +27,7 @@ public sealed record AIWorkflowHelperRequest(
     WorkflowErrorPolicy ErrorPolicy,
     IReadOnlyList<string> ToolGroups,
     IReadOnlyList<FileSystemAccessRule> FileSystemAccess,
-    SafetyOptions Safety)
+    IReadOnlyList<TaskCapability> Capabilities)
 {
     /// <summary>
     /// Gets the current unsaved task generation overrides.

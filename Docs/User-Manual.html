@@ -2123,12 +2123,10 @@ ollama list</code></pre>
                     produit un avertissement et une case d’acceptation <em>décochée</em> que vous
                     devez valider explicitement. Le groupe intégré <code>ai</code> n’est qu’une
                     étiquette de regroupement : il n’est jamais autorisable et n’apparaît jamais
-                    dans un résultat d’acceptation. Les réglages Safety sont affichés en lecture
-                    seule et ne sont jamais modifiés.
+                    dans un résultat d’acceptation. Les capacités requises sont signalées mais ne
+                    sont jamais accordées automatiquement.
                 </div><h3 id="workflow-prompt-editor">Workflow prompt editor</h3><p>
-<span class="ui-label">Edit prompts</span> liste toutes les étapes
-                    <code>ai.prompt</code> dans l’ordre de déclaration et modifie uniquement leur
-                    texte <code>prompt</code> et leur option <code>includeContext</code>. Aucune
+<span class="ui-label">Edit workflow text</span> liste dans l’ordre les arguments marqués comme texte long dans le Tool Map, notamment <code>ai.prompt.prompt</code> et <code>filesystem.powerShell.script</code>. Il modifie uniquement le texte choisi et les options explicitement associées comme <code>includeContext</code>. Aucune
                     étape n’est ajoutée, supprimée, réordonnée, renommée ni retypée ; aucun id,
                     politique d’erreur, tentative, option de génération ou autre argument n’est
                     touché. Les étapes sont identifiées par leur position, si bien que des ids
@@ -2495,7 +2493,7 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
                     <code>FileSystem:RootPath</code> ; un chemin absolu requiert une autorisation
                     dans Authorized locations. Les trois premiers alias requièrent ReadOnly.
                     <code>sqlite.execute</code> exige aussi ReadWrite et
-                    <code>Safety:AllowSqliteWrite</code>.</p>
+                    la capacité de tâche <code>SqliteWrite</code>.</p>
 <p>Utilisez un chemin de base, jamais une chaîne de connexion, une URI, une
                     base réseau ou <code>:memory:</code>. Une lecture ne crée jamais de fichier.
                     Une écriture ne crée un fichier manquant qu’avec
@@ -2511,7 +2509,7 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
 <ol class="steps">
 <li>Dans l’éditeur de tâche, cochez uniquement <code>sqlite</code> dans <span class="ui-label">Tool whitelist</span>.</li>
 <li>Pour les lectures, utilisez un chemin relatif sous <code>FileSystem:RootPath</code> ou accordez au fichier absolu une autorisation ReadOnly dans <span class="ui-label">Authorized locations</span>.</li>
-<li>Pour une écriture, accordez ReadWrite au même emplacement, puis activez explicitement <span class="ui-label">Settings → Safety gates → Allow SQLite write</span>. Ces trois conditions sont indépendantes.</li>
+<li>Pour une écriture, accordez ReadWrite au même emplacement, puis accordez explicitement <code>SqliteWrite</code> dans <span class="ui-label">Sensitive operation permissions</span>. Ces trois conditions sont indépendantes.</li>
 <li>Dans <span class="ui-label">Settings → SQLite</span>, définissez le nombre de lignes par défaut et maximal, les limites de caractères de résultat et de SQL, la limite BLOB et le délai d’attente. Les limites tronquent la réponse ; elles ne garantissent pas un nombre total de lignes ou d’objets.</li>
 </ol>
 <p>La case <strong>Protect SQLite read results with Guardrails</strong> de l’éditeur est enregistrée avec chaque tâche. Le réglage homonyme de Settings sert seulement de valeur initiale aux nouvelles tâches et aux essais sans tâche (Tool tester et AI Playground) ; modifier Settings ne change pas une tâche existante.</p>
@@ -3215,13 +3213,13 @@ ollama list</code></pre>
 </div>
 <section id="stage22-local-files">
 <h2>Archives, documents Office et PDF</h2>
-<p><strong>Archives</strong>, <strong>Word documents</strong>, <strong>Spreadsheets</strong> et <strong>PDF documents</strong> sont indépendants et décochés pour une nouvelle tâche. Un groupe n’accorde jamais un chemin, et un chemin n’active jamais un groupe. Accordez ReadOnly à chaque entrée et ReadWrite à chaque sortie. Extraction, création et ajout d’archives exigent aussi <span class="ui-label">Allow archive writes and extraction</span> dans Settings ; cet interrupteur n’accorde ni groupe ni chemin.</p>
+<p><strong>Archives</strong>, <strong>Word documents</strong>, <strong>Spreadsheets</strong> et <strong>PDF documents</strong> sont indépendants et décochés pour une nouvelle tâche. Un groupe n’accorde jamais un chemin, et un chemin n’active jamais un groupe. Accordez ReadOnly à chaque entrée et ReadWrite à chaque sortie. Extraction, création et ajout d’archives exigent aussi la capacité de tâche <code>ArchiveWrite</code> ; elle n’accorde ni groupe ni chemin.</p>
 <div class="callout warning"><strong>Données non fiables :</strong> noms d’archives, textes, feuilles, cellules et métadonnées PDF peuvent contenir des instructions trompeuses. Les limites obligatoires sont appliquées avant l’entrée du contenu dans un agent ou workflow.</div>
 <h3>Formats et limites</h3>
 <p>Formats de lecture/extraction : ZIP, 7z, RAR, TAR, TAR.GZ/TGZ, TAR.BZ2/TBZ2, TAR.LZ, TAR.XZ/TXZ, TAR.ZST/TZST, GZIP, BZIP2, LZIP, XZ et Zstandard, avec validation de l’extension et du contenu. Seul ZIP est inscriptible. DOCX, valeurs stockées XLS/XLSX/XLSB, métadonnées et texte PDF sont en lecture seule et analysés localement ; aucune application de bureau n’est ouverte.</p>
 <p>Plafonds livrés : entrée 100 Mio ; 10 000 entrées d’archive ; 250 Mio par entrée extraite ; 1 Gio au total ; ratio 200 ; 1 000 entrées listées ; 64 000 caractères ; 1 000 lignes ; 256 colonnes ; 25 000 cellules ; 100 pages PDF. Settings permet uniquement des valeurs dans les bornes validées ; aucune valeur ne désactive une limite.</p>
 <h3>1. Extraire une entrée ZIP</h3>
-<p>Activez Archives, accordez ReadOnly à <code>work/in.zip</code> et ReadWrite à <code>work/output/readme.txt</code>, activez la Safety des archives, puis utilisez :</p>
+<p>Activez Archives, accordez ReadOnly à <code>work/in.zip</code> et ReadWrite à <code>work/output/readme.txt</code>, accordez <code>ArchiveWrite</code>, puis utilisez :</p>
 <div class="code-block"><pre><code>{ "id": "extract-one", "tool": "archive.extract", "arguments": {
   "archivePath": "work/in.zip", "entryPath": "docs/readme.txt",
   "destinationPath": "work/output/readme.txt", "overwrite": false
@@ -3273,14 +3271,14 @@ ollama list</code></pre>
 <h3>7. Diagnostiquer les échecs</h3>
 <div class="table-wrap"><table><thead><tr><th>Échec</th><th>Vérification</th></tr></thead><tbody>
 <tr><td>Groupe/chemin absent</td><td>Enregistrez le groupe exact, puis ajoutez indépendamment toutes les entrées ReadOnly et sorties ReadWrite.</td></tr>
-<tr><td>Safety désactivée</td><td>Activez Allow archive writes and extraction. La liste ne demande pas cette autorisation.</td></tr>
+<tr><td>Autorisation absente</td><td>Accordez <code>ArchiveWrite</code> à la tâche. La liste ne demande aucune capacité sensible.</td></tr>
 <tr><td>DestinationExists</td><td>Utilisez un dossier d’extraction absent ou activez explicitement le drapeau d’écrasement pris en charge.</td></tr>
 <tr><td>EncryptedFile</td><td>Archives/PDF protégés par mot de passe non pris en charge ; aucun argument de mot de passe n’existe.</td></tr>
 <tr><td>UnsupportedFormat / FormatMismatch</td><td>Utilisez une extension autorisée conforme à la signature réelle ; un fichier Office ZIP renommé n’est pas une archive.</td></tr>
 <tr><td>CorruptFile</td><td>Remplacez la source endommagée/tronquée. Messages du parseur et contenu restent masqués.</td></tr>
 <tr><td>LimitExceeded</td><td>Réduisez plage/pages ou vérifiez File content ; plafonds d’entrée, nombre, expansion, ratio, lignes, cellules, pages et caractères restent obligatoires.</td></tr>
 </tbody></table></div>
-<div class="code-block"><pre><code>Ordre du diagnostic : groupe → accès au chemin → Safety des archives → destination/écrasement
+<div class="code-block"><pre><code>Ordre du diagnostic : groupe → accès au chemin → capacité ArchiveWrite → destination/écrasement
 → chiffrement → extension/signature → corruption → limite configurée</code></pre></div>
 <p>Surface complète : <code>archive.list</code>, <code>archive.extract</code>, <code>archive.extractAll</code>, <code>archive.createZip</code>, <code>archive.addToZip</code>, <code>document.readDocx</code>, <code>spreadsheet.listSheets</code>, <code>spreadsheet.readRange</code>, <code>pdf.getInfo</code> et <code>pdf.readText</code>. L’extraction est non récursive : une archive imbriquée reste un fichier ordinaire. Aucun mot de passe, OCR, macro, recalcul de formule, accès externe, conversion d’archive ou édition Office/PDF.</p>
 </section>
@@ -3485,5 +3483,10 @@ const body = document.body;
             }
         })();
     </script>
+    <section id="task-capabilities">
+      <h2>Autorisations sensibles par tâche</h2>
+      <p>Les opérations sensibles sont refusées par défaut. Il n’existe plus de bouton Safety global. Une tâche doit accorder explicitement la capacité requise, en plus de sa liste blanche de groupes et de ses règles d’accès aux fichiers. PowerShell et Shell Execute sont des droits distincts. Les anciennes tâches sans champ <code>capabilities</code> ne reçoivent aucun droit sensible.</p>
+      <p>Le dialogue <strong>Edit workflow text</strong> modifie atomiquement les prompts IA longs et les scripts PowerShell en préservant l’identité, l’ordre, le type et les autres arguments des étapes.</p>
+    </section>
 </body>
 </html>

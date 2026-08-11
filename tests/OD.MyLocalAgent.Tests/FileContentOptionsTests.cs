@@ -7,12 +7,12 @@ namespace OD.MyLocalAgent.Tests;
 /// <summary>Verifies Stage 22 file-content option boundaries.</summary>
 public sealed class FileContentOptionsTests
 {
-    /// <summary>Verifies the archive-write Safety key remains fail-closed by default.</summary>
+    /// <summary>Verifies archive writes declare a task-owned capability.</summary>
     [Fact]
-    public void ArchiveWriteSafetyIsDisabledByDefaultAndRecognizedWhenEnabled()
+    public void ArchiveWriteCapabilityIsDeclared()
     {
-        new SafetyOptions().IsEnabled("Safety:AllowArchiveWrite").Should().BeFalse();
-        new SafetyOptions { AllowArchiveWrite = true }.IsEnabled("Safety:AllowArchiveWrite").Should().BeTrue();
+        ToolMap.Find("archive.extract")!.RequiredCapability.Should().Be(TaskCapability.ArchiveWrite);
+        ToolExecutionContext.Taskless.Capabilities.Should().BeEmpty();
     }
 
     /// <summary>Verifies shipped defaults form a valid bounded configuration.</summary>

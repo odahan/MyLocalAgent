@@ -75,8 +75,8 @@ public sealed partial class WorkflowPromptEditorViewModel : ObservableObject
 
         SelectedItem = Items.FirstOrDefault();
         StatusText = IsEmpty
-            ? "This workflow declares no 'ai.prompt' step."
-            : "Edit prompt text and accumulated context. Apply writes every change at once.";
+            ? "This workflow declares no long-text arguments."
+            : "Edit workflow text arguments. Apply writes every change atomically.";
 
         OnPropertyChanged(nameof(IsEmpty));
         RaiseSessionState();
@@ -93,7 +93,10 @@ public sealed partial class WorkflowPromptEditorViewModel : ObservableObject
     {
         var edits = Items
             .Where(item => item.IsModified)
-            .Select(item => new WorkflowPromptEdit(item.Position, item.PromptText, item.IncludeContext))
+            .Select(item => new WorkflowPromptEdit(item.Position, item.PromptText, item.IncludeContext)
+            {
+                ArgumentName = item.ArgumentName,
+            })
             .ToList();
 
         Result = new WorkflowPromptEditorResult

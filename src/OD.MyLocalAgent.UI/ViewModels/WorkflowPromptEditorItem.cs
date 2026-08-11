@@ -43,6 +43,18 @@ public sealed partial class WorkflowPromptEditorItem : ObservableObject
     /// </summary>
     public string EffectiveId => _entry.EffectiveId;
 
+    /// <summary>Gets the Tool Map alias.</summary>
+    public string Alias => _entry.Alias;
+
+    /// <summary>Gets the edited argument name.</summary>
+    public string ArgumentName => _entry.ArgumentName;
+
+    /// <summary>Gets whether includeContext is applicable.</summary>
+    public bool SupportsIncludeContext => _entry.SupportsIncludeContext;
+
+    /// <summary>Gets whether the local PowerShell warning is shown.</summary>
+    public bool IsPowerShell => _entry.IsPowerShell;
+
     /// <summary>
     /// Gets the effective identifiers declared before this step.
     /// </summary>
@@ -83,7 +95,7 @@ public sealed partial class WorkflowPromptEditorItem : ObservableObject
     /// Gets a value indicating whether the prompt already carries prior output or context.
     /// </summary>
     public bool HasContextDuplication =>
-        IncludeContext &&
+        SupportsIncludeContext && IncludeContext &&
         WorkflowPromptEditingService.ReferencesWorkflowOutput(PromptText, PriorStepIds);
 
     /// <summary>

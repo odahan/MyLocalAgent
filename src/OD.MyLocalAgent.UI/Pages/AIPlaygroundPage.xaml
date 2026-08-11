@@ -68,7 +68,7 @@
                         <CheckBox Margin="0,0,24,0"
                                   Content="Allow Tools"
                                   IsChecked="{Binding AllowTools, Mode=TwoWay}"
-                                  ToolTip="Allows the agent to choose from every configured tool group. Safety settings still apply." />
+                                  ToolTip="Allows the agent to choose from configured non-sensitive tools. Task-owned sensitive permissions are never available here." />
                         <CheckBox Content="Allow Skills"
                                   IsChecked="{Binding AllowSkills, Mode=TwoWay}"
                                   ToolTip="Allows the agent to invoke summarize, extract action items, and classify email skills." />

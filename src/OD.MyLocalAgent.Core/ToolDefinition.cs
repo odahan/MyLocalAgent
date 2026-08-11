@@ -11,7 +11,7 @@ namespace OD.MyLocalAgent.Core;
 /// <param name="DeclaringType">The implementing type.</param>
 /// <param name="MethodName">The implementing method name, when applicable.</param>
 /// <param name="Arguments">The ordered camel-case argument names.</param>
-/// <param name="SafetyFlag">The required safety flag, when applicable.</param>
+/// <param name="RequiredCapability">The required task capability, when applicable.</param>
 /// <param name="IsAiStep">Whether the entry is an AI skill or prompt step.</param>
 public sealed record ToolDefinition(
     string Alias,
@@ -20,7 +20,7 @@ public sealed record ToolDefinition(
     Type DeclaringType,
     string? MethodName,
     IReadOnlyList<string> Arguments,
-    string? SafetyFlag,
+    TaskCapability? RequiredCapability,
     bool IsAiStep)
 {
     /// <summary>

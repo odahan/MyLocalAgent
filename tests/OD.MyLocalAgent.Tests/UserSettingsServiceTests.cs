@@ -103,10 +103,7 @@ public sealed class UserSettingsServiceTests : IDisposable
         generation.GetProperty("TopP").GetDouble().Should().Be(1);
         generation.GetProperty("ContextWindowTokens").GetInt32()
             .Should().Be(8192);
-        root.GetProperty("Safety").GetProperty("AllowMoveToBin")
-            .GetBoolean().Should().BeFalse();
-        root.GetProperty("Safety").GetProperty("AllowSqliteWrite")
-            .GetBoolean().Should().BeFalse();
+        root.TryGetProperty("Safety", out _).Should().BeFalse();
         var sqlite = root.GetProperty("SQLite");
         sqlite.GetProperty("DefaultMaxRows").GetInt32().Should().Be(100);
         sqlite.GetProperty("MaxRows").GetInt32().Should().Be(1_000);
@@ -151,7 +148,7 @@ public sealed class UserSettingsServiceTests : IDisposable
     }
 
     /// <summary>
-    /// Verifies every SQLite setting and its Safety gate persist, preserve unrelated sections, and reload into configuration.
+    /// Verifies every SQLite setting persists, legacy Safety is removed, and unrelated sections are preserved.
     /// </summary>
     [Fact]
     public async Task SavePersistsAllSqliteSettingsAndReloadsConfiguration()
@@ -163,7 +160,8 @@ public sealed class UserSettingsServiceTests : IDisposable
             """
             {
               "Custom": { "Keep": "yes" },
-              "Secrets": { "Preserve": "unchanged" }
+            "Secrets": { "Preserve": "unchanged" },
+            "Safety": { "AllowSqliteWrite": true }
             }
             """);
         var configuration = new ConfigurationBuilder()
@@ -171,7 +169,6 @@ public sealed class UserSettingsServiceTests : IDisposable
             .Build();
         var settings = ValidSettings() with
         {
-            AllowSqliteWrite = true,
             SQLiteDefaultMaxRows = 321,
             SQLiteMaxRows = 654,
             SQLiteMaxResultCharacters = 12_345,
@@ -191,7 +188,7 @@ public sealed class UserSettingsServiceTests : IDisposable
         var root = document.RootElement;
         root.GetProperty("Custom").GetProperty("Keep").GetString().Should().Be("yes");
         root.GetProperty("Secrets").GetProperty("Preserve").GetString().Should().Be("unchanged");
-        root.GetProperty("Safety").GetProperty("AllowSqliteWrite").GetBoolean().Should().BeTrue();
+        root.TryGetProperty("Safety", out _).Should().BeFalse();
         var sqlite = root.GetProperty("SQLite");
         sqlite.GetProperty("DefaultMaxRows").GetInt32().Should().Be(321);
         sqlite.GetProperty("MaxRows").GetInt32().Should().Be(654);
@@ -200,12 +197,12 @@ public sealed class UserSettingsServiceTests : IDisposable
         sqlite.GetProperty("MaxSqlCharacters").GetInt32().Should().Be(9_876);
         sqlite.GetProperty("CommandTimeoutSeconds").GetInt32().Should().Be(45);
         sqlite.GetProperty("GuardrailsEnabledByDefault").GetBoolean().Should().BeFalse();
-        configuration["Safety:AllowSqliteWrite"].Should().Be("True");
+        configuration["Safety:AllowSqliteWrite"].Should().BeNull();
         configuration["SQLite:MaxResultCharacters"].Should().Be("12345");
         configuration["SQLite:GuardrailsEnabledByDefault"].Should().Be("False");
     }
 
-    /// <summary>Verifies every Stage 22 file-content value and archive Safety gate persist atomically.</summary>
+    /// <summary>Verifies every Stage 22 file-content value persists atomically.</summary>
     [Fact]
     public async Task SavePersistsAllFileContentSettingsAndPreservesUnknownSections()
     {
@@ -215,7 +212,6 @@ public sealed class UserSettingsServiceTests : IDisposable
         var configuration = new ConfigurationBuilder().AddJsonFile(settingsPath, optional: false, reloadOnChange: false).Build();
         var settings = ValidSettings() with
         {
-            AllowArchiveWrite = true,
             FileContentMaxInputFileBytes = 2_000_000,
             FileContentMaxArchiveEntries = 123,
             FileContentMaxArchiveEntryBytes = 2_000_000,
@@ -235,7 +231,7 @@ public sealed class UserSettingsServiceTests : IDisposable
         using var document = JsonDocument.Parse(await File.ReadAllTextAsync(settingsPath));
         var root = document.RootElement;
         root.GetProperty("Future").GetProperty("Keep").GetInt32().Should().Be(42);
-        root.GetProperty("Safety").GetProperty("AllowArchiveWrite").GetBoolean().Should().BeTrue();
+        root.TryGetProperty("Safety", out _).Should().BeFalse();
         var content = root.GetProperty("FileContent");
         content.GetProperty("MaxInputFileBytes").GetInt64().Should().Be(2_000_000);
         content.GetProperty("MaxArchiveEntries").GetInt32().Should().Be(123);
@@ -248,7 +244,6 @@ public sealed class UserSettingsServiceTests : IDisposable
         content.GetProperty("MaxSpreadsheetColumns").GetInt32().Should().Be(20);
         content.GetProperty("MaxSpreadsheetCells").GetInt32().Should().Be(2_000);
         content.GetProperty("MaxPdfPages").GetInt32().Should().Be(25);
-        configuration["Safety:AllowArchiveWrite"].Should().Be("True");
         configuration["FileContent:MaxPdfPages"].Should().Be("25");
         Directory.GetFiles(_directoryPath, "*.tmp").Should().BeEmpty();
     }
@@ -298,10 +293,6 @@ public sealed class UserSettingsServiceTests : IDisposable
             "\\OD.MyLocalAgent",
             false,
             string.Empty,
-            false,
-            false,
-            false,
-            false,
             true,
             80,
             50,

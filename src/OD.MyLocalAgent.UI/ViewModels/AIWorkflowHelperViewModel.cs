@@ -272,7 +272,14 @@ public sealed partial class AIWorkflowHelperViewModel : ObservableObject
         Result = new AIWorkflowHelperResult(
             WorkflowDefinitionSerializer.Serialize(_candidate),
             tools,
-            rules);
+            rules,
+            _request.Capabilities
+                .Concat(_analysis.CapabilityRequirements
+                    .Where(static requirement => !requirement.IsGranted)
+                    .Select(static requirement => requirement.Capability))
+                .Distinct()
+                .OrderBy(static capability => capability)
+                .ToArray());
         CloseRequested?.Invoke(this, EventArgs.Empty);
     }
 
@@ -506,7 +513,7 @@ public sealed partial class AIWorkflowHelperViewModel : ObservableObject
                 workflow,
                 _request!.ToolGroups,
                 _request.FileSystemAccess,
-                _request.Safety);
+                _request.Capabilities);
             var provisionalGroups = _request.ToolGroups
                 .Concat(analysis.RequiredToolGroups)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -561,7 +568,7 @@ public sealed partial class AIWorkflowHelperViewModel : ObservableObject
             workflow,
             _request!.ToolGroups,
             _request.FileSystemAccess,
-            _request.Safety);
+            _request.Capabilities);
         Description = FormatDescription(workflow);
         if (updateResponse)
         {
@@ -610,15 +617,24 @@ public sealed partial class AIWorkflowHelperViewModel : ObservableObject
                     (qualifiers.Count == 0 ? "." : $" ({string.Join("; ", qualifiers)}).")));
         }
 
+        foreach (var capability in analysis.CapabilityRequirements.Where(static item => !item.IsGranted))
+        {
+            AddProposal(
+                new WorkflowProposalItem(
+                    "Sensitive permission",
+                    capability.Capability.ToString(),
+                    $"Grant task capability '{capability.Capability}' for {string.Join(", ", capability.SourceAliases)}."));
+        }
+
         foreach (var warning in analysis.Warnings)
         {
             Warnings.Add(warning);
         }
 
-        foreach (var safety in analysis.SafetyRequirements)
+        foreach (var capability in analysis.CapabilityRequirements)
         {
             Warnings.Add(
-                $"{safety.ConfigurationKey}: {(safety.IsEnabled ? "enabled" : "disabled")} ({string.Join(", ", safety.SourceAliases)}).");
+                $"{capability.Capability}: {(capability.IsGranted ? "granted" : "not granted")} ({string.Join(", ", capability.SourceAliases)}).");
         }
 
         OnPropertyChanged(nameof(HasReview));
@@ -683,7 +699,7 @@ public sealed partial class AIWorkflowHelperViewModel : ObservableObject
             _candidate!,
             _request!.ToolGroups,
             _request.FileSystemAccess,
-            _request.Safety);
+            _request.Capabilities);
         return
             $"""
             Canonical workflow:
@@ -696,7 +712,7 @@ public sealed partial class AIWorkflowHelperViewModel : ObservableObject
             Required tool groups: {string.Join(", ", _analysis.RequiredToolGroups)}
             Missing tool groups: {string.Join(", ", _analysis.MissingToolGroups)}
             Missing filesystem grants: {string.Join("; ", _analysis.MissingPathRequirements.Select(static item => $"{item.DirectoryPath} ({item.RequiredAccess})"))}
-            Safety gates: {string.Join("; ", _analysis.SafetyRequirements.Select(static item => $"{item.ConfigurationKey}={(item.IsEnabled ? "enabled" : "disabled")}"))}
+            Task capabilities: {string.Join("; ", _analysis.CapabilityRequirements.Select(static item => $"{item.Capability}={(item.IsGranted ? "granted" : "not granted")}"))}
             Warnings: {string.Join("; ", _analysis.Warnings)}
             """;
     }

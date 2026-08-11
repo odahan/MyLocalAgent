@@ -26,7 +26,7 @@
                        Text="Tool catalog" />
             <TextBlock Margin="0,5,0,0"
                        Style="{StaticResource CaptionTextStyle}"
-                       Text="Every value shown comes from the Tool Map and the current draft. Inserting a step never changes global Safety settings or task authorization rules."
+                       Text="Every value shown comes from the Tool Map and the current draft. Inserting a step never grants sensitive task permissions automatically."
                        TextWrapping="Wrap" />
         </StackPanel>
 
@@ -70,8 +70,8 @@
                                                        Text="{Binding Alias}" />
                                             <TextBlock Margin="8,0,0,0"
                                                        Foreground="{DynamicResource ErrorBrush}"
-                                                       Text="Safety"
-                                                       Visibility="{Binding RequiresSafetyFlag, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                       Text="Sensitive permission"
+                                                       Visibility="{Binding RequiresCapability, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                             <TextBlock Margin="8,0,0,0"
                                                        Text="Not allowed"
                                                        Visibility="{Binding ShowsMissingWhitelistLock, Converter={StaticResource BooleanToVisibilityConverter}}" />
@@ -102,7 +102,7 @@
                                                Style="{StaticResource CaptionTextStyle}"
                                                Text="{Binding SelectedFunctionName}" />
                                     <TextBlock Margin="0,6,0,0"
-                                               Text="{Binding SelectedSafetyText}"
+                                               Text="{Binding SelectedCapabilityText}"
                                                TextWrapping="Wrap" />
                                     <TextBlock Margin="0,6,0,0"
                                                Text="{Binding SelectedWhitelistText}"

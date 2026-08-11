@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection;
 using OD.MyLocalAgent.Guardrails;
 
 namespace OD.MyLocalAgent.Core;
@@ -27,7 +28,6 @@ public sealed class HttpTool : IHttpTool
 
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IOptions<HttpOptions> _httpOptions;
-    private readonly IOptions<SafetyOptions> _safetyOptions;
     private readonly IOptionsMonitor<GuardrailsOptions> _guardrailsOptions;
     private readonly IContentTrustService _contentTrustService;
     private readonly IIncidentReporter _incidentReporter;
@@ -35,10 +35,10 @@ public sealed class HttpTool : IHttpTool
     private readonly TimeProvider _timeProvider;
 
     /// <summary>Initializes a new instance of the <see cref="HttpTool"/> class.</summary>
+    [ActivatorUtilitiesConstructor]
     public HttpTool(
         IHttpClientFactory httpClientFactory,
         IOptions<HttpOptions> httpOptions,
-        IOptions<SafetyOptions> safetyOptions,
         IOptionsMonitor<GuardrailsOptions> guardrailsOptions,
         IContentTrustService contentTrustService,
         IIncidentReporter incidentReporter,
@@ -47,7 +47,6 @@ public sealed class HttpTool : IHttpTool
     {
         ArgumentNullException.ThrowIfNull(httpClientFactory);
         ArgumentNullException.ThrowIfNull(httpOptions);
-        ArgumentNullException.ThrowIfNull(safetyOptions);
         ArgumentNullException.ThrowIfNull(guardrailsOptions);
         ArgumentNullException.ThrowIfNull(contentTrustService);
         ArgumentNullException.ThrowIfNull(incidentReporter);
@@ -55,7 +54,6 @@ public sealed class HttpTool : IHttpTool
         ArgumentNullException.ThrowIfNull(timeProvider);
         _httpClientFactory = httpClientFactory;
         _httpOptions = httpOptions;
-        _safetyOptions = safetyOptions;
         _guardrailsOptions = guardrailsOptions;
         _contentTrustService = contentTrustService;
         _incidentReporter = incidentReporter;
@@ -118,18 +116,13 @@ public sealed class HttpTool : IHttpTool
             });
 
     /// <inheritdoc />
-    [Tool("http.post", "Performs an HTTP POST request when Safety:AllowHttpPost is enabled.", 200, SafetyFlag = "Safety:AllowHttpPost")]
+    [Tool("http.post", "Performs an HTTP POST request when the task has HTTP POST permission.", 200, RequiredCapability = TaskCapability.HttpPost)]
     public Task<string> PostAsync(
         [ToolArgument(WorkflowArgumentKind.String, "Absolute HTTP or HTTPS URL.", Example = "https://httpbin.org/post")] string url,
         [ToolArgument(WorkflowArgumentKind.String, "Request body.", Example = "{ \"key\": \"value\" }")] string body,
         [ToolArgument(WorkflowArgumentKind.String, "Request media type, such as application/json.", Example = "application/json")] string contentType,
         CancellationToken cancellationToken)
     {
-        if (!_safetyOptions.Value.AllowHttpPost)
-        {
-            throw new SafetyException("http.post", "Safety:AllowHttpPost");
-        }
-
         ArgumentNullException.ThrowIfNull(body);
         if (!MediaTypeHeaderValue.TryParse(contentType, out _))
         {

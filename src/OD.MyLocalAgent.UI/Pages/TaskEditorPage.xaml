@@ -104,6 +104,38 @@
             <materialDesign:Card Margin="0,16,0,0">
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionTitleStyle}"
+                               Text="Sensitive operation permissions" />
+                    <TextBlock Margin="0,4,0,10"
+                               Style="{StaticResource CaptionTextStyle}"
+                               Text="Sensitive side effects are denied by default. Each permission belongs only to this task and remains subject to its tool whitelist and authorized paths."
+                               TextWrapping="Wrap" />
+                    <TextBlock Margin="0,0,0,10"
+                               Foreground="{DynamicResource WarningBrush}"
+                               Text="{Binding CapabilityWarning}"
+                               TextWrapping="Wrap"
+                               Visibility="{Binding CapabilityWarning, Converter={StaticResource NullOrEmptyToCollapsedConverter}}" />
+                    <ItemsControl ItemsSource="{Binding CapabilitySelections}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,5,0,7"
+                                            Visibility="{Binding IsVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <CheckBox AutomationProperties.HelpText="{Binding Description}"
+                                              Content="{Binding DisplayName}"
+                                              IsChecked="{Binding IsSelected, Mode=TwoWay}" />
+                                    <TextBlock Margin="24,2,0,0"
+                                               Style="{StaticResource CaptionTextStyle}"
+                                               Text="{Binding Description}"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </materialDesign:Card>
+
+            <materialDesign:Card Margin="0,16,0,0">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionTitleStyle}"
                                Text="AI generation override" />
                     <TextBlock Margin="0,5,0,14"
                                Style="{StaticResource CaptionTextStyle}"
@@ -353,7 +385,8 @@
                             <Button Command="{Binding OpenToolCatalogCommand}"
                                     Content="Tool catalog" />
                             <Button Command="{Binding OpenWorkflowPromptEditorCommand}"
-                                    Content="Edit prompts" />
+                                    Content="Edit workflow text"
+                                    AutomationProperties.Name="Edit workflow text" />
                             <Button Command="{Binding OpenAIHelperCommand}"
                                     Content="AI Helper" />
                             <Button Command="{Binding OpenAIExplainCommand}"

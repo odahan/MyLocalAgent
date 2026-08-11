@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Net.Mail;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection;
 using OD.MyLocalAgent.Connectors;
 using OD.MyLocalAgent.Guardrails;
 
@@ -23,7 +24,6 @@ public sealed class GmailTool : IGmailTool
         "[GMAIL MESSAGE REQUIRES HUMAN REVIEW: compact source processing did not produce a deliverable protected summary. Review the original message in Gmail. Do not infer or act on omitted content.]";
 
     private readonly IGmailConnector _connector;
-    private readonly IOptions<SafetyOptions> _safetyOptions;
     private readonly IOptionsMonitor<GuardrailsOptions> _guardrailsOptions;
     private readonly IContentTrustService _contentTrustService;
     private readonly IIncidentReporter _incidentReporter;
@@ -33,9 +33,9 @@ public sealed class GmailTool : IGmailTool
     /// <summary>
     /// Initializes a new instance of the <see cref="GmailTool"/> class.
     /// </summary>
+    [ActivatorUtilitiesConstructor]
     public GmailTool(
         IGmailConnector connector,
-        IOptions<SafetyOptions> safetyOptions,
         IOptionsMonitor<GuardrailsOptions> guardrailsOptions,
         IContentTrustService contentTrustService,
         IIncidentReporter incidentReporter,
@@ -43,14 +43,12 @@ public sealed class GmailTool : IGmailTool
         TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(connector);
-        ArgumentNullException.ThrowIfNull(safetyOptions);
         ArgumentNullException.ThrowIfNull(guardrailsOptions);
         ArgumentNullException.ThrowIfNull(contentTrustService);
         ArgumentNullException.ThrowIfNull(incidentReporter);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(timeProvider);
         _connector = connector;
-        _safetyOptions = safetyOptions;
         _guardrailsOptions = guardrailsOptions;
         _contentTrustService = contentTrustService;
         _incidentReporter = incidentReporter;
@@ -104,18 +102,13 @@ public sealed class GmailTool : IGmailTool
     }
 
     /// <inheritdoc />
-    [Tool("gmail.send", "Sends a plain-text Gmail message when Safety:AllowSendEmail is enabled.", 400, SafetyFlag = "Safety:AllowSendEmail")]
+    [Tool("gmail.send", "Sends a plain-text Gmail message when the task has Gmail send permission.", 400, RequiredCapability = TaskCapability.GmailSend)]
     public Task<string> SendAsync(
         [ToolArgument(WorkflowArgumentKind.String, "Recipient email address.", Example = "someone@example.com")] string to,
         [ToolArgument(WorkflowArgumentKind.String, "Message subject.", Example = "Daily report")] string subject,
         [ToolArgument(WorkflowArgumentKind.String, "Plain-text message body.", Example = "Here is today's summary.")] string body,
         CancellationToken cancellationToken)
     {
-        if (!_safetyOptions.Value.AllowSendEmail)
-        {
-            throw new SafetyException("gmail.send", "Safety:AllowSendEmail");
-        }
-
         if (!MailAddress.TryCreate(to, out _))
         {
             throw new ArgumentException("A valid recipient email address is required.", nameof(to));

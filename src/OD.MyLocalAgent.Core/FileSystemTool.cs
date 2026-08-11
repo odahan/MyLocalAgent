@@ -5,6 +5,7 @@ using System.Text;
 using Markdig;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace OD.MyLocalAgent.Core;
 
@@ -27,7 +28,6 @@ public sealed class FileSystemTool : IFileSystemTool
             .Build();
 
     private readonly IPathSandbox _sandbox;
-    private readonly IOptions<SafetyOptions> _safetyOptions;
     private readonly IOptions<FileSystemOptions> _fileSystemOptions;
     private readonly IRecycleBinService _recycleBinService;
     private readonly ILogger<FileSystemTool> _logger;
@@ -37,9 +37,9 @@ public sealed class FileSystemTool : IFileSystemTool
     /// <summary>
     /// Initializes a new instance of the <see cref="FileSystemTool"/> class.
     /// </summary>
+    [ActivatorUtilitiesConstructor]
     public FileSystemTool(
         IPathSandbox sandbox,
-        IOptions<SafetyOptions> safetyOptions,
         IOptions<FileSystemOptions> fileSystemOptions,
         IRecycleBinService recycleBinService,
         ILogger<FileSystemTool> logger,
@@ -47,14 +47,12 @@ public sealed class FileSystemTool : IFileSystemTool
         ToolExecutionContext executionContext)
     {
         ArgumentNullException.ThrowIfNull(sandbox);
-        ArgumentNullException.ThrowIfNull(safetyOptions);
         ArgumentNullException.ThrowIfNull(fileSystemOptions);
         ArgumentNullException.ThrowIfNull(recycleBinService);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(executionContext);
         _sandbox = sandbox;
-        _safetyOptions = safetyOptions;
         _fileSystemOptions = fileSystemOptions;
         _recycleBinService = recycleBinService;
         _logger = logger;
@@ -251,18 +249,11 @@ public sealed class FileSystemTool : IFileSystemTool
 
     /// <inheritdoc />
     [ToolLocalPath("path", LocalPathTargetKind.FileOrDirectory, FileSystemAccessMode.ReadWrite)]
-    [Tool("filesystem.moveToBin", "Moves an authorized local file or directory to the Windows Recycle Bin when Safety:AllowMoveToBin is enabled.", 500, SafetyFlag = "Safety:AllowMoveToBin")]
+    [Tool("filesystem.moveToBin", "Moves an authorized local file or directory to the Windows Recycle Bin when the task has Recycle Bin permission.", 500, RequiredCapability = TaskCapability.RecycleBin)]
     public Task<string> MoveToBinAsync(
         [ToolArgument(WorkflowArgumentKind.String, "Relative global-root or task-authorized absolute file or directory path.", Example = "inbox/obsolete.txt")] string path,
         CancellationToken cancellationToken)
     {
-        if (!_safetyOptions.Value.AllowMoveToBin)
-        {
-            throw new SafetyException(
-                "filesystem.moveToBin",
-                "Safety:AllowMoveToBin");
-        }
-
         return ToolCallLog.ExecuteAsync(
             _logger,
             _timeProvider,
@@ -404,18 +395,11 @@ public sealed class FileSystemTool : IFileSystemTool
 
     /// <inheritdoc />
     [ToolLocalPath("path", LocalPathTargetKind.FileOrDirectory, FileSystemAccessMode.ReadWrite)]
-    [Tool("filesystem.delete", "Deletes a sandboxed file or directory when Safety:AllowFileDelete is enabled.", 800, SafetyFlag = "Safety:AllowFileDelete")]
+    [Tool("filesystem.delete", "Permanently deletes an authorized file or directory when the task has deletion permission.", 800, RequiredCapability = TaskCapability.PermanentFileDeletion)]
     public Task<string> DeleteAsync(
         [ToolArgument(WorkflowArgumentKind.String, "Relative global-root or task-authorized absolute file or directory path.", Example = "inbox/obsolete.txt")] string path,
         CancellationToken cancellationToken)
     {
-        if (!_safetyOptions.Value.AllowFileDelete)
-        {
-            throw new SafetyException(
-                "filesystem.delete",
-                "Safety:AllowFileDelete");
-        }
-
         return ToolCallLog.ExecuteAsync(
             _logger,
             _timeProvider,
@@ -645,7 +629,7 @@ public sealed class FileSystemTool : IFileSystemTool
             });
 
     /// <inheritdoc />
-    [Tool("filesystem.shellExecute", "Opens a file, URI, or application through the Windows shell when Safety:AllowProcessExecution is enabled.", 1200, SafetyFlag = "Safety:AllowProcessExecution")]
+    [Tool("filesystem.shellExecute", "Opens a file, URI, or application through the Windows shell when the task has Shell Execute permission.", 1200, RequiredCapability = TaskCapability.ShellExecute)]
     public Task<string> ShellExecuteAsync(
         [ToolArgument(WorkflowArgumentKind.String, "File path, URI, or application to open through the Windows shell.", Example = "https://example.com")] string target,
         [ToolArgument(WorkflowArgumentKind.String, "Optional arguments passed to an application target.", Example = "--help")] string? arguments = null,
@@ -653,7 +637,6 @@ public sealed class FileSystemTool : IFileSystemTool
         [ToolArgument(WorkflowArgumentKind.Boolean, "Whether to capture standard output and error. Windows shell execution cannot capture output, so this must be false.", Example = "false")] bool captureOutput = false,
         CancellationToken cancellationToken = default)
     {
-        EnsureProcessExecutionIsAllowed("filesystem.shellExecute");
         if (captureOutput)
         {
             throw new ArgumentException(
@@ -676,14 +659,13 @@ public sealed class FileSystemTool : IFileSystemTool
     }
 
     /// <inheritdoc />
-    [Tool("filesystem.powerShell", "Executes a PowerShell script when Safety:AllowProcessExecution is enabled.", 1300, SafetyFlag = "Safety:AllowProcessExecution")]
+    [Tool("filesystem.powerShell", "Executes a PowerShell script locally when the task has PowerShell permission.", 1300, RequiredCapability = TaskCapability.PowerShellExecution)]
     public Task<string> PowerShellAsync(
-        [ToolArgument(WorkflowArgumentKind.String, "PowerShell script to execute.", Example = "Get-Date")] string script,
+        [ToolArgument(WorkflowArgumentKind.String, "PowerShell script to execute.", Example = "Get-Date", IsLongText = true)] string script,
         [ToolArgument(WorkflowArgumentKind.Boolean, "Whether to wait for the PowerShell process to exit. True is the default.", Example = "true")] bool waitForExit = true,
         [ToolArgument(WorkflowArgumentKind.Boolean, "Whether to return standard output and error. Requires waitForExit to be true.", Example = "true")] bool captureOutput = true,
         CancellationToken cancellationToken = default)
     {
-        EnsureProcessExecutionIsAllowed("filesystem.powerShell");
         if (captureOutput && !waitForExit)
         {
             throw new ArgumentException(
@@ -757,14 +739,6 @@ public sealed class FileSystemTool : IFileSystemTool
                         error = errorTask is null ? null : await errorTask.ConfigureAwait(false),
                     });
             });
-
-    private void EnsureProcessExecutionIsAllowed(string operation)
-    {
-        if (!_safetyOptions.Value.AllowProcessExecution)
-        {
-            throw new SafetyException(operation, "Safety:AllowProcessExecution");
-        }
-    }
 
     private async Task<string> ReadAuthorizedTextAsync(
         string absolutePath,

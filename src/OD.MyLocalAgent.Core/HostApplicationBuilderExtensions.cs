@@ -126,9 +126,6 @@ public static class HostApplicationBuilderExtensions
 
     private static void RegisterOptions(IHostApplicationBuilder builder)
     {
-        builder.Services
-            .AddOptions<SafetyOptions>()
-            .Bind(builder.Configuration.GetSection(SafetyOptions.SectionName));
             builder.Services
                 .AddOptions<FileContentOptions>()
                 .Bind(builder.Configuration.GetSection(FileContentOptions.SectionName))

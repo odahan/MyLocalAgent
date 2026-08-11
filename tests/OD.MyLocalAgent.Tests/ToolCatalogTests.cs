@@ -269,13 +269,13 @@ public sealed class ToolCatalogTests
     }
 
     /// <summary>
-    /// Verifies fail-fast validation for unknown safety flags.
+    /// Verifies fail-fast validation for unknown task capabilities.
     /// </summary>
     [Fact]
-    public void FailFastRule_UnknownSafetyFlag_Throws()
+    public void FailFastRule_UnknownCapability_Throws()
     {
         var act = () => ToolCatalog.FromTypes([typeof(UnknownSafetyFlagTool)]);
-        act.Should().Throw<InvalidOperationException>().WithMessage("*unknown Safety flag*");
+        act.Should().Throw<InvalidOperationException>().WithMessage("*unknown task capability*");
     }
 
     /// <summary>
@@ -409,7 +409,7 @@ public sealed class ToolCatalogTests
     [ToolGroup("testgroup7", "Group 7", "Desc 7", 16)]
     private sealed class UnknownSafetyFlagTool
     {
-        [Tool("testgroup7.doWork", "Do work", 10, SafetyFlag = "Safety:UnknownFlag")]
+        [Tool("testgroup7.doWork", "Do work", 10, RequiredCapability = (TaskCapability)999)]
         public void DoWork([ToolArgument(WorkflowArgumentKind.String, "Input text")] string input) { }
     }
 

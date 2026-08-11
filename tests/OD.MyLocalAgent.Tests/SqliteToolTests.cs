@@ -603,7 +603,6 @@ public sealed class SqliteToolTests : IDisposable
         return new SqliteTool(
             new PathSandbox(fileSystem),
             Options.Create(sqliteOptions ?? new SQLiteOptions()),
-            Options.Create(new SafetyOptions { AllowSqliteWrite = allowWrite }),
             new MutableOptionsMonitor<GuardrailsOptions>(guardrailsOptions ?? new GuardrailsOptions
             {
                 ScreeningEnabled = screeningEnabled,

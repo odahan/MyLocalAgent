@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection;
 using SharpCompress.Archives;
 using SharpCompress.Common;
 using SharpCompress.Readers;
@@ -25,15 +26,14 @@ public sealed class ArchiveTool : IArchiveTool
 
     private readonly IPathSandbox _sandbox;
     private readonly IOptions<FileContentOptions> _options;
-    private readonly IOptions<SafetyOptions> _safety;
     private readonly ToolExecutionContext _context;
 
     /// <summary>Initializes a new instance of the <see cref="ArchiveTool"/> class.</summary>
-    public ArchiveTool(IPathSandbox sandbox, IOptions<FileContentOptions> options, IOptions<SafetyOptions> safety, ToolExecutionContext context)
+    [ActivatorUtilitiesConstructor]
+    public ArchiveTool(IPathSandbox sandbox, IOptions<FileContentOptions> options, ToolExecutionContext context)
     {
         _sandbox = sandbox;
         _options = options;
-        _safety = safety;
         _context = context;
     }
 
@@ -48,7 +48,7 @@ public sealed class ArchiveTool : IArchiveTool
     /// <inheritdoc/>
     [ToolLocalPath("archivePath", LocalPathTargetKind.File, FileSystemAccessMode.ReadOnly)]
     [ToolLocalPath("destinationPath", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite)]
-    [Tool("archive.extract", "Extracts one safe archive file entry to an authorized destination.", 200, AgentFunctionName = "archive_extract", SafetyFlag = "Safety:AllowArchiveWrite")]
+    [Tool("archive.extract", "Extracts one safe archive file entry to an authorized destination.", 200, AgentFunctionName = "archive_extract", RequiredCapability = TaskCapability.ArchiveWrite)]
     public async Task<string> ExtractAsync(
         [ToolArgument(WorkflowArgumentKind.String, "Authorized archive path.", Example = "archives/input.zip")] string archivePath,
         [ToolArgument(WorkflowArgumentKind.String, "Canonical archive entry path.", Example = "notes/readme.txt")] string entryPath,
@@ -87,7 +87,7 @@ public sealed class ArchiveTool : IArchiveTool
     /// <inheritdoc/>
     [ToolLocalPath("archivePath", LocalPathTargetKind.File, FileSystemAccessMode.ReadOnly)]
     [ToolLocalPath("destinationDirectory", LocalPathTargetKind.Directory, FileSystemAccessMode.ReadWrite)]
-    [Tool("archive.extractAll", "Extracts safe archive entries to a new authorized directory.", 300, AgentFunctionName = "archive_extract_all", SafetyFlag = "Safety:AllowArchiveWrite")]
+    [Tool("archive.extractAll", "Extracts safe archive entries to a new authorized directory.", 300, AgentFunctionName = "archive_extract_all", RequiredCapability = TaskCapability.ArchiveWrite)]
     public async Task<string> ExtractAllAsync(
         [ToolArgument(WorkflowArgumentKind.String, "Authorized archive path.", Example = "archives/input.zip")] string archivePath,
         [ToolArgument(WorkflowArgumentKind.String, "New authorized destination directory.", Example = "output/extracted")] string destinationDirectory,
@@ -134,7 +134,7 @@ public sealed class ArchiveTool : IArchiveTool
     /// <inheritdoc/>
     [ToolLocalPath("archivePath", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite)]
     [ToolLocalPath("sourcePath", LocalPathTargetKind.FileOrDirectory, FileSystemAccessMode.ReadOnly)]
-    [Tool("archive.createZip", "Creates a ZIP from an authorized file or directory source.", 400, AgentFunctionName = "archive_create_zip", SafetyFlag = "Safety:AllowArchiveWrite")]
+    [Tool("archive.createZip", "Creates a ZIP from an authorized file or directory source.", 400, AgentFunctionName = "archive_create_zip", RequiredCapability = TaskCapability.ArchiveWrite)]
     public Task<string> CreateZipAsync(
         [ToolArgument(WorkflowArgumentKind.String, "Authorized ZIP destination path.", Example = "archives/output.zip")] string archivePath,
         [ToolArgument(WorkflowArgumentKind.String, "Authorized source file or directory path.", Example = "input/readme.txt")] string sourcePath,
@@ -147,7 +147,7 @@ public sealed class ArchiveTool : IArchiveTool
     /// <inheritdoc/>
     [ToolLocalPath("archivePath", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite)]
     [ToolLocalPath("sourcePath", LocalPathTargetKind.FileOrDirectory, FileSystemAccessMode.ReadOnly)]
-    [Tool("archive.addToZip", "Adds an authorized file or directory source to a ZIP without in-place mutation.", 500, AgentFunctionName = "archive_add_to_zip", SafetyFlag = "Safety:AllowArchiveWrite")]
+    [Tool("archive.addToZip", "Adds an authorized file or directory source to a ZIP without in-place mutation.", 500, AgentFunctionName = "archive_add_to_zip", RequiredCapability = TaskCapability.ArchiveWrite)]
     public Task<string> AddToZipAsync(
         [ToolArgument(WorkflowArgumentKind.String, "Authorized ZIP path.", Example = "archives/output.zip")] string archivePath,
         [ToolArgument(WorkflowArgumentKind.String, "Authorized source file or directory path.", Example = "input/readme.txt")] string sourcePath,
@@ -570,7 +570,6 @@ public sealed class ArchiveTool : IArchiveTool
 
     private void EnsureWrite()
     {
-        if (!_safety.Value.AllowArchiveWrite) throw new SafetyException("archive", "Safety:AllowArchiveWrite");
     }
 
     private void Revalidate(string requestedPath, string expectedPath, FileSystemAccessMode access)

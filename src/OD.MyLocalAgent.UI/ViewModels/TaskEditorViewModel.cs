@@ -49,10 +49,10 @@ public sealed partial class TaskEditorViewModel :
     private readonly IAIWorkflowHelperDialogService? _workflowHelperDialog;
     private readonly IWorkflowToolCatalogDialogService? _toolCatalogDialog;
     private readonly IWorkflowPromptEditorDialogService? _promptEditorDialog;
-    private readonly IOptionsMonitor<SafetyOptions>? _safetyOptions;
     private readonly IOptionsMonitor<AIOptions>? _aiOptions;
     private readonly IOptionsMonitor<SQLiteOptions>? _sqliteOptions;
     private readonly ObservableCollection<ToolGroupSelectionItem> _toolGroupSelectionItems;
+    private readonly ObservableCollection<TaskCapabilitySelectionItem> _capabilitySelectionItems;
     private string? _requestedTaskId;
     private string? _originalTaskId;
     private AIEditorSnapshot? _assistedUndoSnapshot;
@@ -192,7 +192,6 @@ public sealed partial class TaskEditorViewModel :
         IAIWorkflowHelperDialogService? workflowHelperDialog = null,
         IWorkflowToolCatalogDialogService? toolCatalogDialog = null,
         IWorkflowPromptEditorDialogService? promptEditorDialog = null,
-        IOptionsMonitor<SafetyOptions>? safetyOptions = null,
         IOptionsMonitor<AIOptions>? aiOptions = null,
         IOptionsMonitor<SQLiteOptions>? sqliteOptions = null)
     {
@@ -205,7 +204,6 @@ public sealed partial class TaskEditorViewModel :
         _workflowHelperDialog = workflowHelperDialog;
         _toolCatalogDialog = toolCatalogDialog;
         _promptEditorDialog = promptEditorDialog;
-        _safetyOptions = safetyOptions;
         _aiOptions = aiOptions;
         _sqliteOptions = sqliteOptions;
         ErrorPolicies = Enum.GetValues<WorkflowErrorPolicy>();
@@ -223,9 +221,18 @@ public sealed partial class TaskEditorViewModel :
                             tool.LocalPathArguments.Count > 0))));
         ToolGroupSelections = new ReadOnlyObservableCollection<ToolGroupSelectionItem>(
             _toolGroupSelectionItems);
+        _capabilitySelectionItems = new ObservableCollection<TaskCapabilitySelectionItem>(
+            TaskCapabilityCatalog.Definitions.Select(static definition =>
+                new TaskCapabilitySelectionItem(definition)));
+        CapabilitySelections = new ReadOnlyObservableCollection<TaskCapabilitySelectionItem>(
+            _capabilitySelectionItems);
         foreach (var selection in _toolGroupSelectionItems)
         {
             selection.PropertyChanged += OnToolGroupSelectionChanged;
+        }
+        foreach (var selection in _capabilitySelectionItems)
+        {
+            selection.PropertyChanged += OnCapabilitySelectionChanged;
         }
 
         SelectedWorkflowAlias = WorkflowAliases.FirstOrDefault();
@@ -248,6 +255,9 @@ public sealed partial class TaskEditorViewModel :
     /// Gets task-whitelist choices projected from the shared ordered tool-group catalog.
     /// </summary>
     public ReadOnlyObservableCollection<ToolGroupSelectionItem> ToolGroupSelections { get; }
+
+    /// <summary>Gets sensitive permissions applicable to the current task draft.</summary>
+    public ReadOnlyObservableCollection<TaskCapabilitySelectionItem> CapabilitySelections { get; }
 
     /// <summary>
     /// Gets the common scheduler patterns that can be applied without writing cron syntax.
@@ -338,6 +348,7 @@ public sealed partial class TaskEditorViewModel :
             WorkflowCaretIndex);
         OpenToolCatalogCommand.NotifyCanExecuteChanged();
         OpenWorkflowPromptEditorCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(CapabilityWarning));
     }
 
     [RelayCommand]
@@ -387,6 +398,7 @@ public sealed partial class TaskEditorViewModel :
             SelectedErrorPolicy =
                 task?.ErrorPolicy ?? WorkflowErrorPolicy.StopOnError;
             SetSelectedToolGroups(task?.Tools ?? []);
+            SetSelectedCapabilities(task?.Capabilities ?? []);
             AuthorizedLocations.Clear();
             foreach (var rule in task?.FileSystemAccess ?? [])
             {
@@ -442,6 +454,7 @@ public sealed partial class TaskEditorViewModel :
                 UseGlobalSystemPrompt = UseGlobalSystemPrompt,
                 GenerationOptions = generationOptions,
                 Tools = GetSelectedToolGroups(),
+                Capabilities = GetSelectedCapabilities(),
                 FileSystemAccess = AuthorizedLocations
                     .Select(static item => item.ToRule())
                     .ToArray(),
@@ -698,7 +711,7 @@ public sealed partial class TaskEditorViewModel :
                 WorkflowCaretIndex,
                 GetSelectedToolGroups().ToArray(),
                 AuthorizedLocations.Select(static item => item.ToRule()).ToArray(),
-                _safetyOptions?.CurrentValue ?? new SafetyOptions(),
+                GetSelectedCapabilities(),
                 SelectedErrorPolicy,
                 effective.Temperature,
                 effective.TopP));
@@ -803,6 +816,7 @@ public sealed partial class TaskEditorViewModel :
 
         WorkflowText = _assistedUndoSnapshot.WorkflowText;
         SetSelectedToolGroups(_assistedUndoSnapshot.ToolGroups);
+        SetSelectedCapabilities(_assistedUndoSnapshot.Capabilities);
         AuthorizedLocations.Clear();
         foreach (var rule in _assistedUndoSnapshot.FileSystemAccess)
         {
@@ -910,6 +924,63 @@ public sealed partial class TaskEditorViewModel :
             .Where(static item => item.IsSelected)
             .Select(static item => item.Name)];
 
+    private IReadOnlyList<TaskCapability> GetSelectedCapabilities() =>
+        [.. CapabilitySelections
+            .Where(static item => item.IsSelected)
+            .Select(static item => item.Capability)];
+
+    private void SetSelectedCapabilities(IEnumerable<TaskCapability> capabilities)
+    {
+        var selected = capabilities.ToHashSet();
+        foreach (var item in CapabilitySelections)
+        {
+            item.IsSelected = selected.Contains(item.Capability);
+        }
+
+        UpdateCapabilityVisibility();
+    }
+
+    private void UpdateCapabilityVisibility()
+    {
+        var groups = GetSelectedToolGroups().ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var relevant = ToolMap.Definitions
+            .Where(definition => groups.Contains(definition.ToolGroup))
+            .Where(static definition => definition.RequiredCapability is not null)
+            .Select(static definition => definition.RequiredCapability!.Value)
+            .ToHashSet();
+        foreach (var item in CapabilitySelections)
+        {
+            item.IsVisible = item.IsSelected || relevant.Contains(item.Capability);
+        }
+    }
+
+    /// <summary>Gets a warning for workflow operations lacking task permission.</summary>
+    public string CapabilityWarning
+    {
+        get
+        {
+            try
+            {
+                var analysis = WorkflowRequirementAnalyzer.Analyze(
+                    DeserializeWorkflow(WorkflowText),
+                    GetSelectedToolGroups(),
+                    AuthorizedLocations.Select(static item => item.ToRule()).ToArray(),
+                    GetSelectedCapabilities());
+                var missing = analysis.CapabilityRequirements
+                    .Where(static requirement => !requirement.IsGranted)
+                    .Select(static requirement => requirement.Capability)
+                    .ToArray();
+                return missing.Length == 0
+                    ? string.Empty
+                    : $"This workflow uses operations that are not authorized: {string.Join(", ", missing)}. Grant them below or the task will fail before the side effect.";
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+    }
+
     private bool CanOpenAIExplain() =>
         !string.IsNullOrWhiteSpace(WorkflowText) &&
         !string.Equals(WorkflowText.Trim(), "[]", StringComparison.Ordinal);
@@ -924,7 +995,6 @@ public sealed partial class TaskEditorViewModel :
         AIWorkflowHelperMode mode,
         IReadOnlyList<WorkflowStepDefinition> workflow)
     {
-        var safety = _safetyOptions?.CurrentValue ?? new SafetyOptions();
         return new AIWorkflowHelperRequest(
             mode,
             workflow,
@@ -935,13 +1005,7 @@ public sealed partial class TaskEditorViewModel :
             SelectedErrorPolicy,
             GetSelectedToolGroups(),
             AuthorizedLocations.Select(static item => item.ToRule()).ToArray(),
-            new SafetyOptions
-            {
-                AllowSendEmail = safety.AllowSendEmail,
-                AllowFileDelete = safety.AllowFileDelete,
-                AllowMoveToBin = safety.AllowMoveToBin,
-                AllowHttpPost = safety.AllowHttpPost,
-            })
+            GetSelectedCapabilities())
         {
             TaskGenerationOptions = CreateGenerationOptions(),
             GenerationDefaults = CurrentGenerationDefaults,
@@ -959,6 +1023,7 @@ public sealed partial class TaskEditorViewModel :
                 Prompt = string.IsNullOrWhiteSpace(Prompt) ? "Workflow preview" : Prompt,
                 GenerationOptions = CreateGenerationOptions(),
                 Tools = GetSelectedToolGroups(),
+                Capabilities = GetSelectedCapabilities(),
                 FileSystemAccess = AuthorizedLocations.Select(static item => item.ToRule()).ToArray(),
                 Workflow = workflow,
                 Enabled = false,
@@ -970,6 +1035,7 @@ public sealed partial class TaskEditorViewModel :
         CaptureAssistedUndoSnapshot();
         WorkflowText = result.WorkflowJson;
         SetSelectedToolGroups(result.ToolGroups);
+        SetSelectedCapabilities(result.Capabilities);
         AuthorizedLocations.Clear();
         foreach (var rule in result.FileSystemAccess)
         {
@@ -1024,6 +1090,7 @@ public sealed partial class TaskEditorViewModel :
         _assistedUndoSnapshot = new AIEditorSnapshot(
             WorkflowText,
             GetSelectedToolGroups().ToArray(),
+            GetSelectedCapabilities().ToArray(),
             AuthorizedLocations.Select(static item => item.ToRule()).ToArray());
 
     private void SetSelectedToolGroups(IEnumerable<string> toolGroups)
@@ -1316,9 +1383,21 @@ public sealed partial class TaskEditorViewModel :
         }
 
         OnPropertyChanged(nameof(ShowAuthorizedLocations));
+        UpdateCapabilityVisibility();
+        OnPropertyChanged(nameof(CapabilityWarning));
         if (!_isLoading)
         {
             IsDirty = true;
+        }
+    }
+
+    private void OnCapabilitySelectionChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(TaskCapabilitySelectionItem.IsSelected) && !_isLoading)
+        {
+            IsDirty = true;
+            UpdateCapabilityVisibility();
+            OnPropertyChanged(nameof(CapabilityWarning));
         }
     }
 
@@ -1330,5 +1409,6 @@ public sealed partial class TaskEditorViewModel :
     private sealed record AIEditorSnapshot(
         string WorkflowText,
         IReadOnlyList<string> ToolGroups,
+        IReadOnlyList<TaskCapability> Capabilities,
         IReadOnlyList<FileSystemAccessRule> FileSystemAccess);
 }

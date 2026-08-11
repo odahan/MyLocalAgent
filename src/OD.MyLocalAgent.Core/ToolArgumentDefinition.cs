@@ -28,4 +28,7 @@ public sealed record ToolArgumentDefinition(
     /// before workflow placeholder substitution.
     /// </summary>
     public bool SupportsPlaceholders { get; init; } = true;
+
+    /// <summary>Gets whether this argument is edited as long-form workflow text.</summary>
+    public bool IsLongText { get; init; }
 }

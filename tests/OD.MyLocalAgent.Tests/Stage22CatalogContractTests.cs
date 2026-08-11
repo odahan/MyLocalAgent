@@ -36,13 +36,13 @@ public sealed class Stage22CatalogContractTests
     [Fact]
     public void AliasesHaveExactFunctionsSafetyAndPathAccess()
     {
-        var expected = new Dictionary<string, (string Function, string? Safety, string[] Paths)>(StringComparer.Ordinal)
+        var expected = new Dictionary<string, (string Function, TaskCapability? Capability, string[] Paths)>(StringComparer.Ordinal)
         {
             ["archive.list"] = ("archive_list", null, ["archivePath:File:ReadOnly"]),
-            ["archive.extract"] = ("archive_extract", "Safety:AllowArchiveWrite", ["archivePath:File:ReadOnly", "destinationPath:File:ReadWrite"]),
-            ["archive.extractAll"] = ("archive_extract_all", "Safety:AllowArchiveWrite", ["archivePath:File:ReadOnly", "destinationDirectory:Directory:ReadWrite"]),
-            ["archive.createZip"] = ("archive_create_zip", "Safety:AllowArchiveWrite", ["archivePath:File:ReadWrite", "sourcePath:FileOrDirectory:ReadOnly"]),
-            ["archive.addToZip"] = ("archive_add_to_zip", "Safety:AllowArchiveWrite", ["archivePath:File:ReadWrite", "sourcePath:FileOrDirectory:ReadOnly"]),
+            ["archive.extract"] = ("archive_extract", TaskCapability.ArchiveWrite, ["archivePath:File:ReadOnly", "destinationPath:File:ReadWrite"]),
+            ["archive.extractAll"] = ("archive_extract_all", TaskCapability.ArchiveWrite, ["archivePath:File:ReadOnly", "destinationDirectory:Directory:ReadWrite"]),
+            ["archive.createZip"] = ("archive_create_zip", TaskCapability.ArchiveWrite, ["archivePath:File:ReadWrite", "sourcePath:FileOrDirectory:ReadOnly"]),
+            ["archive.addToZip"] = ("archive_add_to_zip", TaskCapability.ArchiveWrite, ["archivePath:File:ReadWrite", "sourcePath:FileOrDirectory:ReadOnly"]),
             ["document.readDocx"] = ("document_read_docx", null, ["documentPath:File:ReadOnly"]),
             ["spreadsheet.listSheets"] = ("spreadsheet_list_sheets", null, ["workbookPath:File:ReadOnly"]),
             ["spreadsheet.readRange"] = ("spreadsheet_read_range", null, ["workbookPath:File:ReadOnly"]),
@@ -57,7 +57,7 @@ public sealed class Stage22CatalogContractTests
         {
             var contract = expected[definition.Alias];
             definition.AgentFunctionName.Should().Be(contract.Function);
-            definition.SafetyFlag.Should().Be(contract.Safety);
+            definition.RequiredCapability.Should().Be(contract.Capability);
             definition.LocalPathArguments.Select(path => $"{path.ArgumentName}:{path.TargetKind}:{path.RequiredAccess}")
                 .Should().Equal(contract.Paths);
         }

@@ -110,17 +110,6 @@ public sealed class ToolCatalog : IToolCatalog
         var discoveredAliases = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var discoveredAgentFunctions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        var knownSafetyFlags = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "Safety:AllowSendEmail",
-            "Safety:AllowFileDelete",
-            "Safety:AllowMoveToBin",
-            "Safety:AllowHttpPost",
-            "Safety:AllowSqliteWrite",
-            "Safety:AllowProcessExecution",
-            "Safety:AllowArchiveWrite",
-        };
-
         var candidateTypes = types
             .Where(static type => type.GetCustomAttribute<ToolGroupAttribute>() is not null)
             .ToList();
@@ -207,6 +196,12 @@ public sealed class ToolCatalog : IToolCatalog
             {
                 var toolAttr = method.GetCustomAttribute<ToolAttribute>()!;
 
+                if (!Enum.IsDefined(toolAttr.RequiredCapability))
+                {
+                    throw new InvalidOperationException(
+                        $"Tool '{toolAttr.Alias}' references unknown task capability '{toolAttr.RequiredCapability}'.");
+                }
+
                 // Rule 5: Non-public, static, generic, special-name method
                 if (method.IsStatic || method.IsGenericMethod || method.IsSpecialName)
                 {
@@ -268,15 +263,6 @@ public sealed class ToolCatalog : IToolCatalog
                 if (!discoveredAgentFunctions.Add(agentFunctionName))
                 {
                     throw new InvalidOperationException($"Duplicate agent function name '{agentFunctionName}' for tool alias '{toolAttr.Alias}'.");
-                }
-
-                // Rule 16: Safety flag check
-                if (!string.IsNullOrWhiteSpace(toolAttr.SafetyFlag))
-                {
-                    if (!knownSafetyFlags.Contains(toolAttr.SafetyFlag))
-                    {
-                        throw new InvalidOperationException($"Tool '{toolAttr.Alias}' references unknown Safety flag '{toolAttr.SafetyFlag}'.");
-                    }
                 }
 
                 // Validate parameters
@@ -385,6 +371,7 @@ public sealed class ToolCatalog : IToolCatalog
                         Example = argAttr.Example,
                         AllowedValues = allowedValues,
                         SupportsPlaceholders = supportsPlaceholders,
+                        IsLongText = argAttr.IsLongText,
                     });
                 }
 
@@ -423,7 +410,9 @@ public sealed class ToolCatalog : IToolCatalog
                     type,
                     method.Name,
                     argNames,
-                    toolAttr.SafetyFlag,
+                    toolAttr.RequiredCapability == TaskCapability.None
+                        ? null
+                        : toolAttr.RequiredCapability,
                     IsAiStep: false)
                 {
                     OptionalArguments = optionalArgNames,
@@ -506,7 +495,7 @@ public sealed class ToolCatalog : IToolCatalog
                 declaringType,
                 MethodName: null,
                 argNames,
-                SafetyFlag: null,
+                RequiredCapability: null,
                 IsAiStep: true)
             {
                 OptionalArguments = optionalArgNames,
@@ -548,6 +537,7 @@ public sealed class ToolCatalog : IToolCatalog
                 {
                     Example = "Summarize the workflow context in five bullet points.",
                     SupportsPlaceholders = true,
+                    IsLongText = true,
                 },
                 new ToolArgumentDefinition(
                     "includeContext",

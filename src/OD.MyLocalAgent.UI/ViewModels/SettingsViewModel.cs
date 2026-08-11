@@ -49,13 +49,6 @@ public sealed partial class SettingsViewModel :
         nameof(AllowedHostsText),
         nameof(RunWhenLoggedOff),
         nameof(RunnerPath),
-        nameof(AllowSendEmail),
-        nameof(AllowFileDelete),
-        nameof(AllowMoveToBin),
-        nameof(AllowHttpPost),
-        nameof(AllowSqliteWrite),
-        nameof(AllowProcessExecution),
-        nameof(AllowArchiveWrite),
         nameof(FileContentMaxInputFileBytes),
         nameof(FileContentMaxArchiveEntries),
         nameof(FileContentMaxArchiveEntryBytes),
@@ -94,7 +87,6 @@ public sealed partial class SettingsViewModel :
     private readonly IOptionsMonitor<FileSystemOptions> _fileSystemOptions;
     private readonly IOptionsMonitor<HttpOptions> _httpOptions;
     private readonly IOptionsMonitor<SchedulerOptions> _schedulerOptions;
-    private readonly IOptionsMonitor<SafetyOptions> _safetyOptions;
     private readonly IOptionsMonitor<GuardrailsOptions> _guardrailsOptions;
     private readonly IOptionsMonitor<LoggingOptions> _loggingOptions;
     private readonly IOptionsMonitor<SQLiteOptions>? _sqliteOptions;
@@ -192,27 +184,6 @@ public sealed partial class SettingsViewModel :
     [ObservableProperty]
     private string _resolvedRunnerPath = string.Empty;
 
-    [ObservableProperty]
-    private bool _allowSendEmail;
-
-    [ObservableProperty]
-    private bool _allowFileDelete;
-
-    [ObservableProperty]
-    private bool _allowMoveToBin;
-
-    [ObservableProperty]
-    private bool _allowHttpPost;
-
-    [ObservableProperty]
-    private bool _allowSqliteWrite;
-
-    [ObservableProperty]
-    private bool _allowProcessExecution;
-
-    [ObservableProperty]
-    private bool _allowArchiveWrite;
-
     [ObservableProperty] private long _fileContentMaxInputFileBytes = 104857600;
     [ObservableProperty] private int _fileContentMaxArchiveEntries = 10000;
     [ObservableProperty] private long _fileContentMaxArchiveEntryBytes = 262144000;
@@ -303,7 +274,6 @@ public sealed partial class SettingsViewModel :
         IOptionsMonitor<FileSystemOptions> fileSystemOptions,
         IOptionsMonitor<HttpOptions> httpOptions,
         IOptionsMonitor<SchedulerOptions> schedulerOptions,
-        IOptionsMonitor<SafetyOptions> safetyOptions,
         IOptionsMonitor<GuardrailsOptions> guardrailsOptions,
         IOptionsMonitor<LoggingOptions> loggingOptions,
         ILlmClientFactory llmClientFactory,
@@ -328,7 +298,6 @@ public sealed partial class SettingsViewModel :
         _fileSystemOptions = fileSystemOptions;
         _httpOptions = httpOptions;
         _schedulerOptions = schedulerOptions;
-        _safetyOptions = safetyOptions;
         _guardrailsOptions = guardrailsOptions;
         _loggingOptions = loggingOptions;
         _sqliteOptions = sqliteOptions;
@@ -551,7 +520,6 @@ public sealed partial class SettingsViewModel :
             var fileSystem = _fileSystemOptions.CurrentValue;
             var http = _httpOptions.CurrentValue;
             var scheduler = _schedulerOptions.CurrentValue;
-            var safety = _safetyOptions.CurrentValue;
             var guardrails = _guardrailsOptions.CurrentValue;
             var logging = _loggingOptions.CurrentValue;
             var sqlite = _sqliteOptions?.CurrentValue ?? new SQLiteOptions();
@@ -593,13 +561,6 @@ public sealed partial class SettingsViewModel :
             ResolvedRunnerPath = RunnerPathResolver.Resolve(
                 scheduler,
                 requireExists: false);
-            AllowSendEmail = safety.AllowSendEmail;
-            AllowFileDelete = safety.AllowFileDelete;
-            AllowMoveToBin = safety.AllowMoveToBin;
-            AllowHttpPost = safety.AllowHttpPost;
-            AllowSqliteWrite = safety.AllowSqliteWrite;
-            AllowProcessExecution = safety.AllowProcessExecution;
-            AllowArchiveWrite = safety.AllowArchiveWrite;
             FileContentMaxInputFileBytes = fileContent.MaxInputFileBytes;
             FileContentMaxArchiveEntries = fileContent.MaxArchiveEntries;
             FileContentMaxArchiveEntryBytes = fileContent.MaxArchiveEntryBytes;
@@ -706,10 +667,6 @@ public sealed partial class SettingsViewModel :
                 currentScheduler.TaskFolder,
                 RunWhenLoggedOff,
                 RunnerPath.Trim(),
-                AllowSendEmail,
-                AllowFileDelete,
-                AllowMoveToBin,
-                AllowHttpPost,
                 GuardrailsScreeningEnabled,
                 GuardrailsCleanThreshold,
                 GuardrailsCautionThreshold,
@@ -725,7 +682,6 @@ public sealed partial class SettingsViewModel :
                 generationDefaults.Temperature,
                 generationDefaults.TopP,
                 generationDefaults.ContextWindowTokens,
-                AllowSqliteWrite,
                 SqliteDefaultMaxRows,
                 SqliteMaxRows,
                 SqliteMaxResultCharacters,
@@ -733,9 +689,7 @@ public sealed partial class SettingsViewModel :
                 SqliteMaxSqlCharacters,
                 SqliteCommandTimeoutSeconds,
                 SqliteGuardrailsEnabledByDefault,
-                AllowProcessExecution,
                 GlobalSystemPrompt.Trim(),
-                AllowArchiveWrite,
                 FileContentMaxInputFileBytes,
                 FileContentMaxArchiveEntries,
                 FileContentMaxArchiveEntryBytes,
