@@ -42,9 +42,9 @@
         <Grid Grid.Row="1"
               Margin="0,18,0,0">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="250" />
-                <ColumnDefinition Width="16" />
-                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="250" MinWidth="220" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="*" MinWidth="400" />
             </Grid.ColumnDefinitions>
 
             <materialDesign:Card Padding="0">
@@ -123,42 +123,98 @@
                         </ListBox.ItemTemplate>
                     </ListBox>
                     <Expander Grid.Row="2"
-                              Margin="8,0,8,4"
-                              Header="Tools &amp; permissions"
-                              IsExpanded="{Binding AgentEnabled}">
-                        <StackPanel Margin="4,8">
-                            <CheckBox Content="Enable tools for this conversation"
-                                      IsChecked="{Binding AgentEnabled}" />
-                            <TextBlock Margin="0,5,0,8"
-                                       Foreground="{DynamicResource MutedTextBrush}"
-                                       Text="{Binding AgentSummary}"
-                                       TextWrapping="Wrap" />
-                            <ItemsControl ItemsSource="{Binding ToolSelections}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <CheckBox Margin="0,2"
-                                                  Content="{Binding DisplayName}"
-                                                  IsChecked="{Binding IsSelected}" />
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <TextBlock Margin="0,10,0,3"
-                                       FontWeight="SemiBold"
-                                       Text="Sensitive permissions" />
-                            <ItemsControl ItemsSource="{Binding CapabilitySelections}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <CheckBox Margin="0,2"
-                                                  Content="{Binding DisplayName}"
-                                                  IsChecked="{Binding IsSelected}"
-                                                  ToolTip="{Binding Description}" />
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <Button Margin="0,10,0,0"
+                               Margin="8,0,8,4"
+                              MaxHeight="390"
+                              Header="Tools &amp; permissions">
+                        <Expander.Resources>
+                            <Style TargetType="{x:Type ScrollBar}"
+                                   BasedOn="{StaticResource MaterialDesignScrollBar}">
+                                <Setter Property="Width" Value="6" />
+                                <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+                            </Style>
+                        </Expander.Resources>
+                        <Grid Margin="4,8">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                          VerticalScrollBarVisibility="Auto">
+                                <StackPanel Margin="0,0,8,0">
+                                    <CheckBox Content="Enable tools for this conversation"
+                                              IsChecked="{Binding AgentEnabled}" />
+                                    <TextBlock Margin="0,5,0,8"
+                                               Foreground="{DynamicResource MutedTextBrush}"
+                                               Text="{Binding AgentSummary}"
+                                               TextWrapping="Wrap" />
+                                    <ItemsControl ItemsSource="{Binding ToolSelections}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <CheckBox Margin="0,2"
+                                                          Content="{Binding DisplayName}"
+                                                          IsChecked="{Binding IsSelected}" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Margin="0,10,0,3"
+                                               FontWeight="SemiBold"
+                                               Text="Sensitive permissions" />
+                                    <ItemsControl ItemsSource="{Binding CapabilitySelections}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <CheckBox Margin="0,2"
+                                                          Content="{Binding DisplayName}"
+                                                          IsChecked="{Binding IsSelected}"
+                                                          ToolTip="{Binding Description}" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Margin="0,10,0,3"
+                                               FontWeight="SemiBold"
+                                               Text="Authorized locations" />
+                                    <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                                               Text="File-system tools can access only these folders. New locations start with read and write access; clear Read and write for read-only access."
+                                               TextWrapping="Wrap" />
+                                    <Button Margin="0,7,0,4"
+                                            HorizontalAlignment="Left"
+                                            Command="{Binding AddAuthorizedLocationCommand}"
+                                            Content="Add location" />
+                                    <ItemsControl ItemsSource="{Binding AuthorizedLocations}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid Margin="0,3,0,3">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Path}"
+                                                                   TextWrapping="Wrap" />
+                                                        <TextBlock Style="{StaticResource CaptionTextStyle}"
+                                                                   Text="{Binding Status}"
+                                                                   TextWrapping="Wrap" />
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="1"
+                                                                Margin="8,0,0,0">
+                                                        <CheckBox Content="Read and write"
+                                                                  IsChecked="{Binding CanWrite}" />
+                                                        <Button Margin="0,4,0,0"
+                                                                Command="{Binding DataContext.RemoveAuthorizedLocationCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                CommandParameter="{Binding}"
+                                                                Content="Remove" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </ScrollViewer>
+                            <Button Grid.Row="1"
+                                    Margin="0,10,0,0"
                                     Command="{Binding SaveAgentProfileCommand}"
                                     Content="Save permissions" />
-                        </StackPanel>
+                        </Grid>
                     </Expander>
                     <Button Grid.Row="3"
                             Margin="12"
@@ -167,6 +223,16 @@
                             Style="{StaticResource DangerButtonStyle}" />
                 </Grid>
             </materialDesign:Card>
+
+            <GridSplitter Grid.Column="1"
+                          Width="6"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Stretch"
+                          Background="{DynamicResource DividerBrush}"
+                          ResizeBehavior="PreviousAndNext"
+                          ResizeDirection="Columns"
+                          ShowsPreview="True"
+                          ToolTip="Drag to resize conversations and messages" />
 
             <materialDesign:Card Grid.Column="2"
                                  Padding="0">
@@ -228,14 +294,87 @@
                                                 </Style>
                                             </Border.Style>
                                             <StackPanel>
-                                                <ContentControl Content="{Binding}"
-                                                                ContentTemplate="{StaticResource PlainMessageTemplate}" />
+                                                <ItemsControl ItemsSource="{Binding Contents}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <StackPanel Margin="0,0,0,8">
+                                                                <TextBlock Text="{Binding Text}"
+                                                                           TextWrapping="Wrap"
+                                                                           Visibility="{Binding IsText, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                                <StackPanel Visibility="{Binding IsImage, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                    <Button Padding="0"
+                                                                            HorizontalAlignment="Left"
+                                                                            AutomationProperties.Name="Open generated image at full size"
+                                                                            Command="{Binding DataContext.OpenImageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                            CommandParameter="{Binding}">
+                                                                        <Image MaxWidth="640"
+                                                                               MaxHeight="420"
+                                                                               Source="{Binding ImageSource}"
+                                                                               Stretch="Uniform" />
+                                                                    </Button>
+                                                                    <StackPanel Margin="0,7,0,0" Orientation="Horizontal">
+                                                                        <Button Command="{Binding DataContext.OpenImageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                                CommandParameter="{Binding}"
+                                                                                Content="Open full size" />
+                                                                        <Button Margin="8,0,0,0"
+                                                                                Command="{Binding DataContext.SaveMediaCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                                CommandParameter="{Binding}"
+                                                                                Content="Save image" />
+                                                                    </StackPanel>
+                                                                </StackPanel>
+                                                                <Border Padding="10"
+                                                                        Background="{DynamicResource SurfaceBrush}"
+                                                                        CornerRadius="8"
+                                                                        Visibility="{Binding IsAudio, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                    <StackPanel>
+                                                                        <TextBlock FontWeight="SemiBold" Text="Audio response" />
+                                                                        <TextBlock Margin="0,3,0,7" Foreground="{DynamicResource MutedTextBrush}">
+                                                                            <Run Text="{Binding DurationText, Mode=OneWay}" />
+                                                                            <Run Text=" · " />
+                                                                            <Run Text="{Binding SizeText, Mode=OneWay}" />
+                                                                        </TextBlock>
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <Button AutomationProperties.Name="Play generated audio"
+                                                                                    Command="{Binding DataContext.PlayAudioCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                                    CommandParameter="{Binding}"
+                                                                                    Content="Play" />
+                                                                            <Button Margin="8,0,0,0"
+                                                                                    Command="{Binding DataContext.StopAudioCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                                    Content="Stop" />
+                                                                            <Button Margin="8,0,0,0"
+                                                                                    Command="{Binding DataContext.SaveMediaCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                                    CommandParameter="{Binding}"
+                                                                                    Content="Save audio" />
+                                                                        </StackPanel>
+                                                                    </StackPanel>
+                                                                </Border>
+                                                                <TextBlock Margin="0,6,0,0"
+                                                                           FontSize="11"
+                                                                           FontStyle="Italic"
+                                                                           Foreground="{DynamicResource MutedTextBrush}"
+                                                                           Text="{Binding CloudDisclosure}"
+                                                                           Visibility="{Binding CloudDisclosure, Converter={StaticResource NullOrEmptyToCollapsedConverter}}" />
+                                                            </StackPanel>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
                                                 <TextBlock Margin="0,6,0,0"
                                                            Foreground="{DynamicResource MutedTextBrush}"
                                                            FontSize="11"
                                                            FontStyle="Italic"
                                                            Text="{Binding StateText}"
                                                            Visibility="{Binding StateText, Converter={StaticResource NullOrEmptyToCollapsedConverter}}" />
+                                                <Button Margin="0,4,0,0"
+                                                        Padding="4"
+                                                        HorizontalAlignment="Right"
+                                                        AutomationProperties.Name="Copy message to clipboard"
+                                                        Command="{Binding DataContext.CopyMessageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding}"
+                                                        ToolTip="Copy message">
+                                                    <materialDesign:PackIcon Width="16"
+                                                                             Height="16"
+                                                                             Kind="ContentCopy" />
+                                                </Button>
                                             </StackPanel>
                                         </Border>
                                     </DataTemplate>
@@ -305,13 +444,23 @@
                                        Foreground="{DynamicResource MutedTextBrush}"
                                        Text="Compressing history…"
                                        Visibility="{Binding IsCompressing, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                            <Button Command="{Binding SendCancelCommand}"
+                            <Button Command="{Binding CancelGenerationCommand}"
                                     Content="Cancel"
                                     Style="{StaticResource DangerButtonStyle}"
                                     Visibility="{Binding IsStreaming, Converter={StaticResource BooleanToVisibilityConverter}}" />
                             <Button Margin="0,0,8,0"
                                     Command="{Binding AttachFileCommand}"
                                     Content="Attach file" />
+                            <Button Margin="0,0,8,0"
+                                    AutomationProperties.Name="Generate image from draft"
+                                    Command="{Binding GenerateImageCommand}"
+                                    Content="Generate image"
+                                    Visibility="{Binding SupportsImageOutput, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            <Button Margin="0,0,8,0"
+                                    AutomationProperties.Name="Generate audio from draft"
+                                    Command="{Binding GenerateAudioCommand}"
+                                    Content="Generate audio"
+                                    Visibility="{Binding SupportsAudioOutput, Converter={StaticResource BooleanToVisibilityConverter}}" />
                             <Button Command="{Binding SendCommand}"
                                     Content="Send"
                                     Style="{StaticResource PrimaryButtonStyle}" />

@@ -1974,3 +1974,43 @@ compilation, freshness-window expansion, document classification, and guardrails
   eventual schedule before enabling it.
 - Updated both user manuals and the README. Build completed with zero warnings/errors and the
   non-integration suite completed with 606 passed tests and one expected skipped local probe.
+
+### Direct Chat multimodal image and audio responses — 2026-08-12
+
+- Added explicit provider capabilities for text chat, image input, image output, audio output, and
+  reserved video output. OpenAI compatibility no longer implies any media capability; existing
+  Ollama and text-only providers expose no unsupported Direct Chat actions.
+- Replaced the assistant-text-only persistence assumption with ordered `DirectChatContent` parts.
+  SQLite schema 4 adds `message_contents` with text/image/audio and reserved video/file kinds,
+  MIME type, name, size, BLOB/text data, duration, and cloud/provider metadata. Existing text rows
+  migrate automatically, and cascading conversation deletion removes their media.
+- Added 25 MiB per-item and 250 MiB per-conversation defaults. Media bytes are bounded before and
+  during provider reads and before persistence. API keys remain exclusively in the DPAPI secret
+  store; logs retain only sanitized model, timing, result-size, and state metadata.
+- Added the official OpenAI media adapter with dedicated `POST /images/generations` and
+  `POST /audio/speech` calls. Image output is decoded from base64; speech requests WAV so Direct
+  Chat can play it locally and derive duration when the WAV header supplies it. Video is not
+  implemented.
+- Added conditional image/audio composer actions, operation states, cloud-origin disclosure,
+  image preview/full-size opening/saving, WAV play/stop/saving, keyboard names, and theme-resource
+  colors. Task conversion continues to copy only the latest user text and explicit permissions.
+- Added deterministic persistence, migration, ViewModel projection, endpoint routing, saving,
+  cancellation, and failure coverage, while retaining the existing text streaming tests.
+
+### Version 1.4.0 — Direct Chat reliability, permissions, and file metadata — 2026-08-12
+
+- Restored a stable selected conversation during initial loading, streaming, and recent-activity
+  updates. The composer and conversation list now remain usable after a reply completes or fails.
+- Hardened OpenAI-compatible streaming: a response is complete only with an explicit `stop` or
+  `tool_calls` finish reason. Missing, length-limited, or content-filtered terminal reasons are
+  reported as failed incidents rather than silently persisting a partial answer.
+- Added conversation-scoped authorized filesystem locations, persisted through Direct Chat schema
+  5. Agent mode is off by default; each saved location grants only the selected read or read/write
+  access and continues to be constrained by the shared filesystem safety checks.
+- Added created and last-modified UTC metadata to `filesystem.list` entries, alongside the existing
+  name, type, and size metadata.
+- Improved Direct Chat ergonomics with a draggable conversation splitter, a themed slim scrollbar
+  in the independently scrolling permission list, and keyboard-accessible copy-to-clipboard actions
+  on messages.
+- Added deterministic coverage for filesystem metadata, schema-5 authorization persistence,
+  selection retention, empty/failed responses, and OpenAI streaming terminal-reason validation.

@@ -38,6 +38,17 @@ internal static class LlmOptionsValidation
             return validation;
         }
 
+        if (options.SupportsImageOutput && string.IsNullOrWhiteSpace(options.ImageModel))
+        {
+            return "OpenAI:ImageModel is required when image output is enabled.";
+        }
+
+        if (options.SupportsAudioOutput &&
+            (string.IsNullOrWhiteSpace(options.AudioModel) || string.IsNullOrWhiteSpace(options.AudioVoice)))
+        {
+            return "OpenAI:AudioModel and OpenAI:AudioVoice are required when audio output is enabled.";
+        }
+
         return requireApiKey && string.IsNullOrWhiteSpace(options.ApiKey)
             ? "OpenAI:ApiKey is required when AI:Provider is 'OpenAI'. Configure it in the protected secret store."
             : null;

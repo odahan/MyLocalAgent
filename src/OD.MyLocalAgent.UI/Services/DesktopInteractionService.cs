@@ -4,11 +4,16 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Windows;
 using Microsoft.Win32;
+using System.Media;
+using System.Windows.Controls;
+using System.Windows.Media.Imaging;
 
 namespace OD.MyLocalAgent.UI.Services;
 
 internal sealed class DesktopInteractionService : IDesktopInteractionService
 {
+    private SoundPlayer? _soundPlayer;
+    private MemoryStream? _audioStream;
     public UnsavedChangesChoice PromptUnsavedChanges(string title, string message)
     {
         var dialog = CreateDialog(
@@ -238,6 +243,68 @@ internal sealed class DesktopInteractionService : IDesktopInteractionService
                 FileName = parsed.AbsoluteUri,
                 UseShellExecute = true,
             });
+    }
+
+    public void ShowImage(byte[] data, string title)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+        using var stream = new MemoryStream(data, writable: false);
+        var bitmap = new BitmapImage();
+        bitmap.BeginInit();
+        bitmap.CacheOption = BitmapCacheOption.OnLoad;
+        bitmap.StreamSource = stream;
+        bitmap.EndInit();
+        bitmap.Freeze();
+        var image = new Image
+        {
+            Source = bitmap,
+            Stretch = System.Windows.Media.Stretch.None,
+        };
+        var window = new Window
+        {
+            Title = title,
+            Width = Math.Min(1200, bitmap.PixelWidth + 40),
+            Height = Math.Min(900, bitmap.PixelHeight + 70),
+            Content = new ScrollViewer
+            {
+                Content = image,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            },
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+        };
+        var owner = Application.Current?.MainWindow;
+        if (owner?.IsVisible == true)
+        {
+            window.Owner = owner;
+        }
+
+        window.KeyDown += (_, args) =>
+        {
+            if (args.Key == System.Windows.Input.Key.Escape)
+            {
+                window.Close();
+            }
+        };
+        window.Show();
+    }
+
+    public void PlayWaveAudio(byte[] data)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+        StopAudio();
+        _audioStream = new MemoryStream(data, writable: false);
+        _soundPlayer = new SoundPlayer(_audioStream);
+        _soundPlayer.Play();
+    }
+
+    public void StopAudio()
+    {
+        _soundPlayer?.Stop();
+        _soundPlayer?.Dispose();
+        _audioStream?.Dispose();
+        _soundPlayer = null;
+        _audioStream = null;
     }
 
     private static void SetComProperty(

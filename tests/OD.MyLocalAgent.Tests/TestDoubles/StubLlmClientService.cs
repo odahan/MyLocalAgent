@@ -27,6 +27,16 @@ internal sealed class StubLlmClientService : ILlmClientService
 
     public string ModelName { get; init; } = "stub-model";
 
+    public ProviderCapabilities Capabilities { get; init; } = ProviderCapabilities.TextChat;
+
+    public Func<MultimodalGenerationRequest, CancellationToken, Task<MultimodalGenerationResult>>? MediaHandler { get; init; }
+
+    public Task<MultimodalGenerationResult> GenerateMediaAsync(
+        MultimodalGenerationRequest request,
+        CancellationToken cancellationToken) =>
+        MediaHandler?.Invoke(request, cancellationToken) ??
+        Task.FromException<MultimodalGenerationResult>(new NotSupportedException());
+
     public async Task<string> GenerateAsync(
         string prompt,
         CancellationToken cancellationToken)

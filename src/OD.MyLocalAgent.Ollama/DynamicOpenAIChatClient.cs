@@ -48,12 +48,23 @@ internal sealed class DynamicOpenAIChatClient : IChatClient
         effectiveOptions.ModelId = model;
         using var client = CreateClient(current, model);
 
+        ChatFinishReason? finishReason = null;
+        var updateCount = 0;
+        var textCharacterCount = 0;
         await foreach (var update in client
             .GetStreamingResponseAsync(messages, effectiveOptions, timeoutSource.Token)
             .ConfigureAwait(false))
         {
+            updateCount++;
+            textCharacterCount += update.Text?.Length ?? 0;
+            finishReason = update.FinishReason ?? finishReason;
             yield return update;
         }
+
+        OpenAIStreamingCompletionValidator.EnsureCompleted(
+            finishReason,
+            updateCount,
+            textCharacterCount);
     }
 
     public object? GetService(Type serviceType, object? serviceKey = null)

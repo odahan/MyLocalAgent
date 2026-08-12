@@ -1809,8 +1809,12 @@ ollama list</code></pre>
 <p>Text, PDF, Word, and Excel files are read locally within controlled limits. PNG, JPEG, WebP, GIF, and BMP images are sent as images and require a vision-capable model. Attachment content is retained with the message so that its context can be restored when the conversation is reopened.</p>
 </li>
 <li>
+<strong>Generate an image or audio only when the action is offered.</strong>
+<p><span class="ui-label">Generate image</span> and <span class="ui-label">Generate audio</span> appear only when the active provider explicitly declares that capability. Images provide preview, full-size opening, and saving. WAV audio provides play, stop, duration when available, and saving. Cloud content is labeled.</p>
+</li>
+<li>
 <strong>Enable the agent only when needed.</strong>
-<p>Below the conversation list, open <span class="ui-label">Tools &amp; permissions</span>, check <span class="ui-label">Enable tools for this conversation</span>, select the required tool groups and sensitive permissions, then select <span class="ui-label">Save permissions</span>. Everything is disabled by default, and the same sandbox, Guardrails, and connector rules as a task still apply.</p>
+<p>Below the conversation list, open <span class="ui-label">Tools &amp; permissions</span>, check <span class="ui-label">Enable tools for this conversation</span>, select the required tool groups and sensitive permissions, then select <span class="ui-label">Save permissions</span>. Everything is disabled by default. For File system access, add each required folder under <span class="ui-label">Authorized locations</span> and choose read-only or read/write access. The permission list scrolls independently; the same sandbox, Guardrails, and connector rules as a task still apply.</p>
 </li>
 <li>
 <strong>Turn useful work into a task.</strong>
@@ -1818,15 +1822,19 @@ ollama list</code></pre>
 </li>
 <li>
 <strong>Follow the streamed response.</strong>
-<p><span class="ui-label">Cancel</span> stops generation. A canceled response remains identified as canceled; after an abrupt shutdown, an unfinished response is marked failed on the next start.</p>
+<p><span class="ui-label">Cancel</span> stops generation. A canceled response remains identified as canceled; after an abrupt shutdown, an unfinished response is marked failed on the next start. A provider error or an incomplete streamed response is also marked <em>Failed</em> and receives an incident correlation id; you can continue the conversation after the failure.</p>
 </li>
 <li>
 <strong>Return to or create a conversation.</strong>
-<p>The left column sorts conversations by recent activity. <span class="ui-label">New chat</span> starts another conversation and <span class="ui-label">Load older messages</span> loads an earlier page.</p>
+<p>The left column sorts conversations by recent activity. <span class="ui-label">New chat</span> starts another conversation and <span class="ui-label">Load older messages</span> loads an earlier page. Drag the separator between the list and the conversation temporarily when you need more room for long authorized folder names.</p>
+</li>
+<li>
+<strong>Copy a message when needed.</strong>
+<p>Select the copy icon in a message bubble to place its text on the Windows clipboard.</p>
 </li>
 <li>
 <strong>Delete only after review.</strong>
-<p><span class="ui-label">Delete conversation</span> asks for confirmation, then permanently removes the conversation and its messages.</p>
+<p><span class="ui-label">Delete conversation</span> asks for confirmation, then permanently removes the conversation, its messages, and all associated media.</p>
 </li>
 </ol>
 <div class="callout">
@@ -1841,6 +1849,8 @@ ollama list</code></pre>
                     SQLite database is not the SQLite Tool, is unavailable to workflows, and is
                     not protected by DPAPI. With a cloud provider, relevant context is sent to the
                     configured endpoint.
+                    Media is limited by default to 25 MiB per item and 250 MiB per conversation.
+                    It is never copied automatically when a task is created.
                 </div>
 </section>
 <section data-title="Scenario: test a tool" id="scenario-outil">

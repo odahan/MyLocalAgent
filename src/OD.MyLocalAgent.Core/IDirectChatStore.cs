@@ -32,6 +32,7 @@ public interface IDirectChatStore
         bool agentEnabled,
         IReadOnlyList<string> tools,
         IReadOnlyList<TaskCapability> capabilities,
+        IReadOnlyList<FileSystemAccessRule> fileSystemAccess,
         CancellationToken cancellationToken);
 
     /// <summary>Deletes a conversation and all its messages.</summary>
@@ -54,7 +55,8 @@ public interface IDirectChatStore
         DirectChatMessageState state,
         int? estimatedTokens,
         CancellationToken cancellationToken,
-        IReadOnlyList<DirectChatAttachment>? attachments = null);
+        IReadOnlyList<DirectChatAttachment>? attachments = null,
+        IReadOnlyList<DirectChatContent>? contents = null);
 
     /// <summary>Updates message content and state during or after streaming.</summary>
     Task UpdateMessageAsync(
@@ -62,7 +64,8 @@ public interface IDirectChatStore
         string content,
         DirectChatMessageState state,
         int? estimatedTokens,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        IReadOnlyList<DirectChatContent>? contents = null);
 
     /// <summary>Atomically records the cumulative summary and its coverage boundary.</summary>
     Task UpdateSummaryAsync(

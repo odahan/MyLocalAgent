@@ -51,6 +51,12 @@ namespace OD.MyLocalAgent.UI.Services;
 /// <param name="FileContentMaxSpreadsheetColumns">The spreadsheet column ceiling.</param>
 /// <param name="FileContentMaxSpreadsheetCells">The spreadsheet cell ceiling.</param>
 /// <param name="FileContentMaxPdfPages">The PDF page ceiling.</param>
+/// <param name="OpenAISupportsImageInput">Whether the exact endpoint declares image input.</param>
+/// <param name="OpenAISupportsImageOutput">Whether the exact endpoint declares image output.</param>
+/// <param name="OpenAISupportsAudioOutput">Whether the exact endpoint declares audio output.</param>
+/// <param name="OpenAIImageModel">The dedicated image-generation model.</param>
+/// <param name="OpenAIAudioModel">The dedicated speech-generation model.</param>
+/// <param name="OpenAIAudioVoice">The dedicated speech voice.</param>
 public sealed record UserSettingsData(
     string Provider,
     string OllamaEndpoint,
@@ -99,4 +105,10 @@ public sealed record UserSettingsData(
     int FileContentMaxSpreadsheetRows = 1000,
     int FileContentMaxSpreadsheetColumns = 256,
     int FileContentMaxSpreadsheetCells = 25000,
-    int FileContentMaxPdfPages = 100);
+    int FileContentMaxPdfPages = 100,
+    bool OpenAISupportsImageInput = false,
+    bool OpenAISupportsImageOutput = false,
+    bool OpenAISupportsAudioOutput = false,
+    string OpenAIImageModel = "gpt-image-2",
+    string OpenAIAudioModel = "gpt-4o-mini-tts",
+    string OpenAIAudioVoice = "coral");

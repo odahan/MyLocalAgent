@@ -22,6 +22,16 @@ public interface ILlmClientService
     /// </summary>
     string ModelName { get; }
 
+    /// <summary>Gets capabilities explicitly declared by this provider.</summary>
+    ProviderCapabilities Capabilities => ProviderCapabilities.TextChat;
+
+    /// <summary>Generates provider-specific media through a dedicated endpoint.</summary>
+    Task<MultimodalGenerationResult> GenerateMediaAsync(
+        MultimodalGenerationRequest request,
+        CancellationToken cancellationToken) =>
+        Task.FromException<MultimodalGenerationResult>(
+            new NotSupportedException("The active provider does not support media generation."));
+
     /// <summary>
     /// Generates a complete response for a prompt.
     /// </summary>

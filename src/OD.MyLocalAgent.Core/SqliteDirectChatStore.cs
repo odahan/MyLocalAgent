@@ -1,33 +1,51 @@
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Options;
 
 namespace OD.MyLocalAgent.Core;
 
 /// <summary>Persists Direct Chat data in one dedicated SQLite database.</summary>
 public sealed class SqliteDirectChatStore : IDirectChatStore, IDisposable
 {
-    private const int CurrentSchemaVersion = 3;
+    private const int CurrentSchemaVersion = 5;
     private readonly string _databasePath;
     private readonly TimeProvider _timeProvider;
+    private readonly long _maximumMediaBytes;
+    private readonly long _maximumConversationMediaBytes;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private bool _initialized;
     private bool _disposed;
 
     /// <summary>Initializes a store at the standard per-user database path.</summary>
-    public SqliteDirectChatStore(TimeProvider timeProvider)
-        : this(LocalAppPaths.DirectChatDatabasePath, timeProvider)
+    public SqliteDirectChatStore(
+        TimeProvider timeProvider,
+        IOptions<DirectChatOptions> options)
+        : this(
+            LocalAppPaths.DirectChatDatabasePath,
+            timeProvider,
+            options?.Value.MaximumMediaBytes ?? throw new ArgumentNullException(nameof(options)),
+            options.Value.MaximumConversationMediaBytes)
     {
     }
 
     /// <summary>Initializes a store at an explicit database path.</summary>
     public SqliteDirectChatStore(
         string databasePath,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        long maximumMediaBytes = 25 * 1024 * 1024,
+        long maximumConversationMediaBytes = 250 * 1024 * 1024)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(databasePath);
         _databasePath = Path.GetFullPath(databasePath);
         _timeProvider = timeProvider ?? TimeProvider.System;
+        if (maximumMediaBytes <= 0 || maximumConversationMediaBytes < maximumMediaBytes)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maximumMediaBytes));
+        }
+
+        _maximumMediaBytes = maximumMediaBytes;
+        _maximumConversationMediaBytes = maximumConversationMediaBytes;
         SqliteNativeBootstrap.Initialize();
     }
 
@@ -120,6 +138,56 @@ public sealed class SqliteDirectChatStore : IDirectChatStore, IDisposable
                 await ExecuteNonQueryAsync(
                         connection,
                         "ALTER TABLE conversations ADD COLUMN agent_enabled INTEGER NOT NULL DEFAULT 0; ALTER TABLE conversations ADD COLUMN tools_json TEXT NULL; ALTER TABLE conversations ADD COLUMN capabilities_json TEXT NULL; PRAGMA user_version=3;",
+                        cancellationToken,
+                        transaction)
+                    .ConfigureAwait(false);
+                transaction.Commit();
+            }
+
+            if (version < 4)
+            {
+                using var transaction = connection.BeginTransaction();
+                await ExecuteNonQueryAsync(
+                        connection,
+                        """
+                        CREATE TABLE IF NOT EXISTS message_contents (
+                            message_id TEXT NOT NULL,
+                            position INTEGER NOT NULL,
+                            kind TEXT NOT NULL CHECK (kind IN ('Text', 'Image', 'Audio', 'Video', 'File')),
+                            media_type TEXT NOT NULL,
+                            file_name TEXT NULL,
+                            text_data TEXT NULL,
+                            binary_data BLOB NULL,
+                            size_bytes INTEGER NOT NULL,
+                            duration_ms INTEGER NULL,
+                            is_cloud_content INTEGER NOT NULL DEFAULT 0,
+                            provider_name TEXT NULL,
+                            PRIMARY KEY (message_id, position),
+                            FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
+                        );
+                        CREATE INDEX IF NOT EXISTS ix_message_contents_message
+                            ON message_contents(message_id, position);
+                        INSERT INTO message_contents
+                            (message_id, position, kind, media_type, text_data, size_bytes)
+                        SELECT id, 0, 'Text', 'text/markdown', content, length(CAST(content AS BLOB))
+                        FROM messages
+                        WHERE content <> ''
+                          AND NOT EXISTS (
+                              SELECT 1 FROM message_contents WHERE message_id = messages.id);
+                        PRAGMA user_version=4;
+                        """,
+                        cancellationToken,
+                        transaction)
+                    .ConfigureAwait(false);
+                transaction.Commit();
+            }
+
+            if (version < 5)
+            {
+                using var transaction = connection.BeginTransaction();
+                await ExecuteNonQueryAsync(
+                        connection,
+                        "ALTER TABLE conversations ADD COLUMN filesystem_access_json TEXT NULL; PRAGMA user_version=5;",
                         cancellationToken,
                         transaction)
                     .ConfigureAwait(false);
@@ -267,21 +335,24 @@ public sealed class SqliteDirectChatStore : IDirectChatStore, IDisposable
         bool agentEnabled,
         IReadOnlyList<string> tools,
         IReadOnlyList<TaskCapability> capabilities,
+        IReadOnlyList<FileSystemAccessRule> fileSystemAccess,
         CancellationToken cancellationToken)
     {
         ValidateIdentifier(conversationId, nameof(conversationId));
         ArgumentNullException.ThrowIfNull(tools);
         ArgumentNullException.ThrowIfNull(capabilities);
+        ArgumentNullException.ThrowIfNull(fileSystemAccess);
         await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
             using var command = connection.CreateCommand();
-            command.CommandText = "UPDATE conversations SET agent_enabled = $enabled, tools_json = $tools, capabilities_json = $capabilities, updated_utc = $updated WHERE id = $id";
+            command.CommandText = "UPDATE conversations SET agent_enabled = $enabled, tools_json = $tools, capabilities_json = $capabilities, filesystem_access_json = $filesystemAccess, updated_utc = $updated WHERE id = $id";
             command.Parameters.AddWithValue("$enabled", agentEnabled ? 1 : 0);
             command.Parameters.AddWithValue("$tools", tools.Count == 0 ? DBNull.Value : JsonSerializer.Serialize(tools));
             command.Parameters.AddWithValue("$capabilities", capabilities.Count == 0 ? DBNull.Value : JsonSerializer.Serialize(capabilities));
+            command.Parameters.AddWithValue("$filesystemAccess", fileSystemAccess.Count == 0 ? DBNull.Value : JsonSerializer.Serialize(fileSystemAccess));
             command.Parameters.AddWithValue("$updated", FormatDate(_timeProvider.GetUtcNow()));
             command.Parameters.AddWithValue("$id", conversationId);
             if (await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 0)
@@ -353,6 +424,20 @@ public sealed class SqliteDirectChatStore : IDirectChatStore, IDisposable
                 messages.Add(ReadMessage(reader));
             }
 
+            await reader.CloseAsync().ConfigureAwait(false);
+
+            for (var index = 0; index < messages.Count; index++)
+            {
+                messages[index] = messages[index] with
+                {
+                    Contents = await ReadContentsAsync(
+                            connection,
+                            messages[index],
+                            cancellationToken)
+                        .ConfigureAwait(false),
+                };
+            }
+
             messages.Reverse();
             return messages;
         }
@@ -370,7 +455,8 @@ public sealed class SqliteDirectChatStore : IDirectChatStore, IDisposable
         DirectChatMessageState state,
         int? estimatedTokens,
         CancellationToken cancellationToken,
-        IReadOnlyList<DirectChatAttachment>? attachments = null)
+        IReadOnlyList<DirectChatAttachment>? attachments = null,
+        IReadOnlyList<DirectChatContent>? contents = null)
     {
         ValidateIdentifier(conversationId, nameof(conversationId));
         ArgumentNullException.ThrowIfNull(content);
@@ -393,6 +479,14 @@ public sealed class SqliteDirectChatStore : IDirectChatStore, IDisposable
                     CultureInfo.InvariantCulture);
             }
 
+            var normalizedContents = NormalizeContents(content, contents);
+            await ValidateMediaLimitsAsync(
+                    connection,
+                    transaction,
+                    conversationId,
+                    normalizedContents,
+                    cancellationToken)
+                .ConfigureAwait(false);
             var message = new DirectChatMessage
             {
                 Id = Guid.NewGuid().ToString("N"),
@@ -404,6 +498,7 @@ public sealed class SqliteDirectChatStore : IDirectChatStore, IDisposable
                 CreatedUtc = _timeProvider.GetUtcNow(),
                 EstimatedTokens = estimatedTokens,
                 Attachments = attachments?.ToArray() ?? [],
+                Contents = normalizedContents,
             };
             using (var insert = connection.CreateCommand())
             {
@@ -418,6 +513,15 @@ public sealed class SqliteDirectChatStore : IDirectChatStore, IDisposable
                 AddMessageParameters(insert, message);
                 _ = await insert.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             }
+
+
+            await ReplaceContentsAsync(
+                    connection,
+                    transaction,
+                    message.Id,
+                    message.Contents,
+                    cancellationToken)
+                .ConfigureAwait(false);
 
             await TouchConversationAsync(
                     connection,
@@ -441,7 +545,8 @@ public sealed class SqliteDirectChatStore : IDirectChatStore, IDisposable
         string content,
         DirectChatMessageState state,
         int? estimatedTokens,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyList<DirectChatContent>? contents = null)
     {
         ValidateIdentifier(messageId, nameof(messageId));
         ArgumentNullException.ThrowIfNull(content);
@@ -475,6 +580,27 @@ public sealed class SqliteDirectChatStore : IDirectChatStore, IDisposable
             if (string.IsNullOrWhiteSpace(conversationId))
             {
                 throw new InvalidOperationException("The Direct Chat message no longer exists.");
+            }
+
+
+            if (contents is not null)
+            {
+                var normalizedContents = NormalizeContents(content, contents);
+                await ValidateMediaLimitsAsync(
+                        connection,
+                        transaction,
+                        conversationId,
+                        normalizedContents,
+                        cancellationToken,
+                        messageId)
+                    .ConfigureAwait(false);
+                await ReplaceContentsAsync(
+                        connection,
+                        transaction,
+                        messageId,
+                        normalizedContents,
+                        cancellationToken)
+                    .ConfigureAwait(false);
             }
 
             await TouchConversationAsync(
@@ -550,7 +676,7 @@ public sealed class SqliteDirectChatStore : IDirectChatStore, IDisposable
     }
 
     private const string ConversationSelect =
-        "SELECT id, title, created_utc, updated_utc, summary_text, summary_through_sequence, summary_updated_utc, agent_enabled, tools_json, capabilities_json FROM conversations";
+        "SELECT id, title, created_utc, updated_utc, summary_text, summary_through_sequence, summary_updated_utc, agent_enabled, tools_json, capabilities_json, filesystem_access_json FROM conversations";
 
     private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
     {
@@ -626,6 +752,9 @@ public sealed class SqliteDirectChatStore : IDirectChatStore, IDisposable
             Capabilities = reader.IsDBNull(9)
                 ? []
                 : JsonSerializer.Deserialize<List<TaskCapability>>(reader.GetString(9)) ?? [],
+            FileSystemAccess = reader.IsDBNull(10)
+                ? []
+                : JsonSerializer.Deserialize<List<FileSystemAccessRule>>(reader.GetString(10)) ?? [],
         };
 
     private static DirectChatMessage ReadMessage(SqliteDataReader reader) =>
@@ -643,6 +772,129 @@ public sealed class SqliteDirectChatStore : IDirectChatStore, IDisposable
                 ? []
                 : JsonSerializer.Deserialize<List<DirectChatAttachment>>(reader.GetString(8)) ?? [],
         };
+
+    private static async Task<IReadOnlyList<DirectChatContent>> ReadContentsAsync(
+        SqliteConnection connection,
+        DirectChatMessage message,
+        CancellationToken cancellationToken)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            "SELECT position, kind, media_type, file_name, text_data, binary_data, size_bytes, duration_ms, is_cloud_content, provider_name FROM message_contents WHERE message_id = $id ORDER BY position";
+        command.Parameters.AddWithValue("$id", message.Id);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var contents = new List<DirectChatContent>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            contents.Add(new DirectChatContent
+            {
+                Position = reader.GetInt32(0),
+                Kind = Enum.Parse<DirectChatContentKind>(reader.GetString(1)),
+                MediaType = reader.GetString(2),
+                FileName = reader.IsDBNull(3) ? null : reader.GetString(3),
+                Text = reader.IsDBNull(4) ? null : reader.GetString(4),
+                Data = reader.IsDBNull(5) ? null : (byte[])reader[5],
+                SizeBytes = reader.GetInt64(6),
+                Duration = reader.IsDBNull(7) ? null : TimeSpan.FromMilliseconds(reader.GetInt64(7)),
+                IsCloudContent = reader.GetInt64(8) != 0,
+                ProviderName = reader.IsDBNull(9) ? null : reader.GetString(9),
+            });
+        }
+
+        return contents.Count == 0 && !string.IsNullOrEmpty(message.Content)
+            ? [CreateTextContent(message.Content, 0)]
+            : contents;
+    }
+
+    private static IReadOnlyList<DirectChatContent> NormalizeContents(
+        string content,
+        IReadOnlyList<DirectChatContent>? contents)
+    {
+        var result = contents?.OrderBy(static item => item.Position).ToList() ?? [];
+        if (result.Count == 0 && !string.IsNullOrEmpty(content))
+        {
+            result.Add(CreateTextContent(content, 0));
+        }
+
+        return result.Select((item, index) => item with
+        {
+            Position = index,
+            SizeBytes = item.Data?.LongLength ??
+                System.Text.Encoding.UTF8.GetByteCount(item.Text ?? string.Empty),
+        }).ToArray();
+    }
+
+    private static DirectChatContent CreateTextContent(string text, int position) => new()
+    {
+        Position = position,
+        Kind = DirectChatContentKind.Text,
+        MediaType = "text/markdown",
+        Text = text,
+        SizeBytes = System.Text.Encoding.UTF8.GetByteCount(text),
+    };
+
+    private async Task ValidateMediaLimitsAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        string conversationId,
+        IReadOnlyList<DirectChatContent> contents,
+        CancellationToken cancellationToken,
+        string? replacingMessageId = null)
+    {
+        var media = contents.Where(static item => item.Kind is DirectChatContentKind.Image or DirectChatContentKind.Audio).ToArray();
+        if (media.Any(item => item.SizeBytes > _maximumMediaBytes))
+        {
+            throw new InvalidOperationException($"A generated media item exceeds the {_maximumMediaBytes} byte Direct Chat limit.");
+        }
+
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText =
+            "SELECT COALESCE(SUM(mc.size_bytes), 0) FROM message_contents mc JOIN messages m ON m.id = mc.message_id WHERE m.conversation_id = $conversationId AND mc.kind IN ('Image', 'Audio') AND ($messageId IS NULL OR m.id <> $messageId)";
+        command.Parameters.AddWithValue("$conversationId", conversationId);
+        command.Parameters.AddWithValue("$messageId", (object?)replacingMessageId ?? DBNull.Value);
+        var existing = Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false), CultureInfo.InvariantCulture);
+        if (existing + media.Sum(static item => item.SizeBytes) > _maximumConversationMediaBytes)
+        {
+            throw new InvalidOperationException($"Generated media exceeds the {_maximumConversationMediaBytes} byte conversation storage limit.");
+        }
+    }
+
+    private static async Task ReplaceContentsAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        string messageId,
+        IReadOnlyList<DirectChatContent> contents,
+        CancellationToken cancellationToken)
+    {
+        using (var delete = connection.CreateCommand())
+        {
+            delete.Transaction = transaction;
+            delete.CommandText = "DELETE FROM message_contents WHERE message_id = $id";
+            delete.Parameters.AddWithValue("$id", messageId);
+            _ = await delete.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        foreach (var content in contents)
+        {
+            using var insert = connection.CreateCommand();
+            insert.Transaction = transaction;
+            insert.CommandText =
+                "INSERT INTO message_contents (message_id, position, kind, media_type, file_name, text_data, binary_data, size_bytes, duration_ms, is_cloud_content, provider_name) VALUES ($messageId, $position, $kind, $mediaType, $fileName, $text, $data, $size, $duration, $cloud, $provider)";
+            insert.Parameters.AddWithValue("$messageId", messageId);
+            insert.Parameters.AddWithValue("$position", content.Position);
+            insert.Parameters.AddWithValue("$kind", content.Kind.ToString());
+            insert.Parameters.AddWithValue("$mediaType", content.MediaType);
+            insert.Parameters.AddWithValue("$fileName", (object?)content.FileName ?? DBNull.Value);
+            insert.Parameters.AddWithValue("$text", (object?)content.Text ?? DBNull.Value);
+            insert.Parameters.AddWithValue("$data", (object?)content.Data ?? DBNull.Value);
+            insert.Parameters.AddWithValue("$size", content.SizeBytes);
+            insert.Parameters.AddWithValue("$duration", content.Duration is null ? DBNull.Value : (object)(long)content.Duration.Value.TotalMilliseconds);
+            insert.Parameters.AddWithValue("$cloud", content.IsCloudContent ? 1 : 0);
+            insert.Parameters.AddWithValue("$provider", (object?)content.ProviderName ?? DBNull.Value);
+            _ = await insert.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+    }
 
     private static void AddMessageParameters(
         SqliteCommand command,

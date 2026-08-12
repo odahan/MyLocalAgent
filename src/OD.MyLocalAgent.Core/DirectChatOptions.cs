@@ -29,6 +29,12 @@ public sealed record DirectChatOptions
     /// <summary>Gets the conservative character-to-token estimation divisor.</summary>
     public int EstimatedCharactersPerToken { get; init; } = 4;
 
+    /// <summary>Gets the maximum persisted size of one generated media item.</summary>
+    public long MaximumMediaBytes { get; init; } = 25 * 1024 * 1024;
+
+    /// <summary>Gets the maximum total generated-media size in one conversation.</summary>
+    public long MaximumConversationMediaBytes { get; init; } = 250 * 1024 * 1024;
+
     /// <summary>Determines whether a configuration instance is valid.</summary>
     public static bool IsValid(DirectChatOptions options) =>
         options is not null &&
@@ -41,5 +47,7 @@ public sealed record DirectChatOptions
         options.CompressionTriggerRatio + options.ResponseReserveRatio <= 1 &&
         options.MinimumRecentTurns > 0 &&
         options.MaximumSummaryTokens >= 128 &&
-        options.EstimatedCharactersPerToken > 0;
+        options.EstimatedCharactersPerToken > 0 &&
+        options.MaximumMediaBytes > 0 &&
+        options.MaximumConversationMediaBytes >= options.MaximumMediaBytes;
 }

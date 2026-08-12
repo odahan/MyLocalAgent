@@ -32,6 +32,12 @@ public sealed class FileSystemToolTests : IDisposable
             "reports/report.txt",
             "hello",
             CancellationToken.None);
+        File.SetLastWriteTimeUtc(
+            Path.Combine(_rootPath, "reports", "report.txt"),
+            new DateTime(2026, 8, 12, 10, 30, 0, DateTimeKind.Utc));
+        File.SetCreationTimeUtc(
+            Path.Combine(_rootPath, "reports", "report.txt"),
+            new DateTime(2026, 8, 10, 9, 15, 0, DateTimeKind.Utc));
         var readJson = await blockedTool.ReadAsync(
             "reports/report.txt",
             CancellationToken.None);
@@ -53,8 +59,16 @@ public sealed class FileSystemToolTests : IDisposable
             .Should().Be(5);
         JsonDocument.Parse(readJson).RootElement.GetProperty("content").GetString()
             .Should().Be("hello");
-        JsonDocument.Parse(listJson).RootElement.GetProperty("entries").GetArrayLength()
-            .Should().Be(1);
+        using var list = JsonDocument.Parse(listJson);
+        list.RootElement.GetProperty("entries").GetArrayLength().Should().Be(1);
+        list.RootElement.GetProperty("entries")[0]
+            .GetProperty("createdUtc")
+            .GetDateTimeOffset()
+            .Should().Be(new DateTimeOffset(2026, 8, 10, 9, 15, 0, TimeSpan.Zero));
+        list.RootElement.GetProperty("entries")[0]
+            .GetProperty("lastModifiedUtc")
+            .GetDateTimeOffset()
+            .Should().Be(new DateTimeOffset(2026, 8, 12, 10, 30, 0, TimeSpan.Zero));
         JsonDocument.Parse(renameJson).RootElement.GetProperty("renamed").GetBoolean()
             .Should().BeTrue();
         JsonDocument.Parse(extensionJson).RootElement.GetProperty("extension").GetString()

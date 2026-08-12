@@ -1847,8 +1847,12 @@ ollama list</code></pre>
 <p>Les fichiers texte, PDF, Word et Excel sont lus localement dans des limites contrôlées. Les images PNG, JPEG, WebP, GIF et BMP sont transmises comme images et exigent un modèle compatible vision. Le contenu de la pièce jointe est conservé avec le message afin de restaurer le contexte lors de la réouverture de la conversation.</p>
 </li>
 <li>
+<strong>Générez une image ou un audio seulement si l’action est proposée.</strong>
+<p><span class="ui-label">Generate image</span> et <span class="ui-label">Generate audio</span> apparaissent uniquement lorsque le fournisseur actif déclare explicitement la capacité. L’image offre un aperçu, une ouverture en taille réelle et une sauvegarde. L’audio WAV offre lecture, arrêt, durée lorsqu’elle est disponible et sauvegarde. Les contenus cloud sont signalés.</p>
+</li>
+<li>
 <strong>Activez l’agent seulement lorsque c’est utile.</strong>
-<p>Sous la liste des conversations, ouvrez <span class="ui-label">Tools &amp; permissions</span>, cochez <span class="ui-label">Enable tools for this conversation</span>, sélectionnez les groupes d’outils et les permissions sensibles nécessaires, puis cliquez sur <span class="ui-label">Save permissions</span>. Tout est désactivé par défaut et les mêmes sandbox, Guardrails et règles de connecteurs que pour une tâche restent applicables.</p>
+<p>Sous la liste des conversations, ouvrez <span class="ui-label">Tools &amp; permissions</span>, cochez <span class="ui-label">Enable tools for this conversation</span>, sélectionnez les groupes d’outils et les permissions sensibles nécessaires, puis cliquez sur <span class="ui-label">Save permissions</span>. Tout est désactivé par défaut. Pour File system, ajoutez chaque dossier nécessaire dans <span class="ui-label">Authorized locations</span> et choisissez l’accès lecture seule ou lecture/écriture. La liste des permissions défile indépendamment ; les mêmes sandbox, Guardrails et règles de connecteurs que pour une tâche restent applicables.</p>
 </li>
 <li>
 <strong>Transformez un échange utile en tâche.</strong>
@@ -1856,15 +1860,19 @@ ollama list</code></pre>
 </li>
 <li>
 <strong>Suivez la réponse en streaming.</strong>
-<p><span class="ui-label">Cancel</span> interrompt la génération. Une réponse interrompue reste identifiée comme annulée ; après un arrêt brutal, une réponse inachevée est marquée en échec au prochain démarrage.</p>
+<p><span class="ui-label">Cancel</span> interrompt la génération. Une réponse interrompue reste identifiée comme annulée ; après un arrêt brutal, une réponse inachevée est marquée en échec au prochain démarrage. Une erreur du fournisseur ou un flux incomplet est aussi marqué <em>Failed</em> et reçoit un identifiant de corrélation d’incident ; vous pouvez poursuivre la conversation après cet échec.</p>
 </li>
 <li>
 <strong>Retrouvez ou créez une conversation.</strong>
-<p>La colonne gauche trie les conversations par activité récente. <span class="ui-label">New chat</span> démarre un nouvel échange et <span class="ui-label">Load older messages</span> charge une page antérieure.</p>
+<p>La colonne gauche trie les conversations par activité récente. <span class="ui-label">New chat</span> démarre un nouvel échange et <span class="ui-label">Load older messages</span> charge une page antérieure. Faites glisser le séparateur entre la liste et la conversation lorsque vous avez besoin de plus de place pour les chemins de dossiers autorisés.</p>
+</li>
+<li>
+<strong>Copiez un message si nécessaire.</strong>
+<p>Sélectionnez l’icône de copie d’une bulle pour placer son texte dans le presse-papiers Windows.</p>
 </li>
 <li>
 <strong>Supprimez uniquement après vérification.</strong>
-<p><span class="ui-label">Delete conversation</span> demande confirmation puis efface définitivement la conversation et ses messages.</p>
+<p><span class="ui-label">Delete conversation</span> demande confirmation puis efface définitivement la conversation, ses messages et tous les médias associés.</p>
 </li>
 </ol>
 <div class="callout">
@@ -1879,6 +1887,8 @@ ollama list</code></pre>
                     dédiée n’est pas le SQLite Tool, n’est pas accessible aux workflows et n’est
                     pas protégée par DPAPI. Avec un fournisseur cloud, le contexte utile est envoyé
                     à l’endpoint configuré.
+                    Les médias sont limités par défaut à 25 Mio chacun et 250 Mio par conversation.
+                    Ils ne sont jamais copiés automatiquement lors de la création d’une tâche.
                 </div>
 </section>
 <section data-title="Scénario : tester un outil" id="scenario-outil">

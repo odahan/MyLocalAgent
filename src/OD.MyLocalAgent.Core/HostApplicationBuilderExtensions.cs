@@ -123,6 +123,7 @@ public static class HostApplicationBuilderExtensions
         builder.Services.AddSingleton<ITokenEstimator, ConservativeTokenEstimator>();
         builder.Services.AddSingleton<IDirectChatContextBuilder, DirectChatContextBuilder>();
         builder.Services.AddSingleton<IDirectChatHistoryCompressor, DirectChatHistoryCompressor>();
+        builder.Services.AddSingleton<IDirectChatMediaFileService, DirectChatMediaFileService>();
         builder.Services.AddSingleton<ITaskSchedulerService, WindowsTaskSchedulerService>();
         builder.Services.AddSingleton<IMyLocalAgentService, MyLocalAgentService>();
         builder.Services.AddSingleton<IRunnerService, RunnerService>();

@@ -15,6 +15,24 @@ running request retains its own immutable client/options snapshot.
 The provider choice is global. A task or workflow step may select a different *model* within that
 provider, but may not silently route a single task to another provider.
 
+## Explicit multimodal capabilities
+
+Protocol compatibility does not imply media support. Each provider declares independent flags for
+text chat, image input, image output, audio output, and future video output. Ollama and generic
+OpenAI-compatible configurations remain text-only unless a capability is explicitly enabled for
+the exact endpoint. Unsupported Direct Chat actions are hidden.
+
+The first concrete output adapter targets the documented OpenAI APIs without routing media through
+chat completion:
+
+- image output: authenticated `POST /images/generations`, with the configured image model and a
+  base64 image response;
+- audio output: authenticated `POST /audio/speech`, with the configured speech model and voice,
+  requesting WAV output.
+
+Requests are cancellable. Sanitized logs contain operation kind, model, duration, status, and byte
+count only. They exclude API keys, prompts, returned media, and raw provider error bodies.
+
 ## Settings and secret handling
 
 The Settings page presents the **Active provider** selector beside **Test connection**. The test
@@ -22,6 +40,9 @@ therefore unambiguously addresses the selected provider. Provider endpoint, mode
 non-secret reloadable settings. The OpenAI-compatible API key is replaced only through the
 write-only Settings field and is stored under the `OpenAI:ApiKey` DPAPI secret key; it is not
 written to `settings.json` or to logs.
+
+Media capability flags and media model/voice identifiers are non-secret settings. They never carry
+the API key. Generated cloud media is external data and is labeled as such in Direct Chat.
 
 For OpenRouter, the normal base endpoint is:
 
@@ -69,6 +90,13 @@ The event contains no prompt, response text, endpoint, task content, or secret. 
 helps separate provider queue/first-token delay from generation duration; the remaining fields make
 input size, output size, and an incomplete stream visible.
 
+`DynamicOpenAIChatClient` rejects a stream that does not end with the OpenAI-compatible `stop` or
+`tool_calls` finish reason. This protects Direct Chat from silently accepting a partial answer when
+a provider closes a successful HTTP stream incorrectly. The resulting incident keeps the provider
+error and stack trace locally, while the UI marks that message as failed and remains usable for the
+next request. HTTP 429 remains a provider throttle/quota result: it is distinct from this
+completion-integrity check and may be returned even when a per-minute limit has not been reached.
+
 ## Effective model resolution
 
 The scoped `ModelExecutionScope` and `ModelOverrideChatClient` make the model id request-local and
@@ -87,7 +115,8 @@ OpenAI-compatible endpoint, provider catalog and model availability remain autho
 ## Validation
 
 Unit coverage verifies `/models` health/catalog behavior, OpenAI-compatible streamed `ai.prompt`
-execution, timeout propagation, task/step override persistence, and workflow-editor serialization.
+execution, accepted and rejected streaming completion reasons, timeout propagation, task/step
+override persistence, and workflow-editor serialization.
 The default test filter excludes network integration tests. A real OpenRouter workflow also
 validated the streamed endpoint path; its observed delay was dominated by the remote model's
 generation, not file-write workflow overhead.

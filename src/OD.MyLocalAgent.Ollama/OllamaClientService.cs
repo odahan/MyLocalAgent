@@ -57,6 +57,9 @@ public sealed class OllamaClientService : ILlmClientService, IOllamaModelCatalog
     public string ProviderName => AIOptions.OllamaProvider;
 
     /// <inheritdoc />
+    public ProviderCapabilities Capabilities => ProviderCapabilities.TextChat;
+
+    /// <inheritdoc />
     public string ModelName => _options.CurrentValue.Model;
 
     /// <inheritdoc />

@@ -265,6 +265,12 @@ internal sealed class UserSettingsService : IUserSettingsService
                 ["Endpoint"] = settings.OpenAIEndpoint,
                 ["Model"] = settings.OpenAIModel,
                 ["TimeoutSeconds"] = settings.OpenAITimeoutSeconds,
+                ["SupportsImageInput"] = settings.OpenAISupportsImageInput,
+                ["SupportsImageOutput"] = settings.OpenAISupportsImageOutput,
+                ["SupportsAudioOutput"] = settings.OpenAISupportsAudioOutput,
+                ["ImageModel"] = settings.OpenAIImageModel,
+                ["AudioModel"] = settings.OpenAIAudioModel,
+                ["AudioVoice"] = settings.OpenAIAudioVoice,
             },
             ["Google"] = new Dictionary<string, object>
             {
@@ -368,6 +374,19 @@ internal sealed class UserSettingsService : IUserSettingsService
             settings.OpenAIEndpoint,
             settings.OpenAIModel,
             settings.OpenAITimeoutSeconds);
+        if (settings.OpenAISupportsImageOutput && string.IsNullOrWhiteSpace(settings.OpenAIImageModel))
+        {
+            throw new InvalidOperationException(
+                "An image model is required when Direct Chat image output is enabled.");
+        }
+
+        if (settings.OpenAISupportsAudioOutput &&
+            (string.IsNullOrWhiteSpace(settings.OpenAIAudioModel) ||
+             string.IsNullOrWhiteSpace(settings.OpenAIAudioVoice)))
+        {
+            throw new InvalidOperationException(
+                "An audio model and voice are required when Direct Chat audio output is enabled.");
+        }
         if (string.IsNullOrWhiteSpace(settings.FileSystemRootPath) ||
             !Path.IsPathRooted(settings.FileSystemRootPath))
         {

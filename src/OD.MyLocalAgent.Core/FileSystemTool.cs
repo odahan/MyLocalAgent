@@ -104,6 +104,12 @@ public sealed class FileSystemTool : IFileSystemTool
                                     name = Path.GetFileName(t.entry),
                                     type = isDirectory ? "directory" : "file",
                                     size = isDirectory ? (long?)null : new FileInfo(t.entry).Length,
+                                    createdUtc = new DateTimeOffset(
+                                        File.GetCreationTimeUtc(t.entry),
+                                        TimeSpan.Zero),
+                                    lastModifiedUtc = new DateTimeOffset(
+                                        File.GetLastWriteTimeUtc(t.entry),
+                                        TimeSpan.Zero),
                                 };
                             })
                             .ToArray();

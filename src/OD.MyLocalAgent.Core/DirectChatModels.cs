@@ -29,6 +29,59 @@ public enum DirectChatMessageState
     Failed,
 }
 
+/// <summary>Identifies one ordered content part in a Direct Chat message.</summary>
+public enum DirectChatContentKind
+{
+    /// <summary>Markdown-capable text.</summary>
+    Text,
+
+    /// <summary>Raster image data.</summary>
+    Image,
+
+    /// <summary>Playable audio data.</summary>
+    Audio,
+
+    /// <summary>Reserved for a future video implementation.</summary>
+    Video,
+
+    /// <summary>Reserved for a future generic file implementation.</summary>
+    File,
+}
+
+/// <summary>Describes one persisted, ordered message content part.</summary>
+public sealed record DirectChatContent
+{
+    /// <summary>Gets the zero-based position within the message.</summary>
+    public required int Position { get; init; }
+
+    /// <summary>Gets the content kind.</summary>
+    public required DirectChatContentKind Kind { get; init; }
+
+    /// <summary>Gets the MIME media type.</summary>
+    public required string MediaType { get; init; }
+
+    /// <summary>Gets optional display or download file name.</summary>
+    public string? FileName { get; init; }
+
+    /// <summary>Gets text data for a text part.</summary>
+    public string? Text { get; init; }
+
+    /// <summary>Gets binary data for a media part.</summary>
+    public byte[]? Data { get; init; }
+
+    /// <summary>Gets the persisted byte size.</summary>
+    public required long SizeBytes { get; init; }
+
+    /// <summary>Gets the media duration when the provider or local parser supplied it.</summary>
+    public TimeSpan? Duration { get; init; }
+
+    /// <summary>Gets whether the content was obtained from a cloud provider.</summary>
+    public bool IsCloudContent { get; init; }
+
+    /// <summary>Gets the provider display name without credentials or request content.</summary>
+    public string? ProviderName { get; init; }
+}
+
 /// <summary>Identifies the kind of content attached to a Direct Chat message.</summary>
 public enum DirectChatAttachmentKind
 {
@@ -90,6 +143,9 @@ public sealed record DirectChatConversation
 
     /// <summary>Gets sensitive capabilities explicitly granted to this conversation.</summary>
     public IReadOnlyList<TaskCapability> Capabilities { get; init; } = [];
+
+    /// <summary>Gets absolute local locations explicitly authorized for this conversation.</summary>
+    public IReadOnlyList<FileSystemAccessRule> FileSystemAccess { get; init; } = [];
 }
 
 /// <summary>Describes one persisted message in a Direct Chat conversation.</summary>
@@ -121,4 +177,9 @@ public sealed record DirectChatMessage
 
     /// <summary>Gets files attached to this message.</summary>
     public IReadOnlyList<DirectChatAttachment> Attachments { get; init; } = [];
+
+    /// <summary>
+    /// Gets ordered message contents. Legacy text-only rows are projected as one text part.
+    /// </summary>
+    public IReadOnlyList<DirectChatContent> Contents { get; init; } = [];
 }

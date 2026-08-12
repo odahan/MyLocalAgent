@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
@@ -16,6 +17,8 @@ namespace OD.MyLocalAgent.UI.ViewModels;
 public sealed partial class DirectChatViewModel : ObservableObject, IActivatablePage, IAsyncNavigationGuard
 {
     private const int MessagePageSize = 100;
+    private const string EmptyResponseMessage =
+        "The AI provider completed the request without returning response text. Try again or select a different model.";
     private readonly IDirectChatStore _store;
     private readonly IDirectChatContextBuilder _contextBuilder;
     private readonly IDirectChatHistoryCompressor _compressor;
@@ -28,9 +31,11 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
     private readonly IIncidentReporter _incidentReporter;
     private readonly IDesktopInteractionService _desktopInteraction;
     private readonly IMarkdownRenderingService _markdown;
+    private readonly IDirectChatMediaFileService _mediaFileService;
     private readonly bool _isMarkdownAvailable;
     private bool _loaded;
     private bool _selectingConversation;
+    private DirectChatConversationItem? _lastSelectedConversation;
 
     /// <summary>Initializes the Direct Chat surface.</summary>
     public DirectChatViewModel(
@@ -46,7 +51,8 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
         IIncidentReporter incidentReporter,
         IDesktopInteractionService desktopInteraction,
         IMarkdownRenderingService markdown,
-        IWebView2AvailabilityService webViewAvailability)
+        IWebView2AvailabilityService webViewAvailability,
+        IDirectChatMediaFileService mediaFileService)
     {
         _store = store;
         _contextBuilder = contextBuilder;
@@ -60,6 +66,7 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
         _incidentReporter = incidentReporter;
         _desktopInteraction = desktopInteraction;
         _markdown = markdown;
+        _mediaFileService = mediaFileService;
         _isMarkdownAvailable = webViewAvailability.IsAvailable();
         foreach (var selection in ToolSelections)
             selection.PropertyChanged += (_, _) => RefreshAgentSummary();
@@ -83,6 +90,9 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
     /// <summary>Gets sensitive capability choices for the selected conversation.</summary>
     public ObservableCollection<TaskCapabilitySelectionItem> CapabilitySelections { get; } = new(
         TaskCapabilityCatalog.Definitions.Select(static definition => new TaskCapabilitySelectionItem(definition)));
+
+    /// <summary>Gets local directories explicitly authorized for the selected conversation.</summary>
+    public ObservableCollection<FileSystemAccessItem> AuthorizedLocations { get; } = [];
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(DeleteConversationCommand))]
@@ -128,12 +138,23 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
     [ObservableProperty]
     private string _providerBadge = "Provider not checked";
 
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(GenerateImageCommand))]
+    private bool _supportsImageOutput;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(GenerateAudioCommand))]
+    private bool _supportsAudioOutput;
+
+    [ObservableProperty]
+    private bool _supportsImageInput;
+
     partial void OnAgentEnabledChanged(bool value) => RefreshAgentSummary();
 
     /// <inheritdoc />
     public void Activate()
     {
-        ProviderBadge = BuildProviderBadge();
+        RefreshProviderCapabilities();
         if (!_loaded && !LoadCommand.IsRunning)
         {
             LoadCommand.Execute(null);
@@ -193,6 +214,7 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
             }
 
             StatusText = "Ready.";
+            RefreshProviderCapabilities();
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -319,11 +341,17 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
     {
         var path = _desktopInteraction.SelectOpenFile(
             "Attach file",
-            "Supported files|*.txt;*.md;*.csv;*.json;*.xml;*.log;*.pdf;*.docx;*.xls;*.xlsx;*.png;*.jpg;*.jpeg;*.webp;*.gif;*.bmp|Documents|*.pdf;*.docx;*.xls;*.xlsx|Text files|*.txt;*.md;*.csv;*.json;*.xml;*.log|Images|*.png;*.jpg;*.jpeg;*.webp;*.gif;*.bmp");
+            SupportsImageInput
+                ? "Supported files|*.txt;*.md;*.csv;*.json;*.xml;*.log;*.pdf;*.docx;*.xls;*.xlsx;*.png;*.jpg;*.jpeg;*.webp;*.gif;*.bmp|Documents|*.pdf;*.docx;*.xls;*.xlsx|Text files|*.txt;*.md;*.csv;*.json;*.xml;*.log|Images|*.png;*.jpg;*.jpeg;*.webp;*.gif;*.bmp"
+                : "Documents|*.pdf;*.docx;*.xls;*.xlsx|Text files|*.txt;*.md;*.csv;*.json;*.xml;*.log");
         if (string.IsNullOrWhiteSpace(path)) return;
         try
         {
             var attachment = await DirectChatAttachmentLoader.LoadAsync(path).ConfigureAwait(true);
+            if (attachment.Kind == DirectChatAttachmentKind.Image && !SupportsImageInput)
+            {
+                throw new NotSupportedException("The active provider has not declared image-input support.");
+            }
             PendingAttachments.Add(new DirectChatAttachmentItem(attachment));
             SendCommand.NotifyCanExecuteChanged();
         }
@@ -340,6 +368,93 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
         SendCommand.NotifyCanExecuteChanged();
     }
 
+    [RelayCommand(IncludeCancelCommand = true, CanExecute = nameof(CanGenerateImage))]
+    private Task GenerateImageAsync(CancellationToken cancellationToken) =>
+        GenerateMediaAsync(MultimodalGenerationKind.Image, cancellationToken);
+
+    [RelayCommand(IncludeCancelCommand = true, CanExecute = nameof(CanGenerateAudio))]
+    private Task GenerateAudioAsync(CancellationToken cancellationToken) =>
+        GenerateMediaAsync(MultimodalGenerationKind.Audio, cancellationToken);
+
+    [RelayCommand]
+    private async Task SaveMediaAsync(DirectChatContentItem? item)
+    {
+        if (item?.Content.Data is null)
+        {
+            return;
+        }
+
+        var extension = item.Content.Kind == DirectChatContentKind.Image ? ".png" : ".wav";
+        var filter = item.Content.Kind == DirectChatContentKind.Image
+            ? "PNG image|*.png|All files|*.*"
+            : "WAV audio|*.wav|All files|*.*";
+        var path = _desktopInteraction.SelectSavePath(
+            "Save generated media",
+            filter,
+            extension,
+            item.Content.FileName ?? $"direct-chat-media{extension}");
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        await _mediaFileService.SaveAsync(item.Content, path, CancellationToken.None)
+            .ConfigureAwait(true);
+        StatusText = "Media saved locally.";
+    }
+
+    [RelayCommand]
+    private void OpenImage(DirectChatContentItem? item)
+    {
+        if (item?.Content is { Kind: DirectChatContentKind.Image, Data: not null } content)
+        {
+            _desktopInteraction.ShowImage(content.Data, content.FileName ?? "Generated image");
+        }
+    }
+
+    [RelayCommand]
+    private void PlayAudio(DirectChatContentItem? item)
+    {
+        if (item?.Content is { Kind: DirectChatContentKind.Audio, Data: not null } content)
+        {
+            _desktopInteraction.PlayWaveAudio(content.Data);
+        }
+    }
+
+    [RelayCommand]
+    private void StopAudio() => _desktopInteraction.StopAudio();
+
+    [RelayCommand]
+    private void CopyMessage(DirectChatMessageItem? message)
+    {
+        if (message is null || string.IsNullOrWhiteSpace(message.Content))
+        {
+            return;
+        }
+
+        _desktopInteraction.CopyText(message.Content);
+        StatusText = "Message copied to the clipboard.";
+    }
+
+    [RelayCommand]
+    private void CancelGeneration()
+    {
+        if (SendCancelCommand.CanExecute(null))
+        {
+            SendCancelCommand.Execute(null);
+        }
+
+        if (GenerateImageCancelCommand.CanExecute(null))
+        {
+            GenerateImageCancelCommand.Execute(null);
+        }
+
+        if (GenerateAudioCancelCommand.CanExecute(null))
+        {
+            GenerateAudioCancelCommand.Execute(null);
+        }
+    }
+
     [RelayCommand(CanExecute = nameof(CanSaveAgentProfile))]
     private async Task SaveAgentProfileAsync(CancellationToken cancellationToken)
     {
@@ -350,6 +465,7 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
                 AgentEnabled,
                 ToolSelections.Where(static item => item.IsSelected).Select(static item => item.Name).ToArray(),
                 CapabilitySelections.Where(static item => item.IsSelected).Select(static item => item.Capability).ToArray(),
+                AuthorizedLocations.Select(static item => item.ToRule()).ToArray(),
                 cancellationToken)
             .ConfigureAwait(true);
         RefreshAgentSummary();
@@ -371,6 +487,7 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
             Prompt = prompt,
             Tools = ToolSelections.Where(static item => item.IsSelected).Select(static item => item.Name).ToArray(),
             Capabilities = CapabilitySelections.Where(static item => item.IsSelected).Select(static item => item.Capability).ToArray(),
+            FileSystemAccess = AuthorizedLocations.Select(static item => item.ToRule()).ToArray(),
             Enabled = false,
         };
         await _taskStore.SaveAsync(task, cancellationToken).ConfigureAwait(true);
@@ -502,7 +619,10 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
                 ? _agentService.RunPromptStreamingAsync(
                     BuildAgentPrompt(plan.Messages),
                     ToolSelections.Where(static item => item.IsSelected).Select(static item => item.Name),
-                    new ToolExecutionContext("direct-chat-" + selected.Id, [], CapabilitySelections.Where(static item => item.IsSelected).Select(static item => item.Capability)),
+                    new ToolExecutionContext(
+                        "direct-chat-" + selected.Id,
+                        AuthorizedLocations.Select(static item => item.ToRule()),
+                        CapabilitySelections.Where(static item => item.IsSelected).Select(static item => item.Capability)),
                     policy,
                     cancellationToken)
                 : GetChatTextChunksAsync(client, plan.Messages, cancellationToken);
@@ -526,6 +646,12 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
                         .ConfigureAwait(true);
                     checkpoint.Restart();
                 }
+            }
+
+            if (string.IsNullOrWhiteSpace(response.ToString()))
+            {
+                assistantItem.Update(EmptyResponseMessage, DirectChatMessageState.Failed);
+                throw new InvalidOperationException(EmptyResponseMessage);
             }
 
             assistantItem.Update(response.ToString(), DirectChatMessageState.Completed);
@@ -579,7 +705,21 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
     partial void OnSelectedConversationChanged(DirectChatConversationItem? value)
     {
         SendCommand.NotifyCanExecuteChanged();
-        if (value is null || _selectingConversation || IsStreaming)
+        RefreshGenerationCommands();
+        if (value is null)
+        {
+            if (!_selectingConversation &&
+                _lastSelectedConversation is { } previous &&
+                Conversations.Contains(previous))
+            {
+                SelectConversationWithoutAutomaticLoad(previous);
+            }
+
+            return;
+        }
+
+        _lastSelectedConversation = value;
+        if (_selectingConversation || IsStreaming)
         {
             return;
         }
@@ -597,7 +737,54 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
         foreach (var item in ToolSelections) item.IsSelected = tools.Contains(item.Name);
         var capabilities = conversation.Capabilities.ToHashSet();
         foreach (var item in CapabilitySelections) item.IsSelected = capabilities.Contains(item.Capability);
+        AuthorizedLocations.Clear();
+        foreach (var rule in conversation.FileSystemAccess)
+        {
+            AuthorizedLocations.Add(new FileSystemAccessItem(rule.Path, rule.Access));
+        }
         RefreshAgentSummary();
+    }
+
+    [RelayCommand]
+    private void AddAuthorizedLocation()
+    {
+        var selectedPath = _desktopInteraction.SelectFolder(
+            "Select an authorized Direct Chat location");
+        if (string.IsNullOrWhiteSpace(selectedPath))
+        {
+            return;
+        }
+
+        var normalizedPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(selectedPath));
+        if (AuthorizedLocations.Any(item => string.Equals(
+                item.Path,
+                normalizedPath,
+                StringComparison.OrdinalIgnoreCase)))
+        {
+            StatusText = $"Location '{normalizedPath}' is already authorized.";
+            return;
+        }
+
+        var root = Path.GetPathRoot(normalizedPath);
+        if (string.Equals(normalizedPath, Path.TrimEndingDirectorySeparator(root ?? string.Empty), StringComparison.OrdinalIgnoreCase) &&
+            !_desktopInteraction.Confirm(
+                "Authorize an entire volume?",
+                $"This grants this conversation access to the entire volume '{normalizedPath}' and all descendants. Continue?"))
+        {
+            return;
+        }
+
+        AuthorizedLocations.Add(new FileSystemAccessItem(normalizedPath, FileSystemAccessMode.ReadWrite));
+        StatusText = $"Location '{normalizedPath}' added with read and write access. Save permissions to apply it.";
+    }
+
+    [RelayCommand]
+    private void RemoveAuthorizedLocation(FileSystemAccessItem? item)
+    {
+        if (item is not null)
+        {
+            AuthorizedLocations.Remove(item);
+        }
     }
 
     private void RefreshAgentSummary()
@@ -622,14 +809,20 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
         }
     }
 
-    partial void OnDraftMessageChanged(string value) =>
+    partial void OnDraftMessageChanged(string value)
+    {
         SendCommand.NotifyCanExecuteChanged();
+        RefreshGenerationCommands();
+    }
 
-    partial void OnIsBusyChanged(bool value) =>
+    partial void OnIsBusyChanged(bool value)
+    {
         SendCommand.NotifyCanExecuteChanged();
+        RefreshGenerationCommands();
+    }
 
     partial void OnIsStreamingChanged(bool value) =>
-        SendCommand.NotifyCanExecuteChanged();
+        RefreshGenerationCommands();
 
     private bool CanMutateConversation() => !IsBusy && !IsStreaming;
 
@@ -644,8 +837,187 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
 
     private bool CanAttach() => !IsBusy && !IsStreaming && SelectedConversation is not null;
 
+    private bool CanGenerateImage() =>
+        SupportsImageOutput && CanGenerateMedia();
+
+    private bool CanGenerateAudio() =>
+        SupportsAudioOutput && CanGenerateMedia();
+
+    private bool CanGenerateMedia() =>
+        !IsBusy && !IsStreaming && SelectedConversation is not null && !string.IsNullOrWhiteSpace(DraftMessage);
+
     private bool CanLoadOlderMessages() =>
         HasOlderMessages && !IsBusy && !IsStreaming;
+
+    private async Task GenerateMediaAsync(
+        MultimodalGenerationKind kind,
+        CancellationToken cancellationToken)
+    {
+        var selected = SelectedConversation;
+        var prompt = DraftMessage.Trim();
+        if (selected is null || string.IsNullOrWhiteSpace(prompt))
+        {
+            return;
+        }
+
+        IsStreaming = true;
+        DirectChatMessage? assistantMessage = null;
+        DirectChatMessageItem? assistantItem = null;
+        try
+        {
+            var provider = _llmClientFactory.Create();
+            var required = kind == MultimodalGenerationKind.Image
+                ? ProviderCapabilities.ImageOutput
+                : ProviderCapabilities.AudioOutput;
+            if (!provider.Capabilities.HasFlag(required))
+            {
+                throw new NotSupportedException(
+                    $"The active provider does not declare {kind.ToString().ToLowerInvariant()} output support.");
+            }
+
+            DraftMessage = string.Empty;
+            var userMessage = await _store.AppendMessageAsync(
+                    selected.Id,
+                    DirectChatMessageRole.User,
+                    prompt,
+                    DirectChatMessageState.Completed,
+                    _tokenEstimator.EstimateText(prompt),
+                    cancellationToken)
+                .ConfigureAwait(true);
+            Messages.Add(CreateMessageItem(userMessage));
+            if (string.Equals(selected.Title, "New chat", StringComparison.Ordinal))
+            {
+                var title = CreateTitle(prompt);
+                await _store.UpdateConversationTitleAsync(selected.Id, title, cancellationToken)
+                    .ConfigureAwait(true);
+                selected.Title = title;
+            }
+
+            assistantMessage = await _store.AppendMessageAsync(
+                    selected.Id,
+                    DirectChatMessageRole.Assistant,
+                    string.Empty,
+                    DirectChatMessageState.Pending,
+                    null,
+                    cancellationToken)
+                .ConfigureAwait(true);
+            assistantItem = CreateMessageItem(assistantMessage);
+            Messages.Add(assistantItem);
+            StatusText = $"Waiting to generate {kind.ToString().ToLowerInvariant()}…";
+            assistantItem.Update(string.Empty, DirectChatMessageState.Streaming);
+            await _store.UpdateMessageAsync(
+                    assistantMessage.Id,
+                    string.Empty,
+                    DirectChatMessageState.Streaming,
+                    null,
+                    cancellationToken)
+                .ConfigureAwait(true);
+            StatusText = $"Generating {kind.ToString().ToLowerInvariant()}…";
+
+            var generated = await provider.GenerateMediaAsync(
+                    new MultimodalGenerationRequest { Kind = kind, Prompt = prompt },
+                    cancellationToken)
+                .ConfigureAwait(true);
+            var content = new DirectChatContent
+            {
+                Position = 0,
+                Kind = generated.Kind == MultimodalGenerationKind.Image
+                    ? DirectChatContentKind.Image
+                    : DirectChatContentKind.Audio,
+                MediaType = generated.MediaType,
+                FileName = generated.FileName,
+                Data = generated.Data,
+                SizeBytes = generated.Data.LongLength,
+                Duration = generated.Duration,
+                IsCloudContent = !string.Equals(
+                    provider.ProviderName,
+                    AIOptions.OllamaProvider,
+                    StringComparison.OrdinalIgnoreCase),
+                ProviderName = provider.ProviderName,
+            };
+            assistantItem.UpdateContents(
+                string.Empty,
+                [content],
+                DirectChatMessageState.Completed);
+            await _store.UpdateMessageAsync(
+                    assistantMessage.Id,
+                    string.Empty,
+                    DirectChatMessageState.Completed,
+                    null,
+                    cancellationToken,
+                    [content])
+                .ConfigureAwait(true);
+            await RefreshSelectedConversationMetadataAsync(cancellationToken).ConfigureAwait(true);
+            StatusText = $"{kind} generation completed.";
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            if (assistantMessage is not null && assistantItem is not null)
+            {
+                assistantItem.UpdateContents(
+                    assistantItem.Content,
+                    assistantItem.Contents.Select(static item => item.Content).ToArray(),
+                    DirectChatMessageState.Canceled);
+                await TryFinalizeMessageAsync(
+                        assistantMessage.Id,
+                        assistantItem.Content,
+                        DirectChatMessageState.Canceled)
+                    .ConfigureAwait(true);
+            }
+
+            StatusText = $"{kind} generation canceled.";
+        }
+        catch (Exception exception)
+        {
+            if (assistantMessage is not null && assistantItem is not null)
+            {
+                assistantItem.UpdateContents(
+                    assistantItem.Content,
+                    assistantItem.Contents.Select(static item => item.Content).ToArray(),
+                    DirectChatMessageState.Failed);
+                await TryFinalizeMessageAsync(
+                        assistantMessage.Id,
+                        assistantItem.Content,
+                        DirectChatMessageState.Failed)
+                    .ConfigureAwait(true);
+            }
+
+            await HandleExceptionAsync(exception, $"Direct Chat {kind} generation")
+                .ConfigureAwait(true);
+        }
+        finally
+        {
+            IsStreaming = false;
+        }
+    }
+
+    private void RefreshProviderCapabilities()
+    {
+        try
+        {
+            var provider = _llmClientFactory.Create();
+            ProviderBadge = $"{provider.ProviderName} · {provider.ModelName}";
+            SupportsImageInput = provider.Capabilities.HasFlag(ProviderCapabilities.ImageInput);
+            SupportsImageOutput = provider.Capabilities.HasFlag(ProviderCapabilities.ImageOutput);
+            SupportsAudioOutput = provider.Capabilities.HasFlag(ProviderCapabilities.AudioOutput);
+        }
+        catch
+        {
+            ProviderBadge = "Provider not configured";
+            SupportsImageInput = false;
+            SupportsImageOutput = false;
+            SupportsAudioOutput = false;
+        }
+
+        RefreshGenerationCommands();
+    }
+
+    private void RefreshGenerationCommands()
+    {
+        SendCommand.NotifyCanExecuteChanged();
+        GenerateImageCommand.NotifyCanExecuteChanged();
+        GenerateAudioCommand.NotifyCanExecuteChanged();
+    }
 
     private async Task CreateAndSelectConversationAsync(
         CancellationToken cancellationToken)
@@ -771,7 +1143,22 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
 
         selected.Update(await RequireConversationAsync(selected.Id, cancellationToken)
             .ConfigureAwait(true));
-        Conversations.Move(Conversations.IndexOf(selected), 0);
+        var currentIndex = Conversations.IndexOf(selected);
+        if (currentIndex <= 0)
+        {
+            return;
+        }
+
+        _selectingConversation = true;
+        try
+        {
+            Conversations.Move(currentIndex, 0);
+            SelectedConversation = selected;
+        }
+        finally
+        {
+            _selectingConversation = false;
+        }
     }
 
     private async Task TryFinalizeMessageAsync(

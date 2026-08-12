@@ -1361,19 +1361,43 @@ and progressive loading of older messages. It starts in chat-only mode. Its per-
 switches used by a task; all are disabled by default and still use the existing sandbox, connector,
 HTTP allowlist, and Guardrails controls.
 
+Each agent-enabled conversation owns its own filesystem authorization list. Add only the folders
+needed for that conversation and choose read-only or read/write access; the normal filesystem
+sandbox and all other safety controls remain in effect. The conversation pane and its list are
+separated by a draggable splitter so a long authorized path can be reviewed without changing the
+overall layout. The permissions list scrolls independently, and every message offers a copy action
+that places its text on the Windows clipboard.
+
 Conversations are stored in the dedicated
 `%LOCALAPPDATA%\OD.MyLocalAgent\direct-chat.db` SQLite database. This internal database is not
 opened through `SqliteTool`, is not governed by task SQLite authorizations, and is not exposed to
 workflows. Schema migrations use `PRAGMA user_version`, foreign keys delete messages with their
 conversation, startup changes abandoned `Pending` or `Streaming` replies to `Failed`, and response
-content is checkpointed at most once per second. The database is local but **not encrypted**;
+content is checkpointed at most once per second. Schema 5 adds the persisted per-conversation
+filesystem authorization list. The database is local but **not encrypted**;
 do not use Direct Chat for content that must be protected at rest.
+
+Messages are stored as ordered content parts rather than as assistant text alone. Supported parts
+are Markdown text, PNG image output, and WAV audio output; the schema reserves video and generic
+file kinds without exposing video generation in this release. Media bytes, MIME type, optional
+file name, size, duration when available, cloud-origin flag, and provider name are persisted in a
+separate `message_contents` table. Schema 4 migrates existing text messages automatically and
+non-destructively. One media item is limited to 25 MiB and one conversation to 250 MiB by default;
+deleting the conversation cascades to all of its media.
 
 Prompts can include locally selected text files (`.txt`, `.md`, `.csv`, `.json`, `.xml`, `.log`),
 PDF, Word (`.docx`), and Excel (`.xls`, `.xlsx`) documents. Documents are read locally into bounded
 text before the request. PNG, JPEG, WebP, GIF, and BMP files are retained as image content and sent
 to the active provider; they require a vision-capable configured model, such as Gemma 4. Attachment
 content is retained in the same Direct Chat database so reopened conversations preserve context.
+Image files are offered only when the active provider explicitly declares image-input support.
+
+When the active provider explicitly declares output support, **Generate image** and/or
+**Generate audio** appear beside **Send**. They use the current editor text, show waiting,
+generating, completed, canceled, or failed state, and never reuse the text-chat endpoint. Generated
+images have an inline preview, full-size keyboard-accessible window, and save action. Generated WAV
+audio has local play/stop controls, duration when available, and a save action. Cloud media is
+clearly labeled. Media is not copied by **Create task**.
 
 Before each model request, Direct Chat builds context from its fixed system instruction, the
 optional global system prompt, the cumulative memory summary, and recent unsummarized messages.
@@ -1385,11 +1409,18 @@ in SQLite and stays visible in the UI.
 
 The `DirectChat` configuration section owns `CompressionEnabled`, `CompressionTriggerRatio`,
 `CompressionTargetRatio`, `ResponseReserveRatio`, `MinimumRecentTurns`, `MaximumSummaryTokens`,
-and `EstimatedCharactersPerToken`. The context-window source remains
+`EstimatedCharactersPerToken`, `MaximumMediaBytes`, and `MaximumConversationMediaBytes`. The context-window source remains
 `AI:GenerationDefaults:ContextWindowTokens`.
 
 After a successful send, the message editor is intentionally cleared, so **Send** remains disabled
 until new text or an attachment is added. This prevents accidentally sending an empty message.
+The selected conversation is retained while its metadata and recent-activity ordering refresh, so
+an arriving reply does not make the composer lose its current conversation.
+
+For an OpenAI-compatible streamed response, Direct Chat requires an explicit successful terminal
+reason (`stop` or `tool_calls`). A response that ends without one is marked failed and recorded as
+an incident rather than being presented as a complete answer. Provider HTTP errors, such as an
+OpenRouter free-tier quota response, are likewise surfaced as failed messages with a correlation id.
 
 **Create task** copies the latest user prompt, selected tool groups, and selected sensitive
 capabilities into a newly saved task that is **disabled** by default and opens its editor. It does
@@ -1402,6 +1433,13 @@ The Settings page can switch between:
 
 - **Ollama**, local and default.
 - **OpenAI-compatible**, cloud and opt-in.
+
+Provider capabilities are explicit flags: text chat, image input, image output, audio output, and a
+reserved video output flag. OpenAI-compatible means text protocol compatibility only. In Settings,
+enable a Direct Chat media capability only when the exact endpoint documents it. The bundled
+official OpenAI configuration maps image generation to `POST /images/generations` and speech to
+`POST /audio/speech`; generic compatible endpoints, including Ollama, retain text behavior and do
+not display unsupported actions.
 
 The **Active provider** choices sit on the same line as **Test connection**, which makes the target
 of a test explicit. Save the new provider and select **Test connection**. The factory reads

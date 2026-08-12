@@ -38,6 +38,12 @@ public sealed partial class SettingsViewModel :
         nameof(OpenAIEndpoint),
         nameof(OpenAIModel),
         nameof(OpenAITimeoutSeconds),
+        nameof(OpenAISupportsImageInput),
+        nameof(OpenAISupportsImageOutput),
+        nameof(OpenAISupportsAudioOutput),
+        nameof(OpenAIImageModel),
+        nameof(OpenAIAudioModel),
+        nameof(OpenAIAudioVoice),
         nameof(GenerationTemperatureText),
         nameof(GenerationTopPText),
         nameof(ContextWindowTokensText),
@@ -145,6 +151,24 @@ public sealed partial class SettingsViewModel :
 
     [ObservableProperty]
     private int _openAITimeoutSeconds;
+
+    [ObservableProperty]
+    private bool _openAISupportsImageInput;
+
+    [ObservableProperty]
+    private bool _openAISupportsImageOutput;
+
+    [ObservableProperty]
+    private bool _openAISupportsAudioOutput;
+
+    [ObservableProperty]
+    private string _openAIImageModel = "gpt-image-2";
+
+    [ObservableProperty]
+    private string _openAIAudioModel = "gpt-4o-mini-tts";
+
+    [ObservableProperty]
+    private string _openAIAudioVoice = "coral";
 
     [ObservableProperty]
     private string _generationTemperatureText = "0.2";
@@ -563,6 +587,12 @@ public sealed partial class SettingsViewModel :
             OpenAIEndpoint = openAI.Endpoint;
             OpenAIModel = openAI.Model;
             OpenAITimeoutSeconds = openAI.TimeoutSeconds;
+            OpenAISupportsImageInput = openAI.SupportsImageInput;
+            OpenAISupportsImageOutput = openAI.SupportsImageOutput;
+            OpenAISupportsAudioOutput = openAI.SupportsAudioOutput;
+            OpenAIImageModel = openAI.ImageModel;
+            OpenAIAudioModel = openAI.AudioModel;
+            OpenAIAudioVoice = openAI.AudioVoice;
             await LoadOpenAIModelsAsync(cancellationToken).ConfigureAwait(true);
             ApiKeyReplacement = string.Empty;
             IsApiKeyConfigured = await _secretStore
@@ -720,7 +750,13 @@ public sealed partial class SettingsViewModel :
                 FileContentMaxSpreadsheetRows,
                 FileContentMaxSpreadsheetColumns,
                 FileContentMaxSpreadsheetCells,
-                FileContentMaxPdfPages);
+                FileContentMaxPdfPages,
+                OpenAISupportsImageInput,
+                OpenAISupportsImageOutput,
+                OpenAISupportsAudioOutput,
+                OpenAIImageModel.Trim(),
+                OpenAIAudioModel.Trim(),
+                OpenAIAudioVoice.Trim());
             await _userSettingsService
                 .SaveAsync(
                     settings,

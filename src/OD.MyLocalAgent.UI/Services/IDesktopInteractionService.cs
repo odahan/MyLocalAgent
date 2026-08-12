@@ -69,4 +69,17 @@ public interface IDesktopInteractionService
     /// </summary>
     /// <param name="uri">The absolute URI.</param>
     void OpenUri(string uri);
+
+    /// <summary>Shows a generated image at its natural size in a keyboard-closeable window.</summary>
+    void ShowImage(byte[] data, string title) =>
+        throw new NotSupportedException("Image preview is not available in this desktop host.");
+
+    /// <summary>Starts local playback of complete WAV audio.</summary>
+    void PlayWaveAudio(byte[] data) =>
+        throw new NotSupportedException("Audio playback is not available in this desktop host.");
+
+    /// <summary>Stops local audio playback.</summary>
+    void StopAudio()
+    {
+    }
 }

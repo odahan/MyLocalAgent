@@ -29,4 +29,22 @@ public sealed record OpenAIOptions
     /// Gets the API key supplied by the bootstrap configuration layer.
     /// </summary>
     public string? ApiKey { get; init; }
+
+    /// <summary>Gets whether the configured endpoint explicitly supports image input.</summary>
+    public bool SupportsImageInput { get; init; }
+
+    /// <summary>Gets whether the configured endpoint explicitly supports the Image API.</summary>
+    public bool SupportsImageOutput { get; init; }
+
+    /// <summary>Gets whether the configured endpoint explicitly supports the Speech API.</summary>
+    public bool SupportsAudioOutput { get; init; }
+
+    /// <summary>Gets the model sent only to the image-generation endpoint.</summary>
+    public string ImageModel { get; init; } = "gpt-image-2";
+
+    /// <summary>Gets the model sent only to the speech-generation endpoint.</summary>
+    public string AudioModel { get; init; } = "gpt-4o-mini-tts";
+
+    /// <summary>Gets the voice sent only to the speech-generation endpoint.</summary>
+    public string AudioVoice { get; init; } = "coral";
 }

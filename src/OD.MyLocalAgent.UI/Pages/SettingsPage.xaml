@@ -191,6 +191,31 @@
                             <TextBlock Margin="0,7,0,0"
                                        Style="{StaticResource CaptionTextStyle}"
                                        Text="{Binding IsApiKeyConfigured, StringFormat=API key configured: {0}}" />
+                            <Expander Margin="0,12,0,0" Header="Direct Chat media capabilities">
+                                <StackPanel Margin="0,8,0,0">
+                                    <TextBlock Margin="0,0,0,8"
+                                               Style="{StaticResource CaptionTextStyle}"
+                                               Text="Enable only capabilities documented by this exact endpoint. OpenAI compatibility alone is not sufficient."
+                                               TextWrapping="Wrap" />
+                                    <CheckBox Content="Image input"
+                                              IsChecked="{Binding OpenAISupportsImageInput}" />
+                                    <CheckBox Margin="0,5,0,0"
+                                              Content="Image output"
+                                              IsChecked="{Binding OpenAISupportsImageOutput}" />
+                                    <TextBox Margin="0,5,0,0"
+                                             Text="{Binding OpenAIImageModel, UpdateSourceTrigger=PropertyChanged}"
+                                             materialDesign:HintAssist.Hint="Image model" />
+                                    <CheckBox Margin="0,8,0,0"
+                                              Content="Audio output"
+                                              IsChecked="{Binding OpenAISupportsAudioOutput}" />
+                                    <TextBox Margin="0,5,0,0"
+                                             Text="{Binding OpenAIAudioModel, UpdateSourceTrigger=PropertyChanged}"
+                                             materialDesign:HintAssist.Hint="Audio model" />
+                                    <TextBox Margin="0,5,0,0"
+                                             Text="{Binding OpenAIAudioVoice, UpdateSourceTrigger=PropertyChanged}"
+                                             materialDesign:HintAssist.Hint="Audio voice" />
+                                </StackPanel>
+                            </Expander>
                         </StackPanel>
                     </Grid>
 

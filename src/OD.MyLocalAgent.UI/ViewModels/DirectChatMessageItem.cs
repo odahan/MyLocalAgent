@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using System.Collections.ObjectModel;
 using OD.MyLocalAgent.Core;
 using OD.MyLocalAgent.UI.Services;
 
@@ -26,6 +27,9 @@ public sealed partial class DirectChatMessageItem : ObservableObject
         CreatedUtc = message.CreatedUtc;
         _content = message.Content;
         _state = message.State;
+        SetContents(message.Contents.Count == 0 && !string.IsNullOrEmpty(message.Content)
+            ? [CreateTextContent(message.Content)]
+            : message.Contents);
         RefreshProjection();
     }
 
@@ -43,6 +47,9 @@ public sealed partial class DirectChatMessageItem : ObservableObject
 
     /// <summary>Gets the UTC creation time.</summary>
     public DateTimeOffset CreatedUtc { get; }
+
+    /// <summary>Gets ordered text and media parts.</summary>
+    public ObservableCollection<DirectChatContentItem> Contents { get; } = [];
 
     [ObservableProperty]
     private string _content;
@@ -71,6 +78,7 @@ public sealed partial class DirectChatMessageItem : ObservableObject
     /// <summary>Gets a human-facing state suffix.</summary>
     public string StateText => State switch
     {
+        DirectChatMessageState.Pending => "Waiting…",
         DirectChatMessageState.Streaming => "Generating…",
         DirectChatMessageState.Canceled => "Canceled",
         DirectChatMessageState.Failed => "Failed",
@@ -82,6 +90,19 @@ public sealed partial class DirectChatMessageItem : ObservableObject
     {
         Content = content;
         State = state;
+        SetContents(string.IsNullOrEmpty(content) ? [] : [CreateTextContent(content)]);
+        RefreshProjection();
+    }
+
+    /// <summary>Updates completed text and media parts.</summary>
+    public void UpdateContents(
+        string content,
+        IReadOnlyList<DirectChatContent> contents,
+        DirectChatMessageState state)
+    {
+        Content = content;
+        State = state;
+        SetContents(contents);
         RefreshProjection();
     }
 
@@ -98,4 +119,22 @@ public sealed partial class DirectChatMessageItem : ObservableObject
         OnPropertyChanged(nameof(RenderHeight));
         OnPropertyChanged(nameof(StateText));
     }
+
+    private void SetContents(IEnumerable<DirectChatContent> contents)
+    {
+        Contents.Clear();
+        foreach (var content in contents.OrderBy(static item => item.Position))
+        {
+            Contents.Add(new DirectChatContentItem(content));
+        }
+    }
+
+    private static DirectChatContent CreateTextContent(string text) => new()
+    {
+        Position = 0,
+        Kind = DirectChatContentKind.Text,
+        MediaType = "text/markdown",
+        Text = text,
+        SizeBytes = System.Text.Encoding.UTF8.GetByteCount(text),
+    };
 }

@@ -33,5 +33,7 @@ public sealed class DirectChatMessageItemTests
         item.ShowsRenderedMarkdown.Should().BeFalse();
         item.RenderedHtml.Should().BeEmpty();
         item.RenderHeight.Should().BeGreaterThan(0);
+        item.Contents.Should().ContainSingle();
+        item.Contents[0].Text.Should().Be("**Rendered answer**");
     }
 }
