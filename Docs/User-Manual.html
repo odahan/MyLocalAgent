@@ -2974,6 +2974,14 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
                     Chaque exécution réelle produit un rapport Markdown et une entrée dans
                     l’historique. Les événements techniques apparaissent en parallèle dans les logs.
                 </p>
+<p>
+                    Les rapports et leur index sont placés sous
+                    <code>FileSystem:RootPath\reports\</code>, le bac à sable configuré de
+                    l’application. Ni le dossier d’installation ni <code>%LOCALAPPDATA%</code>
+                    ne servent de destination par défaut. Pour une tâche sans workflow, la sortie
+                    finale de l’agent reste du Markdown normal et le rapport ne contient pas de
+                    section <em>Steps</em> vide.
+                </p>
 <div class="grid three">
 <article class="card">
 <h3>Dashboard</h3>
@@ -3058,6 +3066,8 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
                         dossier des journaux.</li>
 <li><span class="ui-label">Auto-scroll</span> suit les nouvelles lignes et
                         peut être suspendue, comme sur la page Tasks.</li>
+<li>Chaque entrée est affichée de manière compacte : une ligne de journal ne crée pas
+                        artificiellement une ligne blanche supplémentaire.</li>
 </ul>
 <p>
                     Les journaux sont conservés sous
@@ -3108,6 +3118,11 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
                     Un incident contient l’heure UTC, la gravité, la source, le message, la pile
                     d’appels et un <strong>correlation id</strong>. Ce dernier permet de relier la
                     notification visible à l’enregistrement durable.
+                </p>
+<p>
+                    La liste conserve une hauteur fixe et son propre défilement. Un historique
+                    important n’allonge donc pas la page Settings ni ne déplace sa position de
+                    lecture pendant le chargement.
                 </p>
 <ul class="check-list">
 <li><span class="ui-label">Copy details</span> copie toutes les informations d’un incident.</li>
@@ -3238,8 +3253,8 @@ ollama list</code></pre>
 <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\direct-chat.db</code></td><td>Conversations et résumés Direct Chat dans une base SQLite locale non chiffrée.</td></tr>
 <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\Auth\Google\</code></td><td>Autorisation OAuth Google actualisable.</td></tr>
 <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\tasks\</code></td><td>Un fichier JSON validé par tâche.</td></tr>
-<tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\reports\&lt;taskId&gt;\</code></td><td>Rapports Markdown de la tâche.</td></tr>
-<tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\reports\index.jsonl</code></td><td>Index de toutes les exécutions.</td></tr>
+<tr><td><code>&lt;FileSystem:RootPath&gt;\reports\&lt;taskId&gt;\</code></td><td>Rapports Markdown de la tâche.</td></tr>
+<tr><td><code>&lt;FileSystem:RootPath&gt;\reports\index.jsonl</code></td><td>Index de toutes les exécutions.</td></tr>
 <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\logs\</code></td><td>Journaux applicatifs et incidents.</td></tr>
 <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\logs\runs\&lt;taskId&gt;\</code></td><td>Journaux de sortie du runner, un fichier par exécution (page Runs).</td></tr>
 </tbody>

@@ -43,7 +43,7 @@ its own navigation, search, styles, and scripts in one file.
 | 20 | Agent Prompt Placeholders | Complete with documented, human task test done |
 | 21 | Model Information Placeholders | Complete with automated verification |
 | 22 | Archive, Office, and PDF Tools | Complete with automated verification |
-| 23 | Web Discovery Tool (`research.discover`) | V3 spec, inline params, no profiles, no storage |
+| 23 | Web Discovery Tool (`research.discover`) | Complete — inline parameters, bounded discovery, Guardrails protection, no profiles or storage |
 | 24 | Direct Chat with persistent SQLite history and context compression | Complete with automated verification |
 | 25 | Not implemented |
 
@@ -233,7 +233,7 @@ The process working directory is never used to locate configuration.
 | `%LOCALAPPDATA%\OD.MyLocalAgent\secrets.dat` | DPAPI CurrentUser-protected OpenAI, Dropbox, and Web Search secrets |
 | `%LOCALAPPDATA%\OD.MyLocalAgent\Auth\Google\` | Google OAuth token data |
 | `%LOCALAPPDATA%\OD.MyLocalAgent\tasks\<id>.json` | One validated definition per task |
-| `%LOCALAPPDATA%\OD.MyLocalAgent\reports\<taskId>\*.md` | Per-run Markdown reports |
+| `<FileSystem:RootPath>\reports\<taskId>\*.md` | Per-run Markdown reports |
 | `<FileSystem:RootPath>\reports\index.jsonl` | Append-only execution index |
 | `%LOCALAPPDATA%\OD.MyLocalAgent\logs\application-<date>.log` | Rolling application logs, retained for 14 files |
 | `%LOCALAPPDATA%\OD.MyLocalAgent\logs\runs\<taskId>\*.jsonl` | Per-execution runner output logs (`Logging:MaxRunLogsPerTask` retained per task, default 50) |
@@ -573,6 +573,26 @@ Concurrent `run` commands for the same id are rejected by a global named executi
 | `3` | Requested task not found |
 
 ## Task and workflow syntax
+
+### Intelligent Downloads sorting helpers
+
+The repository includes two PowerShell helpers in `scripts/` for a hybrid Downloads-sorting
+workflow. Copy them into `<FileSystem:RootPath>\scripts\` before a task invokes them; publishing
+the application does not copy repository support scripts into the filesystem sandbox.
+
+1. `Build-DownloadsInventory.ps1 -RootPath <DownloadsPath>` is read-only. It inventories only
+   root-level eligible files, omits `Sort-*.md`, records immediate destination folders, hashes,
+   and duplicate hints.
+2. An `ai.prompt` workflow step makes the classification decisions from that bounded inventory
+   and writes a JSON plan under the configured root.
+3. `Invoke-DownloadsSortPlan.ps1 -RootPath <DownloadsPath> -PlanPath <PlanPath>` treats that plan
+   as untrusted: it rechecks paths and hashes, avoids overwriting existing files by applying
+   `_2`, `_3`, and later suffixes, and returns a JSON execution log.
+
+The scripts are intentionally deterministic and do not replace task authorization. A task still
+needs the **File system** and **Local execution** tool groups, explicit read/write authorization
+for any absolute Downloads path, and the `PowerShellExecution` capability. Review the AI plan
+before enabling the move step on personal files.
 
 A task is stored as one JSON object:
 
@@ -1492,7 +1512,16 @@ every recorded execution (scheduled and Run now) with task id, local start time,
 streams the selected run live with a configurable display line limit, auto-scroll, a
 display-only clear, plain-text export, and a shortcut to the run-log folder. Run logs contain
 the same sanitized content as the runner console; the private workflow-context and debug
-channels are never persisted.
+channels are never persisted. The display is intentionally compact: one persisted log line
+occupies one visual line unless its content wraps.
+
+Every real execution writes its Markdown report under the configured filesystem root:
+`<FileSystem:RootPath>\reports\<taskId>\`. The report preserves the agent's final Markdown as
+ordinary Markdown, and a prompt-only task has no empty workflow-steps section. The installation
+directory and `%LOCALAPPDATA%` user-data directory are never fallback report destinations.
+
+The **Settings -> Diagnostics** incident history has its own fixed-height, scrollable list. This
+keeps the Settings page stable and avoids rendering an ever-growing incident list at once.
 
 ## Troubleshooting
 
@@ -1550,7 +1579,7 @@ that its action points to the stable published runner.
 - Normal logs: `%LOCALAPPDATA%\OD.MyLocalAgent\logs\application-<date>.log`
 - Incident records: `%LOCALAPPDATA%\OD.MyLocalAgent\logs\incidents.jsonl`
 - Run index: `<FileSystem:RootPath>\reports\index.jsonl`
-- Per-task report: `%LOCALAPPDATA%\OD.MyLocalAgent\reports\<taskId>\`
+- Per-task report: `<FileSystem:RootPath>\reports\<taskId>\`
 
 ## Extension points
 

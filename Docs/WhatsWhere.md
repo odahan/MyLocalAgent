@@ -25,7 +25,6 @@ Default: `%LOCALAPPDATA%\OD.MyLocalAgent`
 | `secrets.dat` | DPAPI-protected secrets (API keys, OAuth tokens) |
 | `direct-chat.db` | Direct Chat conversations, messages, attachment content, and cumulative memory summaries (SQLite, not encrypted) |
 | `tasks/` | Persisted task definitions (JSONL files) |
-| `reports/` | Generated reports |
 | `logs/` | Root log directory |
 | `logs/application-*.log` | Rolling application log |
 | `logs/incidents.jsonl` | Incident log |
@@ -49,6 +48,17 @@ Configuration is loaded in this priority order (last wins):
 | Setting | Default | Purpose |
 |---------|---------|---------|
 | `FileSystem:RootPath` | `C:\OD.MyLocalAgent` | Workspace root where the agent operates |
+
+## Task Reports
+
+| Path | Contents |
+|------|----------|
+| `<FileSystem:RootPath>\reports\<taskId>\*.md` | One Markdown report per execution of a task |
+| `<FileSystem:RootPath>\reports\index.jsonl` | Append-only execution index used by Dashboard and Runs |
+
+Reports belong to the configured filesystem root, not to the installation directory or the
+application user-data directory. The root is therefore the single default location for
+task-produced files when a task does not specify another destination.
 
 ## Windows Task Scheduler
 

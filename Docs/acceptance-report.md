@@ -12,7 +12,7 @@ Status convention: ✅ executed and passed; ⏳ requires the stated human/enviro
 | Checklist item | Status | Executed evidence |
 |---|---:|---|
 | `dotnet build OD.MyLocalAgent.sln` warning-clean; `dotnet test` all green (§7.7). | ✅ | Final Release build used `-m:1 --no-restore` and completed with 0 warnings/0 errors. Final Release test used `-m:1 --no-build --no-restore`: 66 passed, 0 failed, 1 environment-dependent Ollama integration test skipped. |
-| Sample task `docs/samples/daily-mail-summary.json` copied to the tasks folder runs end-to-end: `OD.MyLocalAgent.Runner.exe run --task daily-mail-summary` → report written, index line appended, next occurrence re-registered. | ⏳ | The sample is copied, but Google credentials and interactive Gmail consent are unavailable on this account. The documented OAuth-free fallback was executed instead: `acceptance-filesystem` exited 0, increased Markdown reports 2→3 and index lines 2→3, wrote `%LOCALAPPDATA%\OD.MyLocalAgent\reports\acceptance-filesystem\20260729-054933.md`, and registered `2026-07-30 06:15 +02:00`. Human step: configure the documented desktop OAuth client, connect Gmail in Tools, then run the exact `daily-mail-summary` command. |
+| Sample task `docs/samples/daily-mail-summary.json` copied to the tasks folder runs end-to-end: `OD.MyLocalAgent.Runner.exe run --task daily-mail-summary` → report written, index line appended, next occurrence re-registered. | ⏳ | The sample is copied, but Google credentials and interactive Gmail consent are unavailable on this account. The documented OAuth-free fallback was executed instead: `acceptance-filesystem` exited 0, increased Markdown reports 2→3 and index lines 2→3, wrote a report and registered `2026-07-30 06:15 +02:00`. This is historical evidence; since 1.4.1 the current report destination is `<FileSystem:RootPath>\reports\<taskId>\`. Human step: configure the documented desktop OAuth client, connect Gmail in Tools, then run the exact `daily-mail-summary` command. |
 | UI starts in dark theme; all 9 pages navigable; stock controls render dark (Stage 6 audit checklist) — no light-default artifacts. | ✅ | The published UI started in Dark. Dashboard, Tasks, task editor, prompt editor, Logs, Tools, Tool tester, AI playground, and Settings were inspected. Populated DataGrid, check/radio controls, text/password editors, grouped and ordinary ComboBox popups, scrolling, Logs, and incident lists rendered from semantic palette roles. Light was also selected live, inspected, retained as a supported option, and changed back to saved Dark. See `Docs/theme-audit.md`. |
 | Zero placeholders; every public API documented in English. | ✅ | Source scan found no `TODO`, `TBD`, `NotImplementedException`, or implementation stub. The occurrences of “placeholder” are the implemented workflow-substitution feature and its tests. `YOUR_CLIENT_ID`/`YOUR_CLIENT_SECRET` are intentional invalid credential sentinels documented in the setup guide. Warning-as-error XML-documentation build is clean. |
 | All ViewModels use MVVM Toolkit source generators; no manual INPC or command classes. | ✅ | Every ViewModel is a partial `ObservableObject` and uses `[ObservableProperty]`/`[RelayCommand]`; no manual INPC implementation exists. The last custom title-bar `ICommand` class was replaced by MVVM Toolkit-generated commands that invoke WPF `SystemCommands`. |
@@ -426,3 +426,37 @@ against NuGet.org reported no vulnerable direct or transitive package in any pro
 The Windows-control bridge returned an environment-level launch error, so no live WPF screenshot is
 claimed. Settings XAML, MVVM bindings, persistence, dynamic whitelist projection, and catalog
 integration are nevertheless compiled and covered by deterministic tests.
+
+## Stage 23 Web Discovery Tool
+
+| Acceptance item | Status | Executed evidence |
+|---|---:|---|
+| `research.discover` is available as a task-whitelisted, inline-parameter workflow tool with no profiles or persistent research store. | ✅ | Catalog and contract tests cover the `research` group, declared argument metadata, query compilation, URL canonicalization, and Tool Map registration. |
+| Discovery output remains bounded and external content is handled through the existing Guardrails trust boundary. | ✅ | Contract coverage verifies the bounded discovery contract and the implementation reuses the Web Search connector and content-trust service. |
+| Release and integration verification completed for the stage. | ✅ | Stage verification recorded 589 non-integration tests plus 5 web-search integration tests passing; one environment-dependent local Ollama probe was skipped. |
+
+## Stage 24 Direct Chat and subsequent 1.4.0 improvements
+
+| Acceptance item | Status | Executed evidence |
+|---|---:|---|
+| Direct Chat persists conversations, bounded attachment content, and context summaries locally without exposing tools by default. | ✅ | SQLite persistence, migration, recovery, context-compression, streaming ViewModel, and navigation-order tests were added. The database remains explicitly unencrypted except for separately stored DPAPI secrets. |
+| Agent mode and task handoff require explicit conversation-scoped permissions. | ✅ | Profile persistence, task-whitelist/capability projection, filesystem-location authorization, and task-draft handoff tests cover the explicit permission boundary. |
+| Image and audio responses use explicit provider capabilities and bounded persisted content. | ✅ | Persistence/migration, provider-routing, cancellation, save, and failure tests cover the media paths while unsupported providers expose no action. |
+| Release verification remained clean after the Direct Chat and provider-interoperability work. | ✅ | The recorded non-integration gate completed with 606 passing tests and one expected local Ollama probe skipped; an OpenRouter workflow also exercised the streamed prompt path. |
+
+## Version 1.4.1 workspace reports and UI refinements
+
+Date: 2026-08-12
+
+| Acceptance item | Status | Executed evidence |
+|---|---:|---|
+| Default task reports and report index are written below the configured `FileSystem:RootPath`, not below the installation or `%LOCALAPPDATA%` directory. | ✅ | `MarkdownReportWriterTests` verifies the configured-root default; Dashboard and Settings use the same `reports` location. |
+| Prompt-only reports contain ordinary agent Markdown and do not emit an empty workflow-steps section. | ✅ | Dedicated report-writer test verifies both the omission and unindented final text. |
+| Runs and Diagnostics remain usable as their histories grow. | ✅ compiled | Runs uses compact item containers; Settings uses a fixed-height, internally scrolling, recycling incident list. Release XAML compilation completed successfully. |
+| Release gate is clean. | ✅ | `dotnet build OD.MyLocalAgent.sln --no-restore --configuration Release -m:1` completed with 0 warnings and 0 errors. `dotnet test OD.MyLocalAgent.sln --configuration Release --no-restore --filter "Category!=Integration" -m:1` completed with 625 passed, 0 failed, and 1 skipped local integration probe. |
+
+### 1.4.1 human follow-up
+
+Open the published application after deployment and visually confirm the compact Run log line
+height and the fixed-height incident list in both supported themes. The functional bindings and
+XAML compile gate are covered; the final installed visual check remains an operator observation.

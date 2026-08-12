@@ -84,6 +84,11 @@ In **Settings**:
 The copy buttons separately place the reports directory and the executable
 directory on the clipboard.
 
+Task reports are always written below the configured **FileSystem:RootPath**, in
+`reports\<taskId>\`. This root is the task sandbox: neither the installation directory nor
+`%LOCALAPPDATA%` is a fallback report destination. A prompt-only task produces ordinary
+Markdown there, without an empty workflow-steps section.
+
 ### Project-wide AI instructions
 
 In **Settings → AI provider**, **Project-wide AI instructions** holds stable conventions such as

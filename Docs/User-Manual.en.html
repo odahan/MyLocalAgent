@@ -2817,6 +2817,13 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
                     Every real execution writes a Markdown report and appends an index entry.
                     Technical events appear in the live logs.
                 </p>
+<p>
+                    Reports and their index are written below
+                    <code>FileSystem:RootPath\reports\</code>, the configured application
+                    sandbox. Neither the installation directory nor <code>%LOCALAPPDATA%</code>
+                    is a default destination. For a prompt-only task, the agent final output stays
+                    ordinary Markdown and the report has no empty <em>Steps</em> section.
+                </p>
 <div class="grid three">
 <article class="card">
 <h3>Dashboard</h3>
@@ -2896,6 +2903,8 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
                         run-log folder.</li>
 <li><span class="ui-label">Auto-scroll</span> follows new lines and can be
                         paused, like on the Tasks page.</li>
+<li>Entries are displayed compactly: one log line does not create an artificial blank
+                        visual line.</li>
 </ul>
 <p>
                     Logs are kept under
@@ -2939,6 +2948,11 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
                     An incident includes UTC time, severity, source, message, stack trace, and a
                     <strong>correlation id</strong>. The id links the visible notification to its
                     durable record.
+                </p>
+<p>
+                    The list has a fixed height and its own scrollbar. A long history therefore
+                    does not enlarge the Settings page or move its outer reading position while it
+                    loads.
                 </p>
 <ul class="check-list">
 <li><span class="ui-label">Copy details</span> copies all incident information.</li>
@@ -3060,8 +3074,8 @@ ollama list</code></pre></div>
 <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\direct-chat.db</code></td><td>Direct Chat conversations and summaries in an unencrypted local SQLite database.</td></tr>
 <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\Auth\Google\</code></td><td>Refreshable Google OAuth data.</td></tr>
 <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\tasks\</code></td><td>One validated JSON file per task.</td></tr>
-<tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\reports\&lt;taskId&gt;\</code></td><td>Per-task Markdown reports.</td></tr>
-<tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\reports\index.jsonl</code></td><td>Index of all executions.</td></tr>
+<tr><td><code>&lt;FileSystem:RootPath&gt;\reports\&lt;taskId&gt;\</code></td><td>Per-task Markdown reports.</td></tr>
+<tr><td><code>&lt;FileSystem:RootPath&gt;\reports\index.jsonl</code></td><td>Index of all executions.</td></tr>
 <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\logs\</code></td><td>Application logs and incidents.</td></tr>
 <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\logs\runs\&lt;taskId&gt;\</code></td><td>Runner output logs, one file per execution (Runs page).</td></tr>
 </tbody>

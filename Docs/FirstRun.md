@@ -84,6 +84,12 @@ Dans **Settings** :
 Les boutons de copie permettent de récupérer séparément le dossier des rapports
 et le dossier de l’exécutable.
 
+Les rapports de tâches sont toujours écrits sous la racine déclarée dans
+**FileSystem:RootPath**, dans `reports\<taskId>\`. Cette racine est le bac à sable de la tâche :
+le dossier d’installation et `%LOCALAPPDATA%` ne sont pas des destinations de repli pour les
+rapports. Une tâche sans workflow y produit un rapport Markdown normal, sans section d’étapes
+vide.
+
 ### Instructions IA globales
 
 Dans **Settings → AI provider**, le champ **Project-wide AI instructions** permet de définir des

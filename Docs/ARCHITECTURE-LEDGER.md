@@ -2014,3 +2014,27 @@ compilation, freshness-window expansion, document classification, and guardrails
   on messages.
 - Added deterministic coverage for filesystem metadata, schema-5 authorization persistence,
   selection retention, empty/failed responses, and OpenAI streaming terminal-reason validation.
+
+### Version 1.4.1 — Workspace reports and operational UI refinements — 2026-08-12
+
+- `MarkdownReportWriter` now derives its default report directory from the current
+  `FileSystemOptions.RootPath`: every execution report and the shared `reports\index.jsonl`
+  reside below the configured filesystem root. `DashboardViewModel` and `SettingsViewModel`
+  resolve the same location. The executable directory and `%LOCALAPPDATA%` user-data directory
+  are not report fallbacks.
+- The report renderer omits the **Steps** section when no workflow step ran and appends final
+  agent text as normal Markdown rather than as an indented code block. Dedicated tests cover
+  both behaviors and the configured-root default.
+- `RunMonitorPage` uses compact log item containers so a persisted runner line no longer gains
+  an empty visual line of padding. Wrapping remains available for genuinely long output.
+- The Settings incident list is a fixed-height, internally scrolling, recycling `ListBox`.
+  This prevents an unbounded incident history from expanding the Settings page or forcing
+  repeated outer-scroll repositioning while items load.
+- Added two PowerShell helpers for the intelligent Downloads-sorting workflow:
+  `Build-DownloadsInventory.ps1` creates a read-only inventory with hashes and duplicate hints;
+  `Invoke-DownloadsSortPlan.ps1` validates an untrusted JSON sorting plan immediately before
+  conflict-safe moves and records an execution log. They are intended as deterministic workflow
+  tools around an AI planning step, not as unrestricted file-management scripts.
+- Release verification: `dotnet test OD.MyLocalAgent.sln --configuration Release --no-restore
+  --filter "Category!=Integration" -m:1` completed with 625 passed, 0 failed, and 1 skipped
+  local integration probe. The Release build completed with 0 warnings and 0 errors.
