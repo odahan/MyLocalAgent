@@ -101,8 +101,62 @@ public sealed class SettingsUtilityCommandTests
         viewModel.IsDirty.Should().BeFalse();
     }
 
+    /// <summary>
+    /// Verifies refreshing editable model lists cannot erase their bound text values.
+    /// </summary>
+    [Fact]
+    public async Task ModelCatalogRefreshPreservesEditedModelNames()
+    {
+        var ollamaCatalog = new Mock<IOllamaModelCatalog>();
+        ollamaCatalog
+            .Setup(catalog => catalog.ListInstalledModelsAsync(
+                It.IsAny<string>(),
+                It.IsAny<int>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(["ollama-new"]);
+        var openAICatalog = new Mock<IOpenAIModelCatalog>();
+        openAICatalog
+            .Setup(catalog => catalog.ListModelsAsync(
+                It.IsAny<string>(),
+                It.IsAny<int>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(["openai-new"]);
+        var viewModel = CreateViewModel(
+            Mock.Of<IDesktopInteractionService>(),
+            ollamaCatalog.Object,
+            openAICatalog.Object);
+        viewModel.OllamaModel = "ollama-selected";
+        viewModel.OpenAIModel = "openai-selected";
+        viewModel.IsDirty = false;
+        viewModel.OllamaModels.CollectionChanged += (_, args) =>
+        {
+            if (args.Action is System.Collections.Specialized.NotifyCollectionChangedAction.Reset)
+            {
+                viewModel.OllamaModel = string.Empty;
+            }
+        };
+        viewModel.OpenAIModels.CollectionChanged += (_, args) =>
+        {
+            if (args.Action is System.Collections.Specialized.NotifyCollectionChangedAction.Reset)
+            {
+                viewModel.OpenAIModel = string.Empty;
+            }
+        };
+
+        await viewModel.RefreshOllamaModelsCommand.ExecuteAsync(null);
+        await viewModel.RefreshOpenAIModelsCommand.ExecuteAsync(null);
+
+        viewModel.OllamaModel.Should().Be("ollama-selected");
+        viewModel.OpenAIModel.Should().Be("openai-selected");
+        viewModel.IsDirty.Should().BeFalse();
+        ollamaCatalog.VerifyAll();
+        openAICatalog.VerifyAll();
+    }
+
     private static SettingsViewModel CreateViewModel(
-        IDesktopInteractionService desktopInteraction)
+        IDesktopInteractionService desktopInteraction,
+        IOllamaModelCatalog? ollamaModelCatalog = null,
+        IOpenAIModelCatalog? openAIModelCatalog = null)
     {
         return new SettingsViewModel(
             new MutableOptionsMonitor<AIOptions>(new AIOptions()),
@@ -114,8 +168,8 @@ public sealed class SettingsUtilityCommandTests
             new MutableOptionsMonitor<GuardrailsOptions>(new GuardrailsOptions()),
             new MutableOptionsMonitor<LoggingOptions>(new LoggingOptions()),
             Mock.Of<ILlmClientFactory>(),
-            Mock.Of<IOllamaModelCatalog>(),
-            Mock.Of<IOpenAIModelCatalog>(),
+            ollamaModelCatalog ?? Mock.Of<IOllamaModelCatalog>(),
+            openAIModelCatalog ?? Mock.Of<IOpenAIModelCatalog>(),
             Mock.Of<ISecretStore>(),
             Mock.Of<IUserSettingsService>(),
             Mock.Of<IThemeService>(),
