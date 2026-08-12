@@ -3,13 +3,14 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 
 namespace OD.MyLocalAgent.Ollama;
 
 /// <summary>
 /// Provides cloud language-model generation through an OpenAI-compatible endpoint.
 /// </summary>
-public sealed class OpenAIClientService : ILlmClientService
+public sealed class OpenAIClientService : ILlmClientService, IOpenAIModelCatalog
 {
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IOptionsMonitor<OpenAIOptions> _options;
@@ -149,9 +150,7 @@ public sealed class OpenAIClientService : ILlmClientService
                 OpenAIOptions.SectionName);
             client.Timeout = Timeout.InfiniteTimeSpan;
 
-            using var request = new HttpRequestMessage(
-                HttpMethod.Get,
-                $"models/{Uri.EscapeDataString(current.Model)}");
+            using var request = new HttpRequestMessage(HttpMethod.Get, "models");
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", current.ApiKey);
             using var response = await client.SendAsync(
                 request,
@@ -159,17 +158,22 @@ public sealed class OpenAIClientService : ILlmClientService
                 timeoutSource.Token).ConfigureAwait(false);
 
             var latency = GetElapsedMilliseconds(start);
-            var modelAvailable = response.IsSuccessStatusCode;
+            var models = response.IsSuccessStatusCode
+                ? await ReadModelCatalogAsync(response, timeoutSource.Token).ConfigureAwait(false)
+                : [];
+            var modelAvailable = models.Contains(current.Model, StringComparer.Ordinal);
             var error = modelAvailable
                 ? null
-                : $"The OpenAI-compatible endpoint returned HTTP {(int)response.StatusCode} for model '{current.Model}'.";
+                : response.IsSuccessStatusCode
+                    ? $"The OpenAI-compatible endpoint did not list model '{current.Model}'."
+                    : $"The OpenAI-compatible endpoint returned HTTP {(int)response.StatusCode} while listing models.";
             return new LlmHealthResult(true, modelAvailable, latency, error);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
         }
-        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
+        catch (Exception exception) when (exception is HttpRequestException or JsonException or OperationCanceledException)
         {
             var latency = GetElapsedMilliseconds(start);
             _logger.LogWarning(
@@ -189,11 +193,76 @@ public sealed class OpenAIClientService : ILlmClientService
             : throw new LlmConfigurationException(validation);
     }
 
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<string>> ListModelsAsync(
+        string endpoint,
+        int timeoutSeconds,
+        CancellationToken cancellationToken)
+    {
+        var current = _options.CurrentValue with
+        {
+            Endpoint = endpoint,
+            TimeoutSeconds = timeoutSeconds,
+        };
+        var validation = LlmOptionsValidation.ValidateOpenAI(current, requireApiKey: true);
+        if (validation is not null)
+        {
+            throw new LlmConfigurationException(validation);
+        }
+
+        using var timeoutSource =
+            CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutSource.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
+        var client = _httpClientFactory.CreateClient(LlmHttpClientNames.OpenAI);
+        client.BaseAddress = LlmOptionsValidation.ParseEndpoint(
+            current.Endpoint,
+            OpenAIOptions.SectionName);
+        client.Timeout = Timeout.InfiniteTimeSpan;
+        using var request = new HttpRequestMessage(HttpMethod.Get, "models");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", current.ApiKey);
+        using var response = await client.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            timeoutSource.Token).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        return await ReadModelCatalogAsync(response, timeoutSource.Token).ConfigureAwait(false);
+    }
+
     private long GetElapsedMilliseconds(long start)
     {
         return (long)Math.Round(
             _timeProvider.GetElapsedTime(start).TotalMilliseconds,
             MidpointRounding.AwayFromZero);
+    }
+
+    private static async Task<IReadOnlyList<string>> ReadModelCatalogAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        await using var contentStream = await response.Content
+            .ReadAsStreamAsync(cancellationToken)
+            .ConfigureAwait(false);
+        using var document = await JsonDocument
+            .ParseAsync(contentStream, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+
+        if (!document.RootElement.TryGetProperty("data", out var data) ||
+            data.ValueKind != JsonValueKind.Array)
+        {
+            throw new JsonException("The model catalog response did not contain a data array.");
+        }
+
+        return data
+            .EnumerateArray()
+            .Select(
+                static entry => entry.TryGetProperty("id", out var id)
+                    ? id.GetString()
+                    : null)
+            .Where(static id => !string.IsNullOrWhiteSpace(id))
+            .Select(static id => id!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static id => id, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private EffectiveGenerationPolicy ResolveGlobalPolicy() =>

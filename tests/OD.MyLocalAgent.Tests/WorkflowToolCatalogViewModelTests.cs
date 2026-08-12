@@ -235,6 +235,8 @@ public sealed class WorkflowToolCatalogViewModelTests
             string defaultExtension,
             string suggestedFileName) => null;
 
+        public string? SelectOpenFile(string title, string filter) => null;
+
         public string? SelectFolder(string title) => null;
 
         public void CopyText(string text)

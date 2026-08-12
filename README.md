@@ -104,12 +104,14 @@ Start:
 
 On first launch:
 
-1. Open **Settings** and confirm the Ollama endpoint, model, filesystem root, scheduler
-   options, and safety defaults. The Ollama model field is an editable list populated from
-   the models installed on the configured endpoint; use **Refresh models** after changing the
-   endpoint or installing a new model.
-2. Select **Test connection**. A healthy result requires both a reachable endpoint and the
-   exact configured model tag.
+1. Open **Settings** and select the active provider next to **Test connection**. Both the
+   Ollama and OpenAI-compatible configurations are retained, so switching provider never
+   requires deleting the other configuration. Confirm the active endpoint, model, filesystem
+   root, scheduler options, and safety defaults. Each model field is editable; use **Refresh
+   models** for Ollama or **Refresh OpenAI-compatible models** for a provider that exposes the
+   standard `/models` endpoint.
+2. Select **Test connection**. A healthy result requires a reachable active endpoint and the
+   exact configured model identifier.
 3. Open **Tools** to authorize Google, store Dropbox credentials, or explicitly enable the
    Ollama cloud Web Search provider when those integrations are needed.
 4. Create a task. Prefer an explicit workflow for unattended execution.
@@ -317,13 +319,23 @@ Prompt editor Test displays and uses the current unsaved task-effective values. 
 steps display configured overrides and deterministic provenance through AI Explain. The AI
 playground has no task, so it displays and uses the global policy.
 
-### Temporary model selection and warm-up
+### Model selection hierarchy and warm-up
 
 Set `model` on a task to use a different configured-provider model for that task only. Set it
 on an object-form `ai.prompt` workflow step to use it only for that step; the step value takes
 precedence over the task value. The setting never rewrites Settings or affects another task.
 The previous/default model is restored automatically after the scoped call, including when it
 fails or is cancelled.
+
+The task editor exposes this as **Use model from Settings** and **Task model override**. In
+**Edit workflow text**, an `ai.prompt` entry has **Model override (empty = task or Settings)**.
+These are model identifiers, not a provider switch: the active provider remains the one selected
+in Settings for the entire task. Leave both fields blank to inherit the configured model. The
+effective order is:
+
+```text
+ai.prompt step model → task model → Settings model
+```
 
 ```json
 {
@@ -1344,8 +1356,10 @@ sizes. Credentials and configured tokens remain excluded.
 The **Direct Chat** page appears immediately after **Tasks** in the navigation rail. It provides
 a persistent, provider-agnostic conversation surface with streamed assistant replies, cancellation,
 Markdown rendering, multiple conversations, automatic first-message titles, deletion confirmation,
-and progressive loading of older messages. It calls the active provider directly through
-`IChatClient`; tools and built-in skills are deliberately unavailable on this page.
+and progressive loading of older messages. It starts in chat-only mode. Its per-conversation
+**Tools & permissions** panel can explicitly enable the same tool groups and sensitive capability
+switches used by a task; all are disabled by default and still use the existing sandbox, connector,
+HTTP allowlist, and Guardrails controls.
 
 Conversations are stored in the dedicated
 `%LOCALAPPDATA%\OD.MyLocalAgent\direct-chat.db` SQLite database. This internal database is not
@@ -1354,6 +1368,12 @@ workflows. Schema migrations use `PRAGMA user_version`, foreign keys delete mess
 conversation, startup changes abandoned `Pending` or `Streaming` replies to `Failed`, and response
 content is checkpointed at most once per second. The database is local but **not encrypted**;
 do not use Direct Chat for content that must be protected at rest.
+
+Prompts can include locally selected text files (`.txt`, `.md`, `.csv`, `.json`, `.xml`, `.log`),
+PDF, Word (`.docx`), and Excel (`.xls`, `.xlsx`) documents. Documents are read locally into bounded
+text before the request. PNG, JPEG, WebP, GIF, and BMP files are retained as image content and sent
+to the active provider; they require a vision-capable configured model, such as Gemma 4. Attachment
+content is retained in the same Direct Chat database so reopened conversations preserve context.
 
 Before each model request, Direct Chat builds context from its fixed system instruction, the
 optional global system prompt, the cumulative memory summary, and recent unsummarized messages.
@@ -1368,6 +1388,14 @@ The `DirectChat` configuration section owns `CompressionEnabled`, `CompressionTr
 and `EstimatedCharactersPerToken`. The context-window source remains
 `AI:GenerationDefaults:ContextWindowTokens`.
 
+After a successful send, the message editor is intentionally cleared, so **Send** remains disabled
+until new text or an attachment is added. This prevents accidentally sending an empty message.
+
+**Create task** copies the latest user prompt, selected tool groups, and selected sensitive
+capabilities into a newly saved task that is **disabled** by default and opens its editor. It does
+not copy chat history, attachments, secrets, or a schedule decision; review and complete the task
+before enabling it.
+
 ## Provider switching
 
 The Settings page can switch between:
@@ -1375,9 +1403,18 @@ The Settings page can switch between:
 - **Ollama**, local and default.
 - **OpenAI-compatible**, cloud and opt-in.
 
-Save the new provider and select **Test connection**. The factory reads monitored options on
-every creation, so the next test or task uses the new provider without restarting the UI.
-Already-running executions are not interrupted.
+The **Active provider** choices sit on the same line as **Test connection**, which makes the target
+of a test explicit. Save the new provider and select **Test connection**. The factory reads
+monitored options on every creation, so the next test or task uses the new provider without
+restarting the UI. Already-running executions are not interrupted.
+
+For an OpenAI-compatible provider, the application tests `GET /models` and verifies that the
+configured model id occurs in its `data` array. This avoids endpoint-specific model-detail routes
+that OpenRouter does not implement. The OpenAI-compatible model field can be populated from the
+same endpoint through **Refresh OpenAI-compatible models**; it remains manually editable because
+some providers restrict or omit their catalog. For OpenRouter, use
+`https://openrouter.ai/api/v1` and copy the exact advertised model id, including a suffix such as
+`:free` when applicable.
 
 The AI playground uses raw completion by default. **Allow Tools** switches it to agent mode
 with all installed task-whitelist groups, while **Allow Skills** exposes the built-in summarize, action-item,
@@ -1387,6 +1424,17 @@ configuration, and HTTP allowlist continue to apply in the playground.
 The OpenAI API key replacement field is write-only and saved only through DPAPI. Verify
 `%LOCALAPPDATA%\OD.MyLocalAgent\settings.json` after a provider test: it may contain provider,
 endpoint, model, and timeout, but must not contain `ApiKey`.
+
+`ai.prompt` calls to an OpenAI-compatible provider use streaming so that responses compatible
+with streaming but not the SDK's non-streaming shape continue to work. The application records a
+sanitized metric line with provider, model, input and output character counts, time to first
+content, fragment count, completion state, and total duration. It never records the prompt,
+response body, API key, or endpoint in that metric. Use it to distinguish a slow provider/model
+generation from local workflow processing. The configured OpenAI-compatible timeout is applied to
+the underlying network client as well as to the call.
+
+Technical implementation details and troubleshooting examples are in
+[Docs/Provider-Interoperability.md](Docs/Provider-Interoperability.md).
 
 The optional Light appearance remains available by explicit product choice. Dark is the
 default and the hardened audit target; both palettes use the same semantic resources.

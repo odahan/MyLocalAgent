@@ -31,6 +31,10 @@ internal sealed class StubChatClient : IChatClient
 
     public int CallCount { get; private set; }
 
+    public int ResponseCallCount { get; private set; }
+
+    public int StreamingCallCount { get; private set; }
+
     public Exception? ExceptionToThrow { get; set; }
 
     public Func<int, ChatResponse>? ResponseFactory { get; set; }
@@ -48,6 +52,7 @@ internal sealed class StubChatClient : IChatClient
         MessageCalls.Add(LastMessages);
         OptionCalls.Add(options);
         CallCount++;
+        ResponseCallCount++;
         if (ExceptionToThrow is not null)
         {
             throw ExceptionToThrow;
@@ -78,6 +83,7 @@ internal sealed class StubChatClient : IChatClient
         MessageCalls.Add(LastMessages);
         OptionCalls.Add(options);
         CallCount++;
+        StreamingCallCount++;
         await Task.Yield();
         yield return new ChatResponseUpdate(ChatRole.Assistant, NextResponse());
     }

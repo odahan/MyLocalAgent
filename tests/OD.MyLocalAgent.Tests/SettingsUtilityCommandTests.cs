@@ -115,6 +115,7 @@ public sealed class SettingsUtilityCommandTests
             new MutableOptionsMonitor<LoggingOptions>(new LoggingOptions()),
             Mock.Of<ILlmClientFactory>(),
             Mock.Of<IOllamaModelCatalog>(),
+            Mock.Of<IOpenAIModelCatalog>(),
             Mock.Of<ISecretStore>(),
             Mock.Of<IUserSettingsService>(),
             Mock.Of<IThemeService>(),

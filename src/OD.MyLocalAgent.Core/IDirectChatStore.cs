@@ -26,6 +26,14 @@ public interface IDirectChatStore
         string title,
         CancellationToken cancellationToken);
 
+    /// <summary>Updates the explicit agent permissions for one conversation.</summary>
+    Task UpdateConversationAgentProfileAsync(
+        string conversationId,
+        bool agentEnabled,
+        IReadOnlyList<string> tools,
+        IReadOnlyList<TaskCapability> capabilities,
+        CancellationToken cancellationToken);
+
     /// <summary>Deletes a conversation and all its messages.</summary>
     Task<bool> DeleteConversationAsync(
         string conversationId,
@@ -45,7 +53,8 @@ public interface IDirectChatStore
         string content,
         DirectChatMessageState state,
         int? estimatedTokens,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        IReadOnlyList<DirectChatAttachment>? attachments = null);
 
     /// <summary>Updates message content and state during or after streaming.</summary>
     Task UpdateMessageAsync(

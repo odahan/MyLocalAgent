@@ -1792,7 +1792,8 @@ ollama list</code></pre>
 <h2>Have a conversation in Direct Chat</h2>
 <p class="section-intro">
                     Direct Chat keeps multiple local conversations and sends their context to the
-                    active provider. It does not expose tools or built-in skills.
+                    active provider. It starts without tools; you may explicitly enable tools for
+                    one conversation.
                 </p>
 <ol class="steps">
 <li>
@@ -1801,7 +1802,19 @@ ollama list</code></pre>
 </li>
 <li>
 <strong>Enter your message.</strong>
-<p>Select <span class="ui-label">Send</span> or press <kbd>Ctrl</kbd>+<kbd>Enter</kbd>. Only one response can be generated at a time.</p>
+<p>Select <span class="ui-label">Send</span> or press <kbd>Ctrl</kbd>+<kbd>Enter</kbd>. Only one response can be generated at a time. After sending, the editor is intentionally cleared: <span class="ui-label">Send</span> becomes available again as soon as you enter a new message or add an attachment.</p>
+</li>
+<li>
+<strong>Add an attachment when needed.</strong>
+<p>Text, PDF, Word, and Excel files are read locally within controlled limits. PNG, JPEG, WebP, GIF, and BMP images are sent as images and require a vision-capable model. Attachment content is retained with the message so that its context can be restored when the conversation is reopened.</p>
+</li>
+<li>
+<strong>Enable the agent only when needed.</strong>
+<p>Below the conversation list, open <span class="ui-label">Tools &amp; permissions</span>, check <span class="ui-label">Enable tools for this conversation</span>, select the required tool groups and sensitive permissions, then select <span class="ui-label">Save permissions</span>. Everything is disabled by default, and the same sandbox, Guardrails, and connector rules as a task still apply.</p>
+</li>
+<li>
+<strong>Turn useful work into a task.</strong>
+<p><span class="ui-label">Create task</span> copies the latest user prompt and this conversation’s permissions to a disabled task, then opens its editor. History and attachments are not copied: complete the schedule and review the task before enabling it.</p>
 </li>
 <li>
 <strong>Follow the streamed response.</strong>
@@ -1881,7 +1894,7 @@ ollama list</code></pre>
 <ol class="steps">
 <li>
 <strong>Open <span class="ui-label">Settings</span> → <span class="ui-label">AI provider</span>.</strong>
-<p>Select <span class="ui-label">OpenAI-compatible (cloud, opt-in)</span>.</p>
+<p>Select <span class="ui-label">OpenAI-compatible (cloud, opt-in)</span> under <span class="ui-label">Active provider</span>, to the right of <span class="ui-label">Test connection</span>. Ollama settings remain saved, so you can switch back without re-entering them.</p>
 </li>
 <li>
 <strong>Review the cloud warning.</strong>
@@ -1889,7 +1902,11 @@ ollama list</code></pre>
 </li>
 <li>
 <strong>Enter Endpoint, Model, and Timeout.</strong>
-<p>For OpenAI, the default endpoint is <code>https://api.openai.com/v1</code>. Compatible servers may use another URL.</p>
+<p>For OpenAI, the default endpoint is <code>https://api.openai.com/v1</code>. Compatible servers may use another URL. For OpenRouter, use <code>https://openrouter.ai/api/v1</code> and copy the exact advertised model id, including a <code>:free</code> suffix when shown.</p>
+</li>
+<li>
+<strong>Load the catalog when the provider exposes one.</strong>
+<p><span class="ui-label">Refresh OpenAI-compatible models</span> retrieves models exposed by the endpoint. The list remains editable: enter an id manually if the provider does not publish its catalog or if you already know the required id.</p>
 </li>
 <li>
 <strong>Enter the key in <span class="ui-label">Replace API key</span>.</strong>
@@ -1901,7 +1918,7 @@ ollama list</code></pre>
 </li>
 <li>
 <strong>Run <span class="ui-label">Test connection</span>.</strong>
-<p>Key, endpoint, and model errors are surfaced directly. There is no silent fallback to Ollama.</p>
+<p>The test checks the currently selected provider, endpoint, and presence of the model in its catalog. Key, endpoint, and model errors are surfaced directly. There is no silent fallback to Ollama. A historical OpenRouter 404 came from an unsupported model-detail route; the test now uses the standard catalog endpoint.</p>
 </li>
 </ol>
 <div class="callout danger">
@@ -2118,6 +2135,8 @@ ollama list</code></pre>
                     renamed, or re-typed, and no id, error policy, retry, generation option, or
                     other argument is touched. Steps are keyed by position, so duplicate ids stay
                     unambiguous.
+                </p><p>
+                    For an <code>ai.prompt</code> entry, <span class="ui-label">Model override (empty = task or Settings)</span> selects a model for that step. In the Task Editor, clear <span class="ui-label">Use model from Settings</span> and enter <span class="ui-label">Task model override</span> to select a model for the entire task. Priority is: <code>ai.prompt</code> step model, then task model, then Settings model. This never switches provider: the active provider remains the Settings selection.
                 </p><p>
                     Prompts are edited with real line breaks. The working text is LF-canonical:
                     CRLF and lone CR are normalized to LF and flagged, and nothing else about your

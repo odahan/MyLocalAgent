@@ -48,6 +48,41 @@ public sealed class MyLocalAgentServiceTests
     }
 
     /// <summary>
+    /// Verifies OpenAI-compatible prompt execution uses streaming directly, avoiding
+    /// non-streaming provider responses that do not contain a choice entry.
+    /// </summary>
+    [Fact]
+    public async Task PromptWithoutToolsUsesStreamingForOpenAICompatibleProvider()
+    {
+        var client = new StubChatClient("Generated through streaming.");
+        var provider = new StubLlmClientService(client, AIOptions.OpenAIProvider);
+        var factory = new Mock<ILlmClientFactory>(MockBehavior.Strict);
+        factory.Setup(instance => instance.Create()).Returns(provider);
+        var service = new MyLocalAgentService(
+            factory.Object,
+            Mock.Of<IToolRegistry>(),
+            [],
+            Mock.Of<IIncidentReporter>(),
+            TimeProvider.System);
+        var policy = new EffectiveGenerationPolicy(
+            0.1,
+            1,
+            8192,
+            GenerationOptionSource.Step,
+            GenerationOptionSource.Settings);
+
+        var result = await service.RunPromptWithoutToolsAsync(
+            "Generate the report.",
+            policy,
+            CancellationToken.None);
+
+        result.Text.Should().Be("Generated through streaming.");
+        client.CallCount.Should().Be(1);
+        client.ResponseCallCount.Should().Be(0);
+        client.StreamingCallCount.Should().Be(1);
+    }
+
+    /// <summary>
     /// Verifies configured project-wide instructions are appended without replacing safety rules.
     /// </summary>
     [Fact]

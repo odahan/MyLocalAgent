@@ -13,4 +13,7 @@ public sealed record WorkflowPromptEdit(
 {
     /// <summary>Gets the targeted long-text argument name.</summary>
     public string ArgumentName { get; init; } = "prompt";
+
+    /// <summary>Gets the optional model override for this AI prompt step.</summary>
+    public string? Model { get; init; }
 }

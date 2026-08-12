@@ -96,6 +96,7 @@ public sealed partial class WorkflowPromptEditorViewModel : ObservableObject
             .Select(item => new WorkflowPromptEdit(item.Position, item.PromptText, item.IncludeContext)
             {
                 ArgumentName = item.ArgumentName,
+                Model = item.SupportsModelOverride ? item.ModelOverride : null,
             })
             .ToList();
 

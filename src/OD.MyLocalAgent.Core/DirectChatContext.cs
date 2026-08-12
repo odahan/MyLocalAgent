@@ -107,12 +107,24 @@ public sealed class DirectChatContextBuilder(
                      !string.IsNullOrWhiteSpace(message.Content) &&
                      message.State is not DirectChatMessageState.Failed))
         {
-            providerMessages.Add(
-                new ChatMessage(
-                    message.Role == DirectChatMessageRole.User
-                        ? ChatRole.User
-                        : ChatRole.Assistant,
-                    message.Content));
+            var contents = new List<AIContent> { new TextContent(message.Content) };
+            foreach (var attachment in message.Attachments)
+            {
+                if (attachment.Kind == DirectChatAttachmentKind.Text &&
+                    !string.IsNullOrWhiteSpace(attachment.Text))
+                {
+                    contents.Add(new TextContent($"\nAttached file ({attachment.FileName}):\n{attachment.Text}"));
+                }
+                else if (attachment.Kind == DirectChatAttachmentKind.Image &&
+                         attachment.Data is { Length: > 0 })
+                {
+                    contents.Add(new DataContent(attachment.Data, attachment.MediaType));
+                }
+            }
+
+            providerMessages.Add(new ChatMessage(
+                message.Role == DirectChatMessageRole.User ? ChatRole.User : ChatRole.Assistant,
+                contents));
         }
 
         var contextWindow = options.GenerationDefaults.ContextWindowTokens;

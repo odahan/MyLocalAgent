@@ -56,12 +56,11 @@ public sealed partial class DirectChatMessageItem : ObservableObject
     /// <summary>Gets a value indicating whether this is a user message.</summary>
     public bool IsUser => Role == DirectChatMessageRole.User;
 
-    /// <summary>Gets a value indicating whether completed assistant Markdown can be rendered.</summary>
-    public bool ShowsRenderedMarkdown =>
-        !IsUser &&
-        _isMarkdownAvailable &&
-        State == DirectChatMessageState.Completed &&
-        !string.IsNullOrWhiteSpace(Content);
+    /// <summary>
+    /// Gets a value indicating whether completed assistant Markdown can be rendered.
+    /// WebView2 cannot be hosted safely inside the WPF scrolling message list.
+    /// </summary>
+    public bool ShowsRenderedMarkdown => false;
 
     /// <summary>Gets a height estimate for the isolated Markdown browser.</summary>
     public double RenderHeight => Math.Clamp(

@@ -1896,7 +1896,7 @@ compilation, freshness-window expansion, document classification, and guardrails
   exposes no tools or skills.
 - Added `DirectChatConversation`, `DirectChatMessage`, role/state enums, and the
   `IDirectChatStore` contract in Core. `SqliteDirectChatStore` owns
-  `%LOCALAPPDATA%\OD.MyLocalAgent\direct-chat.db`, schema version 1, parameterized SQL,
+  `%LOCALAPPDATA%\OD.MyLocalAgent\direct-chat.db`, schema version 2, parameterized SQL,
   foreign-key cascades, transactional updates, deterministic ordering, and recovery of abandoned
   `Pending`/`Streaming` messages as `Failed`. The Windows-serviced SQLite provider initialization
   is centralized in `SqliteNativeBootstrap` and shared with `SqliteTool`.
@@ -1904,6 +1904,9 @@ compilation, freshness-window expansion, document classification, and guardrails
   application synchronization gate. Assistant content is checkpointed no more than once per
   second. The file is local but not encrypted; only secrets in `secrets.dat` receive DPAPI
   protection.
+- Direct Chat attachments are persisted with their user message. Text, PDF, DOCX, and Excel files
+  are locally converted to bounded text; PNG, JPEG, WebP, GIF, and BMP remain provider-neutral
+  `DataContent` for vision-capable models. Image support is decided by the active provider/model.
 - `DirectChatContextBuilder` projects a fixed chat instruction, the optional global system prompt,
   cumulative memory, and messages after the summary boundary into provider-neutral
   `Microsoft.Extensions.AI.ChatMessage` instances. `ConservativeTokenEstimator` supplies the
@@ -1919,3 +1922,55 @@ compilation, freshness-window expansion, document classification, and guardrails
   streaming-to-persistence test, and a navigation-order assertion. The final Release build passed
   with zero warnings and errors; the non-integration suite passed 599 tests with the expected
   local Ollama probe skipped.
+
+### Provider interoperability, streamed workflow prompts, and model overrides — 2026-08-12
+
+- Moved the persistent **Active provider** selector from the Settings header to the
+  **Test connection** row. The target of a health test is now visible at the control which starts
+  it, while both Ollama and OpenAI-compatible settings remain independently persisted and can be
+  switched without reconfiguration.
+- Added `IOpenAIModelCatalog`, implemented by `OpenAIClientService`, and registered it from
+  `AddLlmProviders`. The Settings OpenAI-compatible model field is now an editable catalog with a
+  refresh command, progress/status reporting, and safe manual fallback. The catalog parses the
+  standard `GET /models` `data[].id` response, removes case-insensitive duplicates, and sorts ids.
+- Corrected OpenAI-compatible health validation to use the same authenticated `GET /models`
+  catalog and verify the configured id. This replaces `GET /models/{model}`, which causes a 404 at
+  OpenRouter although the endpoint and model are valid. API keys remain DPAPI-only.
+- OpenAI-compatible workflow `ai.prompt` now consumes the streaming response path and aggregates
+  ordered text fragments. This avoids the Microsoft OpenAI adapter's non-streaming choice-shape
+  failure observed with OpenRouter. `DynamicOpenAIChatClient` also sets
+  `OpenAIClientOptions.NetworkTimeout` from `OpenAIOptions.TimeoutSeconds`, removing the hidden
+  shorter SDK network timeout.
+- Added sanitized streamed-prompt diagnostics: operation, provider, model, input characters,
+  first-content latency, fragment count, output characters, completion state, and total duration.
+  Prompts, output text, endpoint, and secrets are deliberately excluded. This makes long remote
+  free/reasoning-model generation distinguishable from local workflow overhead.
+- Exposed the existing scoped model-resolution contract in the task and workflow editors:
+  **Settings model → task model override → object-form `ai.prompt` model override**. Empty UI
+  fields inherit, an override cannot select a different provider, and non-`ai.prompt` steps cannot
+  carry a model. The task/editor persistence path preserves unrelated workflow arguments.
+- Added or updated deterministic coverage for the OpenAI catalog and health route, streamed
+  OpenAI-compatible prompts, model override round trips and editor serialization. The final
+  non-integration verification completed with 606 passed tests and one intentionally skipped local
+  Ollama integration probe. A real OpenRouter workflow validated the corrected streaming path.
+- Added `Docs/Provider-Interoperability.md`, expanded the README, and synchronized the French and
+  English user manuals with the active-provider flow, OpenRouter configuration, catalog refresh,
+  model hierarchy, Direct Chat send behavior, and diagnostics interpretation.
+
+### Direct Chat interactive agent and task handoff — 2026-08-12
+
+- Added a persisted, per-conversation agent profile to `direct-chat.db` schema 3. New and existing
+  conversations default to chat-only mode with no tool group and no sensitive capability selected.
+  The profile is independent of global Settings and survives reopening a conversation.
+- Direct Chat now exposes **Tools & permissions** below the conversation list. The expandable panel
+  permits the same shared task-whitelist groups and sensitive capability switches as a task, then
+  saves the explicit profile for the selected conversation. Existing path sandbox, Guardrails,
+  connector configuration, and HTTP allowlist checks remain mandatory.
+- When agent mode is enabled, Direct Chat calls `IMyLocalAgentService` with the saved group whitelist
+  and a conversation-scoped `ToolExecutionContext`; otherwise it retains direct streaming chat.
+- Added **Create task**. It copies only the latest user prompt and selected tool/capability grants
+  into a new disabled scheduled-task draft, then opens the task editor. Conversation history,
+  attachments, endpoints, and secrets are never copied. The user reviews the task and selects its
+  eventual schedule before enabling it.
+- Updated both user manuals and the README. Build completed with zero warnings/errors and the
+  non-integration suite completed with 606 passed tests and one expected skipped local probe.

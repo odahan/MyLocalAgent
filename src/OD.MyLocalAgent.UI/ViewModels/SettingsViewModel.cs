@@ -93,6 +93,7 @@ public sealed partial class SettingsViewModel :
     private readonly IOptionsMonitor<FileContentOptions>? _fileContentOptions;
     private readonly ILlmClientFactory _llmClientFactory;
     private readonly IOllamaModelCatalog _ollamaModelCatalog;
+    private readonly IOpenAIModelCatalog _openAIModelCatalog;
     private readonly ISecretStore _secretStore;
     private readonly IUserSettingsService _userSettingsService;
     private readonly IThemeService _themeService;
@@ -134,6 +135,13 @@ public sealed partial class SettingsViewModel :
 
     [ObservableProperty]
     private string _openAIModel = string.Empty;
+
+    [ObservableProperty]
+    private bool _isLoadingOpenAIModels;
+
+    [ObservableProperty]
+    private string _openAIModelCatalogStatus =
+        "Provider models have not been loaded.";
 
     [ObservableProperty]
     private int _openAITimeoutSeconds;
@@ -278,6 +286,7 @@ public sealed partial class SettingsViewModel :
         IOptionsMonitor<LoggingOptions> loggingOptions,
         ILlmClientFactory llmClientFactory,
         IOllamaModelCatalog ollamaModelCatalog,
+        IOpenAIModelCatalog openAIModelCatalog,
         ISecretStore secretStore,
         IUserSettingsService userSettingsService,
         IThemeService themeService,
@@ -304,6 +313,7 @@ public sealed partial class SettingsViewModel :
         _fileContentOptions = fileContentOptions;
         _llmClientFactory = llmClientFactory;
         _ollamaModelCatalog = ollamaModelCatalog;
+        _openAIModelCatalog = openAIModelCatalog;
         _secretStore = secretStore;
         _userSettingsService = userSettingsService;
         _themeService = themeService;
@@ -343,6 +353,11 @@ public sealed partial class SettingsViewModel :
     /// Gets the model identifiers currently installed on the configured Ollama endpoint.
     /// </summary>
     public ObservableCollection<string> OllamaModels { get; } = [];
+
+    /// <summary>
+    /// Gets model identifiers published by the configured OpenAI-compatible endpoint.
+    /// </summary>
+    public ObservableCollection<string> OpenAIModels { get; } = [];
 
     /// <summary>
     /// Gets the persisted tasks folder.
@@ -548,6 +563,7 @@ public sealed partial class SettingsViewModel :
             OpenAIEndpoint = openAI.Endpoint;
             OpenAIModel = openAI.Model;
             OpenAITimeoutSeconds = openAI.TimeoutSeconds;
+            await LoadOpenAIModelsAsync(cancellationToken).ConfigureAwait(true);
             ApiKeyReplacement = string.Empty;
             IsApiKeyConfigured = await _secretStore
                 .ExistsAsync(SecretKeys.OpenAIApiKey, cancellationToken)
@@ -630,6 +646,10 @@ public sealed partial class SettingsViewModel :
     [RelayCommand]
     private Task RefreshOllamaModelsAsync(CancellationToken cancellationToken) =>
         LoadOllamaModelsAsync(cancellationToken);
+
+    [RelayCommand]
+    private Task RefreshOpenAIModelsAsync(CancellationToken cancellationToken) =>
+        LoadOpenAIModelsAsync(cancellationToken);
 
     [RelayCommand(CanExecute = nameof(CanSave))]
     private async Task SaveAsync(CancellationToken cancellationToken)
@@ -827,6 +847,51 @@ public sealed partial class SettingsViewModel :
         finally
         {
             IsLoadingOllamaModels = false;
+        }
+    }
+
+    private async Task LoadOpenAIModelsAsync(CancellationToken cancellationToken)
+    {
+        IsLoadingOpenAIModels = true;
+        OpenAIModelCatalogStatus = "Loading models from the OpenAI-compatible provider…";
+        try
+        {
+            var models = await _openAIModelCatalog
+                .ListModelsAsync(
+                    OpenAIEndpoint.Trim(),
+                    Math.Clamp(
+                        OpenAITimeoutSeconds,
+                        1,
+                        ModelCatalogTimeoutSeconds),
+                    cancellationToken)
+                .ConfigureAwait(true);
+            OpenAIModels.Clear();
+            foreach (var model in models)
+            {
+                OpenAIModels.Add(model);
+            }
+
+            OpenAIModelCatalogStatus = models.Count switch
+            {
+                0 => "The provider is reachable, but did not return any models.",
+                1 => "1 provider model available.",
+                _ => $"{models.Count} provider models available.",
+            };
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            OpenAIModelCatalogStatus = "Loading provider models was canceled.";
+            throw;
+        }
+        catch (Exception exception)
+        {
+            OpenAIModels.Clear();
+            OpenAIModelCatalogStatus =
+                $"Provider models could not be loaded: {exception.Message}";
+        }
+        finally
+        {
+            IsLoadingOpenAIModels = false;
         }
     }
 

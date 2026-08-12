@@ -20,6 +20,7 @@ public sealed partial class WorkflowPromptEditorItem : ObservableObject
         _entry = entry;
         _promptText = entry.PromptText;
         _includeContext = entry.IncludeContext;
+        _modelOverride = entry.Model ?? string.Empty;
     }
 
     [ObservableProperty]
@@ -27,6 +28,9 @@ public sealed partial class WorkflowPromptEditorItem : ObservableObject
 
     [ObservableProperty]
     private bool _includeContext;
+
+    [ObservableProperty]
+    private string _modelOverride;
 
     /// <summary>
     /// Gets the zero-based workflow position, which is the stable edit identity.
@@ -51,6 +55,15 @@ public sealed partial class WorkflowPromptEditorItem : ObservableObject
 
     /// <summary>Gets whether includeContext is applicable.</summary>
     public bool SupportsIncludeContext => _entry.SupportsIncludeContext;
+
+    /// <summary>Gets whether this item can override a model.</summary>
+    public bool SupportsModelOverride => string.Equals(
+        Alias,
+        ToolMap.PromptAlias,
+        StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Gets whether this prompt step inherits its model.</summary>
+    public bool UsesInheritedModel => string.IsNullOrWhiteSpace(ModelOverride);
 
     /// <summary>Gets whether the local PowerShell warning is shown.</summary>
     public bool IsPowerShell => _entry.IsPowerShell;
@@ -110,9 +123,17 @@ public sealed partial class WorkflowPromptEditorItem : ObservableObject
     public bool IsContextModified => IncludeContext != _entry.IncludeContext;
 
     /// <summary>
+    /// Gets a value indicating whether the model override changed during the session.
+    /// </summary>
+    public bool IsModelModified => !string.Equals(
+        ModelOverride.Trim(),
+        _entry.Model ?? string.Empty,
+        StringComparison.Ordinal);
+
+    /// <summary>
     /// Gets a value indicating whether the entry carries any effective change.
     /// </summary>
-    public bool IsModified => IsPromptModified || IsContextModified;
+    public bool IsModified => IsPromptModified || IsContextModified || IsModelModified;
 
     /// <summary>
     /// Restores the entry to its extracted state.
@@ -121,11 +142,14 @@ public sealed partial class WorkflowPromptEditorItem : ObservableObject
     {
         PromptText = _entry.PromptText;
         IncludeContext = _entry.IncludeContext;
+        ModelOverride = _entry.Model ?? string.Empty;
     }
 
     partial void OnPromptTextChanged(string value) => RaiseDerived();
 
     partial void OnIncludeContextChanged(bool value) => RaiseDerived();
+
+    partial void OnModelOverrideChanged(string value) => RaiseDerived();
 
     private void RaiseDerived()
     {
@@ -136,6 +160,8 @@ public sealed partial class WorkflowPromptEditorItem : ObservableObject
         OnPropertyChanged(nameof(HasContextDuplication));
         OnPropertyChanged(nameof(IsPromptModified));
         OnPropertyChanged(nameof(IsContextModified));
+        OnPropertyChanged(nameof(IsModelModified));
+        OnPropertyChanged(nameof(UsesInheritedModel));
         OnPropertyChanged(nameof(IsModified));
     }
 }

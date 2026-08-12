@@ -29,6 +29,35 @@ public enum DirectChatMessageState
     Failed,
 }
 
+/// <summary>Identifies the kind of content attached to a Direct Chat message.</summary>
+public enum DirectChatAttachmentKind
+{
+    /// <summary>Text extracted locally from a document.</summary>
+    Text,
+
+    /// <summary>An image sent to a vision-capable model.</summary>
+    Image,
+}
+
+/// <summary>Describes content retained with a Direct Chat message.</summary>
+public sealed record DirectChatAttachment
+{
+    /// <summary>Gets the original file name.</summary>
+    public required string FileName { get; init; }
+
+    /// <summary>Gets the MIME media type.</summary>
+    public required string MediaType { get; init; }
+
+    /// <summary>Gets the attachment kind.</summary>
+    public required DirectChatAttachmentKind Kind { get; init; }
+
+    /// <summary>Gets extracted text for a text document.</summary>
+    public string? Text { get; init; }
+
+    /// <summary>Gets the retained bytes for an image.</summary>
+    public byte[]? Data { get; init; }
+}
+
 /// <summary>Describes one persisted Direct Chat conversation.</summary>
 public sealed record DirectChatConversation
 {
@@ -52,6 +81,15 @@ public sealed record DirectChatConversation
 
     /// <summary>Gets the UTC time at which the summary was last changed.</summary>
     public DateTimeOffset? SummaryUpdatedUtc { get; init; }
+
+    /// <summary>Gets whether this conversation may invoke the shared agent tools.</summary>
+    public bool AgentEnabled { get; init; }
+
+    /// <summary>Gets the tool groups explicitly granted to this conversation.</summary>
+    public IReadOnlyList<string> Tools { get; init; } = [];
+
+    /// <summary>Gets sensitive capabilities explicitly granted to this conversation.</summary>
+    public IReadOnlyList<TaskCapability> Capabilities { get; init; } = [];
 }
 
 /// <summary>Describes one persisted message in a Direct Chat conversation.</summary>
@@ -80,4 +118,7 @@ public sealed record DirectChatMessage
 
     /// <summary>Gets the estimated token count, when calculated.</summary>
     public int? EstimatedTokens { get; init; }
+
+    /// <summary>Gets files attached to this message.</summary>
+    public IReadOnlyList<DirectChatAttachment> Attachments { get; init; } = [];
 }

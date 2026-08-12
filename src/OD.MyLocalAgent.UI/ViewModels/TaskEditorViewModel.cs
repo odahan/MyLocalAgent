@@ -30,6 +30,8 @@ public sealed partial class TaskEditorViewModel :
         nameof(Schedule),
         nameof(Prompt),
         nameof(UseGlobalSystemPrompt),
+        nameof(UseSettingsModel),
+        nameof(ModelOverride),
         nameof(IsEnabled),
         nameof(SelectedErrorPolicy),
         nameof(WorkflowText),
@@ -75,6 +77,13 @@ public sealed partial class TaskEditorViewModel :
 
     [ObservableProperty]
     private bool _useGlobalSystemPrompt = true;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsModelOverrideEnabled))]
+    private bool _useSettingsModel = true;
+
+    [ObservableProperty]
+    private string _modelOverride = string.Empty;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsTemperatureOverrideEnabled))]
@@ -137,6 +146,9 @@ public sealed partial class TaskEditorViewModel :
     /// Gets a value indicating whether the Top P override editor is enabled.
     /// </summary>
     public bool IsTopPOverrideEnabled => !UseGlobalTopP;
+
+    /// <summary>Gets whether the task model override editor is enabled.</summary>
+    public bool IsModelOverrideEnabled => !UseSettingsModel;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(OpenAIExplainCommand))]
@@ -377,6 +389,8 @@ public sealed partial class TaskEditorViewModel :
             Schedule = task?.Schedule ?? "0 7 * * *";
             Prompt = task?.Prompt ?? string.Empty;
             UseGlobalSystemPrompt = task?.UseGlobalSystemPrompt ?? true;
+            UseSettingsModel = string.IsNullOrWhiteSpace(task?.Model);
+            ModelOverride = task?.Model ?? string.Empty;
             var defaults = CurrentGenerationDefaults;
             UseGlobalTemperature =
                 task?.GenerationOptions?.Temperature is null;
@@ -453,6 +467,7 @@ public sealed partial class TaskEditorViewModel :
                 Prompt = Prompt.Trim(),
                 UseGlobalSystemPrompt = UseGlobalSystemPrompt,
                 GenerationOptions = generationOptions,
+                Model = UseSettingsModel ? null : ModelOverride.Trim(),
                 Tools = GetSelectedToolGroups(),
                 Capabilities = GetSelectedCapabilities(),
                 FileSystemAccess = AuthorizedLocations
@@ -638,6 +653,7 @@ public sealed partial class TaskEditorViewModel :
                         ? "Workflow preview"
                         : Prompt.Trim(),
                     GenerationOptions = CreateGenerationOptions(),
+                    Model = UseSettingsModel ? null : ModelOverride.Trim(),
                     Tools = GetSelectedToolGroups(),
                     Workflow = workflow,
                     Enabled = false,
@@ -1022,6 +1038,7 @@ public sealed partial class TaskEditorViewModel :
                 Schedule = string.IsNullOrWhiteSpace(Schedule) ? "0 7 * * *" : Schedule.Trim(),
                 Prompt = string.IsNullOrWhiteSpace(Prompt) ? "Workflow preview" : Prompt,
                 GenerationOptions = CreateGenerationOptions(),
+                Model = UseSettingsModel ? null : ModelOverride.Trim(),
                 Tools = GetSelectedToolGroups(),
                 Capabilities = GetSelectedCapabilities(),
                 FileSystemAccess = AuthorizedLocations.Select(static item => item.ToRule()).ToArray(),

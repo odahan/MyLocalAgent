@@ -170,6 +170,17 @@
                                        Text="{Binding EffectiveTopPText, StringFormat=Effective: {0}}" />
                         </StackPanel>
                     </Grid>
+                    <StackPanel Margin="0,16,0,0">
+                        <CheckBox Content="Use model from Settings"
+                                  IsChecked="{Binding UseSettingsModel, Mode=TwoWay}" />
+                        <TextBox Margin="0,10,0,0"
+                                 IsEnabled="{Binding IsModelOverrideEnabled}"
+                                 Text="{Binding ModelOverride, UpdateSourceTrigger=PropertyChanged}"
+                                 materialDesign:HintAssist.Hint="Task model override" />
+                        <TextBlock Margin="0,7,0,0"
+                                   Style="{StaticResource CaptionTextStyle}"
+                                   Text="An agent task uses this one model throughout. A workflow ai.prompt step may override it in Edit workflow text." />
+                    </StackPanel>
                     <TextBlock Margin="0,10,0,0"
                                Text="{Binding GenerationValidationText}"
                                TextWrapping="Wrap">

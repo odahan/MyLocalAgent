@@ -35,28 +35,7 @@
                                Text="AI provider" />
                     <TextBlock Margin="0,4,0,16"
                                Style="{StaticResource CaptionTextStyle}"
-                               Text="The local Ollama provider is the default. Cloud AI is used only when explicitly selected." />
-
-                    <StackPanel Orientation="Horizontal">
-                        <RadioButton Margin="0,0,24,0"
-                                     Content="Ollama (local, default)"
-                                     GroupName="AIProvider"
-                                     IsChecked="{Binding IsOllamaProvider, Mode=TwoWay}" />
-                        <RadioButton Content="OpenAI-compatible (cloud, opt-in)"
-                                     GroupName="AIProvider"
-                                     IsChecked="{Binding IsOpenAIProvider, Mode=TwoWay}" />
-                    </StackPanel>
-
-                    <Border Margin="0,14,0,0"
-                            Padding="12"
-                            Background="{DynamicResource SurfaceBrush}"
-                            BorderBrush="{DynamicResource WarningBrush}"
-                            BorderThickness="1"
-                            CornerRadius="6"
-                            Visibility="{Binding IsOpenAIProvider, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <TextBlock Foreground="{DynamicResource WarningBrush}"
-                                   Text="Cloud warning: prompts and relevant context are sent to the configured OpenAI-compatible endpoint. Guardrails also send compact Gmail/HTTP projections and generated summaries. Text omitted by deterministic projection is not sent." />
-                    </Border>
+                               Text="Configure both providers below, then select the active provider when testing the connection." />
 
                     <Border Margin="0,18,0,0"
                             Padding="16"
@@ -181,9 +160,28 @@
                             <TextBox Margin="0,0,0,12"
                                      Text="{Binding OpenAIEndpoint, UpdateSourceTrigger=PropertyChanged}"
                                      materialDesign:HintAssist.Hint="Endpoint" />
-                            <TextBox Margin="0,0,0,12"
-                                     Text="{Binding OpenAIModel, UpdateSourceTrigger=PropertyChanged}"
-                                     materialDesign:HintAssist.Hint="Model" />
+                            <ComboBox Margin="0,0,0,8"
+                                      IsEditable="True"
+                                      IsTextSearchEnabled="True"
+                                      ItemsSource="{Binding OpenAIModels}"
+                                      StaysOpenOnEdit="True"
+                                      Text="{Binding OpenAIModel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      materialDesign:HintAssist.Hint="Model" />
+                            <Grid Margin="0,0,0,12">
+                                <Button HorizontalAlignment="Left"
+                                        Command="{Binding RefreshOpenAIModelsCommand}"
+                                        Content="Refresh models" />
+                                <ProgressBar Width="70"
+                                             Height="3"
+                                             HorizontalAlignment="Right"
+                                             VerticalAlignment="Center"
+                                             IsIndeterminate="True"
+                                             Visibility="{Binding IsLoadingOpenAIModels, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            </Grid>
+                            <TextBlock Margin="0,0,0,12"
+                                       Style="{StaticResource CaptionTextStyle}"
+                                       Text="{Binding OpenAIModelCatalogStatus}"
+                                       TextWrapping="Wrap" />
                             <TextBox Margin="0,0,0,12"
                                      Text="{Binding OpenAITimeoutSeconds, UpdateSourceTrigger=PropertyChanged}"
                                      materialDesign:HintAssist.Hint="Timeout (seconds)" />
@@ -197,6 +195,10 @@
                     </Grid>
 
                     <Grid Margin="0,20,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
                         <StackPanel Orientation="Horizontal">
                             <Button Command="{Binding TestConnectionCommand}"
                                     Content="Test connection"
@@ -232,7 +234,38 @@
                             <TextBlock VerticalAlignment="Center"
                                        Text="{Binding ConnectionStatus}" />
                         </StackPanel>
+                        <StackPanel Grid.Column="1"
+                                    Margin="24,0,0,0"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Center"
+                                    Orientation="Horizontal">
+                            <TextBlock Margin="0,0,12,0"
+                                       VerticalAlignment="Center"
+                                       FontWeight="SemiBold"
+                                       Text="Active provider" />
+                            <RadioButton Margin="0,0,18,0"
+                                         VerticalAlignment="Center"
+                                         Content="Ollama"
+                                         GroupName="AIProvider"
+                                         IsChecked="{Binding IsOllamaProvider, Mode=TwoWay}" />
+                            <RadioButton VerticalAlignment="Center"
+                                         Content="OpenAI-compatible"
+                                         GroupName="AIProvider"
+                                         IsChecked="{Binding IsOpenAIProvider, Mode=TwoWay}" />
+                        </StackPanel>
                     </Grid>
+
+                    <Border Margin="0,14,0,0"
+                            Padding="12"
+                            Background="{DynamicResource SurfaceBrush}"
+                            BorderBrush="{DynamicResource WarningBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Visibility="{Binding IsOpenAIProvider, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Foreground="{DynamicResource WarningBrush}"
+                                   Text="Cloud warning: prompts and relevant context are sent to the configured OpenAI-compatible endpoint. Guardrails also send compact Gmail/HTTP projections and generated summaries. Text omitted by deterministic projection is not sent."
+                                   TextWrapping="Wrap" />
+                    </Border>
                 </StackPanel>
             </materialDesign:Card>
 

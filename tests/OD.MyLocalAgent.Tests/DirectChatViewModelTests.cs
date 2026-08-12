@@ -1,4 +1,5 @@
 using FluentAssertions;
+using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Options;
 using Moq;
 using OD.MyLocalAgent.Core;
@@ -41,7 +42,8 @@ public sealed class DirectChatViewModelTests
                 directOptions);
             var compressor = new Mock<IDirectChatHistoryCompressor>(MockBehavior.Strict);
             var provider = new StubLlmClientService(
-                new StubChatClient("Hello from the model."),
+                new StubChatClient(
+                    ["Hello from the model.", "The second response."]),
                 "Stub");
             var factory = new Mock<ILlmClientFactory>(MockBehavior.Strict);
             factory.Setup(instance => instance.Create()).Returns(provider);
@@ -53,6 +55,9 @@ public sealed class DirectChatViewModelTests
                 compressor.Object,
                 estimator,
                 factory.Object,
+                Mock.Of<IMyLocalAgentService>(),
+                Mock.Of<ITaskStore>(),
+                WeakReferenceMessenger.Default,
                 aiOptions,
                 Mock.Of<IIncidentReporter>(),
                 Mock.Of<IDesktopInteractionService>(),
@@ -76,6 +81,14 @@ public sealed class DirectChatViewModelTests
             persisted.Select(message => message.State).Should().Equal(
                 DirectChatMessageState.Completed,
                 DirectChatMessageState.Completed);
+
+            viewModel.DraftMessage = "Can you answer a second time?";
+            viewModel.SendCommand.CanExecute(null).Should().BeTrue();
+            await viewModel.SendCommand.ExecuteAsync(null);
+
+            viewModel.Messages.Should().HaveCount(4);
+            viewModel.Messages[^1].Content.Should().Be("The second response.");
+            viewModel.Messages[^1].State.Should().Be(DirectChatMessageState.Completed);
             compressor.VerifyNoOtherCalls();
             factory.Verify(instance => instance.Create(), Times.AtLeastOnce);
             webView.VerifyAll();

@@ -36,6 +36,9 @@ public interface IDesktopInteractionService
         string defaultExtension,
         string suggestedFileName);
 
+    /// <summary>Lets the user select an existing file.</summary>
+    string? SelectOpenFile(string title, string filter);
+
     /// <summary>
     /// Lets the user select an existing directory.
     /// </summary>

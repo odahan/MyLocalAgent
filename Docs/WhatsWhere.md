@@ -23,7 +23,7 @@ Default: `%LOCALAPPDATA%\OD.MyLocalAgent`
 |------|----------|
 | `settings.json` | User settings (overrides `appsettings.json`) |
 | `secrets.dat` | DPAPI-protected secrets (API keys, OAuth tokens) |
-| `direct-chat.db` | Direct Chat conversations, messages, and cumulative memory summaries (SQLite, not encrypted) |
+| `direct-chat.db` | Direct Chat conversations, messages, attachment content, and cumulative memory summaries (SQLite, not encrypted) |
 | `tasks/` | Persisted task definitions (JSONL files) |
 | `reports/` | Generated reports |
 | `logs/` | Root log directory |

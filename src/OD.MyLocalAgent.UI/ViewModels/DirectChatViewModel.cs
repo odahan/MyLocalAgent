@@ -2,10 +2,12 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
 using OD.MyLocalAgent.Core;
 using OD.MyLocalAgent.Ollama;
+using OD.MyLocalAgent.UI.Messages;
 using OD.MyLocalAgent.UI.Services;
 
 namespace OD.MyLocalAgent.UI.ViewModels;
@@ -19,6 +21,9 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
     private readonly IDirectChatHistoryCompressor _compressor;
     private readonly ITokenEstimator _tokenEstimator;
     private readonly ILlmClientFactory _llmClientFactory;
+    private readonly IMyLocalAgentService _agentService;
+    private readonly ITaskStore _taskStore;
+    private readonly IMessenger _messenger;
     private readonly IOptionsMonitor<AIOptions> _aiOptions;
     private readonly IIncidentReporter _incidentReporter;
     private readonly IDesktopInteractionService _desktopInteraction;
@@ -34,6 +39,9 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
         IDirectChatHistoryCompressor compressor,
         ITokenEstimator tokenEstimator,
         ILlmClientFactory llmClientFactory,
+        IMyLocalAgentService agentService,
+        ITaskStore taskStore,
+        IMessenger messenger,
         IOptionsMonitor<AIOptions> aiOptions,
         IIncidentReporter incidentReporter,
         IDesktopInteractionService desktopInteraction,
@@ -45,11 +53,18 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
         _compressor = compressor;
         _tokenEstimator = tokenEstimator;
         _llmClientFactory = llmClientFactory;
+        _agentService = agentService;
+        _taskStore = taskStore;
+        _messenger = messenger;
         _aiOptions = aiOptions;
         _incidentReporter = incidentReporter;
         _desktopInteraction = desktopInteraction;
         _markdown = markdown;
         _isMarkdownAvailable = webViewAvailability.IsAvailable();
+        foreach (var selection in ToolSelections)
+            selection.PropertyChanged += (_, _) => RefreshAgentSummary();
+        foreach (var selection in CapabilitySelections)
+            selection.PropertyChanged += (_, _) => RefreshAgentSummary();
     }
 
     /// <summary>Gets conversations ordered by most recent activity.</summary>
@@ -58,19 +73,40 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
     /// <summary>Gets the messages currently displayed.</summary>
     public ObservableCollection<DirectChatMessageItem> Messages { get; } = [];
 
+    /// <summary>Gets files that will be included with the next prompt.</summary>
+    public ObservableCollection<DirectChatAttachmentItem> PendingAttachments { get; } = [];
+
+    /// <summary>Gets agent tool-group choices for the selected conversation.</summary>
+    public ObservableCollection<ToolGroupSelectionItem> ToolSelections { get; } = new(
+        ToolGroups.TaskWhitelist.Select(static group => new ToolGroupSelectionItem(group, false)));
+
+    /// <summary>Gets sensitive capability choices for the selected conversation.</summary>
+    public ObservableCollection<TaskCapabilitySelectionItem> CapabilitySelections { get; } = new(
+        TaskCapabilityCatalog.Definitions.Select(static definition => new TaskCapabilitySelectionItem(definition)));
+
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(DeleteConversationCommand))]
     [NotifyCanExecuteChangedFor(nameof(SendCommand))]
+    [NotifyCanExecuteChangedFor(nameof(AttachFileCommand))]
     private DirectChatConversationItem? _selectedConversation;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveAgentProfileCommand))]
+    private bool _agentEnabled;
+
+    [ObservableProperty]
+    private string _agentSummary = "Chat mode · no tools";
+
+    [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SendCommand))]
+    [NotifyCanExecuteChangedFor(nameof(AttachFileCommand))]
     private string _draftMessage = string.Empty;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(NewConversationCommand))]
     [NotifyCanExecuteChangedFor(nameof(DeleteConversationCommand))]
     [NotifyCanExecuteChangedFor(nameof(SendCommand))]
+    [NotifyCanExecuteChangedFor(nameof(AttachFileCommand))]
     private bool _isBusy;
 
     [ObservableProperty]
@@ -92,6 +128,8 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
     [ObservableProperty]
     private string _providerBadge = "Provider not checked";
 
+    partial void OnAgentEnabledChanged(bool value) => RefreshAgentSummary();
+
     /// <inheritdoc />
     public void Activate()
     {
@@ -100,6 +138,13 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
         {
             LoadCommand.Execute(null);
         }
+    }
+
+    /// <summary>Refreshes composer commands after the WPF window regains keyboard focus.</summary>
+    public void RefreshComposerCommands()
+    {
+        SendCommand.NotifyCanExecuteChanged();
+        AttachFileCommand.NotifyCanExecuteChanged();
     }
 
     /// <inheritdoc />
@@ -269,12 +314,78 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
         }
     }
 
-    [RelayCommand(IncludeCancelCommand = true, CanExecute = nameof(CanSend))]
+    [RelayCommand(CanExecute = nameof(CanAttach))]
+    private async Task AttachFileAsync()
+    {
+        var path = _desktopInteraction.SelectOpenFile(
+            "Attach file",
+            "Supported files|*.txt;*.md;*.csv;*.json;*.xml;*.log;*.pdf;*.docx;*.xls;*.xlsx;*.png;*.jpg;*.jpeg;*.webp;*.gif;*.bmp|Documents|*.pdf;*.docx;*.xls;*.xlsx|Text files|*.txt;*.md;*.csv;*.json;*.xml;*.log|Images|*.png;*.jpg;*.jpeg;*.webp;*.gif;*.bmp");
+        if (string.IsNullOrWhiteSpace(path)) return;
+        try
+        {
+            var attachment = await DirectChatAttachmentLoader.LoadAsync(path).ConfigureAwait(true);
+            PendingAttachments.Add(new DirectChatAttachmentItem(attachment));
+            SendCommand.NotifyCanExecuteChanged();
+        }
+        catch (Exception exception)
+        {
+            await HandleExceptionAsync(exception, "Direct Chat attachment").ConfigureAwait(true);
+        }
+    }
+
+    [RelayCommand]
+    private void RemoveAttachment(DirectChatAttachmentItem? attachment)
+    {
+        if (attachment is not null) PendingAttachments.Remove(attachment);
+        SendCommand.NotifyCanExecuteChanged();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanSaveAgentProfile))]
+    private async Task SaveAgentProfileAsync(CancellationToken cancellationToken)
+    {
+        var selected = SelectedConversation;
+        if (selected is null) return;
+        await _store.UpdateConversationAgentProfileAsync(
+                selected.Id,
+                AgentEnabled,
+                ToolSelections.Where(static item => item.IsSelected).Select(static item => item.Name).ToArray(),
+                CapabilitySelections.Where(static item => item.IsSelected).Select(static item => item.Capability).ToArray(),
+                cancellationToken)
+            .ConfigureAwait(true);
+        RefreshAgentSummary();
+        StatusText = AgentEnabled ? "Agent permissions saved for this conversation." : "Chat mode restored; tools are disabled.";
+    }
+
+    [RelayCommand(CanExecute = nameof(CanConvertToTask))]
+    private async Task ConvertToTaskAsync(CancellationToken cancellationToken)
+    {
+        var selected = SelectedConversation;
+        var prompt = Messages.LastOrDefault(static message => message.IsUser)?.Content?.Trim();
+        if (selected is null || string.IsNullOrWhiteSpace(prompt)) return;
+        var id = "chat-" + Guid.NewGuid().ToString("N")[..10];
+        var task = new ScheduledTask
+        {
+            Id = id,
+            Name = selected.Title == "New chat" ? "Direct Chat task" : selected.Title,
+            Schedule = "0 7 * * *",
+            Prompt = prompt,
+            Tools = ToolSelections.Where(static item => item.IsSelected).Select(static item => item.Name).ToArray(),
+            Capabilities = CapabilitySelections.Where(static item => item.IsSelected).Select(static item => item.Capability).ToArray(),
+            Enabled = false,
+        };
+        await _taskStore.SaveAsync(task, cancellationToken).ConfigureAwait(true);
+        _messenger.Send(new EditTaskMessage(task.Id));
+    }
+
+    [RelayCommand(
+        IncludeCancelCommand = true,
+        CanExecute = nameof(CanSend),
+        AllowConcurrentExecutions = true)]
     private async Task SendAsync(CancellationToken cancellationToken)
     {
         var selected = SelectedConversation;
         var text = DraftMessage.Trim();
-        if (selected is null || string.IsNullOrWhiteSpace(text))
+        if (selected is null || (string.IsNullOrWhiteSpace(text) && PendingAttachments.Count == 0))
         {
             return;
         }
@@ -284,25 +395,32 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
         DirectChatMessageItem? assistantItem = null;
         try
         {
+            var attachments = PendingAttachments.Select(static item => item.Attachment).ToArray();
             DraftMessage = string.Empty;
+            PendingAttachments.Clear();
             var userMessage = await _store.AppendMessageAsync(
                     selected.Id,
                     DirectChatMessageRole.User,
                     text,
                     DirectChatMessageState.Completed,
                     _tokenEstimator.EstimateText(text),
-                    cancellationToken)
+                    cancellationToken,
+                    attachments)
                 .ConfigureAwait(true);
             Messages.Add(CreateMessageItem(userMessage));
+            ConvertToTaskCommand.NotifyCanExecuteChanged();
 
             if (string.Equals(selected.Title, "New chat", StringComparison.Ordinal))
             {
+                var titleSource = string.IsNullOrWhiteSpace(text)
+                    ? $"Attachment: {attachments[0].FileName}"
+                    : text;
                 await _store.UpdateConversationTitleAsync(
                         selected.Id,
-                        CreateTitle(text),
+                        CreateTitle(titleSource),
                         cancellationToken)
                     .ConfigureAwait(true);
-                selected.Title = CreateTitle(text);
+                selected.Title = CreateTitle(titleSource);
             }
 
             var conversation = await RequireConversationAsync(selected.Id, cancellationToken)
@@ -380,18 +498,22 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
                 "direct-chat");
             var response = new System.Text.StringBuilder();
             var checkpoint = Stopwatch.StartNew();
-            await foreach (var update in client
-                               .GetStreamingResponseAsync(
-                                   plan.Messages,
-                                   cancellationToken: cancellationToken)
-                               .ConfigureAwait(true))
+            var chunks = AgentEnabled
+                ? _agentService.RunPromptStreamingAsync(
+                    BuildAgentPrompt(plan.Messages),
+                    ToolSelections.Where(static item => item.IsSelected).Select(static item => item.Name),
+                    new ToolExecutionContext("direct-chat-" + selected.Id, [], CapabilitySelections.Where(static item => item.IsSelected).Select(static item => item.Capability)),
+                    policy,
+                    cancellationToken)
+                : GetChatTextChunksAsync(client, plan.Messages, cancellationToken);
+            await foreach (var textUpdate in chunks.ConfigureAwait(true))
             {
-                if (string.IsNullOrEmpty(update.Text))
+                if (string.IsNullOrEmpty(textUpdate))
                 {
                     continue;
                 }
 
-                response.Append(update.Text);
+                response.Append(textUpdate);
                 assistantItem.Update(response.ToString(), DirectChatMessageState.Streaming);
                 if (checkpoint.Elapsed >= TimeSpan.FromSeconds(1))
                 {
@@ -456,6 +578,7 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
 
     partial void OnSelectedConversationChanged(DirectChatConversationItem? value)
     {
+        SendCommand.NotifyCanExecuteChanged();
         if (value is null || _selectingConversation || IsStreaming)
         {
             return;
@@ -463,6 +586,50 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
 
         _ = LoadSelectedConversationSafelyAsync();
     }
+
+    private bool CanSaveAgentProfile() => SelectedConversation is not null && !IsBusy && !IsStreaming;
+    private bool CanConvertToTask() => SelectedConversation is not null && !IsBusy && !IsStreaming && Messages.Any(static message => message.IsUser);
+
+    private void LoadAgentProfile(DirectChatConversation conversation)
+    {
+        AgentEnabled = conversation.AgentEnabled;
+        var tools = conversation.Tools.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in ToolSelections) item.IsSelected = tools.Contains(item.Name);
+        var capabilities = conversation.Capabilities.ToHashSet();
+        foreach (var item in CapabilitySelections) item.IsSelected = capabilities.Contains(item.Capability);
+        RefreshAgentSummary();
+    }
+
+    private void RefreshAgentSummary()
+    {
+        var groups = ToolSelections.Where(static item => item.IsSelected).Select(static item => item.DisplayName).ToArray();
+        AgentSummary = !AgentEnabled ? "Chat mode · no tools" : groups.Length == 0 ? "Agent mode · no tools selected" : "Agent mode · " + string.Join(", ", groups);
+    }
+
+    private static string BuildAgentPrompt(IReadOnlyList<ChatMessage> messages) => string.Join(
+        "\n\n",
+        messages.Where(static message => message.Role != ChatRole.System)
+            .Select(static message => $"{message.Role}: {message.Text}"));
+
+    private static async IAsyncEnumerable<string> GetChatTextChunksAsync(
+        IChatClient client,
+        IReadOnlyList<ChatMessage> messages,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await foreach (var update in client.GetStreamingResponseAsync(messages, cancellationToken: cancellationToken).ConfigureAwait(false))
+        {
+            yield return update.Text;
+        }
+    }
+
+    partial void OnDraftMessageChanged(string value) =>
+        SendCommand.NotifyCanExecuteChanged();
+
+    partial void OnIsBusyChanged(bool value) =>
+        SendCommand.NotifyCanExecuteChanged();
+
+    partial void OnIsStreamingChanged(bool value) =>
+        SendCommand.NotifyCanExecuteChanged();
 
     private bool CanMutateConversation() => !IsBusy && !IsStreaming;
 
@@ -473,7 +640,9 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
         !IsBusy &&
         !IsStreaming &&
         SelectedConversation is not null &&
-        !string.IsNullOrWhiteSpace(DraftMessage);
+        (!string.IsNullOrWhiteSpace(DraftMessage) || PendingAttachments.Count > 0);
+
+    private bool CanAttach() => !IsBusy && !IsStreaming && SelectedConversation is not null;
 
     private bool CanLoadOlderMessages() =>
         HasOlderMessages && !IsBusy && !IsStreaming;
@@ -491,6 +660,7 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
 
         Messages.Clear();
         HasOlderMessages = false;
+        LoadAgentProfile(conversation);
     }
 
     private async Task LoadSelectedConversationSafelyAsync()
@@ -529,6 +699,7 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
             return;
         }
 
+        var conversation = await RequireConversationAsync(selected.Id, cancellationToken).ConfigureAwait(true);
         var messages = await _store.GetMessagesAsync(
                 selected.Id,
                 null,
@@ -547,6 +718,8 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
         }
 
         HasOlderMessages = messages.Count == MessagePageSize;
+        LoadAgentProfile(conversation);
+        ConvertToTaskCommand.NotifyCanExecuteChanged();
     }
 
     private async Task<IReadOnlyList<DirectChatMessage>> GetAllMessagesAsync(

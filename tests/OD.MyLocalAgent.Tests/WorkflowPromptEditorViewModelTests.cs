@@ -48,6 +48,22 @@ public sealed class WorkflowPromptEditorViewModelTests
     }
 
     /// <summary>
+    /// Verifies editing a model override makes the prompt editor applicable.
+    /// </summary>
+    [Fact]
+    public void ModelOverrideIsAnEffectivePromptStepChange()
+    {
+        var viewModel = Create();
+
+        viewModel.Items[0].ModelOverride = "fast-model";
+
+        viewModel.CanApply().Should().BeTrue();
+        viewModel.ApplyCommand.Execute(null);
+        var workflow = WorkflowDefinitionSerializer.Deserialize(viewModel.Result!.WorkflowText);
+        workflow[0].Model.Should().Be("fast-model");
+    }
+
+    /// <summary>
     /// Verifies a blank prompt blocks Apply for the whole session.
     /// </summary>
     [Fact]

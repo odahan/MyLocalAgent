@@ -75,6 +75,7 @@ internal sealed class DynamicOpenAIChatClient : IChatClient
             Endpoint = LlmOptionsValidation.ParseEndpoint(
                 options.Endpoint,
                 OpenAIOptions.SectionName),
+            NetworkTimeout = TimeSpan.FromSeconds(options.TimeoutSeconds),
             Transport = new HttpClientPipelineTransport(httpClient),
         };
         var openAIClient = new OpenAIClient(

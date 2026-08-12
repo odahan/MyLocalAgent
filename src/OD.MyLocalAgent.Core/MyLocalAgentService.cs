@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OD.MyLocalAgent.Ollama;
 
@@ -27,6 +29,7 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
     private readonly TimeProvider _timeProvider;
     private readonly IOptionsMonitor<AIOptions>? _aiOptions;
     private readonly IExecutionDebugTrace _debugTrace;
+    private readonly ILogger<MyLocalAgentService>? _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MyLocalAgentService"/> class.
@@ -38,7 +41,8 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
         IIncidentReporter incidentReporter,
         TimeProvider timeProvider,
         IOptionsMonitor<AIOptions>? aiOptions = null,
-        IExecutionDebugTrace? debugTrace = null)
+        IExecutionDebugTrace? debugTrace = null,
+        ILogger<MyLocalAgentService>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(clientFactory);
         ArgumentNullException.ThrowIfNull(toolRegistry);
@@ -52,6 +56,7 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
         _timeProvider = timeProvider;
         _aiOptions = aiOptions;
         _debugTrace = debugTrace ?? new NullExecutionDebugTrace();
+        _logger = logger;
     }
 
     /// <inheritdoc />
@@ -126,19 +131,26 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
                 resolvedPrompt,
                 generationPolicy,
                 []);
+            var messages = new ChatMessage[]
+            {
+                new(ChatRole.System, systemPrompt),
+                new(ChatRole.User, resolvedPrompt),
+            };
             var promptStarted = _timeProvider.GetTimestamp();
-            var response = await policyClient.GetResponseAsync(
-                [
-                    new ChatMessage(ChatRole.System, systemPrompt),
-                    new ChatMessage(ChatRole.User, resolvedPrompt),
-                ],
-                cancellationToken: cancellationToken).ConfigureAwait(false);
+            var responseText = await GetPromptResponseTextAsync(
+                    policyClient,
+                    provider.ProviderName,
+                    GetEffectiveModelName(provider),
+                    logicalOperation,
+                    messages,
+                    cancellationToken)
+                .ConfigureAwait(false);
             TaskTimingCollector.Current.Value?.Record(
                 TaskTimingCollector.AiPromptCategory,
                 "ai.prompt",
                 _timeProvider.GetElapsedTime(promptStarted));
-            WriteLlmResponseTrace("ai.prompt", provider.ProviderName, response.Text);
-            return new AgentRunResult(response.Text, provider.ProviderName);
+            WriteLlmResponseTrace("ai.prompt", provider.ProviderName, responseText);
+            return new AgentRunResult(responseText, provider.ProviderName);
         }
         catch (LlmConfigurationException exception)
         {
@@ -450,6 +462,90 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
         ModelExecutionScope.ModelName is { Length: > 0 } model
             ? new ModelOverrideChatClient(client, model)
             : client;
+
+    private async Task<string> GetPromptResponseTextAsync(
+        GenerationPolicyChatClient client,
+        string providerName,
+        string modelName,
+        string logicalOperation,
+        IReadOnlyList<ChatMessage> messages,
+        CancellationToken cancellationToken)
+    {
+        if (string.Equals(
+                providerName,
+                AIOptions.OpenAIProvider,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return await GetStreamingPromptResponseTextAsync(
+                    client,
+                    providerName,
+                    modelName,
+                    logicalOperation,
+                    messages,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        var response = await client
+            .GetResponseAsync(messages, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        return response.Text;
+    }
+
+    private async Task<string> GetStreamingPromptResponseTextAsync(
+        GenerationPolicyChatClient client,
+        string providerName,
+        string modelName,
+        string logicalOperation,
+        IReadOnlyList<ChatMessage> messages,
+        CancellationToken cancellationToken)
+    {
+        var response = new StringBuilder();
+        var started = Stopwatch.StartNew();
+        var inputCharacters = messages.Sum(static message => message.Text?.Length ?? 0);
+        var firstContentMilliseconds = -1L;
+        var contentFragments = 0;
+        var completed = false;
+        try
+        {
+            await foreach (var update in client
+                               .GetStreamingResponseAsync(
+                                   messages,
+                                   cancellationToken: cancellationToken)
+                               .ConfigureAwait(false))
+            {
+                if (string.IsNullOrEmpty(update.Text))
+                {
+                    continue;
+                }
+
+                if (firstContentMilliseconds < 0)
+                {
+                    firstContentMilliseconds = started.ElapsedMilliseconds;
+                }
+
+                contentFragments++;
+                response.Append(update.Text);
+            }
+
+            completed = true;
+            return response.ToString();
+        }
+        finally
+        {
+            _logger?.LogInformation(
+                "AI prompt streaming metrics: operation {Operation}, provider {Provider}, model {Model}, input characters {InputCharacters}, first content {FirstContentMilliseconds} ms, content fragments {ContentFragments}, output characters {OutputCharacters}, completed {Completed}, total {TotalMilliseconds} ms.",
+                logicalOperation,
+                providerName,
+                modelName,
+                inputCharacters,
+                firstContentMilliseconds,
+                contentFragments,
+                response.Length,
+                completed,
+                started.ElapsedMilliseconds);
+        }
+    }
 
     private string? ResolveGlobalSystemPrompt(bool? useGlobalSystemPrompt) =>
         useGlobalSystemPrompt is false

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using Microsoft.Data.Sqlite;
 
 namespace OD.MyLocalAgent.Core;
@@ -6,7 +7,7 @@ namespace OD.MyLocalAgent.Core;
 /// <summary>Persists Direct Chat data in one dedicated SQLite database.</summary>
 public sealed class SqliteDirectChatStore : IDirectChatStore, IDisposable
 {
-    private const int CurrentSchemaVersion = 1;
+    private const int CurrentSchemaVersion = 3;
     private readonly string _databasePath;
     private readonly TimeProvider _timeProvider;
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -95,6 +96,30 @@ public sealed class SqliteDirectChatStore : IDirectChatStore, IDisposable
                             ON messages(conversation_id, sequence);
                         PRAGMA user_version=1;
                         """,
+                        cancellationToken,
+                        transaction)
+                    .ConfigureAwait(false);
+                transaction.Commit();
+            }
+
+            if (version < 2)
+            {
+                using var transaction = connection.BeginTransaction();
+                await ExecuteNonQueryAsync(
+                        connection,
+                        "ALTER TABLE messages ADD COLUMN attachments_json TEXT NULL; PRAGMA user_version=2;",
+                        cancellationToken,
+                        transaction)
+                    .ConfigureAwait(false);
+                transaction.Commit();
+            }
+
+            if (version < 3)
+            {
+                using var transaction = connection.BeginTransaction();
+                await ExecuteNonQueryAsync(
+                        connection,
+                        "ALTER TABLE conversations ADD COLUMN agent_enabled INTEGER NOT NULL DEFAULT 0; ALTER TABLE conversations ADD COLUMN tools_json TEXT NULL; ALTER TABLE conversations ADD COLUMN capabilities_json TEXT NULL; PRAGMA user_version=3;",
                         cancellationToken,
                         transaction)
                     .ConfigureAwait(false);
@@ -237,6 +262,35 @@ public sealed class SqliteDirectChatStore : IDirectChatStore, IDisposable
     }
 
     /// <inheritdoc />
+    public async Task UpdateConversationAgentProfileAsync(
+        string conversationId,
+        bool agentEnabled,
+        IReadOnlyList<string> tools,
+        IReadOnlyList<TaskCapability> capabilities,
+        CancellationToken cancellationToken)
+    {
+        ValidateIdentifier(conversationId, nameof(conversationId));
+        ArgumentNullException.ThrowIfNull(tools);
+        ArgumentNullException.ThrowIfNull(capabilities);
+        await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+            using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE conversations SET agent_enabled = $enabled, tools_json = $tools, capabilities_json = $capabilities, updated_utc = $updated WHERE id = $id";
+            command.Parameters.AddWithValue("$enabled", agentEnabled ? 1 : 0);
+            command.Parameters.AddWithValue("$tools", tools.Count == 0 ? DBNull.Value : JsonSerializer.Serialize(tools));
+            command.Parameters.AddWithValue("$capabilities", capabilities.Count == 0 ? DBNull.Value : JsonSerializer.Serialize(capabilities));
+            command.Parameters.AddWithValue("$updated", FormatDate(_timeProvider.GetUtcNow()));
+            command.Parameters.AddWithValue("$id", conversationId);
+            if (await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 0)
+                throw new InvalidOperationException("The Direct Chat conversation no longer exists.");
+        }
+        finally { _gate.Release(); }
+    }
+
+    /// <inheritdoc />
     public async Task<bool> DeleteConversationAsync(
         string conversationId,
         CancellationToken cancellationToken)
@@ -281,7 +335,7 @@ public sealed class SqliteDirectChatStore : IDirectChatStore, IDisposable
             using var command = connection.CreateCommand();
             command.CommandText =
                 """
-                SELECT id, conversation_id, sequence, role, content, state, created_utc, estimated_tokens
+                SELECT id, conversation_id, sequence, role, content, state, created_utc, estimated_tokens, attachments_json
                 FROM messages
                 WHERE conversation_id = $conversationId
                   AND ($before IS NULL OR sequence < $before)
@@ -315,7 +369,8 @@ public sealed class SqliteDirectChatStore : IDirectChatStore, IDisposable
         string content,
         DirectChatMessageState state,
         int? estimatedTokens,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyList<DirectChatAttachment>? attachments = null)
     {
         ValidateIdentifier(conversationId, nameof(conversationId));
         ArgumentNullException.ThrowIfNull(content);
@@ -348,6 +403,7 @@ public sealed class SqliteDirectChatStore : IDirectChatStore, IDisposable
                 State = state,
                 CreatedUtc = _timeProvider.GetUtcNow(),
                 EstimatedTokens = estimatedTokens,
+                Attachments = attachments?.ToArray() ?? [],
             };
             using (var insert = connection.CreateCommand())
             {
@@ -355,9 +411,9 @@ public sealed class SqliteDirectChatStore : IDirectChatStore, IDisposable
                 insert.CommandText =
                     """
                     INSERT INTO messages
-                        (id, conversation_id, sequence, role, content, state, created_utc, estimated_tokens)
+                        (id, conversation_id, sequence, role, content, state, created_utc, estimated_tokens, attachments_json)
                     VALUES
-                        ($id, $conversationId, $sequence, $role, $content, $state, $created, $tokens)
+                        ($id, $conversationId, $sequence, $role, $content, $state, $created, $tokens, $attachments)
                     """;
                 AddMessageParameters(insert, message);
                 _ = await insert.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -494,7 +550,7 @@ public sealed class SqliteDirectChatStore : IDirectChatStore, IDisposable
     }
 
     private const string ConversationSelect =
-        "SELECT id, title, created_utc, updated_utc, summary_text, summary_through_sequence, summary_updated_utc FROM conversations";
+        "SELECT id, title, created_utc, updated_utc, summary_text, summary_through_sequence, summary_updated_utc, agent_enabled, tools_json, capabilities_json FROM conversations";
 
     private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
     {
@@ -563,6 +619,13 @@ public sealed class SqliteDirectChatStore : IDirectChatStore, IDisposable
             SummaryUpdatedUtc = reader.IsDBNull(6)
                 ? null
                 : ParseDate(reader.GetString(6)),
+            AgentEnabled = !reader.IsDBNull(7) && reader.GetInt64(7) != 0,
+            Tools = reader.IsDBNull(8)
+                ? []
+                : JsonSerializer.Deserialize<List<string>>(reader.GetString(8)) ?? [],
+            Capabilities = reader.IsDBNull(9)
+                ? []
+                : JsonSerializer.Deserialize<List<TaskCapability>>(reader.GetString(9)) ?? [],
         };
 
     private static DirectChatMessage ReadMessage(SqliteDataReader reader) =>
@@ -576,6 +639,9 @@ public sealed class SqliteDirectChatStore : IDirectChatStore, IDisposable
             State = Enum.Parse<DirectChatMessageState>(reader.GetString(5)),
             CreatedUtc = ParseDate(reader.GetString(6)),
             EstimatedTokens = reader.IsDBNull(7) ? null : reader.GetInt32(7),
+            Attachments = reader.IsDBNull(8)
+                ? []
+                : JsonSerializer.Deserialize<List<DirectChatAttachment>>(reader.GetString(8)) ?? [],
         };
 
     private static void AddMessageParameters(
@@ -592,6 +658,11 @@ public sealed class SqliteDirectChatStore : IDirectChatStore, IDisposable
         command.Parameters.AddWithValue(
             "$tokens",
             (object?)message.EstimatedTokens ?? DBNull.Value);
+        command.Parameters.AddWithValue(
+            "$attachments",
+            message.Attachments.Count == 0
+                ? DBNull.Value
+                : JsonSerializer.Serialize(message.Attachments));
     }
 
     private static async Task TouchConversationAsync(

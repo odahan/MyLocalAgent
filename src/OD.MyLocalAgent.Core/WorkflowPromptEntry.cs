@@ -86,6 +86,9 @@ public sealed record WorkflowPromptEntry
     /// </summary>
     public GenerationOptions? GenerationOptions { get; init; }
 
+    /// <summary>Gets the optional model override for this AI prompt step.</summary>
+    public string? Model { get; init; }
+
     /// <summary>
     /// Gets the effective identifiers declared before this step.
     /// </summary>

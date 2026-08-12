@@ -87,6 +87,27 @@ public partial class DirectChatPage : UserControl
         }
     }
 
+    private void OnDraftTextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (sender is TextBox textBox)
+        {
+            textBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+            if (DataContext is DirectChatViewModel viewModel)
+            {
+                viewModel.DraftMessage = textBox.Text;
+                viewModel.RefreshComposerCommands();
+            }
+        }
+    }
+
+    private void OnDraftGotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (DataContext is DirectChatViewModel viewModel)
+        {
+            viewModel.RefreshComposerCommands();
+        }
+    }
+
     private void DetachViewModel()
     {
         if (_viewModel is null)

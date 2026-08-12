@@ -226,6 +226,25 @@ public sealed class WorkflowPromptEditingServiceTests
     }
 
     /// <summary>
+    /// Verifies a prompt editor model override is persisted only on its ai.prompt step.
+    /// </summary>
+    [Fact]
+    public void ApplyPersistsPromptStepModelOverride()
+    {
+        var workflow = WorkflowDefinitionSerializer.Deserialize(
+            """[ { "step": "ai.prompt", "args": { "prompt": "Summarize." } } ]""");
+
+        var applied = WorkflowPromptEditingService.Apply(
+            workflow,
+            [new WorkflowPromptEdit(0, "Summarize.", IncludeContext: false)
+            {
+                Model = "fast-model",
+            }]);
+
+        WorkflowDefinitionSerializer.Deserialize(applied).Single().Model.Should().Be("fast-model");
+    }
+
+    /// <summary>
     /// Verifies that a multiline prompt occupies exactly one physical JSON line.
     /// </summary>
     [Fact]

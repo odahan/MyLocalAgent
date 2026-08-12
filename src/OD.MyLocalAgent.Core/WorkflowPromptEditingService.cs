@@ -73,6 +73,7 @@ public static class WorkflowPromptEditingService
                     RetryCount = step.RetryCount,
                     RetryBackoffSeconds = step.RetryBackoffSeconds,
                     GenerationOptions = step.GenerationOptions,
+                    Model = step.Model,
                     PriorStepIds = [.. priorIds],
                 });
             }
@@ -117,6 +118,7 @@ public static class WorkflowPromptEditingService
             updated[edit.Position] = step with
             {
                 IsStringForm = false,
+                Model = string.IsNullOrWhiteSpace(edit.Model) ? null : edit.Model.Trim(),
                 Args = RewriteArguments(step, edit),
             };
         }

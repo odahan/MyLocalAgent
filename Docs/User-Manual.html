@@ -1830,7 +1830,8 @@ ollama list</code></pre>
 <h2>Converser avec Direct Chat</h2>
 <p class="section-intro">
                     Direct Chat conserve plusieurs conversations locales et envoie leur contexte
-                    au fournisseur actif. Il n’utilise ni outil ni skill.
+                    au fournisseur actif. Il démarre sans outil ; vous pouvez activer des outils
+                    explicitement pour une conversation donnée.
                 </p>
 <ol class="steps">
 <li>
@@ -1839,7 +1840,19 @@ ollama list</code></pre>
 </li>
 <li>
 <strong>Saisissez votre message.</strong>
-<p>Cliquez sur <span class="ui-label">Send</span> ou utilisez <kbd>Ctrl</kbd>+<kbd>Entrée</kbd>. Une seule réponse peut être générée à la fois.</p>
+<p>Cliquez sur <span class="ui-label">Send</span> ou utilisez <kbd>Ctrl</kbd>+<kbd>Entrée</kbd>. Une seule réponse peut être générée à la fois. Après l’envoi, la zone est volontairement vidée : <span class="ui-label">Send</span> redevient disponible dès que vous saisissez un nouveau message ou ajoutez une pièce jointe.</p>
+</li>
+<li>
+<strong>Ajoutez une pièce jointe si nécessaire.</strong>
+<p>Les fichiers texte, PDF, Word et Excel sont lus localement dans des limites contrôlées. Les images PNG, JPEG, WebP, GIF et BMP sont transmises comme images et exigent un modèle compatible vision. Le contenu de la pièce jointe est conservé avec le message afin de restaurer le contexte lors de la réouverture de la conversation.</p>
+</li>
+<li>
+<strong>Activez l’agent seulement lorsque c’est utile.</strong>
+<p>Sous la liste des conversations, ouvrez <span class="ui-label">Tools &amp; permissions</span>, cochez <span class="ui-label">Enable tools for this conversation</span>, sélectionnez les groupes d’outils et les permissions sensibles nécessaires, puis cliquez sur <span class="ui-label">Save permissions</span>. Tout est désactivé par défaut et les mêmes sandbox, Guardrails et règles de connecteurs que pour une tâche restent applicables.</p>
+</li>
+<li>
+<strong>Transformez un échange utile en tâche.</strong>
+<p><span class="ui-label">Create task</span> reprend le dernier prompt utilisateur et les autorisations de cette conversation dans une tâche désactivée, puis ouvre son éditeur. L’historique et les pièces jointes ne sont pas copiés : complétez la fréquence et vérifiez la tâche avant de l’activer.</p>
 </li>
 <li>
 <strong>Suivez la réponse en streaming.</strong>
@@ -1922,7 +1935,7 @@ ollama list</code></pre>
 <ol class="steps">
 <li>
 <strong>Ouvrez <span class="ui-label">Settings</span> → <span class="ui-label">AI provider</span>.</strong>
-<p>Sélectionnez <span class="ui-label">OpenAI-compatible (cloud, opt-in)</span>.</p>
+<p>Sélectionnez <span class="ui-label">OpenAI-compatible (cloud, opt-in)</span> dans <span class="ui-label">Active provider</span>, à droite de <span class="ui-label">Test connection</span>. Les réglages Ollama restent mémorisés : vous pourrez revenir à Ollama sans les ressaisir.</p>
 </li>
 <li>
 <strong>Vérifiez l’avertissement cloud.</strong>
@@ -1930,7 +1943,11 @@ ollama list</code></pre>
 </li>
 <li>
 <strong>Renseignez Endpoint, Model et Timeout.</strong>
-<p>Pour OpenAI, l’endpoint par défaut est <code>https://api.openai.com/v1</code>. Un serveur compatible peut utiliser une autre URL.</p>
+<p>Pour OpenAI, l’endpoint par défaut est <code>https://api.openai.com/v1</code>. Un serveur compatible peut utiliser une autre URL. Pour OpenRouter, utilisez <code>https://openrouter.ai/api/v1</code> et recopiez l’identifiant exact du modèle, suffixe <code>:free</code> compris s’il est affiché.</p>
+</li>
+<li>
+<strong>Chargez la liste si le fournisseur la propose.</strong>
+<p><span class="ui-label">Refresh OpenAI-compatible models</span> récupère les modèles exposés par l’endpoint. La liste reste modifiable : saisissez l’identifiant manuellement si votre fournisseur ne publie pas son catalogue ou si vous connaissez déjà le nom voulu.</p>
 </li>
 <li>
 <strong>Saisissez la clé dans <span class="ui-label">Replace API key</span>.</strong>
@@ -1942,7 +1959,7 @@ ollama list</code></pre>
 </li>
 <li>
 <strong>Lancez <span class="ui-label">Test connection</span>.</strong>
-<p>Une erreur de clé, d’endpoint ou de modèle est affichée comme telle ; aucun retour silencieux vers Ollama n’a lieu.</p>
+<p>Le test vérifie le fournisseur actuellement coché, l’endpoint et la présence du modèle dans son catalogue. Une erreur de clé, d’endpoint ou de modèle est affichée comme telle ; aucun retour silencieux vers Ollama n’a lieu. Un code 404 OpenRouter provenait historiquement d’une route de détail de modèle non prise en charge ; le test utilise désormais le catalogue standard.</p>
 </li>
 </ol>
 <div class="callout danger">
@@ -2179,6 +2196,8 @@ ollama list</code></pre>
                     politique d’erreur, tentative, option de génération ou autre argument n’est
                     touché. Les étapes sont identifiées par leur position, si bien que des ids
                     dupliqués restent sans ambiguïté.
+                </p><p>
+                    Pour une entrée <code>ai.prompt</code>, le champ <span class="ui-label">Model override (empty = task or Settings)</span> permet de choisir un modèle spécifique à cette étape. Dans l’éditeur de tâche, décochez <span class="ui-label">Use model from Settings</span> et renseignez <span class="ui-label">Task model override</span> pour appliquer un modèle à toute la tâche. La priorité est : modèle de l’étape <code>ai.prompt</code>, puis modèle de la tâche, puis modèle de Settings. Ce choix ne change jamais de fournisseur : le fournisseur actif reste celui de Settings.
                 </p><p>
                     Les prompts s’écrivent avec de vrais retours à la ligne. Le texte de travail
                     est canonique LF : les CRLF et CR isolés sont normalisés en LF et signalés,
