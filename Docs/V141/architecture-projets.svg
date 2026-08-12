@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900" role="img" aria-labelledby="title desc">
+  <title id="title">Architecture des projets OD.MyLocalAgent</title>
+  <desc id="desc">Dépendances entre les sept projets de la solution et leurs principaux systèmes externes.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+    </marker>
+    <marker id="runtimeArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#7c3aed"/>
+    </marker>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.12"/>
+    </filter>
+    <style>
+      .title { font: 700 30px 'Segoe UI', sans-serif; fill: #0f172a; }
+      .subtitle { font: 400 15px 'Segoe UI', sans-serif; fill: #475569; }
+      .section { font: 700 17px 'Segoe UI', sans-serif; fill: #334155; letter-spacing: 0.5px; }
+      .node-title { font: 700 17px 'Segoe UI', sans-serif; fill: #0f172a; }
+      .node-text { font: 400 13px 'Segoe UI', sans-serif; fill: #334155; }
+      .external-title { font: 700 15px 'Segoe UI', sans-serif; fill: #3b0764; }
+      .external-text { font: 400 12px 'Segoe UI', sans-serif; fill: #581c87; }
+      .dependency { fill: none; stroke: #475569; stroke-width: 2; marker-end: url(#arrow); }
+      .runtime { fill: none; stroke: #7c3aed; stroke-width: 2; stroke-dasharray: 8 6; marker-end: url(#runtimeArrow); }
+      .edge-label { font: 600 12px 'Segoe UI', sans-serif; fill: #475569; paint-order: stroke; stroke: #f8fafc; stroke-width: 5; }
+    </style>
+  </defs>
+
+  <rect width="1400" height="900" fill="#f8fafc"/>
+  <text x="60" y="62" class="title">OD.MyLocalAgent — architecture des projets</text>
+  <text x="60" y="91" class="subtitle">Les flèches pleines indiquent une référence de projet ; les flèches violettes décrivent une interaction à l'exécution.</text>
+
+  <text x="60" y="140" class="section">HÔTES</text>
+  <g filter="url(#shadow)">
+    <rect x="60" y="165" width="330" height="125" rx="14" fill="#dbeafe" stroke="#60a5fa" stroke-width="2"/>
+    <text x="85" y="200" class="node-title">OD.MyLocalAgent.UI</text>
+    <text x="85" y="226" class="node-text">Application WPF / MVVM</text>
+    <text x="85" y="249" class="node-text">Configuration, édition, chat et supervision</text>
+    <text x="85" y="272" class="node-text">Point de composition avec injection de dépendances</text>
+
+    <rect x="1010" y="165" width="330" height="125" rx="14" fill="#dbeafe" stroke="#60a5fa" stroke-width="2"/>
+    <text x="1035" y="200" class="node-title">OD.MyLocalAgent.Runner</text>
+    <text x="1035" y="226" class="node-text">Exécutable sans fenêtre</text>
+    <text x="1035" y="249" class="node-text">Exécution, journalisation et rapports</text>
+    <text x="1035" y="272" class="node-text">Relance la prochaine occurrence planifiée</text>
+  </g>
+
+  <text x="60" y="355" class="section">SERVICES MÉTIER ET ORCHESTRATION</text>
+  <g filter="url(#shadow)">
+    <rect x="160" y="385" width="410" height="145" rx="14" fill="#dcfce7" stroke="#4ade80" stroke-width="2"/>
+    <text x="185" y="420" class="node-title">OD.MyLocalAgent.Core</text>
+    <text x="185" y="447" class="node-text">Agent, Tool Map, sécurité et autorisations</text>
+    <text x="185" y="470" class="node-text">Tâches, planification Windows, journaux et incidents</text>
+    <text x="185" y="493" class="node-text">Outils fichiers, HTTP, SQLite, Office, PDF…</text>
+    <text x="185" y="516" class="node-text">Persistance du Direct Chat</text>
+
+    <rect x="830" y="385" width="410" height="145" rx="14" fill="#dcfce7" stroke="#4ade80" stroke-width="2"/>
+    <text x="855" y="420" class="node-title">OD.MyLocalAgent.Workflows</text>
+    <text x="855" y="447" class="node-text">Moteur séquentiel déterministe</text>
+    <text x="855" y="470" class="node-text">Pas outil, compétence et invite IA</text>
+    <text x="855" y="493" class="node-text">Contexte, substitutions et politiques d'erreur</text>
+    <text x="855" y="516" class="node-text">Rapports Markdown</text>
+  </g>
+
+  <text x="60" y="605" class="section">ADAPTATEURS</text>
+  <g filter="url(#shadow)">
+    <rect x="60" y="635" width="350" height="120" rx="14" fill="#fef3c7" stroke="#fbbf24" stroke-width="2"/>
+    <text x="85" y="670" class="node-title">OD.MyLocalAgent.Connectors</text>
+    <text x="85" y="697" class="node-text">Gmail, Google Calendar, Dropbox</text>
+    <text x="85" y="720" class="node-text">Recherche Web et contrats fournisseurs</text>
+    <text x="85" y="743" class="node-text">DTO et mappages d'API</text>
+
+    <rect x="525" y="635" width="350" height="120" rx="14" fill="#fef3c7" stroke="#fbbf24" stroke-width="2"/>
+    <text x="550" y="670" class="node-title">OD.MyLocalAgent.Guardrails</text>
+    <text x="550" y="697" class="node-text">Filtrage du contenu externe non fiable</text>
+    <text x="550" y="720" class="node-text">Verdict, réduction et livraison protégée</text>
+    <text x="550" y="743" class="node-text">Cache de résultats borné</text>
+
+    <rect x="990" y="635" width="350" height="120" rx="14" fill="#fef3c7" stroke="#fbbf24" stroke-width="2"/>
+    <text x="1015" y="670" class="node-title">OD.MyLocalAgent.Ollama</text>
+    <text x="1015" y="697" class="node-text">Abstraction des fournisseurs LLM</text>
+    <text x="1015" y="720" class="node-text">Ollama local et OpenAI-compatible</text>
+    <text x="1015" y="743" class="node-text">Politiques de génération et modèles</text>
+  </g>
+
+  <!-- Project references -->
+  <path class="dependency" d="M 245 290 C 245 330, 290 345, 330 385"/>
+  <path class="dependency" d="M 350 290 C 480 320, 770 330, 900 385"/>
+  <path class="dependency" d="M 285 290 C 390 390, 560 560, 650 635"/>
+  <path class="dependency" d="M 365 290 C 570 360, 1010 500, 1120 635"/>
+  <path class="dependency" d="M 1110 290 C 1045 325, 1000 350, 975 385"/>
+  <path class="dependency" d="M 1040 290 C 820 340, 560 350, 470 385"/>
+  <path class="dependency" d="M 830 460 C 750 460, 650 460, 570 460"/>
+  <path class="dependency" d="M 260 530 C 250 565, 245 600, 240 635"/>
+  <path class="dependency" d="M 365 530 C 450 575, 560 605, 620 635"/>
+  <path class="dependency" d="M 500 530 C 690 580, 980 590, 1090 635"/>
+  <path class="dependency" d="M 875 695 C 920 695, 945 695, 990 695"/>
+
+  <!-- Runtime systems -->
+  <rect x="60" y="810" width="250" height="58" rx="10" fill="#f3e8ff" stroke="#c084fc"/>
+  <text x="80" y="835" class="external-title">Services cloud</text>
+  <text x="80" y="854" class="external-text">Google · Dropbox · Ollama Web</text>
+  <rect x="440" y="810" width="250" height="58" rx="10" fill="#f3e8ff" stroke="#c084fc"/>
+  <text x="460" y="835" class="external-title">Système Windows</text>
+  <text x="460" y="854" class="external-text">Task Scheduler · DPAPI · fichiers</text>
+  <rect x="820" y="810" width="250" height="58" rx="10" fill="#f3e8ff" stroke="#c084fc"/>
+  <text x="840" y="835" class="external-title">Ollama local</text>
+  <text x="840" y="854" class="external-text">Modèles et API locale</text>
+  <rect x="1130" y="810" width="210" height="58" rx="10" fill="#f3e8ff" stroke="#c084fc"/>
+  <text x="1150" y="835" class="external-title">OpenAI-compatible</text>
+  <text x="1150" y="854" class="external-text">API distante optionnelle</text>
+
+  <path class="runtime" d="M 235 755 L 190 810"/>
+  <path class="runtime" d="M 400 530 C 420 660, 520 725, 560 810"/>
+  <path class="runtime" d="M 1160 755 C 1080 780, 980 790, 945 810"/>
+  <path class="runtime" d="M 1210 755 L 1230 810"/>
+</svg>

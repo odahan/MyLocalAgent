@@ -111,6 +111,7 @@ public sealed partial class SettingsViewModel :
     private readonly IMessenger _messenger;
     private readonly TimeProvider _timeProvider;
     private bool _isLoading;
+    private bool _isUpdatingModelCatalog;
     private bool _hasLoaded;
     private string _savedTheme = AppThemeCatalog.DarkName;
 
@@ -579,11 +580,10 @@ public sealed partial class SettingsViewModel :
             GlobalSystemPrompt = ai.GlobalSystemPrompt;
             UpdateGenerationValidation();
             OllamaEndpoint = ollama.Endpoint;
-            OllamaModel = ollama.Model;
             OllamaTimeoutSeconds = ollama.TimeoutSeconds;
             await LoadOllamaModelsAsync(cancellationToken).ConfigureAwait(true);
+            OllamaModel = ollama.Model;
             OpenAIEndpoint = openAI.Endpoint;
-            OpenAIModel = openAI.Model;
             OpenAITimeoutSeconds = openAI.TimeoutSeconds;
             OpenAISupportsImageInput = openAI.SupportsImageInput;
             OpenAISupportsImageOutput = openAI.SupportsImageOutput;
@@ -592,6 +592,7 @@ public sealed partial class SettingsViewModel :
             OpenAIAudioModel = openAI.AudioModel;
             OpenAIAudioVoice = openAI.AudioVoice;
             await LoadOpenAIModelsAsync(cancellationToken).ConfigureAwait(true);
+            OpenAIModel = openAI.Model;
             ApiKeyReplacement = string.Empty;
             IsApiKeyConfigured = await _secretStore
                 .ExistsAsync(SecretKeys.OpenAIApiKey, cancellationToken)
@@ -841,6 +842,7 @@ public sealed partial class SettingsViewModel :
 
     private async Task LoadOllamaModelsAsync(CancellationToken cancellationToken)
     {
+        var selectedModel = OllamaModel;
         IsLoadingOllamaModels = true;
         OllamaModelCatalogStatus = "Loading installed models from Ollama…";
         try
@@ -854,11 +856,7 @@ public sealed partial class SettingsViewModel :
                         ModelCatalogTimeoutSeconds),
                     cancellationToken)
                 .ConfigureAwait(true);
-            OllamaModels.Clear();
-            foreach (var model in models)
-            {
-                OllamaModels.Add(model);
-            }
+            ReplaceOllamaModels(models, selectedModel);
 
             OllamaModelCatalogStatus = models.Count switch
             {
@@ -874,7 +872,7 @@ public sealed partial class SettingsViewModel :
         }
         catch (Exception exception)
         {
-            OllamaModels.Clear();
+            ReplaceOllamaModels([], selectedModel);
             OllamaModelCatalogStatus =
                 $"Installed models could not be loaded: {exception.Message}";
         }
@@ -886,6 +884,7 @@ public sealed partial class SettingsViewModel :
 
     private async Task LoadOpenAIModelsAsync(CancellationToken cancellationToken)
     {
+        var selectedModel = OpenAIModel;
         IsLoadingOpenAIModels = true;
         OpenAIModelCatalogStatus = "Loading models from the OpenAI-compatible provider…";
         try
@@ -899,11 +898,7 @@ public sealed partial class SettingsViewModel :
                         ModelCatalogTimeoutSeconds),
                     cancellationToken)
                 .ConfigureAwait(true);
-            OpenAIModels.Clear();
-            foreach (var model in models)
-            {
-                OpenAIModels.Add(model);
-            }
+            ReplaceOpenAIModels(models, selectedModel);
 
             OpenAIModelCatalogStatus = models.Count switch
             {
@@ -919,13 +914,55 @@ public sealed partial class SettingsViewModel :
         }
         catch (Exception exception)
         {
-            OpenAIModels.Clear();
+            ReplaceOpenAIModels([], selectedModel);
             OpenAIModelCatalogStatus =
                 $"Provider models could not be loaded: {exception.Message}";
         }
         finally
         {
             IsLoadingOpenAIModels = false;
+        }
+    }
+
+    private void ReplaceOllamaModels(
+        IReadOnlyList<string> models,
+        string selectedModel)
+    {
+        _isUpdatingModelCatalog = true;
+        try
+        {
+            OllamaModels.Clear();
+            foreach (var model in models)
+            {
+                OllamaModels.Add(model);
+            }
+
+            OllamaModel = selectedModel;
+        }
+        finally
+        {
+            _isUpdatingModelCatalog = false;
+        }
+    }
+
+    private void ReplaceOpenAIModels(
+        IReadOnlyList<string> models,
+        string selectedModel)
+    {
+        _isUpdatingModelCatalog = true;
+        try
+        {
+            OpenAIModels.Clear();
+            foreach (var model in models)
+            {
+                OpenAIModels.Add(model);
+            }
+
+            OpenAIModel = selectedModel;
+        }
+        finally
+        {
+            _isUpdatingModelCatalog = false;
         }
     }
 
@@ -1072,6 +1109,7 @@ public sealed partial class SettingsViewModel :
         PropertyChangedEventArgs e)
     {
         if (!_isLoading &&
+            !_isUpdatingModelCatalog &&
             e.PropertyName is not null &&
             EditablePropertyNames.Contains(e.PropertyName))
         {
