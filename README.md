@@ -234,7 +234,7 @@ The process working directory is never used to locate configuration.
 | `%LOCALAPPDATA%\OD.MyLocalAgent\Auth\Google\` | Google OAuth token data |
 | `%LOCALAPPDATA%\OD.MyLocalAgent\tasks\<id>.json` | One validated definition per task |
 | `%LOCALAPPDATA%\OD.MyLocalAgent\reports\<taskId>\*.md` | Per-run Markdown reports |
-| `%LOCALAPPDATA%\OD.MyLocalAgent\reports\index.jsonl` | Append-only execution index |
+| `<FileSystem:RootPath>\reports\index.jsonl` | Append-only execution index |
 | `%LOCALAPPDATA%\OD.MyLocalAgent\logs\application-<date>.log` | Rolling application logs, retained for 14 files |
 | `%LOCALAPPDATA%\OD.MyLocalAgent\logs\runs\<taskId>\*.jsonl` | Per-execution runner output logs (`Logging:MaxRunLogsPerTask` retained per task, default 50) |
 | `%LOCALAPPDATA%\OD.MyLocalAgent\logs\incidents.jsonl` | Durable incidents with correlation ids |
@@ -1288,7 +1288,7 @@ Copy-Item `
 ```
 
 This deterministic sample creates, writes, and reads a file under `FileSystem:RootPath`, then
-writes the normal Markdown report, appends `reports\index.jsonl`, and rolls the next scheduler
+writes the normal Markdown report beneath `FileSystem:RootPath`, appends `reports\index.jsonl`, and rolls the next scheduler
 registration. It validates the local execution pipeline but does not validate Gmail OAuth;
 the Gmail leg of `daily-mail-summary` still requires a separate human-authorized run.
 
@@ -1549,7 +1549,7 @@ that its action points to the stable published runner.
 
 - Normal logs: `%LOCALAPPDATA%\OD.MyLocalAgent\logs\application-<date>.log`
 - Incident records: `%LOCALAPPDATA%\OD.MyLocalAgent\logs\incidents.jsonl`
-- Run index: `%LOCALAPPDATA%\OD.MyLocalAgent\reports\index.jsonl`
+- Run index: `<FileSystem:RootPath>\reports\index.jsonl`
 - Per-task report: `%LOCALAPPDATA%\OD.MyLocalAgent\reports\<taskId>\`
 
 ## Extension points

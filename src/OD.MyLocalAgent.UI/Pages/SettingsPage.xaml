@@ -629,9 +629,33 @@
                         </TextBlock.Style>
                     </TextBlock>
 
-                    <ItemsControl Margin="0,12,0,0"
-                                  ItemsSource="{Binding Incidents}">
-                        <ItemsControl.ItemTemplate>
+                    <ListBox Height="300"
+                             Margin="0,12,0,0"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             ItemsSource="{Binding Incidents}"
+                             ScrollViewer.CanContentScroll="True"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             VirtualizingPanel.IsVirtualizing="True"
+                             VirtualizingPanel.VirtualizationMode="Recycling">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <VirtualizingStackPanel />
+                            </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.ItemContainerStyle>
+                            <Style BasedOn="{StaticResource MaterialDesignListBoxItem}"
+                                   TargetType="{x:Type ListBoxItem}">
+                                <Setter Property="Margin"
+                                        Value="0" />
+                                <Setter Property="MinHeight"
+                                        Value="0" />
+                                <Setter Property="Padding"
+                                        Value="0" />
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <Expander Margin="0,0,0,9"
                                           Background="{DynamicResource SurfaceBrush}"
@@ -676,8 +700,8 @@
                                     </StackPanel>
                                 </Expander>
                             </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
 
                     <Button Margin="0,14,0,0"
                             HorizontalAlignment="Left"

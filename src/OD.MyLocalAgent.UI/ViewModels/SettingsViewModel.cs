@@ -352,9 +352,7 @@ public sealed partial class SettingsViewModel :
         LoggingLevels = Enum.GetNames<LogEventLevel>();
         ThemeNames = AppThemeCatalog.Names;
         TasksFolder = LocalAppPaths.TasksDirectory;
-        ReportsFolder = Path.Combine(
-            LocalAppPaths.ApplicationDataDirectory,
-            "reports");
+        ReportsFolder = Path.Combine(fileSystemOptions.CurrentValue.RootPath, "reports");
         ExecutableFolder = Path.GetFullPath(AppContext.BaseDirectory);
         ApplicationExecutablePath = Path.Combine(
             ExecutableFolder,

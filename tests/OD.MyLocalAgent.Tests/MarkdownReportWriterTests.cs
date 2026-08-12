@@ -1,5 +1,7 @@
 using System.Text.Json;
 using FluentAssertions;
+using Microsoft.Extensions.Options;
+using Moq;
 using OD.MyLocalAgent.Core;
 using OD.MyLocalAgent.Workflows;
 using Xunit;
@@ -152,6 +154,86 @@ public sealed class MarkdownReportWriterTests : IDisposable
             (await File.ReadAllLinesAsync(
                 Path.Combine(_directoryPath, "index.jsonl"))).Single());
         index.RootElement.GetProperty("status").GetString().Should().Be("Success");
+    }
+
+    /// <summary>
+    /// Verifies an agent-only result omits the workflow table and preserves its Markdown.
+    /// </summary>
+    [Fact]
+    public async Task OmitsStepsForAgentOnlyResultAndPreservesFinalMarkdown()
+    {
+        var started = new DateTimeOffset(2026, 8, 12, 10, 0, 0, TimeSpan.Zero);
+        var result = new WorkflowResult(
+            true,
+            [],
+            "# Status\n\n- First finding\n- Second finding",
+            started,
+            started.AddSeconds(1));
+        var task = new ScheduledTask
+        {
+            Id = "agent-only-report",
+            Name = "Agent-only report",
+            Schedule = "0 7 * * *",
+            Prompt = "prompt",
+            Tools = [ToolGroups.FileSystem],
+        };
+        var writer = new MarkdownReportWriter(_directoryPath, TimeProvider.System);
+
+        var written = await writer.WriteAsync(
+            task,
+            result,
+            "Test",
+            CancellationToken.None);
+
+        written.Markdown.Should().NotContain("## Steps");
+        written.Markdown.Should().NotContain("No workflow steps were executed");
+        written.Markdown.Should().Contain("## Final output");
+        written.Markdown.Should().Contain("# Status");
+        written.Markdown.Should().Contain("- First finding");
+        written.Markdown.Should().NotContain("    # Status");
+    }
+
+    /// <summary>
+    /// Verifies default report storage stays inside the configured file-system workspace.
+    /// </summary>
+    [Fact]
+    public async Task DefaultWriterStoresReportsInsideConfiguredWorkspace()
+    {
+        var workspace = Path.Combine(_directoryPath, "workspace");
+        var options = new Mock<IOptionsMonitor<FileSystemOptions>>();
+        options.SetupGet(instance => instance.CurrentValue).Returns(
+            new FileSystemOptions { RootPath = workspace });
+        var writer = new MarkdownReportWriter(options.Object, TimeProvider.System);
+        var started = new DateTimeOffset(2026, 8, 12, 10, 0, 0, TimeSpan.Zero);
+        var task = new ScheduledTask
+        {
+            Id = "workspace-report",
+            Name = "Workspace report",
+            Schedule = "0 7 * * *",
+            Prompt = "prompt",
+            Tools = [],
+        };
+        var result = new WorkflowResult(
+            true,
+            [],
+            "Report body.",
+            started,
+            started.AddSeconds(1));
+
+        var written = await writer.WriteAsync(
+            task,
+            result,
+            "Test",
+            CancellationToken.None);
+
+        written.ReportPath.Should().Be(
+            Path.Combine(
+                workspace,
+                "reports",
+                "workspace-report",
+                "20260812-100000.md"));
+        File.Exists(written.ReportPath).Should().BeTrue();
+        File.Exists(Path.Combine(workspace, "reports", "index.jsonl")).Should().BeTrue();
     }
 
     /// <summary>

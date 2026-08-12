@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Options;
 using OD.MyLocalAgent.Core;
 
 namespace OD.MyLocalAgent.Workflows;
@@ -12,20 +13,24 @@ public sealed class MarkdownReportWriter : IReportWriter
     private static readonly JsonSerializerOptions SerializerOptions =
         new(JsonSerializerDefaults.Web);
 
-    private readonly string _reportsDirectory;
-    private readonly string _indexPath;
+    private readonly string? _explicitReportsDirectory;
+    private readonly IOptionsMonitor<FileSystemOptions>? _fileSystemOptions;
     private readonly TimeProvider _timeProvider;
     private readonly SemaphoreSlim _indexGate = new(1, 1);
 
     /// <summary>
-    /// Initializes a writer using the standard per-user reports directory.
+    /// Initializes a writer using the configured file-system workspace.
     /// </summary>
+    /// <param name="fileSystemOptions">The configured file-system sandbox options.</param>
     /// <param name="timeProvider">The time provider used for lock retries.</param>
-    public MarkdownReportWriter(TimeProvider timeProvider)
-        : this(
-            Path.Combine(LocalAppPaths.ApplicationDataDirectory, "reports"),
-            timeProvider)
+    public MarkdownReportWriter(
+        IOptionsMonitor<FileSystemOptions> fileSystemOptions,
+        TimeProvider timeProvider)
     {
+        ArgumentNullException.ThrowIfNull(fileSystemOptions);
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        _fileSystemOptions = fileSystemOptions;
+        _timeProvider = timeProvider;
     }
 
     /// <summary>
@@ -38,8 +43,7 @@ public sealed class MarkdownReportWriter : IReportWriter
         TimeProvider? timeProvider = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reportsDirectory);
-        _reportsDirectory = Path.GetFullPath(reportsDirectory);
-        _indexPath = Path.Combine(_reportsDirectory, "index.jsonl");
+        _explicitReportsDirectory = Path.GetFullPath(reportsDirectory);
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
@@ -54,7 +58,8 @@ public sealed class MarkdownReportWriter : IReportWriter
         ArgumentNullException.ThrowIfNull(result);
         ArgumentException.ThrowIfNullOrWhiteSpace(providerName);
 
-        var taskDirectory = Path.Combine(_reportsDirectory, task.Id);
+        var reportsDirectory = GetReportsDirectory();
+        var taskDirectory = Path.Combine(reportsDirectory, task.Id);
         Directory.CreateDirectory(taskDirectory);
         var reportPath = Path.Combine(
             taskDirectory,
@@ -76,7 +81,10 @@ public sealed class MarkdownReportWriter : IReportWriter
         };
         var indexLine = JsonSerializer.Serialize(indexEntry, SerializerOptions) +
             Environment.NewLine;
-        await AppendIndexAsync(indexLine, cancellationToken).ConfigureAwait(false);
+        await AppendIndexAsync(
+            Path.Combine(reportsDirectory, "index.jsonl"),
+            indexLine,
+            cancellationToken).ConfigureAwait(false);
         return new ReportWriteResult(reportPath, markdown);
     }
 
@@ -96,15 +104,10 @@ public sealed class MarkdownReportWriter : IReportWriter
         builder.AppendLine($"- Provider: {EscapeInline(providerName)}");
         builder.AppendLine($"- Status: **{status}**");
         builder.AppendLine();
-        builder.AppendLine("## Steps");
-        builder.AppendLine();
-
-        if (result.Steps.Count == 0)
+        if (result.Steps.Count > 0)
         {
-            builder.AppendLine("_No workflow steps were executed._");
-        }
-        else
-        {
+            builder.AppendLine("## Steps");
+            builder.AppendLine();
             builder.AppendLine("| Step | Alias | Status | Attempts | Duration (ms) | Output bytes | Error |");
             builder.AppendLine("|---|---|---:|---:|---:|---:|---|");
             foreach (var step in result.Steps)
@@ -147,13 +150,35 @@ public sealed class MarkdownReportWriter : IReportWriter
         }
         else
         {
-            AppendIndented(builder, result.FinalText);
+            builder.Append(result.FinalText);
+            if (!result.FinalText.EndsWith(Environment.NewLine, StringComparison.Ordinal))
+            {
+                builder.AppendLine();
+            }
         }
 
         return builder.ToString();
     }
 
+    private string GetReportsDirectory()
+    {
+        if (_explicitReportsDirectory is not null)
+        {
+            return _explicitReportsDirectory;
+        }
+
+        var rootPath = _fileSystemOptions?.CurrentValue.RootPath
+            ?? throw new InvalidOperationException("File-system workspace options are unavailable.");
+        if (string.IsNullOrWhiteSpace(rootPath) || !Path.IsPathRooted(rootPath))
+        {
+            throw new InvalidOperationException("File-system workspace path must be absolute.");
+        }
+
+        return Path.Combine(Path.GetFullPath(rootPath), "reports");
+    }
+
     private async Task AppendIndexAsync(
+        string indexPath,
         string line,
         CancellationToken cancellationToken)
     {
@@ -161,7 +186,7 @@ public sealed class MarkdownReportWriter : IReportWriter
         await _indexGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            Directory.CreateDirectory(_reportsDirectory);
+            Directory.CreateDirectory(Path.GetDirectoryName(indexPath)!);
             const int maximumAttempts = 20;
             for (var attempt = 1; ; attempt++)
             {
@@ -169,7 +194,7 @@ public sealed class MarkdownReportWriter : IReportWriter
                 try
                 {
                     await using var stream = new FileStream(
-                        _indexPath,
+                        indexPath,
                         FileMode.OpenOrCreate,
                         FileAccess.ReadWrite,
                         FileShare.Read,

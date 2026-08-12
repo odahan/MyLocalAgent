@@ -6,6 +6,7 @@ using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
+using Microsoft.Extensions.Options;
 using OD.MyLocalAgent.Core;
 using OD.MyLocalAgent.Ollama;
 using OD.MyLocalAgent.UI.Messages;
@@ -34,6 +35,7 @@ public sealed partial class DashboardViewModel :
     private readonly IIncidentReporter _incidentReporter;
     private readonly IDesktopInteractionService _desktopInteraction;
     private readonly IMessenger _messenger;
+    private readonly IOptionsMonitor<FileSystemOptions> _fileSystemOptions;
 
     [ObservableProperty]
     private int _taskCount;
@@ -62,7 +64,8 @@ public sealed partial class DashboardViewModel :
         ILlmClientFactory llmClientFactory,
         IIncidentReporter incidentReporter,
         IDesktopInteractionService desktopInteraction,
-        IMessenger messenger)
+        IMessenger messenger,
+        IOptionsMonitor<FileSystemOptions> fileSystemOptions)
         : base(messenger)
     {
         _taskStore = taskStore;
@@ -71,6 +74,7 @@ public sealed partial class DashboardViewModel :
         _incidentReporter = incidentReporter;
         _desktopInteraction = desktopInteraction;
         _messenger = messenger;
+        _fileSystemOptions = fileSystemOptions;
         _taskStore.TasksChanged += OnTasksChanged;
         IsActive = true;
     }
@@ -220,7 +224,7 @@ public sealed partial class DashboardViewModel :
         CancellationToken cancellationToken)
     {
         var reportIndexPath = Path.Combine(
-            LocalAppPaths.ApplicationDataDirectory,
+            _fileSystemOptions.CurrentValue.RootPath,
             "reports",
             "index.jsonl");
         var recent = new Queue<ReportIndexLine>(10);
