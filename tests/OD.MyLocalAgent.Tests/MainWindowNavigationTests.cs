@@ -13,6 +13,26 @@ namespace OD.MyLocalAgent.Tests;
 /// </summary>
 public sealed class MainWindowNavigationTests
 {
+    /// <summary>Verifies Direct Chat immediately follows Tasks in the navigation rail.</summary>
+    [Fact]
+    public void DirectChatNavigationImmediatelyFollowsTasks()
+    {
+        var viewModel = new MainWindowViewModel(
+            static _ => new object(),
+            new WeakReferenceMessenger(),
+            Mock.Of<ISnackbarMessageQueue>());
+
+        var tasksIndex = viewModel.NavigationItems
+            .Select((item, index) => (item, index))
+            .Single(pair => pair.item.Route == PageRoute.Tasks)
+            .index;
+
+        viewModel.NavigationItems[tasksIndex + 1].Route
+            .Should().Be(PageRoute.DirectChat);
+        viewModel.NavigationItems[tasksIndex + 1].Title
+            .Should().Be("Direct Chat");
+    }
+
     /// <summary>
     /// Verifies that navigating to Tasks reloads the Tasks page even when its rail item
     /// remained selected while the task editor was displayed.

@@ -16,6 +16,11 @@ public enum PageRoute
     Tasks,
 
     /// <summary>
+    /// Persistent direct conversation with the active AI provider.
+    /// </summary>
+    DirectChat,
+
+    /// <summary>
     /// Task definition editing.
     /// </summary>
     TaskEditor,

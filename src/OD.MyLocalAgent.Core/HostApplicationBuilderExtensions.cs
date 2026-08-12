@@ -117,6 +117,12 @@ public static class HostApplicationBuilderExtensions
         builder.Services.AddSingleton<JsonTaskStore>();
         builder.Services.AddSingleton<ITaskStore>(
             static services => services.GetRequiredService<JsonTaskStore>());
+        builder.Services.AddSingleton<SqliteDirectChatStore>();
+        builder.Services.AddSingleton<IDirectChatStore>(
+            static services => services.GetRequiredService<SqliteDirectChatStore>());
+        builder.Services.AddSingleton<ITokenEstimator, ConservativeTokenEstimator>();
+        builder.Services.AddSingleton<IDirectChatContextBuilder, DirectChatContextBuilder>();
+        builder.Services.AddSingleton<IDirectChatHistoryCompressor, DirectChatHistoryCompressor>();
         builder.Services.AddSingleton<ITaskSchedulerService, WindowsTaskSchedulerService>();
         builder.Services.AddSingleton<IMyLocalAgentService, MyLocalAgentService>();
         builder.Services.AddSingleton<IRunnerService, RunnerService>();
@@ -126,6 +132,11 @@ public static class HostApplicationBuilderExtensions
 
     private static void RegisterOptions(IHostApplicationBuilder builder)
     {
+        builder.Services
+            .AddOptions<DirectChatOptions>()
+            .Bind(builder.Configuration.GetSection(DirectChatOptions.SectionName))
+            .Validate(DirectChatOptions.IsValid, "Direct Chat settings are invalid.")
+            .ValidateOnStart();
             builder.Services
                 .AddOptions<FileContentOptions>()
                 .Bind(builder.Configuration.GetSection(FileContentOptions.SectionName))

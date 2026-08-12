@@ -1280,6 +1280,7 @@
 <div class="search-results" hidden="" id="search-results" role="listbox"></div>
 </div>
 <nav>
+<div class="nav-group"><p class="nav-heading">Conversation</p><ul class="nav-list"><li><a href="#scenario-direct-chat">Direct Chat</a></li></ul></div>
 <div class="nav-group"><p class="nav-heading">Application et exploitation</p><ul class="nav-list"><li><a href="#navigation">Pages de l’application</a></li><li><a href="#garde-fous-ia">Filtre de confiance</a></li><li><a href="#securite">Sécurité</a></li><li><a href="#rapports-journaux">Rapports et journaux</a></li><li><a href="#diagnostics">Diagnostics et incidents</a></li><li><a href="#depannage">Dépannage</a></li><li><a href="#reference">Emplacements et CLI</a></li></ul></div><div class="nav-group"><p class="nav-heading">Outils et données</p><ul class="nav-list"><li><a href="#tools-reference">Catalogue des outils</a><ul class="nav-list subnav"><li><a href="#tool-map">Groupes et alias</a></li><li><a href="#document-conversions">Conversions de documents</a></li><li><a href="#tools-sqlite">SQLite</a></li></ul></li><li><a href="#placeholders">Placeholders et sorties</a><ul class="nav-list subnav"><li><a href="#agent-prompt-placeholders">Prompts sans workflow</a></li><li><a href="#model-placeholders">Informations du modèle</a></li><li><a href="#workflow-placeholders">Sorties de workflow</a></li></ul></li><li><a href="#workflow-reference">Référence des workflows</a><ul class="nav-list subnav"><li><a href="#workflow-error-policies">Politiques d’erreur</a></li><li><a href="#workflow-arguments">Arguments et exemples</a></li><li><a href="#filesystem-rename-extension">Fichiers et extensions</a></li><li><a href="#ai-extraction-classification">Extraction et classification</a></li></ul></li></ul></div><div class="nav-group"><p class="nav-heading">Automatiser</p><ul class="nav-list"><li><a href="#taches-workflows">Tâches et workflows</a><ul class="nav-list subnav"><li><a href="#prompt-only-mode">Prompt seul</a></li><li><a href="#workflow-mode">Workflow</a></li><li><a href="#generation-settings">Réglages de génération</a></li><li><a href="#workflow-helper">AI Workflow Helper</a></li><li><a href="#workflow-tool-catalog">Tool catalog</a></li><li><a href="#workflow-prompt-editor">Éditeur de prompts</a></li></ul></li><li><a href="#task-reference">Structure d’une tâche</a><ul class="nav-list subnav"><li><a href="#task-shape">Format JSON</a></li><li><a href="#task-rules">Règles importantes</a></li><li><a href="#authorized-locations">Emplacements autorisés</a></li></ul></li><li><a href="#planification">Planification et cron</a></li></ul></div><div class="nav-group"><p class="nav-heading">Connecter et explorer</p><ul class="nav-list"><li><a href="#scenario-google">Google</a></li><li><a href="#scenario-dropbox">Dropbox</a></li><li><a href="#scenario-web-search">Recherche Web</a></li><li><a href="#scenario-openai">OpenAI-compatible</a></li><li><a href="#scenario-playground">AI playground</a></li><li><a href="#scenario-outil">Tester un outil</a></li></ul></div><div class="nav-group"><p class="nav-heading">Démarrer</p><ul class="nav-list"><li><a href="#accueil">Vue d’ensemble</a></li><li><a href="#vue-rapide">Parcours recommandé</a></li><li><a href="#installation">Installation</a></li><li><a href="#premier-demarrage">Premier démarrage</a></li><li><a href="#scenario-ollama">Configurer Ollama</a></li><li><a href="#scenario-tache-locale">Créer une première tâche</a></li><li><a href="#scenario-prompt-run">Tester puis exécuter</a></li></ul></div></nav>
 <div class="sidebar-foot">
 <strong>Conseil</strong><br/>
@@ -1824,6 +1825,49 @@ ollama list</code></pre>
                     fichiers, hôtes HTTP autorisés et options Safety.
                 </div>
 </section>
+<section data-title="Scénario : utiliser Direct Chat" id="scenario-direct-chat">
+<p class="section-kicker">Conversation persistante</p>
+<h2>Converser avec Direct Chat</h2>
+<p class="section-intro">
+                    Direct Chat conserve plusieurs conversations locales et envoie leur contexte
+                    au fournisseur actif. Il n’utilise ni outil ni skill.
+                </p>
+<ol class="steps">
+<li>
+<strong>Ouvrez <span class="ui-label">Direct Chat</span>, juste après <span class="ui-label">Tasks</span>.</strong>
+<p>Une conversation <span class="ui-label">New chat</span> est créée automatiquement si aucun historique n’existe.</p>
+</li>
+<li>
+<strong>Saisissez votre message.</strong>
+<p>Cliquez sur <span class="ui-label">Send</span> ou utilisez <kbd>Ctrl</kbd>+<kbd>Entrée</kbd>. Une seule réponse peut être générée à la fois.</p>
+</li>
+<li>
+<strong>Suivez la réponse en streaming.</strong>
+<p><span class="ui-label">Cancel</span> interrompt la génération. Une réponse interrompue reste identifiée comme annulée ; après un arrêt brutal, une réponse inachevée est marquée en échec au prochain démarrage.</p>
+</li>
+<li>
+<strong>Retrouvez ou créez une conversation.</strong>
+<p>La colonne gauche trie les conversations par activité récente. <span class="ui-label">New chat</span> démarre un nouvel échange et <span class="ui-label">Load older messages</span> charge une page antérieure.</p>
+</li>
+<li>
+<strong>Supprimez uniquement après vérification.</strong>
+<p><span class="ui-label">Delete conversation</span> demande confirmation puis efface définitivement la conversation et ses messages.</p>
+</li>
+</ol>
+<div class="callout">
+                    Lorsque l’historique approche de la fenêtre de contexte déclarée, Direct Chat
+                    résume les anciens tours et garde au moins les quatre derniers tours utilisateur
+                    en texte intégral. Le résumé réduit seulement le contexte envoyé au modèle :
+                    tous les messages originaux restent dans la base et dans l’interface.
+                </div>
+<div class="callout warning">
+                    Les conversations sont enregistrées en clair dans
+                    <code>%LOCALAPPDATA%\OD.MyLocalAgent\direct-chat.db</code>. Cette base SQLite
+                    dédiée n’est pas le SQLite Tool, n’est pas accessible aux workflows et n’est
+                    pas protégée par DPAPI. Avec un fournisseur cloud, le contexte utile est envoyé
+                    à l’endpoint configuré.
+                </div>
+</section>
 <section data-title="Scénario : tester un outil" id="scenario-outil">
 <p class="section-kicker">Scénario guidé 07</p>
 <h2>Tester un outil isolément</h2>
@@ -1911,7 +1955,7 @@ ollama list</code></pre>
 <p class="section-kicker">Référence quotidienne</p>
 <h2>Comprendre chaque page</h2>
 <p class="section-intro">
-                    Le rail gauche donne accès aux neuf pages principales. L’éditeur de tâche et
+                    Le rail gauche donne accès aux dix pages principales. L’éditeur de tâche et
                     l’éditeur de prompt s’ouvrent depuis <span class="ui-label">Tasks</span>.
                 </p>
 <div class="page-map">
@@ -1922,6 +1966,10 @@ ollama list</code></pre>
 <article class="page-item">
 <strong>Tasks</strong>
 <p>Liste des tâches, statut Enabled/Registered, création, édition, suppression, prompt, exécution immédiate et sortie du runner.</p>
+</article>
+<article class="page-item">
+<strong>Direct Chat</strong>
+<p>Conversations persistantes avec le fournisseur actif, réponses en streaming et compression automatique de l’ancien contexte, sans outil ni skill.</p>
 </article>
 <article class="page-item">
 <strong>Logs</strong>
@@ -3158,6 +3206,7 @@ ollama list</code></pre>
 <tbody>
 <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\settings.json</code></td><td>Réglages utilisateur non secrets.</td></tr>
 <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\secrets.dat</code></td><td>Secrets OpenAI, Dropbox et Web Search protégés par DPAPI.</td></tr>
+<tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\direct-chat.db</code></td><td>Conversations et résumés Direct Chat dans une base SQLite locale non chiffrée.</td></tr>
 <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\Auth\Google\</code></td><td>Autorisation OAuth Google actualisable.</td></tr>
 <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\tasks\</code></td><td>Un fichier JSON validé par tâche.</td></tr>
 <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\reports\&lt;taskId&gt;\</code></td><td>Rapports Markdown de la tâche.</td></tr>

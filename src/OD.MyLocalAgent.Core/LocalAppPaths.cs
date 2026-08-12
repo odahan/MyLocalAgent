@@ -26,6 +26,12 @@ public static class LocalAppPaths
         Path.Combine(ApplicationDataDirectory, "tasks");
 
     /// <summary>
+    /// Gets the dedicated Direct Chat database path.
+    /// </summary>
+    public static string DirectChatDatabasePath =>
+        Path.Combine(ApplicationDataDirectory, "direct-chat.db");
+
+    /// <summary>
     /// Gets the incident JSONL path.
     /// </summary>
     public static string IncidentsPath =>

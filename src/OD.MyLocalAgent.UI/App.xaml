@@ -26,6 +26,9 @@
             <DataTemplate DataType="{x:Type viewModels:TasksViewModel}">
                 <pages:TasksPage />
             </DataTemplate>
+            <DataTemplate DataType="{x:Type viewModels:DirectChatViewModel}">
+                <pages:DirectChatPage />
+            </DataTemplate>
             <DataTemplate DataType="{x:Type viewModels:TaskEditorViewModel}">
                 <pages:TaskEditorPage />
             </DataTemplate>

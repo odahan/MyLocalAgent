@@ -44,7 +44,7 @@ its own navigation, search, styles, and scripts in one file.
 | 21 | Model Information Placeholders | Complete with automated verification |
 | 22 | Archive, Office, and PDF Tools | Complete with automated verification |
 | 23 | Web Discovery Tool (`research.discover`) | V3 spec, inline params, no profiles, no storage |
-| 24 | Not implemented |
+| 24 | Direct Chat with persistent SQLite history and context compression | Complete with automated verification |
 | 25 | Not implemented |
 
 See [Docs/acceptance-report.md](Docs/acceptance-report.md) for the executed acceptance
@@ -1287,6 +1287,8 @@ flowchart LR
     User["User"] --> UI["WPF UI"]
     Scheduler["Windows Task Scheduler"] --> Runner["Headless runner"]
     UI --> Store["JSON task store"]
+    UI --> ChatDb["Direct Chat SQLite database"]
+    UI --> Llm
     UI --> Runner
     Runner --> Store
     Runner --> Workflows["Workflow engine"]
@@ -1336,6 +1338,35 @@ screening pass distinguishable from an agent tool loop.
 Tool start traces serialize readable JSON arguments. Completion traces include the number of
 Gmail messages, Calendar events, or Web Search results returned, and Dropbox item names and
 sizes. Credentials and configured tokens remain excluded.
+
+## Direct Chat
+
+The **Direct Chat** page appears immediately after **Tasks** in the navigation rail. It provides
+a persistent, provider-agnostic conversation surface with streamed assistant replies, cancellation,
+Markdown rendering, multiple conversations, automatic first-message titles, deletion confirmation,
+and progressive loading of older messages. It calls the active provider directly through
+`IChatClient`; tools and built-in skills are deliberately unavailable on this page.
+
+Conversations are stored in the dedicated
+`%LOCALAPPDATA%\OD.MyLocalAgent\direct-chat.db` SQLite database. This internal database is not
+opened through `SqliteTool`, is not governed by task SQLite authorizations, and is not exposed to
+workflows. Schema migrations use `PRAGMA user_version`, foreign keys delete messages with their
+conversation, startup changes abandoned `Pending` or `Streaming` replies to `Failed`, and response
+content is checkpointed at most once per second. The database is local but **not encrypted**;
+do not use Direct Chat for content that must be protected at rest.
+
+Before each model request, Direct Chat builds context from its fixed system instruction, the
+optional global system prompt, the cumulative memory summary, and recent unsummarized messages.
+Input size uses a conservative provider-independent token estimate. At the configured trigger
+(70% of the declared context window by default), old complete turns are summarized while at least
+four recent user turns remain verbatim. The target is 45%, and 25% of the context remains reserved
+for the response. Compression updates only the summary boundary: every original message remains
+in SQLite and stays visible in the UI.
+
+The `DirectChat` configuration section owns `CompressionEnabled`, `CompressionTriggerRatio`,
+`CompressionTargetRatio`, `ResponseReserveRatio`, `MinimumRecentTurns`, `MaximumSummaryTokens`,
+and `EstimatedCharactersPerToken`. The context-window source remains
+`AI:GenerationDefaults:ContextWindowTokens`.
 
 ## Provider switching
 

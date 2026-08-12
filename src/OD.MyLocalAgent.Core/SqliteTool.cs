@@ -33,7 +33,7 @@ public sealed class SqliteTool : ISqliteTool
 
     static SqliteTool()
     {
-        SQLitePCL.Batteries_V2.Init();
+        SqliteNativeBootstrap.Initialize();
     }
 
     /// <summary>Initializes a new instance of the <see cref="SqliteTool"/> class.</summary>

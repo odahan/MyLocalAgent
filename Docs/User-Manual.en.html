@@ -1271,6 +1271,7 @@
 <div class="search-results" hidden="" id="search-results" role="listbox"></div>
 </div>
 <nav>
+<div class="nav-group"><p class="nav-heading">Conversation</p><ul class="nav-list"><li><a href="#scenario-direct-chat">Direct Chat</a></li></ul></div>
 <div class="nav-group"><p class="nav-heading">Application and operations</p><ul class="nav-list"><li><a href="#navigation">Application pages</a></li><li><a href="#garde-fous-ia">Trust filter</a></li><li><a href="#securite">Safety and security</a></li><li><a href="#rapports-journaux">Reports and logs</a></li><li><a href="#diagnostics">Diagnostics and incidents</a></li><li><a href="#depannage">Troubleshooting</a></li><li><a href="#reference">Locations and CLI</a></li></ul></div><div class="nav-group"><p class="nav-heading">Tools and data</p><ul class="nav-list"><li><a href="#tools-reference">Tool catalog</a><ul class="nav-list subnav"><li><a href="#tool-map">Groups and aliases</a></li><li><a href="#document-conversions">Document conversions</a></li><li><a href="#tools-sqlite">SQLite</a></li></ul></li><li><a href="#placeholders">Placeholders and outputs</a><ul class="nav-list subnav"><li><a href="#agent-prompt-placeholders">Prompt-only tasks</a></li><li><a href="#model-placeholders">Model information</a></li><li><a href="#workflow-placeholders">Workflow outputs</a></li></ul></li><li><a href="#workflow-reference">Workflow reference</a><ul class="nav-list subnav"><li><a href="#workflow-error-policies">Error policies</a></li><li><a href="#workflow-arguments">Arguments and examples</a></li><li><a href="#filesystem-rename-extension">Files and extensions</a></li><li><a href="#ai-extraction-classification">Extraction and classification</a></li></ul></li></ul></div><div class="nav-group"><p class="nav-heading">Automation</p><ul class="nav-list"><li><a href="#taches-workflows">Tasks and workflows</a><ul class="nav-list subnav"><li><a href="#prompt-only-mode">Prompt only</a></li><li><a href="#workflow-mode">Workflow</a></li><li><a href="#generation-settings">Generation settings</a></li><li><a href="#workflow-helper">AI Workflow Helper</a></li><li><a href="#workflow-tool-catalog">Tool catalog</a></li><li><a href="#workflow-prompt-editor">Prompt editor</a></li></ul></li><li><a href="#task-reference">Task structure</a><ul class="nav-list subnav"><li><a href="#task-shape">JSON format</a></li><li><a href="#task-rules">Important rules</a></li><li><a href="#authorized-locations">Authorized locations</a></li></ul></li><li><a href="#planification">Scheduling and cron</a></li></ul></div><div class="nav-group"><p class="nav-heading">Connect and explore</p><ul class="nav-list"><li><a href="#scenario-google">Google</a></li><li><a href="#scenario-dropbox">Dropbox</a></li><li><a href="#scenario-web-search">Web Search</a></li><li><a href="#scenario-openai">OpenAI-compatible</a></li><li><a href="#scenario-playground">AI playground</a></li><li><a href="#scenario-outil">Test a tool</a></li></ul></div><div class="nav-group"><p class="nav-heading">Getting started</p><ul class="nav-list"><li><a href="#accueil">Overview</a></li><li><a href="#vue-rapide">Recommended path</a></li><li><a href="#installation">Installation</a></li><li><a href="#premier-demarrage">First start</a></li><li><a href="#scenario-ollama">Configure Ollama</a></li><li><a href="#scenario-tache-locale">Create a first task</a></li><li><a href="#scenario-prompt-run">Test, then run</a></li></ul></div></nav>
 <div class="sidebar-foot"><strong>Tip</strong> UI labels are kept in English throughout this manual, for example <span class="ui-label">Run now</span>.</div>
 </div>
@@ -1786,6 +1787,49 @@ ollama list</code></pre>
                     HTTP allowlist, connector configuration, and Safety settings.
                 </div>
 </section>
+<section data-title="Scenario: use Direct Chat" id="scenario-direct-chat">
+<p class="section-kicker">Persistent conversation</p>
+<h2>Have a conversation in Direct Chat</h2>
+<p class="section-intro">
+                    Direct Chat keeps multiple local conversations and sends their context to the
+                    active provider. It does not expose tools or built-in skills.
+                </p>
+<ol class="steps">
+<li>
+<strong>Open <span class="ui-label">Direct Chat</span>, immediately after <span class="ui-label">Tasks</span>.</strong>
+<p>A <span class="ui-label">New chat</span> conversation is created automatically when no history exists.</p>
+</li>
+<li>
+<strong>Enter your message.</strong>
+<p>Select <span class="ui-label">Send</span> or press <kbd>Ctrl</kbd>+<kbd>Enter</kbd>. Only one response can be generated at a time.</p>
+</li>
+<li>
+<strong>Follow the streamed response.</strong>
+<p><span class="ui-label">Cancel</span> stops generation. A canceled response remains identified as canceled; after an abrupt shutdown, an unfinished response is marked failed on the next start.</p>
+</li>
+<li>
+<strong>Return to or create a conversation.</strong>
+<p>The left column sorts conversations by recent activity. <span class="ui-label">New chat</span> starts another conversation and <span class="ui-label">Load older messages</span> loads an earlier page.</p>
+</li>
+<li>
+<strong>Delete only after review.</strong>
+<p><span class="ui-label">Delete conversation</span> asks for confirmation, then permanently removes the conversation and its messages.</p>
+</li>
+</ol>
+<div class="callout">
+                    When history approaches the declared context window, Direct Chat summarizes
+                    old turns and keeps at least the four latest user turns verbatim. The summary
+                    reduces only the context sent to the model: every original message remains in
+                    the database and the UI.
+                </div>
+<div class="callout warning">
+                    Conversations are stored as clear text in
+                    <code>%LOCALAPPDATA%\OD.MyLocalAgent\direct-chat.db</code>. This dedicated
+                    SQLite database is not the SQLite Tool, is unavailable to workflows, and is
+                    not protected by DPAPI. With a cloud provider, relevant context is sent to the
+                    configured endpoint.
+                </div>
+</section>
 <section data-title="Scenario: test a tool" id="scenario-outil">
 <p class="section-kicker">Guided scenario 07</p>
 <h2>Test one tool in isolation</h2>
@@ -1869,7 +1913,7 @@ ollama list</code></pre>
 <p class="section-kicker">Daily reference</p>
 <h2>Understand every application page</h2>
 <p class="section-intro">
-                    The left rail exposes nine main pages. Task and prompt editors open from
+                    The left rail exposes ten main pages. Task and prompt editors open from
                     <span class="ui-label">Tasks</span>.
                 </p>
 <div class="page-map">
@@ -1880,6 +1924,10 @@ ollama list</code></pre>
 <article class="page-item">
 <strong>Tasks</strong>
 <p>Enabled and Registered state, creation, editing, deletion, prompt editing, Run now, and runner output.</p>
+</article>
+<article class="page-item">
+<strong>Direct Chat</strong>
+<p>Persistent conversations with the active provider, streamed responses, and automatic old-context compression, without tools or skills.</p>
 </article>
 <article class="page-item">
 <strong>Logs</strong>
@@ -2980,6 +3028,7 @@ ollama list</code></pre></div>
 <tbody>
 <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\settings.json</code></td><td>Non-secret user settings.</td></tr>
 <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\secrets.dat</code></td><td>DPAPI-protected OpenAI, Dropbox, and Web Search secrets.</td></tr>
+<tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\direct-chat.db</code></td><td>Direct Chat conversations and summaries in an unencrypted local SQLite database.</td></tr>
 <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\Auth\Google\</code></td><td>Refreshable Google OAuth data.</td></tr>
 <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\tasks\</code></td><td>One validated JSON file per task.</td></tr>
 <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\reports\&lt;taskId&gt;\</code></td><td>Per-task Markdown reports.</td></tr>

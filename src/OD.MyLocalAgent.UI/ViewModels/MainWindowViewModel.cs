@@ -65,6 +65,10 @@ public sealed partial class MainWindowViewModel :
                 PackIconMaterialKind.CalendarClock,
                 PageRoute.Tasks),
             new(
+                "Direct Chat",
+                PackIconMaterialKind.ChatOutline,
+                PageRoute.DirectChat),
+            new(
                 "Logs",
                 PackIconMaterialKind.TextBoxSearchOutline,
                 PageRoute.Logs),
@@ -276,6 +280,8 @@ public sealed partial class MainWindowViewModel :
                 serviceProvider.GetRequiredService<DashboardViewModel>(),
             PageRoute.Tasks =>
                 serviceProvider.GetRequiredService<TasksViewModel>(),
+            PageRoute.DirectChat =>
+                serviceProvider.GetRequiredService<DirectChatViewModel>(),
             PageRoute.TaskEditor =>
                 serviceProvider.GetRequiredService<TaskEditorViewModel>(),
             PageRoute.PromptEditor =>

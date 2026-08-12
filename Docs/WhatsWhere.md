@@ -23,12 +23,18 @@ Default: `%LOCALAPPDATA%\OD.MyLocalAgent`
 |------|----------|
 | `settings.json` | User settings (overrides `appsettings.json`) |
 | `secrets.dat` | DPAPI-protected secrets (API keys, OAuth tokens) |
+| `direct-chat.db` | Direct Chat conversations, messages, and cumulative memory summaries (SQLite, not encrypted) |
 | `tasks/` | Persisted task definitions (JSONL files) |
 | `reports/` | Generated reports |
 | `logs/` | Root log directory |
 | `logs/application-*.log` | Rolling application log |
 | `logs/incidents.jsonl` | Incident log |
 | `logs/runs/` | Per-execution runner output logs |
+
+`direct-chat.db` is an application-owned database. It is separate from the SQLite Tool, is not
+available to workflows, and should be included when backing up Direct Chat history. Conversation
+deletion is permanent. The history database contains message text in clear form; DPAPI protects
+secrets, not chat content.
 
 ## Configuration Layers
 

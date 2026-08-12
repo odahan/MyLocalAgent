@@ -22,6 +22,10 @@ This ledger is the binding project memory for OD.MyLocalAgent. Every stage must 
 - **G. Workflows are the reliable path.** On a 12B local model, free-form agent tool-calling is
   best-effort; workflows (`workflow` array) are the deterministic path and the README steers
   users to them.
+- **H. Direct Chat owns an application-only database, not a workflow tool database.**
+  `%LOCALAPPDATA%\OD.MyLocalAgent\direct-chat.db` is accessed only through
+  `IDirectChatStore`; `SqliteTool`, task path authorization, and workflow capabilities do not
+  participate. Context compression never deletes original messages.
 
 ## Package versions
 
@@ -1882,3 +1886,36 @@ compilation, freshness-window expansion, document classification, and guardrails
   taskless AI Playground and Tool Tester contexts expose no sensitive aliases.
 - Tool argument metadata now includes `IsLongText`; the atomic **Edit workflow text** dialog edits
   `ai.prompt.prompt` with `includeContext` and `filesystem.powerShell.script` with a local-execution warning.
+
+### Stage 24 — Direct Chat persistence and context memory — 2026-08-12
+
+- Added **Direct Chat** immediately after **Tasks** in the permanent WPF navigation rail.
+  `DirectChatPage` and `DirectChatViewModel` provide multiple conversations, streamed replies,
+  cancellation, safe Markdown rendering with text fallback, deletion confirmation, progressive
+  message loading, and automatic titles based on the first user message. Direct Chat deliberately
+  exposes no tools or skills.
+- Added `DirectChatConversation`, `DirectChatMessage`, role/state enums, and the
+  `IDirectChatStore` contract in Core. `SqliteDirectChatStore` owns
+  `%LOCALAPPDATA%\OD.MyLocalAgent\direct-chat.db`, schema version 1, parameterized SQL,
+  foreign-key cascades, transactional updates, deterministic ordering, and recovery of abandoned
+  `Pending`/`Streaming` messages as `Failed`. The Windows-serviced SQLite provider initialization
+  is centralized in `SqliteNativeBootstrap` and shared with `SqliteTool`.
+- The database uses `journal_mode=DELETE`, `synchronous=FULL`, no connection pooling, and one
+  application synchronization gate. Assistant content is checkpointed no more than once per
+  second. The file is local but not encrypted; only secrets in `secrets.dat` receive DPAPI
+  protection.
+- `DirectChatContextBuilder` projects a fixed chat instruction, the optional global system prompt,
+  cumulative memory, and messages after the summary boundary into provider-neutral
+  `Microsoft.Extensions.AI.ChatMessage` instances. `ConservativeTokenEstimator` supplies the
+  provider-independent size estimate.
+- `DirectChatHistoryCompressor` runs a deterministic internal model call when estimated input
+  reaches the configured ratio. It summarizes only a complete old-message prefix, preserves at
+  least the configured recent user turns, uses the target context ratio to choose the prefix,
+  and atomically advances `SummaryThroughSequence`. Original messages remain stored and visible.
+- `DirectChatOptions` defaults to a 70% trigger, 45% target, 25% response reserve, four recent
+  turns, 1,024 summary tokens, and four estimated characters per token. The declared total window
+  remains `AI:GenerationDefaults:ContextWindowTokens`.
+- Added SQLite persistence/recovery/cascade tests, context and compression tests, a ViewModel
+  streaming-to-persistence test, and a navigation-order assertion. The final Release build passed
+  with zero warnings and errors; the non-integration suite passed 599 tests with the expected
+  local Ollama probe skipped.
