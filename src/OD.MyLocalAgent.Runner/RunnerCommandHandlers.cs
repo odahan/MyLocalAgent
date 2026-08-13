@@ -126,7 +126,7 @@ internal static class RunnerCommandHandlers
         output.WriteLine(
             $"Task '{task.Id}' finished with status " +
             $"{(outcome.Result.Success ? "Success" : "Failure")}.");
-        output.WriteLine($"Report: {outcome.Report.ReportPath}");
+        output.WriteLine($"Task execution report: {outcome.Report.ReportPath}");
 
         var scheduler = services.GetRequiredService<ITaskSchedulerService>();
         await scheduler.RegisterAsync(task, cancellationToken).ConfigureAwait(false);
