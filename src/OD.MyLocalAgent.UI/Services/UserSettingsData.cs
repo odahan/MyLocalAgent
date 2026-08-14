@@ -39,7 +39,9 @@ namespace OD.MyLocalAgent.UI.Services;
 /// <param name="SQLiteMaxSqlCharacters">The maximum SQLite SQL size.</param>
 /// <param name="SQLiteCommandTimeoutSeconds">The SQLite command timeout.</param>
 /// <param name="SQLiteGuardrailsEnabledByDefault">The SQLite Guardrails default for new tasks.</param>
-/// <param name="GlobalSystemPrompt">The optional project-wide AI instructions.</param>
+/// <param name="AgentSystemPrompt">The optional agentic-task instructions.</param>
+/// <param name="DirectChatSystemPrompt">The optional Direct Chat instructions.</param>
+/// <param name="PromptStepSystemPrompt">The optional workflow prompt-step instructions.</param>
 /// <param name="FileContentMaxInputFileBytes">The maximum parser input size.</param>
 /// <param name="FileContentMaxArchiveEntries">The archive entry ceiling.</param>
 /// <param name="FileContentMaxArchiveEntryBytes">The per-entry extraction ceiling.</param>
@@ -94,7 +96,9 @@ public sealed record UserSettingsData(
     int SQLiteMaxSqlCharacters = 16_000,
     int SQLiteCommandTimeoutSeconds = 30,
     bool SQLiteGuardrailsEnabledByDefault = true,
-    string GlobalSystemPrompt = "",
+    string AgentSystemPrompt = "",
+    string DirectChatSystemPrompt = "",
+    string PromptStepSystemPrompt = "",
     long FileContentMaxInputFileBytes = 104857600,
     int FileContentMaxArchiveEntries = 10000,
     long FileContentMaxArchiveEntryBytes = 262144000,

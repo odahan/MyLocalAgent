@@ -21,7 +21,9 @@ public sealed class DirectChatContextTests
         var aiOptions = new MutableOptionsMonitor<AIOptions>(
             new AIOptions
             {
-                GlobalSystemPrompt = "Global instruction",
+                AgentSystemPrompt = "Agent instruction",
+                DirectChatSystemPrompt = "Direct Chat instruction",
+                PromptStepSystemPrompt = "Prompt step instruction",
                 GenerationDefaults = new AIGenerationDefaults
                 {
                     ContextWindowTokens = 8192,
@@ -46,7 +48,23 @@ public sealed class DirectChatContextTests
         plan.Messages.Should().Contain(message => message.Text == "recent user");
         plan.Messages.Should().NotContain(message => message.Text == "old user");
         plan.Messages.Should().NotContain(message => message.Text == "old assistant");
-        plan.Messages.Should().Contain(message => message.Text == "Global instruction");
+        plan.Messages.Should().Contain(message => message.Text == "Direct Chat instruction");
+        plan.Messages.Should().NotContain(message => message.Text == "Agent instruction");
+        plan.Messages.Should().NotContain(message => message.Text == "Prompt step instruction");
+    }
+
+    /// <summary>Verifies the former global setting remains a fallback during migration.</summary>
+    [Fact]
+    public void SpecializedPromptsFallBackToLegacyGlobalInstructions()
+    {
+        var options = new AIOptions
+        {
+            GlobalSystemPrompt = "Legacy instruction",
+        };
+
+        options.EffectiveAgentSystemPrompt.Should().Be("Legacy instruction");
+        options.EffectiveDirectChatSystemPrompt.Should().Be("Legacy instruction");
+        options.EffectivePromptStepSystemPrompt.Should().Be("Legacy instruction");
     }
 
     /// <summary>Verifies compression advances through old complete turns and keeps four recent user turns.</summary>

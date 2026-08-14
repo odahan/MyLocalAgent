@@ -99,17 +99,38 @@
                             CornerRadius="6">
                         <StackPanel>
                             <TextBlock FontWeight="SemiBold"
-                                       Text="Project-wide AI instructions" />
+                                       Text="System prompts" />
                             <TextBlock Margin="0,5,0,12"
                                        Style="{StaticResource CaptionTextStyle}"
-                                       Text="Optional instructions shared by task agents and AI workflow prompts. Use concise, stable conventions such as language, output style, or coding standards. Built-in safety rules and the current task always take priority."
+                                       Text="Optional instructions specialized by execution mode. Built-in safety rules and the current request always take priority."
                                        TextWrapping="Wrap" />
+                            <TextBlock Margin="0,0,0,5"
+                                       FontWeight="SemiBold"
+                                       Text="Agent tasks" />
                             <TextBox MinHeight="100"
                                      AcceptsReturn="True"
-                                     Text="{Binding GlobalSystemPrompt, UpdateSourceTrigger=PropertyChanged}"
+                                     Text="{Binding AgentSystemPrompt, UpdateSourceTrigger=PropertyChanged}"
                                      TextWrapping="Wrap"
                                      VerticalScrollBarVisibility="Auto"
-                                     materialDesign:HintAssist.Hint="Leave empty to use only built-in instructions" />
+                                     materialDesign:HintAssist.Hint="Instructions for autonomous tasks that can use tools" />
+                            <TextBlock Margin="0,16,0,5"
+                                       FontWeight="SemiBold"
+                                       Text="Direct Chat" />
+                            <TextBox MinHeight="100"
+                                     AcceptsReturn="True"
+                                     Text="{Binding DirectChatSystemPrompt, UpdateSourceTrigger=PropertyChanged}"
+                                     TextWrapping="Wrap"
+                                     VerticalScrollBarVisibility="Auto"
+                                     materialDesign:HintAssist.Hint="Instructions for direct conversations" />
+                            <TextBlock Margin="0,16,0,5"
+                                       FontWeight="SemiBold"
+                                       Text="AI prompt steps" />
+                            <TextBox MinHeight="100"
+                                     AcceptsReturn="True"
+                                     Text="{Binding PromptStepSystemPrompt, UpdateSourceTrigger=PropertyChanged}"
+                                     TextWrapping="Wrap"
+                                     VerticalScrollBarVisibility="Auto"
+                                     materialDesign:HintAssist.Hint="Instructions for workflow ai.prompt steps" />
                         </StackPanel>
                     </Border>
 

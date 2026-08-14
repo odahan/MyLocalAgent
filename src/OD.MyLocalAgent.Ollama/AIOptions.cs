@@ -31,7 +31,39 @@ public sealed record AIOptions
     public AIGenerationDefaults GenerationDefaults { get; init; } = new();
 
     /// <summary>
-    /// Gets the optional project-wide instructions included in every task and workflow AI call.
+    /// Gets the optional instructions included in agentic task calls.
+    /// </summary>
+    public string AgentSystemPrompt { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the optional instructions included in Direct Chat calls.
+    /// </summary>
+    public string DirectChatSystemPrompt { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the optional instructions included in workflow <c>ai.prompt</c> calls.
+    /// </summary>
+    public string PromptStepSystemPrompt { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the legacy project-wide instructions used as a migration fallback.
     /// </summary>
     public string GlobalSystemPrompt { get; init; } = string.Empty;
+
+    /// <summary>Gets the effective agent instructions, including legacy fallback.</summary>
+    public string EffectiveAgentSystemPrompt =>
+        ResolveSpecializedPrompt(AgentSystemPrompt);
+
+    /// <summary>Gets the effective Direct Chat instructions, including legacy fallback.</summary>
+    public string EffectiveDirectChatSystemPrompt =>
+        ResolveSpecializedPrompt(DirectChatSystemPrompt);
+
+    /// <summary>Gets the effective prompt-step instructions, including legacy fallback.</summary>
+    public string EffectivePromptStepSystemPrompt =>
+        ResolveSpecializedPrompt(PromptStepSystemPrompt);
+
+    private string ResolveSpecializedPrompt(string specializedPrompt) =>
+        string.IsNullOrWhiteSpace(specializedPrompt)
+            ? GlobalSystemPrompt
+            : specializedPrompt;
 }

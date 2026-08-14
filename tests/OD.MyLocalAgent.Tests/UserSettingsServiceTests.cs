@@ -37,7 +37,8 @@ public sealed class UserSettingsServiceTests : IDisposable
                 "Keep": "yes"
               },
               "AI": {
-                "FutureSetting": "preserve"
+                "FutureSetting": "preserve",
+                "GlobalSystemPrompt": "legacy instructions"
               },
               "WebSearch": {
                 "Provider": "",
@@ -70,7 +71,12 @@ public sealed class UserSettingsServiceTests : IDisposable
             " web-secret ",
             CancellationToken.None);
         await service.SaveAsync(
-            ValidSettings(),
+            ValidSettings() with
+            {
+                AgentSystemPrompt = "Agent instructions",
+                DirectChatSystemPrompt = "Chat instructions",
+                PromptStepSystemPrompt = "Prompt step instructions",
+            },
             replacementApiKey: null,
             CancellationToken.None);
         await service.SaveWebSearchAsync(
@@ -103,6 +109,13 @@ public sealed class UserSettingsServiceTests : IDisposable
         generation.GetProperty("TopP").GetDouble().Should().Be(1);
         generation.GetProperty("ContextWindowTokens").GetInt32()
             .Should().Be(8192);
+        ai.GetProperty("AgentSystemPrompt").GetString()
+            .Should().Be("Agent instructions");
+        ai.GetProperty("DirectChatSystemPrompt").GetString()
+            .Should().Be("Chat instructions");
+        ai.GetProperty("PromptStepSystemPrompt").GetString()
+            .Should().Be("Prompt step instructions");
+        ai.TryGetProperty("GlobalSystemPrompt", out _).Should().BeFalse();
         root.TryGetProperty("Safety", out _).Should().BeFalse();
         var sqlite = root.GetProperty("SQLite");
         sqlite.GetProperty("DefaultMaxRows").GetInt32().Should().Be(100);

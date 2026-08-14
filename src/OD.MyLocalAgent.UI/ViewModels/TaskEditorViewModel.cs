@@ -562,18 +562,25 @@ public sealed partial class TaskEditorViewModel :
         {
             _desktopInteraction.ShowInformation(
                 "Applied system prompt",
-                "Project-wide AI instructions are disabled for this task. " +
-                "No project-wide instructions will be added; built-in safety instructions remain active.");
+                "Configured system prompts are disabled for this task. " +
+                "Built-in safety instructions remain active.");
             return;
         }
 
-        var globalInstructions = _aiOptions?.CurrentValue.GlobalSystemPrompt;
+        var options = _aiOptions?.CurrentValue;
+        var agentInstructions = options?.EffectiveAgentSystemPrompt;
+        var promptStepInstructions = options?.EffectivePromptStepSystemPrompt;
+        var hasAgentInstructions = !string.IsNullOrWhiteSpace(agentInstructions);
+        var hasPromptStepInstructions = !string.IsNullOrWhiteSpace(promptStepInstructions);
         _desktopInteraction.ShowInformation(
-            "Applied system prompt",
-            string.IsNullOrWhiteSpace(globalInstructions)
-                ? "No project-wide AI instructions are currently configured. " +
+            "Applied system prompts",
+            !hasAgentInstructions && !hasPromptStepInstructions
+                ? "No task system prompts are currently configured. " +
                   "Built-in safety instructions remain active."
-                : globalInstructions.Trim());
+                : $"Agent tasks:{Environment.NewLine}" +
+                  (hasAgentInstructions ? agentInstructions!.Trim() : "(none)") +
+                  $"{Environment.NewLine}{Environment.NewLine}AI prompt steps:{Environment.NewLine}" +
+                  (hasPromptStepInstructions ? promptStepInstructions!.Trim() : "(none)"));
     }
 
     [RelayCommand]

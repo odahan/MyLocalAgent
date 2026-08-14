@@ -2038,3 +2038,12 @@ compilation, freshness-window expansion, document classification, and guardrails
 - Release verification: `dotnet test OD.MyLocalAgent.sln --configuration Release --no-restore
   --filter "Category!=Integration" -m:1` completed with 625 passed, 0 failed, and 1 skipped
   local integration probe. The Release build completed with 0 warnings and 0 errors.
+
+### Version 1.4.2 — Specialized system prompts — 2026-08-14
+
+- Replaced the single project-wide user prompt with specialized Agent tasks, Direct Chat, and
+  workflow `ai.prompt` instructions, while retaining the built-in safety prompt for every mode.
+- Kept the legacy `AI:GlobalSystemPrompt` as a read-time migration fallback and remove it from the
+  persisted document on the first subsequent Settings save.
+- Added Settings and task-editor projections plus deterministic coverage for prompt isolation,
+  fallback migration, and persistence.

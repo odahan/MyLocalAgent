@@ -86,10 +86,12 @@ public sealed class DirectChatContextBuilder(
             new(ChatRole.System, DirectChatSystemPrompt),
         };
         var options = _aiOptions.CurrentValue;
-        if (!string.IsNullOrWhiteSpace(options.GlobalSystemPrompt))
+        if (!string.IsNullOrWhiteSpace(options.EffectiveDirectChatSystemPrompt))
         {
             providerMessages.Add(
-                new ChatMessage(ChatRole.System, options.GlobalSystemPrompt.Trim()));
+                new ChatMessage(
+                    ChatRole.System,
+                    options.EffectiveDirectChatSystemPrompt.Trim()));
         }
 
         if (!string.IsNullOrWhiteSpace(conversation.SummaryText))

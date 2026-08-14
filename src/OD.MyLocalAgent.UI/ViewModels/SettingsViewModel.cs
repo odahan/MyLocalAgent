@@ -47,7 +47,9 @@ public sealed partial class SettingsViewModel :
         nameof(GenerationTemperatureText),
         nameof(GenerationTopPText),
         nameof(ContextWindowTokensText),
-        nameof(GlobalSystemPrompt),
+        nameof(AgentSystemPrompt),
+        nameof(DirectChatSystemPrompt),
+        nameof(PromptStepSystemPrompt),
         nameof(ApiKeyReplacement),
         nameof(FileSystemRootPath),
         nameof(HttpTimeoutSeconds),
@@ -181,7 +183,13 @@ public sealed partial class SettingsViewModel :
     private string _contextWindowTokensText = "8192";
 
     [ObservableProperty]
-    private string _globalSystemPrompt = string.Empty;
+    private string _agentSystemPrompt = string.Empty;
+
+    [ObservableProperty]
+    private string _directChatSystemPrompt = string.Empty;
+
+    [ObservableProperty]
+    private string _promptStepSystemPrompt = string.Empty;
 
     [ObservableProperty]
     private string _generationValidationText =
@@ -577,7 +585,9 @@ public sealed partial class SettingsViewModel :
             ContextWindowTokensText =
                 ai.GenerationDefaults.ContextWindowTokens.ToString(
                     CultureInfo.CurrentCulture);
-            GlobalSystemPrompt = ai.GlobalSystemPrompt;
+            AgentSystemPrompt = ai.EffectiveAgentSystemPrompt;
+            DirectChatSystemPrompt = ai.EffectiveDirectChatSystemPrompt;
+            PromptStepSystemPrompt = ai.EffectivePromptStepSystemPrompt;
             UpdateGenerationValidation();
             OllamaEndpoint = ollama.Endpoint;
             OllamaTimeoutSeconds = ollama.TimeoutSeconds;
@@ -738,7 +748,9 @@ public sealed partial class SettingsViewModel :
                 SqliteMaxSqlCharacters,
                 SqliteCommandTimeoutSeconds,
                 SqliteGuardrailsEnabledByDefault,
-                GlobalSystemPrompt.Trim(),
+                AgentSystemPrompt.Trim(),
+                DirectChatSystemPrompt.Trim(),
+                PromptStepSystemPrompt.Trim(),
                 FileContentMaxInputFileBytes,
                 FileContentMaxArchiveEntries,
                 FileContentMaxArchiveEntryBytes,

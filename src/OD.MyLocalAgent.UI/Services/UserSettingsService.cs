@@ -76,6 +76,17 @@ internal sealed class UserSettingsService : IUserSettingsService
                 {
                     var aiSection = document[AIOptions.SectionName] as JsonObject
                         ?? new JsonObject();
+                    foreach (var legacyPromptKey in aiSection
+                                 .Select(static property => property.Key)
+                                 .Where(static key => string.Equals(
+                                     key,
+                                     nameof(AIOptions.GlobalSystemPrompt),
+                                     StringComparison.OrdinalIgnoreCase))
+                                 .ToArray())
+                    {
+                        _ = aiSection.Remove(legacyPromptKey);
+                    }
+
                     var savedAI = JsonSerializer.SerializeToNode(
                         section.Value,
                         SerializerOptions)!.AsObject();
@@ -252,7 +263,9 @@ internal sealed class UserSettingsService : IUserSettingsService
                     ["TopP"] = settings.GenerationTopP,
                     ["ContextWindowTokens"] = settings.ContextWindowTokens,
                 },
-                ["GlobalSystemPrompt"] = settings.GlobalSystemPrompt.Trim(),
+                ["AgentSystemPrompt"] = settings.AgentSystemPrompt.Trim(),
+                ["DirectChatSystemPrompt"] = settings.DirectChatSystemPrompt.Trim(),
+                ["PromptStepSystemPrompt"] = settings.PromptStepSystemPrompt.Trim(),
             },
             ["Ollama"] = new Dictionary<string, object>
             {

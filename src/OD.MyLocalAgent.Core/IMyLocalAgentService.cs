@@ -35,7 +35,7 @@ public interface IMyLocalAgentService
         RunPromptWithoutToolsAsync(prompt, generationPolicy, cancellationToken);
 
     /// <summary>
-    /// Generates one model response without tools with an explicit project-instructions preference.
+    /// Generates one model response without tools with an explicit configured-instructions preference.
     /// </summary>
     Task<AgentRunResult> RunPromptWithoutToolsAsync(
         string prompt,

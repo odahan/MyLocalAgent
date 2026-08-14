@@ -17,7 +17,7 @@ public sealed record ToolExecutionContext
     /// <param name="fileSystemAccess">The task's absolute-directory grants.</param>
     /// <param name="capabilities">The task's sensitive capability grants.</param>
     /// <param name="sqliteGuardrailsEnabled">The persisted SQLite Guardrails preference, or <see langword="null"/> for taskless use.</param>
-    /// <param name="useGlobalSystemPrompt">Whether project-wide AI instructions apply, or <see langword="null"/> for taskless use.</param>
+    /// <param name="useGlobalSystemPrompt">Whether configured task system prompts apply, or <see langword="null"/> for taskless use.</param>
     public ToolExecutionContext(
         string? taskId,
         IEnumerable<FileSystemAccessRule> fileSystemAccess,

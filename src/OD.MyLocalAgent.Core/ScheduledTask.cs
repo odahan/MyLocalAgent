@@ -29,7 +29,7 @@ public sealed record ScheduledTask
     public string Prompt { get; init; } = string.Empty;
 
     /// <summary>
-    /// Gets a value indicating whether project-wide AI instructions apply to this task.
+    /// Gets a value indicating whether configured task system prompts apply to this task.
     /// </summary>
     public bool UseGlobalSystemPrompt { get; init; } = true;
 
