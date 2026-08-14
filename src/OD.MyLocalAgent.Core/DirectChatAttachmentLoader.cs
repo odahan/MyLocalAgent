@@ -9,7 +9,7 @@ namespace OD.MyLocalAgent.Core;
 /// <summary>Loads bounded local files into Direct Chat attachment content.</summary>
 public static class DirectChatAttachmentLoader
 {
-    /// <summary>Loads a supported image or UTF-8 text document.</summary>
+    /// <summary>Loads a supported image, document, or detected text file.</summary>
     public static async Task<DirectChatAttachment> LoadAsync(
         string path,
         CancellationToken cancellationToken = default)
@@ -25,7 +25,7 @@ public static class DirectChatAttachmentLoader
         const long maximumBytes = 10 * 1024 * 1024;
         if (info.Length > maximumBytes)
         {
-            throw new InvalidOperationException("Attachments are limited to 10 MB.");
+            throw new DirectChatAttachmentException("Attachments are limited to 10 MB.");
         }
 
         var extension = Path.GetExtension(fullPath).ToLowerInvariant();
@@ -54,12 +54,8 @@ public static class DirectChatAttachmentLoader
             };
         }
 
-        if (!TextMediaTypes.TryGetValue(extension, out mediaType))
-        {
-            throw new InvalidOperationException("Supported attachments are text files and PNG, JPEG, WebP, GIF, or BMP images.");
-        }
-
-        var text = await File.ReadAllTextAsync(fullPath, Encoding.UTF8, cancellationToken).ConfigureAwait(false);
+        var bytes = await File.ReadAllBytesAsync(fullPath, cancellationToken).ConfigureAwait(false);
+        var text = DecodeTextFile(bytes);
         const int maximumCharacters = 64_000;
         if (text.Length > maximumCharacters)
         {
@@ -69,7 +65,7 @@ public static class DirectChatAttachmentLoader
         return new DirectChatAttachment
         {
             FileName = Path.GetFileName(fullPath),
-            MediaType = mediaType,
+            MediaType = TextMediaTypes.GetValueOrDefault(extension, "text/plain"),
             Kind = DirectChatAttachmentKind.Text,
             Text = text,
         };
@@ -87,6 +83,10 @@ public static class DirectChatAttachmentLoader
         {
             [".txt"] = "text/plain", [".md"] = "text/markdown", [".csv"] = "text/csv",
             [".json"] = "application/json", [".xml"] = "application/xml", [".log"] = "text/plain",
+            [".yaml"] = "application/yaml", [".yml"] = "application/yaml", [".toml"] = "text/plain",
+            [".cs"] = "text/plain", [".csproj"] = "application/xml", [".sln"] = "text/plain",
+            [".js"] = "text/javascript", [".ts"] = "text/plain", [".html"] = "text/html",
+            [".css"] = "text/css", [".py"] = "text/plain", [".ps1"] = "text/plain",
         };
 
     private static readonly IReadOnlyDictionary<string, string> DocumentMediaTypes =
@@ -146,4 +146,47 @@ public static class DirectChatAttachmentLoader
         const int maximumCharacters = 64_000;
         return text.Length <= maximumCharacters ? text : text[..maximumCharacters] + "\n[Attachment text truncated]";
     }
+
+    private static string DecodeTextFile(byte[] bytes)
+    {
+        if (bytes.AsSpan().IndexOf((byte)0) >= 0 && !HasUnicodeByteOrderMark(bytes))
+        {
+            throw new DirectChatAttachmentException(
+                "This file appears to be binary and cannot be attached. Choose a text document, a supported office document, or an image.");
+        }
+
+        try
+        {
+            var text = GetTextEncoding(bytes).GetString(bytes);
+            if (text.Length > 0 && text[0] == '\uFEFF') text = text[1..];
+
+            var disallowedControlCharacters = text.Count(static character =>
+                char.IsControl(character) && character is not ('\r' or '\n' or '\t' or '\f'));
+            if (disallowedControlCharacters > Math.Max(3, text.Length / 100))
+            {
+                throw new DirectChatAttachmentException(
+                    "This file appears to be binary and cannot be attached. Choose a text document, a supported office document, or an image.");
+            }
+
+            return text;
+        }
+        catch (DecoderFallbackException)
+        {
+            throw new DirectChatAttachmentException(
+                "This file is not valid text and cannot be attached. Choose a text document, a supported office document, or an image.");
+        }
+    }
+
+    private static Encoding GetTextEncoding(byte[] bytes)
+    {
+        if (bytes.AsSpan().StartsWith(new byte[] { 0xFF, 0xFE, 0x00, 0x00 })) return new UTF32Encoding(false, true, true);
+        if (bytes.AsSpan().StartsWith(new byte[] { 0x00, 0x00, 0xFE, 0xFF })) return new UTF32Encoding(true, true, true);
+        if (bytes.AsSpan().StartsWith(new byte[] { 0xFF, 0xFE })) return new UnicodeEncoding(false, true, true);
+        if (bytes.AsSpan().StartsWith(new byte[] { 0xFE, 0xFF })) return new UnicodeEncoding(true, true, true);
+        return new UTF8Encoding(false, true);
+    }
+
+    private static bool HasUnicodeByteOrderMark(byte[] bytes) =>
+        bytes.AsSpan().StartsWith(new byte[] { 0xFF, 0xFE }) ||
+        bytes.AsSpan().StartsWith(new byte[] { 0xFE, 0xFF });
 }

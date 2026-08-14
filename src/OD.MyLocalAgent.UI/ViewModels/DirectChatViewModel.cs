@@ -17,6 +17,10 @@ namespace OD.MyLocalAgent.UI.ViewModels;
 public sealed partial class DirectChatViewModel : ObservableObject, IActivatablePage, IAsyncNavigationGuard
 {
     private const int MessagePageSize = 100;
+    private const string TextFileFilter = "Text files|*.txt;*.md;*.csv;*.json;*.xml;*.log;*.yaml;*.yml;*.toml;*.cs;*.csproj;*.sln;*.js;*.ts;*.html;*.css;*.py;*.ps1;*.sql;*.ini;*.cfg;*.config;*.env";
+    private const string OfficeFileFilter = "Office and PDF files|*.pdf;*.docx;*.xls;*.xlsx";
+    private const string ImageFileFilter = "Image files|*.png;*.jpg;*.jpeg;*.webp;*.gif;*.bmp";
+    private const string AllFilesFilter = "All files|*.*";
     private const string EmptyResponseMessage =
         "The AI provider completed the request without returning response text. Try again or select a different model.";
     private readonly IDirectChatStore _store;
@@ -352,8 +356,8 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
         var path = _desktopInteraction.SelectOpenFile(
             "Attach file",
             SupportsImageInput
-                ? "Supported files|*.txt;*.md;*.csv;*.json;*.xml;*.log;*.pdf;*.docx;*.xls;*.xlsx;*.png;*.jpg;*.jpeg;*.webp;*.gif;*.bmp|Documents|*.pdf;*.docx;*.xls;*.xlsx|Text files|*.txt;*.md;*.csv;*.json;*.xml;*.log|Images|*.png;*.jpg;*.jpeg;*.webp;*.gif;*.bmp"
-                : "Documents|*.pdf;*.docx;*.xls;*.xlsx|Text files|*.txt;*.md;*.csv;*.json;*.xml;*.log");
+                ? $"{TextFileFilter}|{ImageFileFilter}|{OfficeFileFilter}|{AllFilesFilter}"
+                : $"{TextFileFilter}|{OfficeFileFilter}|{AllFilesFilter}");
         if (string.IsNullOrWhiteSpace(path)) return;
         try
         {
@@ -364,6 +368,11 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
             }
             PendingAttachments.Add(new DirectChatAttachmentItem(attachment));
             SendCommand.NotifyCanExecuteChanged();
+        }
+        catch (DirectChatAttachmentException exception)
+        {
+            StatusText = exception.Message;
+            _desktopInteraction.ShowError("Unable to attach file", exception.Message);
         }
         catch (Exception exception)
         {
