@@ -42,13 +42,13 @@ internal sealed class DynamicOllamaChatClient : IChatClient
         catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
         {
             throw new OllamaUnavailableException(
-                $"Ollama did not respond within {current.TimeoutSeconds} seconds.",
+                $"The configured model '{model}' did not respond within {current.TimeoutSeconds} seconds.",
                 exception);
         }
         catch (HttpRequestException exception)
         {
             throw new OllamaUnavailableException(
-                $"Ollama is unavailable at '{current.Endpoint}'.",
+                $"The configured model '{model}' is unavailable at '{current.Endpoint}'.",
                 exception);
         }
     }
@@ -74,13 +74,13 @@ internal sealed class DynamicOllamaChatClient : IChatClient
             catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
             {
                 throw new OllamaUnavailableException(
-                    $"Ollama did not respond within {current.TimeoutSeconds} seconds.",
+                    $"The configured model '{model}' did not respond within {current.TimeoutSeconds} seconds.",
                     exception);
             }
             catch (HttpRequestException exception)
             {
                 throw new OllamaUnavailableException(
-                    $"Ollama is unavailable at '{current.Endpoint}'.",
+                    $"The configured model '{model}' is unavailable at '{current.Endpoint}'.",
                     exception);
             }
 
@@ -101,13 +101,13 @@ internal sealed class DynamicOllamaChatClient : IChatClient
                 catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
                 {
                     throw new OllamaUnavailableException(
-                        $"Ollama did not respond within {current.TimeoutSeconds} seconds.",
+                        $"The configured model '{model}' did not respond within {current.TimeoutSeconds} seconds.",
                         exception);
                 }
                 catch (HttpRequestException exception)
                 {
                     throw new OllamaUnavailableException(
-                        $"Ollama is unavailable at '{current.Endpoint}'.",
+                        $"The configured model '{model}' is unavailable at '{current.Endpoint}'.",
                         exception);
                 }
 

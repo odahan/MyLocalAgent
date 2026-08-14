@@ -149,6 +149,16 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
     [ObservableProperty]
     private bool _supportsImageInput;
 
+    [ObservableProperty]
+    private bool _reasoningEnabled = true;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasReasoning))]
+    private string _reasoningText = string.Empty;
+
+    /// <summary>Gets whether the active response exposed visible reasoning text.</summary>
+    public bool HasReasoning => !string.IsNullOrWhiteSpace(ReasoningText);
+
     partial void OnAgentEnabledChanged(bool value) => RefreshAgentSummary();
 
     /// <inheritdoc />
@@ -488,6 +498,10 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
             Tools = ToolSelections.Where(static item => item.IsSelected).Select(static item => item.Name).ToArray(),
             Capabilities = CapabilitySelections.Where(static item => item.IsSelected).Select(static item => item.Capability).ToArray(),
             FileSystemAccess = AuthorizedLocations.Select(static item => item.ToRule()).ToArray(),
+            GenerationOptions = new GenerationOptions
+            {
+                ReasoningEnabled = ReasoningEnabled,
+            },
             Enabled = false,
         };
         await _taskStore.SaveAsync(task, cancellationToken).ConfigureAwait(true);
@@ -508,6 +522,7 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
         }
 
         IsStreaming = true;
+        ReasoningText = string.Empty;
         DirectChatMessage? assistantMessage = null;
         DirectChatMessageItem? assistantItem = null;
         try
@@ -607,7 +622,10 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
             var provider = _llmClientFactory.Create();
             ProviderBadge = $"{provider.ProviderName} · {provider.ModelName}";
             var policy = GenerationPolicyResolver.Resolve(
-                _aiOptions.CurrentValue.GenerationDefaults);
+                _aiOptions.CurrentValue.GenerationDefaults) with
+            {
+                ReasoningEnabled = ReasoningEnabled,
+            };
             var client = new GenerationPolicyChatClient(
                 provider.ChatClient,
                 policy,
@@ -616,7 +634,7 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
             var response = new System.Text.StringBuilder();
             var checkpoint = Stopwatch.StartNew();
             var chunks = AgentEnabled
-                ? _agentService.RunPromptStreamingAsync(
+                ? _agentService.RunPromptStreamingUpdatesAsync(
                     BuildAgentPrompt(plan.Messages),
                     ToolSelections.Where(static item => item.IsSelected).Select(static item => item.Name),
                     new ToolExecutionContext(
@@ -625,15 +643,21 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
                         CapabilitySelections.Where(static item => item.IsSelected).Select(static item => item.Capability)),
                     policy,
                     cancellationToken)
-                : GetChatTextChunksAsync(client, plan.Messages, cancellationToken);
-            await foreach (var textUpdate in chunks.ConfigureAwait(true))
+                : GetChatUpdatesAsync(client, plan.Messages, cancellationToken);
+            await foreach (var update in chunks.ConfigureAwait(true))
             {
-                if (string.IsNullOrEmpty(textUpdate))
+                if (string.IsNullOrEmpty(update.Text))
                 {
                     continue;
                 }
 
-                response.Append(textUpdate);
+                if (update.IsReasoning)
+                {
+                    ReasoningText += update.Text;
+                    continue;
+                }
+
+                response.Append(update.Text);
                 assistantItem.Update(response.ToString(), DirectChatMessageState.Streaming);
                 if (checkpoint.Elapsed >= TimeSpan.FromSeconds(1))
                 {
@@ -798,14 +822,25 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
         messages.Where(static message => message.Role != ChatRole.System)
             .Select(static message => $"{message.Role}: {message.Text}"));
 
-    private static async IAsyncEnumerable<string> GetChatTextChunksAsync(
+    private static async IAsyncEnumerable<AgentStreamUpdate> GetChatUpdatesAsync(
         IChatClient client,
         IReadOnlyList<ChatMessage> messages,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         await foreach (var update in client.GetStreamingResponseAsync(messages, cancellationToken: cancellationToken).ConfigureAwait(false))
         {
-            yield return update.Text;
+            foreach (var reasoning in update.Contents.OfType<TextReasoningContent>())
+            {
+                if (!string.IsNullOrEmpty(reasoning.Text))
+                {
+                    yield return new AgentStreamUpdate(reasoning.Text, IsReasoning: true);
+                }
+            }
+
+            if (!string.IsNullOrEmpty(update.Text))
+            {
+                yield return new AgentStreamUpdate(update.Text, IsReasoning: false);
+            }
         }
     }
 

@@ -39,6 +39,10 @@ internal sealed class StubChatClient : IChatClient
 
     public Func<int, ChatResponse>? ResponseFactory { get; set; }
 
+    public IReadOnlyList<ChatResponseUpdate>? StreamingUpdates { get; set; }
+
+    public Func<int, Exception?>? StreamingExceptionFactory { get; set; }
+
     public bool WaitForCancellation { get; set; }
 
     public async Task<ChatResponse> GetResponseAsync(
@@ -84,7 +88,22 @@ internal sealed class StubChatClient : IChatClient
         OptionCalls.Add(options);
         CallCount++;
         StreamingCallCount++;
+        if (StreamingExceptionFactory?.Invoke(StreamingCallCount) is { } streamingException)
+        {
+            throw streamingException;
+        }
+
         await Task.Yield();
+        if (StreamingUpdates is not null)
+        {
+            foreach (var update in StreamingUpdates)
+            {
+                yield return update;
+            }
+
+            yield break;
+        }
+
         yield return new ChatResponseUpdate(ChatRole.Assistant, NextResponse());
     }
 

@@ -385,6 +385,23 @@
 
                     <StackPanel Grid.Row="2"
                                 Margin="18,0">
+                        <Expander Margin="0,0,0,8"
+                                  Header="Model reasoning"
+                                  IsExpanded="False"
+                                  Visibility="{Binding HasReasoning, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <Border Margin="0,6,0,0"
+                                    Padding="10"
+                                    Background="{DynamicResource SurfaceBrush}"
+                                    CornerRadius="8">
+                                <TextBox Background="Transparent"
+                                         BorderThickness="0"
+                                         IsReadOnly="True"
+                                         MaxHeight="180"
+                                         Text="{Binding ReasoningText}"
+                                         TextWrapping="Wrap"
+                                         VerticalScrollBarVisibility="Auto" />
+                            </Border>
+                        </Expander>
                         <ItemsControl ItemsSource="{Binding PendingAttachments}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
@@ -436,6 +453,22 @@
                                    Text="Ctrl+Enter to send" />
                         <StackPanel HorizontalAlignment="Right"
                                     Orientation="Horizontal">
+                            <CheckBox Margin="0,0,14,0"
+                                      VerticalAlignment="Center"
+                                      Content="Reasoning"
+                                      IsChecked="{Binding ReasoningEnabled}"
+                                      ToolTip="Request model reasoning. Unsupported providers fall back to their default behavior.">
+                                <CheckBox.Style>
+                                    <Style TargetType="CheckBox" BasedOn="{StaticResource MaterialDesignCheckBox}">
+                                        <Setter Property="IsEnabled" Value="True" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsStreaming}" Value="True">
+                                                <Setter Property="IsEnabled" Value="False" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </CheckBox.Style>
+                            </CheckBox>
                             <Button Margin="0,0,8,0"
                                     Command="{Binding ConvertToTaskCommand}"
                                     Content="Create task" />

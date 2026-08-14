@@ -109,6 +109,29 @@ and the default is restored automatically. With Ollama, install the exact tag fi
 `ollama pull model-name`: the application warms it up before execution and fails without changing
 Settings if it is missing.
 
+Warm-up applies only to the local Ollama provider. It is never sent to OpenAI, OpenRouter, or any
+other cloud endpoint, so it does not consume cloud credits.
+
+### Model reasoning
+
+Turn **Reasoning** on or off in **Direct Chat** for the next reply, including agent mode. For an
+agentic task, use **Enable reasoning for agentic task calls** in the Task editor. Reasoning is on
+by default for these two uses and off for bounded operations: Trust Filter, `ai.prompt` steps,
+history compression, skills, internal helpers, and warm-up.
+
+When a provider returns readable reasoning text, Direct Chat shows it in the expandable **Model
+reasoning** panel. It is not part of the assistant answer and is not stored in conversation history.
+Some models return no readable reasoning; the ordinary answer remains available. If a provider does
+not support this preference, the application continues with that provider's default behavior.
+
+### Trust Filter speed and large documents
+
+Trust Filter requests a short JSON decision without tools or reasoning. This avoids spending time
+on hidden deliberation before the model returns a score. For a long web page or PDF, its output
+capacity grows with the text size (from 1,024 to 8,192 tokens) to retain distinct suspicious
+quotes. On a timeout or failure, content remains protected: it is delivered only as marked Base64,
+and the screen identifies the configured timeout when it caused the result.
+
 ## 5. Validate the local filesystem pipeline
 
 The following acceptance sample creates, writes, and reads a file below the

@@ -15,8 +15,11 @@ public sealed record GenerationOptions
     /// </summary>
     public double? TopP { get; init; }
 
+    /// <summary>Gets the optional override controlling model reasoning for agentic generation.</summary>
+    public bool? ReasoningEnabled { get; init; }
+
     /// <summary>
     /// Gets a value indicating whether neither property is overridden.
     /// </summary>
-    public bool IsEmpty => Temperature is null && TopP is null;
+    public bool IsEmpty => Temperature is null && TopP is null && ReasoningEnabled is null;
 }

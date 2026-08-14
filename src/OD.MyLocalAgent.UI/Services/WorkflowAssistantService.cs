@@ -62,7 +62,9 @@ public sealed class WorkflowAssistantService : IWorkflowAssistantService
         var policyClient = new GenerationPolicyChatClient(
             provider.ChatClient,
             generationPolicy,
-            provider.ProviderName);
+            provider.ProviderName,
+            "workflow-assistant",
+            reasoningEnabled: false);
         await foreach (var update in policyClient
             .GetStreamingResponseAsync(
                 [

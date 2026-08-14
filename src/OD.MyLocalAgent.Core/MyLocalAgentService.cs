@@ -120,7 +120,8 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
                 CreateModelClient(provider.ChatClient),
                 generationPolicy,
                 provider.ProviderName,
-                logicalOperation);
+                logicalOperation,
+                reasoningEnabled: false);
             var systemPrompt = BuildPromptStepSystemPrompt(
                 _timeProvider.GetLocalNow(),
                 ResolvePromptStepSystemPrompt(useGlobalSystemPrompt));
@@ -255,13 +256,13 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
         string prompt,
         IEnumerable<string> enabledTools,
         CancellationToken cancellationToken) =>
-        RunPromptStreamingCoreAsync(
+        GetTextUpdatesAsync(RunPromptStreamingCoreAsync(
             prompt,
             enabledTools,
             ToolExecutionContext.Taskless,
             allowSkills: false,
             ResolveGlobalPolicy(),
-            cancellationToken);
+            cancellationToken), cancellationToken);
 
     /// <inheritdoc />
     public IAsyncEnumerable<string> RunPromptStreamingAsync(
@@ -269,16 +270,31 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
         IEnumerable<string> enabledTools,
         ToolExecutionContext executionContext,
         CancellationToken cancellationToken) =>
-        RunPromptStreamingCoreAsync(
+        GetTextUpdatesAsync(RunPromptStreamingCoreAsync(
             prompt,
             enabledTools,
             executionContext,
             allowSkills: false,
             ResolveGlobalPolicy(),
-            cancellationToken);
+            cancellationToken), cancellationToken);
 
     /// <inheritdoc />
     public IAsyncEnumerable<string> RunPromptStreamingAsync(
+        string prompt,
+        IEnumerable<string> enabledTools,
+        ToolExecutionContext executionContext,
+        EffectiveGenerationPolicy generationPolicy,
+        CancellationToken cancellationToken) =>
+        GetTextUpdatesAsync(RunPromptStreamingCoreAsync(
+            prompt,
+            enabledTools,
+            executionContext,
+            allowSkills: false,
+            generationPolicy,
+            cancellationToken), cancellationToken);
+
+    /// <inheritdoc />
+    public IAsyncEnumerable<AgentStreamUpdate> RunPromptStreamingUpdatesAsync(
         string prompt,
         IEnumerable<string> enabledTools,
         ToolExecutionContext executionContext,
@@ -298,13 +314,13 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
         IEnumerable<string> enabledTools,
         bool allowSkills,
         CancellationToken cancellationToken) =>
-        RunPromptStreamingCoreAsync(
+        GetTextUpdatesAsync(RunPromptStreamingCoreAsync(
             prompt,
             enabledTools,
             ToolExecutionContext.Taskless,
             allowSkills,
             ResolveGlobalPolicy(),
-            cancellationToken);
+            cancellationToken), cancellationToken);
 
     /// <inheritdoc />
     public IAsyncEnumerable<string> RunPromptStreamingAsync(
@@ -313,15 +329,15 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
         bool allowSkills,
         EffectiveGenerationPolicy generationPolicy,
         CancellationToken cancellationToken) =>
-        RunPromptStreamingCoreAsync(
+        GetTextUpdatesAsync(RunPromptStreamingCoreAsync(
             prompt,
             enabledTools,
             ToolExecutionContext.Taskless,
             allowSkills,
             generationPolicy,
-            cancellationToken);
+            cancellationToken), cancellationToken);
 
-    private async IAsyncEnumerable<string> RunPromptStreamingCoreAsync(
+    private async IAsyncEnumerable<AgentStreamUpdate> RunPromptStreamingCoreAsync(
         string prompt,
         IEnumerable<string> enabledTools,
         ToolExecutionContext executionContext,
@@ -362,10 +378,18 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
                            resolvedPrompt,
                            cancellationToken: cancellationToken).ConfigureAwait(false))
         {
+            foreach (var reasoning in update.Contents.OfType<TextReasoningContent>())
+            {
+                if (!string.IsNullOrEmpty(reasoning.Text))
+                {
+                    yield return new AgentStreamUpdate(reasoning.Text, IsReasoning: true);
+                }
+            }
+
             if (!string.IsNullOrEmpty(update.Text))
             {
                 response?.Append(update.Text);
-                yield return update.Text;
+                yield return new AgentStreamUpdate(update.Text, IsReasoning: false);
             }
         }
 
@@ -378,6 +402,19 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
         }
 
         loopGuard.ThrowIfRepeatedCallDetected();
+    }
+
+    private static async IAsyncEnumerable<string> GetTextUpdatesAsync(
+        IAsyncEnumerable<AgentStreamUpdate> updates,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await foreach (var update in updates.WithCancellation(cancellationToken).ConfigureAwait(false))
+        {
+            if (!update.IsReasoning)
+            {
+                yield return update.Text;
+            }
+        }
     }
 
     private async Task<(ILlmClientService Provider, ChatClientAgent Agent, AgentToolLoopGuard LoopGuard)> CreateAgentAsync(
@@ -402,7 +439,8 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
                 CreateModelClient(provider.ChatClient),
                 generationPolicy,
                 provider.ProviderName,
-                "agent");
+                "agent",
+                reasoningEnabled: generationPolicy.ReasoningEnabled);
             var loopGuard = new AgentToolLoopGuard();
             var functionClient = new FunctionInvokingChatClient(policyClient)
             {

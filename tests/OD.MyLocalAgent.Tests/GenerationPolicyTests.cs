@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.AI;
@@ -335,6 +336,9 @@ public sealed class GenerationPolicyTests
             ChatResponseFormat.Json);
         ollamaCapture.LastOptions.AdditionalProperties.Should()
             .ContainKey(OllamaOption.NumCtx.Name);
+        ollamaCapture.LastOptions.AdditionalProperties.Should()
+            .ContainKey(OllamaOption.Think.Name);
+        ollamaCapture.LastOptions.Reasoning!.Effort.Should().Be(ReasoningEffort.Medium);
 
         var openAICapture = new StubChatClient("ok");
         var openAI = new GenerationPolicyChatClient(
@@ -348,8 +352,65 @@ public sealed class GenerationPolicyTests
 
         openAICapture.LastOptions!.Temperature.Should().Be(0.2f);
         openAICapture.LastOptions.TopP.Should().Be(0.95f);
+        openAICapture.LastOptions.Reasoning!.Effort.Should().Be(ReasoningEffort.Medium);
         (openAICapture.LastOptions.AdditionalProperties?.ContainsKey(
             OllamaOption.NumCtx.Name) ?? false).Should().BeFalse();
+    }
+
+    /// <summary>Verifies unsupported reasoning controls are retried without provider options.</summary>
+    [Fact]
+    public async Task PolicyWrapperFallsBackWhenProviderRejectsReasoning()
+    {
+        var capture = new StubChatClient("ok")
+        {
+            ResponseFactory = call => call == 1
+                ? throw new HttpRequestException("Unsupported reasoning parameter.")
+                : new ChatResponse(new ChatMessage(ChatRole.Assistant, "ok")),
+        };
+        var client = new GenerationPolicyChatClient(
+            capture,
+            GenerationPolicyResolver.Resolve(Defaults),
+            AIOptions.OpenAIProvider,
+            reasoningEnabled: false);
+
+        var response = await client.GetResponseAsync(
+            [new ChatMessage(ChatRole.User, "test")],
+            cancellationToken: CancellationToken.None);
+
+        response.Text.Should().Be("ok");
+        capture.ResponseCallCount.Should().Be(2);
+        capture.OptionCalls[0]!.Reasoning!.Effort.Should().Be(ReasoningEffort.None);
+        capture.OptionCalls[1]!.Reasoning.Should().BeNull();
+    }
+
+    /// <summary>Verifies streaming retries safely before any provider content is emitted.</summary>
+    [Fact]
+    public async Task StreamingPolicyFallsBackBeforeFirstUpdate()
+    {
+        var capture = new StubChatClient("ok")
+        {
+            StreamingExceptionFactory = call => call == 1
+                ? new HttpRequestException("reasoning_effort is unsupported")
+                : null,
+        };
+        var client = new GenerationPolicyChatClient(
+            capture,
+            GenerationPolicyResolver.Resolve(Defaults),
+            AIOptions.OpenAIProvider,
+            reasoningEnabled: false);
+        var text = new StringBuilder();
+
+        await foreach (var update in client.GetStreamingResponseAsync(
+            [new ChatMessage(ChatRole.User, "test")],
+            cancellationToken: CancellationToken.None))
+        {
+            text.Append(update.Text);
+        }
+
+        text.ToString().Should().Be("ok");
+        capture.StreamingCallCount.Should().Be(2);
+        capture.OptionCalls[0]!.Reasoning!.Effort.Should().Be(ReasoningEffort.None);
+        capture.OptionCalls[1]!.Reasoning.Should().BeNull();
     }
 
     /// <summary>

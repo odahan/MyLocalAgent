@@ -146,6 +146,22 @@ public interface IMyLocalAgentService
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// Runs an interactive agent prompt and preserves separate answer and reasoning updates.
+    /// </summary>
+    /// <param name="prompt">The interactive prompt.</param>
+    /// <param name="enabledTools">The tool-group whitelist.</param>
+    /// <param name="executionContext">The immutable tool execution context.</param>
+    /// <param name="generationPolicy">The immutable effective generation policy.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The streamed answer and reasoning updates.</returns>
+    IAsyncEnumerable<AgentStreamUpdate> RunPromptStreamingUpdatesAsync(
+        string prompt,
+        IEnumerable<string> enabledTools,
+        ToolExecutionContext executionContext,
+        EffectiveGenerationPolicy generationPolicy,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Runs a prompt and streams text with an optional interactive skill catalog.
     /// </summary>
     /// <param name="prompt">The task prompt.</param>

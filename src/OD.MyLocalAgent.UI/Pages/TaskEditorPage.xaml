@@ -170,6 +170,9 @@
                                        Text="{Binding EffectiveTopPText, StringFormat=Effective: {0}}" />
                         </StackPanel>
                     </Grid>
+                    <CheckBox Margin="0,14,0,0"
+                              Content="Enable reasoning for agentic task calls"
+                              IsChecked="{Binding ReasoningEnabled, Mode=TwoWay}" />
                     <StackPanel Margin="0,16,0,0">
                         <CheckBox Content="Use model from Settings"
                                   IsChecked="{Binding UseSettingsModel, Mode=TwoWay}" />

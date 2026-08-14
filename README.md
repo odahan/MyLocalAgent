@@ -357,9 +357,25 @@ ai.prompt step model → task model → Settings model
 
 For Ollama, a selected temporary model is warmed up immediately before execution. The warm-up
 loads the requested model and requires it to be installed; an unavailable model fails the task
-or step without changing the configured default. `model` must be a non-empty string and is
-valid only on a task or an object-form `ai.prompt` workflow step. The `{{ModelName}}` and
-`{{ModelInfo}}` placeholders resolve to the scoped model for that step.
+or step without changing the configured default. Warm-up is local-only: it is never sent to an
+OpenAI-compatible, OpenRouter, or other cloud endpoint, so it does not consume cloud credits.
+`model` must be a non-empty string and is valid only on a task or an object-form `ai.prompt`
+workflow step. The `{{ModelName}}` and `{{ModelInfo}}` placeholders resolve to the scoped model
+for that step.
+
+### Reasoning policy
+
+Reasoning is a request-level preference, not a provider selection. It is available in **Direct
+Chat** and in **agentic task calls** through their respective **Reasoning** controls. Agentic tasks
+default to enabled; legacy tasks without the setting retain that default. It is deliberately off
+for workflow `ai.prompt` steps, Trust filter screening, history compression, skills, AI helpers,
+AI Playground generation, and warm-up, where a bounded direct response is preferable.
+
+The application maps this preference to the active provider: Ollama receives its native `think`
+option and OpenAI-compatible endpoints receive the standard reasoning-effort request option.
+If a provider or a selected model rejects that option before returning any content, the request is
+retried once without it. A provider's normal default then applies; timeout, cancellation, and
+network failures are not retried as a reasoning fallback.
 
 Workflow authoring/refinement/repair, workflow explanation/repair, Guardrails screening, and
 Guardrails reduction deliberately use program-owned Temperature `0` and Top P `1`. User
@@ -467,6 +483,15 @@ The **Trust filter** page, placed after **AI playground**, displays trust and pr
 statuses separately, the effective score, provider latency, protected preview, and validated
 verbatim indicators. Indicator text is human-only; Gmail and HTTP tool JSON exposes only
 `suspiciousIndicatorCount`.
+
+Trust Filter uses a tool-less, JSON-only classification request with reasoning disabled. This
+avoids spending model time on hidden deliberation for a bounded safety decision. The output
+budget is adaptive: it starts at 1,024 tokens for short input and grows with the source, up to
+8,192 tokens for a large page or PDF. The classifier is asked to return every materially distinct
+suspicious quote while removing overlaps, rather than silently truncating evidence to a fixed
+small list. A malformed response, an unavailable model, or a timeout still fails safe: the source
+is delivered only as marked Base64 and the page reports the failure (including the configured
+timeout when applicable).
 
 When OpenAI-compatible is selected, the compact Gmail/HTTP projections and generated summaries
 sent for screening leave the machine for that configured endpoint. Omitted source text does
@@ -1380,6 +1405,12 @@ and progressive loading of older messages. It starts in chat-only mode. Its per-
 **Tools & permissions** panel can explicitly enable the same tool groups and sensitive capability
 switches used by a task; all are disabled by default and still use the existing sandbox, connector,
 HTTP allowlist, and Guardrails controls.
+
+The **Reasoning** checkbox beside **Send** applies to the next Direct Chat request, including its
+agent mode. When a provider exposes readable reasoning text, Direct Chat displays it in a separate
+**Model reasoning** panel during the response. It is not appended to the assistant answer and is
+not saved in the conversation database. Some providers expose no readable reasoning, or require it
+for a model; in those cases the normal answer remains available and the panel can stay empty.
 
 Each agent-enabled conversation owns its own filesystem authorization list. Add only the folders
 needed for that conversation and choose read-only or read/write access; the normal filesystem

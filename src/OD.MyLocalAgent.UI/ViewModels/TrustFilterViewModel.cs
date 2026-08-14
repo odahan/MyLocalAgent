@@ -15,6 +15,7 @@ public sealed partial class TrustFilterViewModel : ObservableObject
     private readonly IContentTrustService _contentTrustService;
     private readonly IOptionsMonitor<GuardrailsOptions> _guardrailsOptions;
     private readonly IIncidentReporter _incidentReporter;
+    private bool _lastScreeningFailureWasTimeout;
 
     [ObservableProperty]
     private string _input = string.Empty;
@@ -82,6 +83,7 @@ public sealed partial class TrustFilterViewModel : ObservableObject
     private async Task ScreenAsync(CancellationToken cancellationToken)
     {
         IsBusy = true;
+        _lastScreeningFailureWasTimeout = false;
         try
         {
             var options = _guardrailsOptions.CurrentValue;
@@ -216,6 +218,7 @@ public sealed partial class TrustFilterViewModel : ObservableObject
         catch (GuardrailScreeningException exception)
         {
             await ReportAsync(exception, source).ConfigureAwait(true);
+            _lastScreeningFailureWasTimeout = exception.InnerException is TimeoutException;
             return exception.FallbackResult;
         }
     }
@@ -272,7 +275,9 @@ public sealed partial class TrustFilterViewModel : ObservableObject
             ContentTrustStatus.ScreeningDisabled =>
                 "LLM scoring is disabled. Conservative marked-Base64 delivery was applied; protection remains active.",
             ContentTrustStatus.Failed =>
-                "Screening failed. The content was treated with caution and delivered only as marked Base64.",
+                _lastScreeningFailureWasTimeout
+                    ? $"Screening timed out after {options.TimeoutSeconds} seconds. The content was treated with caution and delivered only as marked Base64."
+                    : "Screening failed. The content was treated with caution and delivered only as marked Base64.",
             _ when disposition == TrustDisposition.Withhold =>
                 "The score is below the caution threshold, so the external content was withheld.",
             _ when disposition == TrustDisposition.EncodeBase64 =>

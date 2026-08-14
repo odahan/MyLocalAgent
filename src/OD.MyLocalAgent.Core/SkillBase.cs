@@ -68,7 +68,8 @@ public abstract class SkillBase : ISkill
             provider.ChatClient,
             generationPolicy,
             provider.ProviderName,
-            $"skill:{Name}");
+            $"skill:{Name}",
+            reasoningEnabled: false);
         var response = await policyClient.GetResponseAsync(
             prompt,
             cancellationToken: cancellationToken).ConfigureAwait(false);

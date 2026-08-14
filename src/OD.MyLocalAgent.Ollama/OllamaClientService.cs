@@ -79,20 +79,22 @@ public sealed class OllamaClientService : ILlmClientService, IOllamaModelCatalog
         var current = _options.CurrentValue;
         var model = ModelExecutionScope.ModelName ?? current.Model;
         _logger.LogInformation(
-            "Starting Ollama generation with model {Model}.",
+            "Starting generation with model {Model}.",
             model);
 
         var policyClient = new GenerationPolicyChatClient(
             _chatClient,
             policy,
-            ProviderName);
+            ProviderName,
+            "generation",
+            reasoningEnabled: false);
         var response = await policyClient.GetResponseAsync(
             [new ChatMessage(ChatRole.User, prompt)],
             new ChatOptions { ModelId = model },
             cancellationToken).ConfigureAwait(false);
 
         _logger.LogInformation(
-            "Completed Ollama generation with model {Model}.",
+            "Completed generation with model {Model}.",
             model);
         return response.Text;
     }
@@ -107,14 +109,16 @@ public sealed class OllamaClientService : ILlmClientService, IOllamaModelCatalog
         var model = ModelExecutionScope.ModelName ?? current.Model;
         var started = _timeProvider.GetTimestamp();
         _logger.LogInformation(
-            "Starting Ollama model warm-up for {Model} with context window {ContextWindowTokens}.",
+            "Starting model warm-up for {Model} with context window {ContextWindowTokens}.",
             model,
             policy.ContextWindowTokens);
 
         var policyClient = new GenerationPolicyChatClient(
             _chatClient,
             policy,
-            ProviderName);
+            ProviderName,
+            "warm-up",
+            reasoningEnabled: false);
         var response = await policyClient.GetResponseAsync(
             [new ChatMessage(ChatRole.User, "Reply with READY only.")],
             new ChatOptions
@@ -125,7 +129,7 @@ public sealed class OllamaClientService : ILlmClientService, IOllamaModelCatalog
             cancellationToken).ConfigureAwait(false);
 
         _logger.LogInformation(
-            "Completed Ollama model warm-up for {Model} in {LatencyMs} ms; response received: {ResponseReceived}.",
+            "Completed model warm-up for {Model} in {LatencyMs} ms; response received: {ResponseReceived}.",
             model,
             GetElapsedMilliseconds(started),
             !string.IsNullOrWhiteSpace(response.Text));
@@ -150,13 +154,15 @@ public sealed class OllamaClientService : ILlmClientService, IOllamaModelCatalog
         ArgumentNullException.ThrowIfNull(policy);
         var current = _options.CurrentValue;
         _logger.LogInformation(
-            "Starting streaming Ollama generation with model {Model}.",
+            "Starting streaming generation with model {Model}.",
             current.Model);
 
         var policyClient = new GenerationPolicyChatClient(
             _chatClient,
             policy,
-            ProviderName);
+            ProviderName,
+            "generation",
+            reasoningEnabled: false);
         await foreach (var update in policyClient
             .GetStreamingResponseAsync(
                 [new ChatMessage(ChatRole.User, prompt)],
@@ -171,7 +177,7 @@ public sealed class OllamaClientService : ILlmClientService, IOllamaModelCatalog
         }
 
         _logger.LogInformation(
-            "Completed streaming Ollama generation with model {Model}.",
+            "Completed streaming generation with model {Model}.",
             current.Model);
     }
 
@@ -190,10 +196,11 @@ public sealed class OllamaClientService : ILlmClientService, IOllamaModelCatalog
             var latency = GetElapsedMilliseconds(start);
             var error = modelAvailable
                 ? null
-                : $"The Ollama model '{current.Model}' is not installed.";
+                : $"The configured model '{current.Model}' is not installed.";
 
             _logger.LogInformation(
-                "Ollama health check completed in {LatencyMs} ms. Model available: {ModelAvailable}.",
+                "Health check for model {Model} completed in {LatencyMs} ms. Model available: {ModelAvailable}.",
+                current.Model,
                 latency,
                 modelAvailable);
             return new LlmHealthResult(true, modelAvailable, latency, error);
@@ -205,10 +212,11 @@ public sealed class OllamaClientService : ILlmClientService, IOllamaModelCatalog
         catch (OperationCanceledException exception)
         {
             var latency = GetElapsedMilliseconds(start);
-            var error = $"Ollama did not respond within {current.TimeoutSeconds} seconds.";
+            var error = $"The configured model '{current.Model}' did not respond within {current.TimeoutSeconds} seconds.";
             _logger.LogWarning(
                 exception,
-                "Ollama health check timed out after {LatencyMs} ms.",
+                "Health check for model {Model} timed out after {LatencyMs} ms.",
+                current.Model,
                 latency);
             return new LlmHealthResult(false, false, latency, error);
         }
@@ -218,7 +226,8 @@ public sealed class OllamaClientService : ILlmClientService, IOllamaModelCatalog
             var latency = GetElapsedMilliseconds(start);
             _logger.LogWarning(
                 exception,
-                "Ollama health check failed after {LatencyMs} ms.",
+                "Health check for model {Model} failed after {LatencyMs} ms.",
+                current.Model,
                 latency);
             return new LlmHealthResult(false, false, latency, exception.Message);
         }
@@ -265,13 +274,13 @@ public sealed class OllamaClientService : ILlmClientService, IOllamaModelCatalog
         catch (OperationCanceledException exception)
         {
             throw new OllamaUnavailableException(
-                $"Ollama did not respond within {timeoutSeconds} seconds.",
+                $"The configured model '{current.Model}' did not respond within {timeoutSeconds} seconds.",
                 exception);
         }
         catch (HttpRequestException exception)
         {
             throw new OllamaUnavailableException(
-                $"Ollama is unavailable at '{endpoint}'.",
+                $"The configured model '{current.Model}' is unavailable at '{endpoint}'.",
                 exception);
         }
     }

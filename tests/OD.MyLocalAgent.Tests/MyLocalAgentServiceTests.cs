@@ -4,6 +4,7 @@ using Moq;
 using OD.MyLocalAgent.Core;
 using OD.MyLocalAgent.Ollama;
 using OD.MyLocalAgent.Tests.TestDoubles;
+using OllamaSharp.Models;
 using Xunit;
 
 namespace OD.MyLocalAgent.Tests;
@@ -19,7 +20,9 @@ public sealed class MyLocalAgentServiceTests
     [Fact]
     public async Task PromptWithoutToolsUsesOneDirectModelCall()
     {
-        var provider = new StubLlmClientService("Generated report.");
+        var provider = new StubLlmClientService(
+            new StubChatClient("Generated report."),
+            AIOptions.OllamaProvider);
         var factory = new Mock<ILlmClientFactory>(MockBehavior.Strict);
         factory.Setup(instance => instance.Create()).Returns(provider);
         var registry = new Mock<IToolRegistry>(MockBehavior.Strict);
@@ -44,6 +47,9 @@ public sealed class MyLocalAgentServiceTests
         result.Text.Should().Be("Generated report.");
         provider.Client.CallCount.Should().Be(1);
         provider.Client.LastOptions!.Tools.Should().BeNullOrEmpty();
+        provider.Client.LastOptions.AdditionalProperties.Should()
+            .ContainKey(OllamaOption.Think.Name)
+            .WhoseValue.Should().Be(false);
         registry.VerifyNoOtherCalls();
     }
 

@@ -1,7 +1,7 @@
 namespace OD.MyLocalAgent.Ollama;
 
 /// <summary>
-/// Represents a configured Ollama model that is not installed locally.
+/// Represents a configured model that is not installed locally.
 /// </summary>
 public sealed class OllamaModelMissingException : Exception
 {
@@ -10,7 +10,7 @@ public sealed class OllamaModelMissingException : Exception
     /// </summary>
     /// <param name="model">The missing model identifier.</param>
     public OllamaModelMissingException(string model)
-        : base($"The Ollama model '{model}' is not installed. Pull the model or select an installed model.")
+        : base($"The configured model '{model}' is not installed. Install it or select an installed model.")
     {
         Model = model;
     }

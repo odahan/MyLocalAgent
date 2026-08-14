@@ -55,7 +55,8 @@ public interface ILlmClientService
         var policyClient = new GenerationPolicyChatClient(
             ChatClient,
             policy,
-            ProviderName);
+            ProviderName,
+            reasoningEnabled: false);
         var response = await policyClient
             .GetResponseAsync(
                 prompt,
@@ -90,7 +91,8 @@ public interface ILlmClientService
         var policyClient = new GenerationPolicyChatClient(
             ChatClient,
             policy,
-            ProviderName);
+            ProviderName,
+            reasoningEnabled: false);
         await foreach (var update in policyClient
                            .GetStreamingResponseAsync(
                                prompt,

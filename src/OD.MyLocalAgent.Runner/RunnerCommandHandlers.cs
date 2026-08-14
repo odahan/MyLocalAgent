@@ -384,9 +384,12 @@ internal static class RunnerCommandHandlers
         var policy = GenerationPolicyResolver.Resolve(
             aiOptions.GenerationDefaults,
             task.GenerationOptions);
-        output.WriteLine("Warming up the configured Ollama model before task execution.");
+        var model = task.Model ?? services
+            .GetRequiredService<IOptionsMonitor<OllamaOptions>>()
+            .CurrentValue.Model;
+        output.WriteLine($"Warming up model {model} before task execution.");
         await warmup.WarmUpAsync(policy, cancellationToken).ConfigureAwait(false);
-        output.WriteLine("Ollama model warm-up completed.");
+        output.WriteLine($"Model {model} warm-up completed.");
     }
 
     private static void EmitTimingReport(

@@ -91,6 +91,9 @@ public sealed partial class TaskEditorViewModel :
     private bool _useGlobalTemperature = true;
 
     [ObservableProperty]
+    private bool _reasoningEnabled = true;
+
+    [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     private string _temperatureOverrideText = "0.2";
 
@@ -400,6 +403,7 @@ public sealed partial class TaskEditorViewModel :
                     "G",
                     CultureInfo.CurrentCulture);
             UseGlobalTopP = task?.GenerationOptions?.TopP is null;
+            ReasoningEnabled = task?.GenerationOptions?.ReasoningEnabled ?? true;
             TopPOverrideText =
                 (task?.GenerationOptions?.TopP ??
                  defaults.TopP).ToString(
@@ -1328,7 +1332,7 @@ public sealed partial class TaskEditorViewModel :
             topP = parsedTopP;
         }
 
-        if (temperature is null && topP is null)
+        if (temperature is null && topP is null && ReasoningEnabled)
         {
             return true;
         }
@@ -1337,6 +1341,7 @@ public sealed partial class TaskEditorViewModel :
         {
             Temperature = temperature,
             TopP = topP,
+            ReasoningEnabled = ReasoningEnabled ? null : false,
         };
         var error = GenerationPolicyValidation.ValidateOverrides(candidate);
         if (error is not null)

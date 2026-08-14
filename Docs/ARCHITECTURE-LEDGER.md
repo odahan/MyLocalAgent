@@ -2047,3 +2047,43 @@ compilation, freshness-window expansion, document classification, and guardrails
   persisted document on the first subsequent Settings save.
 - Added Settings and task-editor projections plus deterministic coverage for prompt isolation,
   fallback migration, and persistence.
+
+### Provider-neutral reasoning and bounded Trust Filter — 2026-08-14
+
+- Added `GenerationOptions.ReasoningEnabled` and the resolved
+  `EffectiveGenerationPolicy.ReasoningEnabled` preference. Agentic task calls inherit `true` when
+  the persisted property is absent; the Task Editor exposes **Enable reasoning for agentic task
+  calls** and serializes only an explicit opt-out. This preserves existing task behavior.
+- `GenerationPolicyChatClient` owns the provider-neutral mapping. Each request receives
+  `ChatOptions.Reasoning` (`Medium`/`Full` when enabled, `None` when disabled); Ollama additionally
+  receives native `think`. OpenAI-compatible adapters map the standard effort to their supported
+  request field. Inputs are materialized before a possible retry so a one-pass message enumerable
+  is never consumed twice.
+- A provider/model rejection of reasoning before the first response update gets one retry with the
+  reasoning fields removed. The retry is limited to reasoning-specific HTTP 400/422 failures and
+  reasoning-option diagnostics; it never retries cancellation, timeout, transport failure, or a
+  partially streamed answer. This keeps a preference incompatibility from becoming an application
+  failure without duplicating visible output or tool activity.
+- Reasoning is deliberately disabled for workflow `ai.prompt`, Guardrails, skills, Direct Chat
+  history compression, workflow assistants, AI Playground generation, and warm-up. Only Direct
+  Chat and agentic task calls request it. This separates the quality/cost trade-off of agentic work
+  from bounded utility and safety operations.
+- Direct Chat has a per-send **Reasoning** control and consumes `TextReasoningContent` separately
+  from normal answer text in both chat and agent modes. Readable reasoning is shown in the transient
+  **Model reasoning** panel; it is neither appended to the assistant answer nor persisted to the
+  Direct Chat SQLite database. **Create task** transfers the selected reasoning preference into its
+  new disabled task draft.
+- Trust Filter classifier prompt version 4 requires compact JSON with all materially distinct
+  suspicious verbatim spans and no explanatory prose. It disables reasoning and requests JSON
+  response formatting. Its direct-screening output budget scales from 1,024 to 8,192 tokens by
+  source size, avoiding an evidence-loss ceiling for long web pages or PDFs while retaining a
+  small bounded request for short input. The UI explicitly identifies a screening timeout before
+  falling back to marked Base64.
+- Runner warm-up remains conditioned on `AI:Provider == Ollama`; no warm-up request is made to
+  OpenAI-compatible/cloud providers. Runtime logs and user-facing failures now name the configured
+  model rather than incorrectly calling every model "Ollama". The OpenAI-compatible service uses
+  the same model-centred log wording, including when its endpoint is OpenRouter.
+- Deterministic tests cover standard and Ollama reasoning mapping, non-streaming and first-update
+  fallback, Trust Filter JSON/budget behavior, and Direct Chat separation of visible reasoning from
+  persisted assistant content. The non-integration test gate completed with 630 passed tests and
+  one expected skipped local integration probe.

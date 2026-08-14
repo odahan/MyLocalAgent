@@ -44,6 +44,11 @@ public sealed class ContentTrustServiceTests
         chatClient.LastOptions.Should().NotBeNull();
         chatClient.LastOptions!.Temperature.Should().Be(0);
         chatClient.LastOptions.Tools.Should().BeNullOrEmpty();
+        chatClient.LastOptions.MaxOutputTokens.Should().BeInRange(1024, 8192);
+        chatClient.LastOptions.ResponseFormat.Should().Be(ChatResponseFormat.Json);
+        chatClient.LastOptions.AdditionalProperties.Should()
+            .ContainKey(OllamaOption.Think.Name)
+            .WhoseValue.Should().Be(false);
     }
 
     /// <summary>

@@ -97,6 +97,30 @@ error and stack trace locally, while the UI marks that message as failed and rem
 next request. HTTP 429 remains a provider throttle/quota result: it is distinct from this
 completion-integrity check and may be returned even when a per-minute limit has not been reached.
 
+## Reasoning preference and safe fallback
+
+Reasoning is controlled by the caller surface, independently of provider selection. It is enabled
+only for Direct Chat and agentic task calls. Trust Filter, workflow `ai.prompt`, history
+compression, skills, authoring helpers, AI Playground generation, and warm-up explicitly disable
+it so their bounded operations do not spend latency or cloud output budget on reasoning tokens.
+
+`GenerationPolicyChatClient` expresses the preference with the provider-neutral
+`ChatOptions.Reasoning` contract. For Ollama it also maps to the native `think` option. The
+Microsoft.Extensions.AI OpenAI adapter maps the effort to the OpenAI-compatible
+`reasoning_effort` field, which OpenRouter accepts as a shorthand for its unified reasoning
+configuration. Providers that do not support the option can ignore it.
+
+If a provider rejects a reasoning option before it returns the first response update (HTTP 400/422
+or a reasoning-specific rejection), the wrapper makes one clean retry with the reasoning options
+removed. This protects providers and models with partial compatibility without duplicating a
+partially streamed response. Cancellations, timeouts, and ordinary transport failures do not use
+this retry path. A model that mandates reasoning may therefore continue with its provider default
+after a user requests it off; the request does not fail solely because of that preference.
+
+Direct Chat consumes `TextReasoningContent` separately from normal text updates. It shows readable
+reasoning in its transient panel but persists only the final assistant answer. Providers may return
+protected or no reasoning text; neither is treated as an application failure.
+
 ## Effective model resolution
 
 The scoped `ModelExecutionScope` and `ModelOverrideChatClient` make the model id request-local and
@@ -109,8 +133,10 @@ ai.prompt step `model` → task `model` → active-provider Settings model
 The Task Editor writes the middle value through **Task model override**. The Workflow Prompt Editor
 writes the first value through **Model override (empty = task or Settings)** for `ai.prompt` only.
 Empty UI values serialize as no override. `model` is invalid on a non-`ai.prompt` workflow step.
-For Ollama, a scoped model is warmed before task/step execution and must exist locally. For an
-OpenAI-compatible endpoint, provider catalog and model availability remain authoritative.
+For Ollama, a scoped model is warmed before task/step execution and must exist locally. Warm-up is
+not invoked for an OpenAI-compatible endpoint, including OpenRouter, so no cloud warm-up request
+or credit consumption occurs. For such endpoints, provider catalog and model availability remain
+authoritative.
 
 ## Validation
 

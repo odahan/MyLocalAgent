@@ -85,7 +85,8 @@ public sealed class DirectChatHistoryCompressor(
             provider.ChatClient,
             policy,
             provider.ProviderName,
-            "direct-chat-compression");
+            "direct-chat-compression",
+            reasoningEnabled: false);
         var response = await client.GetResponseAsync(
                 [new ChatMessage(ChatRole.User, prompt)],
                 new ChatOptions { MaxOutputTokens = _options.MaximumSummaryTokens },

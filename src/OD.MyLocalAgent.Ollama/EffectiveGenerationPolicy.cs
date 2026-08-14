@@ -13,4 +13,8 @@ public sealed record EffectiveGenerationPolicy(
     double TopP,
     int ContextWindowTokens,
     GenerationOptionSource TemperatureSource,
-    GenerationOptionSource TopPSource);
+    GenerationOptionSource TopPSource)
+{
+    /// <summary>Gets whether model reasoning is enabled for this user-directed generation.</summary>
+    public bool ReasoningEnabled { get; init; } = true;
+}

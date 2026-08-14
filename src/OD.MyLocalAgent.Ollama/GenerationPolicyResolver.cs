@@ -31,7 +31,10 @@ public static class GenerationPolicyResolver
             topP.Value,
             defaults.ContextWindowTokens,
             temperature.Source,
-            topP.Source);
+            topP.Source)
+        {
+            ReasoningEnabled = stepOptions?.ReasoningEnabled ?? taskOptions?.ReasoningEnabled ?? true,
+        };
     }
 
     /// <summary>
@@ -57,7 +60,10 @@ public static class GenerationPolicyResolver
             policy.TopP,
             defaults.ContextWindowTokens,
             GenerationOptionSource.Program,
-            GenerationOptionSource.Program);
+            GenerationOptionSource.Program)
+        {
+            ReasoningEnabled = false,
+        };
     }
 
     private static void Validate(

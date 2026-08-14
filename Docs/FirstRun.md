@@ -111,6 +111,32 @@ exécution et le défaut est restauré automatiquement. Avec Ollama, installez d
 avec `ollama pull nom-du-modèle` : l’application le préchauffe avant l’exécution et échoue sans
 modifier Settings s’il manque.
 
+Le préchauffage ne concerne que le fournisseur local Ollama. Il n’est jamais envoyé vers OpenAI,
+OpenRouter ou un autre endpoint cloud : il ne consomme donc aucun crédit cloud.
+
+### Raisonnement des modèles
+
+Activez ou désactivez **Reasoning** dans **Direct Chat** pour la prochaine réponse, y compris en
+mode agent. Pour une tâche agentique, utilisez **Enable reasoning for agentic task calls** dans
+l’éditeur de tâche. Le raisonnement est activé par défaut pour ces deux usages et désactivé pour
+les opérations bornées : Trust Filter, étapes `ai.prompt`, compression d’historique, skills,
+assistants internes et préchauffage.
+
+Lorsqu’un fournisseur renvoie un texte de raisonnement affichable, Direct Chat le montre dans le
+volet repliable **Model reasoning**. Ce texte ne fait pas partie de la réponse assistant et n’est
+pas enregistré dans l’historique. Certains modèles ne renvoient aucun raisonnement lisible ; la
+réponse normale reste alors disponible. Si le fournisseur ne prend pas en charge ce réglage,
+l’application poursuit automatiquement avec le comportement par défaut du fournisseur.
+
+### Trust Filter : vitesse et grands documents
+
+Trust Filter demande une décision JSON courte, sans outils ni raisonnement. Cela évite que les
+modèles de type reasoning passent du temps à délibérer avant d’émettre le score. Pour une page web
+ou un PDF long, la capacité de sortie augmente avec la taille du texte (de 1 024 à 8 192 jetons)
+afin de conserver les extraits suspects distincts. En cas de timeout ou d’échec, le contenu reste
+protégé : il est livré uniquement sous forme Base64 marquée et l’écran indique le timeout configuré
+lorsqu’il en est la cause.
+
 ## 5. Valider le pipeline local de fichiers
 
 Le scénario d’acceptation suivant crée, écrit puis relit un fichier sous la

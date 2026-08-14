@@ -103,7 +103,7 @@ public sealed class OpenAIClientService : ILlmClientService, IOpenAIModelCatalog
 
         var stopwatch = Stopwatch.StartNew();
         _logger.LogInformation(
-            "Starting OpenAI {MediaKind} generation with model {Model}.",
+            "Starting {MediaKind} generation with model {Model}.",
             request.Kind,
             request.Kind == MultimodalGenerationKind.Image ? current.ImageModel : current.AudioModel);
         using var timeoutSource =
@@ -126,8 +126,9 @@ public sealed class OpenAIClientService : ILlmClientService, IOpenAIModelCatalog
                 _ => throw new NotSupportedException("The requested media kind is not implemented."),
             };
             _logger.LogInformation(
-                "Completed OpenAI {MediaKind} generation in {ElapsedMs} ms with {SizeBytes} bytes.",
+                "Completed {MediaKind} generation with model {Model} in {ElapsedMs} ms with {SizeBytes} bytes.",
                 request.Kind,
+                request.Kind == MultimodalGenerationKind.Image ? current.ImageModel : current.AudioModel,
                 stopwatch.ElapsedMilliseconds,
                 result.Data.LongLength);
             return result;
@@ -135,8 +136,9 @@ public sealed class OpenAIClientService : ILlmClientService, IOpenAIModelCatalog
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             _logger.LogInformation(
-                "Canceled OpenAI {MediaKind} generation after {ElapsedMs} ms.",
+                "Canceled {MediaKind} generation with model {Model} after {ElapsedMs} ms.",
                 request.Kind,
+                request.Kind == MultimodalGenerationKind.Image ? current.ImageModel : current.AudioModel,
                 stopwatch.ElapsedMilliseconds);
             throw;
         }
@@ -144,8 +146,9 @@ public sealed class OpenAIClientService : ILlmClientService, IOpenAIModelCatalog
         {
             _logger.LogWarning(
                 exception,
-                "OpenAI {MediaKind} generation failed after {ElapsedMs} ms.",
+                "{MediaKind} generation with model {Model} failed after {ElapsedMs} ms.",
                 request.Kind,
+                request.Kind == MultimodalGenerationKind.Image ? current.ImageModel : current.AudioModel,
                 stopwatch.ElapsedMilliseconds);
             throw;
         }
@@ -167,20 +170,21 @@ public sealed class OpenAIClientService : ILlmClientService, IOpenAIModelCatalog
         ArgumentNullException.ThrowIfNull(policy);
         var current = GetValidatedOptions();
         _logger.LogInformation(
-            "Starting OpenAI generation with model {Model}.",
+            "Starting generation with model {Model}.",
             current.Model);
 
         var policyClient = new GenerationPolicyChatClient(
             _chatClient,
             policy,
-            ProviderName);
+            ProviderName,
+            reasoningEnabled: false);
         var response = await policyClient.GetResponseAsync(
             [new ChatMessage(ChatRole.User, prompt)],
             new ChatOptions { ModelId = current.Model },
             cancellationToken).ConfigureAwait(false);
 
         _logger.LogInformation(
-            "Completed OpenAI generation with model {Model}.",
+            "Completed generation with model {Model}.",
             current.Model);
         return response.Text;
     }
@@ -204,13 +208,14 @@ public sealed class OpenAIClientService : ILlmClientService, IOpenAIModelCatalog
         ArgumentNullException.ThrowIfNull(policy);
         var current = GetValidatedOptions();
         _logger.LogInformation(
-            "Starting streaming OpenAI generation with model {Model}.",
+            "Starting streaming generation with model {Model}.",
             current.Model);
 
         var policyClient = new GenerationPolicyChatClient(
             _chatClient,
             policy,
-            ProviderName);
+            ProviderName,
+            reasoningEnabled: false);
         await foreach (var update in policyClient
             .GetStreamingResponseAsync(
                 [new ChatMessage(ChatRole.User, prompt)],
@@ -225,7 +230,7 @@ public sealed class OpenAIClientService : ILlmClientService, IOpenAIModelCatalog
         }
 
         _logger.LogInformation(
-            "Completed streaming OpenAI generation with model {Model}.",
+            "Completed streaming generation with model {Model}.",
             current.Model);
     }
 
@@ -273,7 +278,8 @@ public sealed class OpenAIClientService : ILlmClientService, IOpenAIModelCatalog
             var latency = GetElapsedMilliseconds(start);
             _logger.LogWarning(
                 exception,
-                "OpenAI health check failed after {LatencyMs} ms.",
+                "Health check for model {Model} failed after {LatencyMs} ms.",
+                current.Model,
                 latency);
             return new LlmHealthResult(false, false, latency, exception.Message);
         }

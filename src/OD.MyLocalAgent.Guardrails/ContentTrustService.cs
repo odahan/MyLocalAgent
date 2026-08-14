@@ -17,6 +17,8 @@ public sealed class ContentTrustService : IContentTrustService
 {
     private static readonly TimeSpan CacheLifetime = TimeSpan.FromHours(24);
     private const int MaximumReductionLevels = 64;
+    private const int MinimumScreeningOutputTokens = 1024;
+    private const int MaximumScreeningOutputTokens = 8192;
 
     private readonly ILlmClientFactory _clientFactory;
     private readonly IOptionsMonitor<GuardrailsOptions> _guardrailsOptions;
@@ -111,7 +113,8 @@ public sealed class ContentTrustService : IContentTrustService
                     options,
                     screeningPolicy,
                     requireStableConfiguration: false,
-                    cancellationToken)
+                    cancellationToken,
+                    maxOutputTokens: CalculateScreeningOutputTokenLimit(content.Length))
                 .ConfigureAwait(false);
             var wrapped = returnBase64
                 ? ContentTrustEnvelope.WrapBase64(content)
@@ -662,8 +665,7 @@ public sealed class ContentTrustService : IContentTrustService
                 ?? throw new InvalidOperationException("A compact item result is missing."))
                 .ToArray();
         _logger?.LogInformation(
-            "Compact Guardrails completed for provider {ProviderName}, model {ModelName}: items {ItemCount}, batches {BatchCount}, source calls {SourceCallCount}, summary calls {SummaryCallCount}, final calls {FinalCallCount}, source cache hits {SourceCacheHitCount}, summary cache hits {SummaryCacheHitCount}, final cache hits {FinalCacheHitCount}, screened {ScreenedCount}, summarized {SummarizedCount}, withheld {WithheldCount}, human review {ReviewCount}, source characters {SourceCharacterCount}, source latency {SourceLatencyMs} ms, summary latency {SummaryLatencyMs} ms, final latency {FinalLatencyMs} ms, total {TotalLatencyMs} ms.",
-            snapshot.Provider,
+            "Compact Guardrails completed for model {ModelName}: items {ItemCount}, batches {BatchCount}, source calls {SourceCallCount}, summary calls {SummaryCallCount}, final calls {FinalCallCount}, source cache hits {SourceCacheHitCount}, summary cache hits {SummaryCacheHitCount}, final cache hits {FinalCacheHitCount}, screened {ScreenedCount}, summarized {SummarizedCount}, withheld {WithheldCount}, human review {ReviewCount}, source characters {SourceCharacterCount}, source latency {SourceLatencyMs} ms, summary latency {SummaryLatencyMs} ms, final latency {FinalLatencyMs} ms, total {TotalLatencyMs} ms.",
             snapshot.Model,
             items.Count,
             partitions.Count,
@@ -1340,7 +1342,8 @@ public sealed class ContentTrustService : IContentTrustService
         GuardrailsOptions options,
         EffectiveGenerationPolicy generationPolicy,
         bool requireStableConfiguration,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int? maxOutputTokens = null)
     {
         var key = CreateVerdictCacheKey(snapshot, content);
         if (options.CacheResults && TryGetVerdictCache(key, out var cached))
@@ -1364,7 +1367,8 @@ public sealed class ContentTrustService : IContentTrustService
                 options,
                 generationPolicy,
                 requireStableConfiguration,
-                cancellationToken)
+                cancellationToken,
+                maxOutputTokens)
             .ConfigureAwait(false);
         var verdict = ParseVerdict(call.Text, content);
         var stable = IsCurrentSnapshot(snapshot);
@@ -1412,7 +1416,8 @@ public sealed class ContentTrustService : IContentTrustService
                 provider.ChatClient,
                 generationPolicy,
                 provider.ProviderName,
-                "guardrail");
+                "guardrail",
+                reasoningEnabled: false);
             WriteLlmRequestTrace(
                 provider.ProviderName,
                 systemPrompt,
@@ -1428,6 +1433,7 @@ public sealed class ContentTrustService : IContentTrustService
                     {
                         Tools = null,
                         MaxOutputTokens = maxOutputTokens,
+                        ResponseFormat = ChatResponseFormat.Json,
                     },
                     linkedSource.Token)
                 .ConfigureAwait(false);
@@ -1452,6 +1458,12 @@ public sealed class ContentTrustService : IContentTrustService
                 exception);
         }
     }
+
+    private static int CalculateScreeningOutputTokenLimit(int sourceCharacterCount) =>
+        Math.Clamp(
+            MinimumScreeningOutputTokens + (sourceCharacterCount / 16),
+            MinimumScreeningOutputTokens,
+            MaximumScreeningOutputTokens);
 
     private ProviderSnapshot CaptureSnapshot(ILlmClientService provider)
     {
