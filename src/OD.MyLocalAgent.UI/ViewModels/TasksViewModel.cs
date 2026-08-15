@@ -164,7 +164,9 @@ public sealed partial class TasksViewModel :
 
             var selectedId = SelectedTask?.Id;
             Tasks.Clear();
-            foreach (var row in rows.OrderBy(static item => item.Name))
+            foreach (var row in rows
+                         .OrderBy(static item => !item.IsEnabled)
+                         .ThenBy(static item => item.Name))
             {
                 Tasks.Add(row);
             }

@@ -157,6 +157,50 @@ public sealed class TasksViewModelTests
     }
 
     /// <summary>
+    /// Verifies enabled tasks are shown first, with each group sorted by name.
+    /// </summary>
+    [Fact]
+    public async Task RefreshPlacesDisabledTasksAfterEnabledTasks()
+    {
+        var taskStore = new Mock<ITaskStore>();
+        taskStore
+            .Setup(store => store.GetAllAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(
+            [
+                new ScheduledTask { Id = "disabled-a", Name = "Alpha disabled", Schedule = "0 9 * * *", Enabled = false },
+                new ScheduledTask { Id = "enabled-z", Name = "Zulu enabled", Schedule = "0 9 * * *", Enabled = true },
+                new ScheduledTask { Id = "disabled-b", Name = "Bravo disabled", Schedule = "0 9 * * *", Enabled = false },
+                new ScheduledTask { Id = "enabled-a", Name = "Alpha enabled", Schedule = "0 9 * * *", Enabled = true },
+            ]);
+        var scheduler = new Mock<ITaskSchedulerService>();
+        scheduler
+            .Setup(service => service.GetNextRunAsync(
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((DateTimeOffset?)null);
+        var runLogCatalog = new Mock<IRunLogCatalog>();
+        runLogCatalog
+            .Setup(static catalog => catalog.GetRuns())
+            .Returns([]);
+        var viewModel = new TasksViewModel(
+            taskStore.Object,
+            scheduler.Object,
+            Mock.Of<IRunnerService>(),
+            runLogCatalog.Object,
+            Mock.Of<IIncidentReporter>(),
+            Mock.Of<IDesktopInteractionService>(),
+            new WeakReferenceMessenger());
+
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+
+        viewModel.Tasks.Select(static task => task.Name).Should().ContainInOrder(
+            "Alpha enabled",
+            "Zulu enabled",
+            "Alpha disabled",
+            "Bravo disabled");
+    }
+
+    /// <summary>
     /// Verifies Open folder opens the canonical task-store directory.
     /// </summary>
     [Fact]
