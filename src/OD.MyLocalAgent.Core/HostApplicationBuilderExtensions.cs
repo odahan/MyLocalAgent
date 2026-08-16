@@ -65,6 +65,7 @@ public static class HostApplicationBuilderExtensions
 
         builder.Services.AddSingleton<IPathSandbox, PathSandbox>();
         builder.Services.AddSingleton<IRecycleBinService, WindowsRecycleBinService>();
+        builder.Services.AddSingleton<IResearchTranslationService, ResearchTranslationService>();
 
         var catalog = ToolCatalog.Default;
         builder.Services.AddSingleton<IToolCatalog>(catalog);

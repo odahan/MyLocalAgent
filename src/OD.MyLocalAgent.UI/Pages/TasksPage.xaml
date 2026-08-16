@@ -56,49 +56,78 @@
                 <materialDesign:Card Grid.Row="2"
                                      Margin="0,18,0,0"
                                      Padding="0">
-                    <DataGrid x:Name="TasksGrid"
-                              AutoGenerateColumns="False"
-                              CanUserAddRows="False"
-                              CanUserDeleteRows="False"
-                              IsReadOnly="True"
-                              ItemsSource="{Binding Tasks}"
-                              MouseDoubleClick="OnTasksGridMouseDoubleClick"
-                              SelectedItem="{Binding SelectedTask, Mode=TwoWay}"
-                              SelectionMode="Single">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Width="2*"
-                                                Binding="{Binding Name}"
-                                                Header="Name" />
-                            <DataGridTextColumn Width="1.35*"
-                                                Binding="{Binding Schedule}"
-                                                Header="Cron" />
-                            <DataGridTextColumn Width="1.7*"
-                                                Binding="{Binding NextRun}"
-                                                Header="Next run" />
-                            <DataGridTextColumn Width="1.7*"
-                                                Binding="{Binding LastRun}"
-                                                Header="Last run" />
-                            <DataGridTextColumn Width="*"
-                                                Binding="{Binding LastStatus}"
-                                                Header="Status" />
-                            <DataGridTemplateColumn Width="85"
-                                                    Header="Enabled">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <CheckBox HorizontalAlignment="Center"
-                                                  VerticalAlignment="Center"
-                                                  Command="{Binding DataContext.ToggleEnabledCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
-                                                  CommandParameter="{Binding}"
-                                                  IsChecked="{Binding IsEnabled, Mode=OneWay}"
-                                                  ToolTip="Enable or disable this task" />
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                            <DataGridCheckBoxColumn Width="95"
-                                                    Binding="{Binding IsRegistered}"
-                                                    Header="Registered" />
-                        </DataGrid.Columns>
-                    </DataGrid>
+                    <Grid>
+                        <DataGrid x:Name="TasksGrid"
+                                  AutoGenerateColumns="False"
+                                  CanUserAddRows="False"
+                                  CanUserDeleteRows="False"
+                                  IsReadOnly="True"
+                                  ItemsSource="{Binding Tasks}"
+                                  MouseDoubleClick="OnTasksGridMouseDoubleClick"
+                                  SelectedItem="{Binding SelectedTask, Mode=TwoWay}"
+                                  SelectionMode="Single">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Width="2*"
+                                                    Binding="{Binding Name}"
+                                                    Header="Name" />
+                                <DataGridTextColumn Width="1.35*"
+                                                    Binding="{Binding Schedule}"
+                                                    Header="Cron" />
+                                <DataGridTextColumn Width="1.7*"
+                                                    Binding="{Binding NextRun}"
+                                                    Header="Next run" />
+                                <DataGridTextColumn Width="1.7*"
+                                                    Binding="{Binding LastRun}"
+                                                    Header="Last run" />
+                                <DataGridTextColumn Width="*"
+                                                    Binding="{Binding LastStatus}"
+                                                    Header="Status" />
+                                <DataGridTemplateColumn Width="85"
+                                                        Header="Enabled">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"
+                                                      Command="{Binding DataContext.ToggleEnabledCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
+                                                      CommandParameter="{Binding}"
+                                                      IsChecked="{Binding IsEnabled, Mode=OneWay}"
+                                                      ToolTip="Enable or disable this task" />
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridCheckBoxColumn Width="95"
+                                                        Binding="{Binding IsRegistered}"
+                                                        Header="Registered" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+
+                        <Border Panel.ZIndex="1"
+                                Margin="24"
+                                Padding="20"
+                                VerticalAlignment="Center"
+                                Background="{DynamicResource CardBrush}"
+                                BorderBrush="{DynamicResource ErrorBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Visibility="{Binding TaskLoadErrorText, Converter={StaticResource NullOrEmptyToCollapsedConverter}}">
+                            <StackPanel>
+                                <TextBlock FontSize="20"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource ErrorBrush}"
+                                           Text="Tasks could not be loaded" />
+                                <TextBlock Margin="0,10,0,0"
+                                           Text="{Binding TaskLoadErrorText}"
+                                           TextWrapping="Wrap" />
+                                <StackPanel Margin="0,16,0,0"
+                                            Orientation="Horizontal">
+                                    <Button Command="{Binding OpenTasksFolderCommand}"
+                                            Content="Open Tasks folder" />
+                                    <Button Command="{Binding RefreshCommand}"
+                                            Content="Refresh" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
                 </materialDesign:Card>
 
                 <StackPanel Grid.Row="3"

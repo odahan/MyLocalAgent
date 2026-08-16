@@ -66,6 +66,9 @@ public sealed partial class TasksViewModel :
     [ObservableProperty]
     private string _statusText = "Task data has not been loaded.";
 
+    [ObservableProperty]
+    private string _taskLoadErrorText = string.Empty;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="TasksViewModel"/> class.
     /// </summary>
@@ -178,6 +181,7 @@ public sealed partial class TasksViewModel :
                         item.Id,
                         selectedId,
                         StringComparison.OrdinalIgnoreCase));
+            TaskLoadErrorText = string.Empty;
             StatusText = Tasks.Count == 0
                 ? "No tasks have been created."
                 : $"{Tasks.Count} task(s) loaded.";
@@ -187,7 +191,16 @@ public sealed partial class TasksViewModel :
         }
         catch (Exception exception)
         {
-            StatusText = exception.Message;
+            TaskLoadErrorText =
+                "No task files were deleted. One or more task files could not be loaded." +
+                Environment.NewLine + Environment.NewLine +
+                exception.Message +
+                Environment.NewLine + Environment.NewLine +
+                "Open the Tasks folder, move or fix the invalid JSON file, then choose Refresh.";
+            StatusText = "Task loading failed. Review the error shown above the task list.";
+            _messenger.Send(
+                new SnackbarNotificationMessage(
+                    "Tasks could not be loaded. The task files are still present."));
             await ReportAsync(exception, "Tasks refresh").ConfigureAwait(true);
         }
         finally

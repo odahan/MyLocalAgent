@@ -247,6 +247,20 @@ https://ollama.com/api/web_search
 The key is protected by Windows DPAPI. Enable the **Web search (web) (cloud)**
 tool group only for tasks that need it.
 
+For scheduled multi-theme monitoring, enable **Web Discovery** and use
+`research.discover`. Its default `sliding` mode verifies publication dates locally after
+retrieval and expands from 2 to 4 to 7 local calendar days only when necessary. Old, future,
+and undated pages are excluded. Final titles and summaries are delivered only through the
+Guardrails-protected `protectedResults` block; disabled or failed screening still produces
+marked Base64. Optional translation runs only after a clean verdict and is screened again.
+Provider failures are not treated as an empty collection: `searchStatus` distinguishes available,
+degraded, unavailable, and rate-limited search. A provider-wide HTTP 429 stops the remaining
+queries and the workflow states clearly that source availability could not be determined.
+The bundled editorial examples fail closed when sources are missing: the LinkedIn watch produces
+no posts with zero candidates. The Sunday article focuses on the available source when there is
+one, becomes a limited cross-analysis with two, and a full multi-source article from three. Only
+zero candidates produce a diagnostic without an article.
+
 ## 9. Tools without credentials
 
 - **Filesystem**: no account is required. Relative paths remain under the

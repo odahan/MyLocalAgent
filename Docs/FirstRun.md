@@ -254,6 +254,22 @@ https://ollama.com/api/web_search
 La clé est protégée par Windows DPAPI. Activer ensuite le groupe d’outils
 **Web search (web) (cloud)** seulement sur les tâches qui en ont besoin.
 
+Pour une veille planifiée multi-thèmes, activez **Web Discovery** et utilisez
+`research.discover`. Son mode `sliding` par défaut vérifie localement les dates de publication
+après téléchargement et élargit la fenêtre de 2 à 4 puis 7 jours calendaires seulement si
+nécessaire. Les pages anciennes, futures ou sans date sont exclues. Les titres et résumés finaux
+sont livrés uniquement dans le bloc `protectedResults` protégé par Guardrails ; un contrôle
+désactivé ou en échec produit toujours du Base64 marqué. La traduction facultative ne s’exécute
+qu’après un verdict propre et son résultat est contrôlé à nouveau.
+Les erreurs du fournisseur ne sont pas assimilées à une collecte vide : `searchStatus` distingue
+une recherche disponible, dégradée, indisponible ou limitée (HTTP 429). En cas de limitation
+globale, les requêtes restantes sont arrêtées et le workflow indique clairement que la
+disponibilité des sources n’a pas pu être déterminée.
+Les exemples de veille éditoriale restent prudents lorsque les sources manquent : la veille
+LinkedIn ne produit aucun post avec zéro candidat. L’article du dimanche est focalisé sur la
+source disponible lorsqu’il n’y en a qu’une, devient une analyse croisée limitée avec deux, puis
+un article multi-source à partir de trois. Seul zéro candidat produit uniquement un diagnostic.
+
 ## 9. Outils sans identifiants
 
 - **Filesystem** : aucun compte n’est requis. Les chemins relatifs restent sous

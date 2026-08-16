@@ -201,6 +201,64 @@ public sealed class TasksViewModelTests
     }
 
     /// <summary>
+    /// Verifies invalid task files produce a prominent, actionable load error instead of
+    /// appearing to be an empty task collection.
+    /// </summary>
+    [Fact]
+    public async Task RefreshShowsAndClearsTaskLoadError()
+    {
+        var taskStore = new Mock<ITaskStore>();
+        taskStore
+            .SetupSequence(store => store.GetAllAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(
+                new TaskValidationException(
+                    "Task file 'backup.json' contains id 'daily-task'. File name and id must match."))
+            .ReturnsAsync(
+            [
+                new ScheduledTask
+                {
+                    Id = "daily-task",
+                    Name = "Daily task",
+                    Schedule = "0 9 * * *",
+                    Enabled = false,
+                },
+            ]);
+        var incidentReporter = new Mock<IIncidentReporter>();
+        incidentReporter
+            .Setup(reporter => reporter.ReportAsync(
+                It.IsAny<Exception>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync("correlation-id");
+        var runLogCatalog = new Mock<IRunLogCatalog>();
+        runLogCatalog.Setup(static catalog => catalog.GetRuns()).Returns([]);
+        var viewModel = new TasksViewModel(
+            taskStore.Object,
+            Mock.Of<ITaskSchedulerService>(),
+            Mock.Of<IRunnerService>(),
+            runLogCatalog.Object,
+            incidentReporter.Object,
+            Mock.Of<IDesktopInteractionService>(),
+            new WeakReferenceMessenger());
+
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+
+        viewModel.Tasks.Should().BeEmpty();
+        viewModel.TaskLoadErrorText.Should()
+            .Contain("No task files were deleted")
+            .And.Contain("backup.json")
+            .And.Contain("Open the Tasks folder")
+            .And.Contain("Refresh");
+        viewModel.StatusText.Should().Contain("Task loading failed");
+
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+
+        viewModel.Tasks.Should().ContainSingle();
+        viewModel.TaskLoadErrorText.Should().BeEmpty();
+        viewModel.StatusText.Should().Be("1 task(s) loaded.");
+    }
+
+    /// <summary>
     /// Verifies Open folder opens the canonical task-store directory.
     /// </summary>
     [Fact]

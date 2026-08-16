@@ -1769,6 +1769,29 @@ ollama list</code></pre>
                     masque le contenu. Un contrôle désactivé ou en échec reste en Base64
                     marqué, jamais en texte brut.
                 </div>
+<div class="callout">
+                    Pour une veille multi-thèmes, activez aussi le groupe
+                    <span class="ui-label">Web Discovery</span> et utilisez
+                    <code>research.discover</code>. Le mode <code>sliding</code> vérifie localement
+                    les dates après téléchargement : il commence à deux jours calendaires puis
+                    élargit à quatre et sept jours seulement si le nombre minimal d’articles
+                    récents n’est pas atteint. Les pages trop anciennes, futures ou sans date
+                    vérifiable sont exclues ; utilisez <code>freshnessWindow: "none"</code> pour
+                    autoriser explicitement les contenus sans date. La recherche, la lecture et
+                    le tri restent déterministes ; seuls les titres et résumés finalement retenus
+                    passent dans Guardrails et sont livrés dans <code>protectedResults</code>.
+                    Une traduction demandée ne s’exécute qu’après un verdict propre, puis son
+                    résultat exact est contrôlé une seconde fois. L’historique
+                    <code>windowHistory</code> permet de vérifier les budgets et résultats des
+                    fenêtres 2, 4 et 7 jours. Les erreurs du fournisseur ne sont pas assimilées à
+                    zéro résultat : <code>searchStatus</code> distingue une recherche disponible,
+                    dégradée, indisponible ou limitée. Un HTTP 429 arrête les requêtes restantes et
+                    produit un diagnostic indiquant que la disponibilité des sources n’a pas pu
+                    être déterminée. Les exemples éditoriaux n’inventent rien en cas de
+                    pénurie : zéro candidat produit zéro post LinkedIn et aucun article du
+                    dimanche. Une source suffit à un article focalisé, deux à une analyse croisée
+                    limitée, et trois ou plus à un article multi-source.
+                </div>
 </section>
 <section data-title="Scénario : utiliser l’AI playground" id="scenario-playground">
 <p class="section-kicker">Scénario guidé 07</p>
@@ -1992,7 +2015,7 @@ ollama list</code></pre>
 </article>
 <article class="page-item">
 <strong>Tasks</strong>
-<p>Liste des tâches, statut Enabled/Registered, création, édition, suppression, prompt, exécution immédiate et sortie du runner.</p>
+<p>Liste des tâches, statut Enabled/Registered, création, édition, suppression, prompt, exécution immédiate et sortie du runner. Si un fichier JSON empêche le chargement, un panneau d’erreur visible remplace la fausse liste vide, confirme qu’aucun fichier n’a été supprimé et propose <span class="ui-label">Open Tasks folder</span> puis <span class="ui-label">Refresh</span>.</p>
 </article>
 <article class="page-item">
 <strong>Direct Chat</strong>

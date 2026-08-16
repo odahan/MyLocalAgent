@@ -229,6 +229,7 @@ Release: 1.2.4 (2026-08-01)
 | Checklist item | Status | Executed evidence |
 |---|---:|---|
 | Tasks page loads without a read-only binding incident. | ✅ | `DisplayedRunText` explicitly uses a OneWay binding. |
+| An invalid task file cannot masquerade as an empty task store. | ✅ | The Tasks page displays a prominent non-destructive error with the validation detail, folder and Refresh actions; a deterministic ViewModel test verifies the error clears after a successful retry, and startup emits a visible notification. |
 | An operator can distinguish the pre-Stage-18 sequential Gmail screening from a loop. | ✅ | The historical run retrieved 40 messages, then issued 27 sequential Guardrails LLM calls before cancellation. At that time, Gmail emitted `message N of M` progress. Stage 18 supersedes this path with bounded batch progress. |
 | Interactive detailed diagnostics are available without normal-log persistence. | ✅ | Debug protocol tests cover round-trip and malformed-line rejection. The opt-in child Runner trace includes LLM request/response messages and existing sanitized tool arguments; the independent Auto-scroll control can pause or resume following output. |
 | Long diagnostic output is readable. | ✅ | Large repeatedly changes only the Runner panel from 190 to 490 pixels; the application window is untouched and the page remains scrollable. A local Release build completed two full check/clear cycles with those exact heights and no window movement. |
@@ -432,8 +433,12 @@ integration are nevertheless compiled and covered by deterministic tests.
 | Acceptance item | Status | Executed evidence |
 |---|---:|---|
 | `research.discover` is available as a task-whitelisted, inline-parameter workflow tool with no profiles or persistent research store. | ✅ | Catalog and contract tests cover the `research` group, declared argument metadata, query compilation, URL canonicalization, and Tool Map registration. |
-| Discovery output remains bounded and external content is handled through the existing Guardrails trust boundary. | ✅ | Contract coverage verifies the bounded discovery contract and the implementation reuses the Web Search connector and content-trust service. |
-| Release and integration verification completed for the stage. | ✅ | Stage verification recorded 589 non-integration tests plus 5 web-search integration tests passing; one environment-dependent local Ollama probe was skipped. |
+| Sliding freshness is enforced locally after retrieval rather than delegated to provider query syntax. | ✅ | Deterministic tests cover absolute date hints, 2→4→7 expansion, cumulative per-window budget reservation, local calendar boundaries, `windowHistory`, and rejection of old, future, and unknown-date documents. |
+| Search-provider throttling is distinguished from a genuine empty result. | ✅ | Deterministic coverage verifies HTTP 429 sets `searchStatus: rateLimited`, records the failure, stops subsequent phases, and emits a source-availability diagnostic. |
+| Discovery output remains bounded and external content crosses one late Guardrails boundary only after deterministic selection. | ✅ | Behavioral tests verify exact `protectedResults`, safe metadata, marked Base64 fallback, no raw overflow, and no translation for non-clean content. |
+| Optional translation is protected before and after its tool-less model call. | ✅ | Tests verify the approved source payload is screened before translation and the exact translated payload is screened again before delivery. |
+| Bundled editorial workflows adapt publication scope to the available evidence. | ✅ | The daily LinkedIn sample emits no topics or posts for zero candidates. The Sunday sample emits only a diagnostic for zero, a focused article for one source, a limited cross-analysis for two, and a full multi-source article from three. |
+| Release verification completed for the corrected discovery boundary. | ✅ | Current Release verification records 648 non-integration tests passing and one environment-dependent local Ollama probe skipped. The credential-dependent Web Search integration suite remains explicitly opt-in. |
 
 ## Stage 24 Direct Chat and subsequent 1.4.0 improvements
 

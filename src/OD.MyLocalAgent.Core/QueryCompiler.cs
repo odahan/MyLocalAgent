@@ -17,14 +17,14 @@ internal static class QueryCompiler
     /// </summary>
     /// <param name="themes">The search themes.</param>
     /// <param name="sourceLanguage">The BCP-47 source language qualifier.</param>
-    /// <param name="daysBack">The number of days back for the date filter, or 0 for no filter.</param>
+    /// <param name="earliestPublicationDate">The inclusive local publication date, or <see langword="null"/> for no filter.</param>
     /// <param name="preferredDomains">The preferred domains for domain-targeted queries.</param>
     /// <param name="budgetRemaining">The remaining query budget.</param>
     /// <returns>The ordered compiled queries with theme indices.</returns>
     public static IReadOnlyList<CompiledQuery> Compile(
         IReadOnlyList<Theme> themes,
         string sourceLanguage,
-        int daysBack,
+        DateOnly? earliestPublicationDate,
         IReadOnlyList<string> preferredDomains,
         int budgetRemaining)
     {
@@ -35,8 +35,8 @@ internal static class QueryCompiler
         }
 
         var queries = new List<CompiledQuery>();
-        var dateQualifier = daysBack > 0
-            ? $" {DateQualifierPrefix}{daysBack}d"
+        var dateQualifier = earliestPublicationDate.HasValue
+            ? $" {DateQualifierPrefix}{earliestPublicationDate.Value:yyyy-MM-dd}"
             : string.Empty;
         var langQualifier = $" lang:{sourceLanguage}";
 

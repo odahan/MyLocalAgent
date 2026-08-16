@@ -24,7 +24,7 @@ public sealed class ResearchDiscoverContractTests
         var queries = QueryCompiler.Compile(
             themes,
             "en",
-            0,
+            null,
             [],
             10);
 
@@ -58,7 +58,7 @@ public sealed class ResearchDiscoverContractTests
         var queries = QueryCompiler.Compile(
             themes,
             "en",
-            0,
+            null,
             [],
             10);
 
@@ -83,7 +83,7 @@ public sealed class ResearchDiscoverContractTests
         var queries = QueryCompiler.Compile(
             themes,
             "en",
-            0,
+            null,
             ["learn.microsoft.com"],
             10);
 
@@ -108,7 +108,7 @@ public sealed class ResearchDiscoverContractTests
         var queries = QueryCompiler.Compile(
             themes,
             "en",
-            0,
+            null,
             [],
             4);
 
@@ -129,13 +129,13 @@ public sealed class ResearchDiscoverContractTests
         var queries = QueryCompiler.Compile(
             themes,
             "en",
-            2,
+            new DateOnly(2026, 8, 14),
             [],
             10);
 
         queries.Should().HaveCount(2);
-        queries[0].Query.Should().Contain("after:2d");
-        queries[1].Query.Should().Contain("after:2d");
+        queries[0].Query.Should().Contain("after:2026-08-14");
+        queries[1].Query.Should().Contain("after:2026-08-14");
     }
 
     /// <summary>
@@ -152,7 +152,7 @@ public sealed class ResearchDiscoverContractTests
         var queries = QueryCompiler.Compile(
             themes,
             "en",
-            0,
+            null,
             [],
             10);
 
@@ -236,7 +236,7 @@ public sealed class ResearchDiscoverContractTests
         var queries = QueryCompiler.Compile(
             [],
             "en",
-            0,
+            null,
             [],
             10);
 
@@ -257,7 +257,7 @@ public sealed class ResearchDiscoverContractTests
         var queries = QueryCompiler.Compile(
             themes,
             "en",
-            0,
+            null,
             [],
             10);
 
@@ -284,7 +284,7 @@ public sealed class ResearchDiscoverContractTests
         var queries = QueryCompiler.Compile(
             themes,
             "en",
-            0,
+            null,
             [],
             10);
 
@@ -309,7 +309,7 @@ public sealed class ResearchDiscoverContractTests
         var queries = QueryCompiler.Compile(
             themes,
             "en",
-            0,
+            null,
             [],
             10);
 
@@ -334,7 +334,7 @@ public sealed class ResearchDiscoverContractTests
         var queries = QueryCompiler.Compile(
             themes,
             "fr",
-            0,
+            null,
             [],
             10);
 

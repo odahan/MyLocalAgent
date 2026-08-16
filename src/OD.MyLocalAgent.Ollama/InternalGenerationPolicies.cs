@@ -28,4 +28,10 @@ public static class InternalGenerationPolicies
     /// </summary>
     public static InternalGenerationPolicy GuardrailReduction { get; } =
         new("GuardrailReduction", 0, 1);
+
+    /// <summary>
+    /// Gets the research-candidate translation policy.
+    /// </summary>
+    public static InternalGenerationPolicy ResearchTranslation { get; } =
+        new("ResearchTranslation", 0, 1);
 }

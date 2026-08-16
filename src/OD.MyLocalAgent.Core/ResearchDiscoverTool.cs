@@ -1,4 +1,5 @@
-using System.Text;
+using System.Globalization;
+using System.Net;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -8,7 +9,7 @@ using OD.MyLocalAgent.Guardrails;
 namespace OD.MyLocalAgent.Core;
 
 /// <summary>
-/// Discovers web documents matching search themes using bounded loops.
+/// Discovers web documents with deterministic collection and late protected delivery.
 /// </summary>
 [ToolGroup(
     "research",
@@ -20,6 +21,8 @@ namespace OD.MyLocalAgent.Core;
 public sealed class ResearchDiscoverTool : IResearchDiscoverTool
 {
     private const string TruncationMarker = "[truncated by OD.MyLocalAgent]";
+    private static readonly int[] SlidingWindows = [2, 4, 7];
+    private static readonly TimeSpan FutureDateTolerance = TimeSpan.FromMinutes(5);
 
     private readonly IWebSearchConnector _webSearchConnector;
     private readonly IHttpClientFactory _httpClientFactory;
@@ -27,6 +30,7 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
     private readonly IOptionsMonitor<GuardrailsOptions> _guardrailsOptions;
     private readonly IContentTrustService _contentTrustService;
     private readonly IIncidentReporter _incidentReporter;
+    private readonly IResearchTranslationService _translationService;
     private readonly ILogger<ResearchDiscoverTool> _logger;
     private readonly TimeProvider _timeProvider;
 
@@ -40,6 +44,7 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
         IOptionsMonitor<GuardrailsOptions> guardrailsOptions,
         IContentTrustService contentTrustService,
         IIncidentReporter incidentReporter,
+        IResearchTranslationService translationService,
         ILogger<ResearchDiscoverTool> logger,
         TimeProvider timeProvider)
     {
@@ -49,6 +54,7 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
         ArgumentNullException.ThrowIfNull(guardrailsOptions);
         ArgumentNullException.ThrowIfNull(contentTrustService);
         ArgumentNullException.ThrowIfNull(incidentReporter);
+        ArgumentNullException.ThrowIfNull(translationService);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(timeProvider);
         _webSearchConnector = webSearchConnector;
@@ -57,6 +63,7 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
         _guardrailsOptions = guardrailsOptions;
         _contentTrustService = contentTrustService;
         _incidentReporter = incidentReporter;
+        _translationService = translationService;
         _logger = logger;
         _timeProvider = timeProvider;
     }
@@ -71,7 +78,7 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
         [ToolArgument(WorkflowArgumentKind.String, "JSON array of preferred domains for ranking.", Example = "[\"learn.microsoft.com\"]")] string preferredDomains = "[]",
         [ToolArgument(WorkflowArgumentKind.Integer, "Minimum unique dated documents target (1-100), ignored in 'none' mode.", Example = "8")] int minimumDocuments = 8,
         [ToolArgument(WorkflowArgumentKind.Integer, "Maximum search hits per compiled query (1-10).", Example = "5")] int maxResultsPerQuery = 5,
-        [ToolArgument(WorkflowArgumentKind.Integer, "Maximum page fetches for the entire run (1-100).", Example = "24")] int maxRetrievalsPerRun = 24,
+        [ToolArgument(WorkflowArgumentKind.Integer, "Maximum page fetch attempts for the entire run (1-100).", Example = "24")] int maxRetrievalsPerRun = 24,
         CancellationToken cancellationToken = default)
     {
         return ToolCallLog.ExecuteAsync(
@@ -96,9 +103,17 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
                 var effectiveMaxPerQuery = Math.Clamp(maxResultsPerQuery, 1, 10);
                 var effectiveMaxRetrievals = Math.Clamp(maxRetrievalsPerRun, 1, 100);
                 var effectiveMinDocs = Math.Clamp(minimumDocuments, 1, 100);
-
-                var effectiveLanguage = string.IsNullOrWhiteSpace(language) ? null : language;
-                var effectiveSourceLanguage = string.IsNullOrWhiteSpace(sourceLanguage) ? "en" : sourceLanguage;
+                var effectiveLanguage = string.IsNullOrWhiteSpace(language) ? null : language.Trim();
+                var effectiveSourceLanguage = string.IsNullOrWhiteSpace(sourceLanguage)
+                    ? "en"
+                    : sourceLanguage.Trim();
+                var localNow = _timeProvider.GetLocalNow();
+                var guardrails = _guardrailsOptions.CurrentValue;
+                if (guardrails.MaxContentChars < 2)
+                {
+                    throw new InvalidOperationException(
+                        "Guardrails:MaxContentChars must be at least 2 for Web Discovery.");
+                }
 
                 return mode == FreshnessWindow.Sliding
                     ? await RunSlidingModeAsync(
@@ -109,6 +124,8 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
                         effectiveMinDocs,
                         effectiveMaxPerQuery,
                         effectiveMaxRetrievals,
+                        localNow,
+                        guardrails,
                         cancellationToken).ConfigureAwait(false)
                     : await RunNoneModeAsync(
                         parsedThemes,
@@ -117,6 +134,7 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
                         parsedDomains,
                         effectiveMaxPerQuery,
                         effectiveMaxRetrievals,
+                        guardrails,
                         cancellationToken).ConfigureAwait(false);
             },
             SummarizeResult);
@@ -130,219 +148,106 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
         int minimumDocuments,
         int maxResultsPerQuery,
         int maxRetrievalsPerRun,
+        DateTimeOffset localNow,
+        GuardrailsOptions guardrails,
         CancellationToken cancellationToken)
     {
-        var allCandidates = new Dictionary<string, WebDocument>(StringComparer.OrdinalIgnoreCase);
-        var generatedQueries = new List<object>();
-        var retrievalsUsed = 0;
-        var queriesExecuted = 0;
+        var state = new DiscoveryCollectionState();
+        var nowUtc = localNow.ToUniversalTime();
+        var effectiveWindowDays = SlidingWindows[0];
+        DateTimeOffset windowStartUtc = default;
+        IReadOnlyList<WebDocument> eligible = [];
 
-        // Phase 1: Two-day window
-        var budgetRemaining = Math.Min(themes.Count * 3, maxResultsPerQuery * 3);
-        var twoDayQueries = QueryCompiler.Compile(
-            themes,
-            sourceLanguage,
-            2,
-            preferredDomains,
-            budgetRemaining);
-
-        var twoDayResults = await ExecuteQueriesAsync(
-            twoDayQueries,
-            maxResultsPerQuery,
-            cancellationToken).ConfigureAwait(false);
-        queriesExecuted += twoDayQueries.Count;
-
-        foreach (var queryResult in twoDayResults)
+        for (var phaseIndex = 0; phaseIndex < SlidingWindows.Length; phaseIndex++)
         {
-            generatedQueries.Add(new
+            var windowDays = SlidingWindows[phaseIndex];
+            effectiveWindowDays = windowDays;
+            var earliestLocalDate = DateOnly.FromDateTime(localNow.DateTime).AddDays(-windowDays);
+            windowStartUtc = GetStartOfLocalDateUtc(earliestLocalDate);
+            var phaseRetrievalLimit = CalculateCumulativeRetrievalLimit(
+                maxRetrievalsPerRun,
+                phaseIndex,
+                SlidingWindows.Length);
+            var retrievalsBefore = state.RetrievalsUsed;
+            var queriesBefore = state.GeneratedQueries.Count;
+            var eligibleBefore = CountEligibleDocuments(
+                state.Documents.Values,
+                windowStartUtc,
+                nowUtc);
+            if (eligibleBefore < minimumDocuments &&
+                state.RetrievalsUsed < phaseRetrievalLimit)
             {
-                query = queryResult.CompiledQuery.Query,
-                themeIndex = queryResult.CompiledQuery.ThemeIndex,
-                intent = queryResult.CompiledQuery.Intent.ToString(),
-                resultCount = queryResult.SearchResults.Count,
-            });
-
-            foreach (var hit in queryResult.SearchResults)
-            {
-                var canonicalUrl = UrlCanonicalizer.Canonicalize(hit.Url);
-                if (allCandidates.ContainsKey(canonicalUrl))
-                {
-                    continue;
-                }
-
-                if (retrievalsUsed >= maxRetrievalsPerRun)
-                {
-                    break;
-                }
-
-                var document = await RetrieveAndScreenAsync(
-                    hit,
-                    canonicalUrl,
-                    queryResult.CompiledQuery.Query,
-                    cancellationToken).ConfigureAwait(false);
-
-                if (document is not null)
-                {
-                    allCandidates[canonicalUrl] = document;
-                    retrievalsUsed++;
-                }
+                await CollectPhaseAsync(
+                        state,
+                        themes,
+                        sourceLanguage,
+                        earliestLocalDate,
+                        preferredDomains,
+                        maxResultsPerQuery,
+                        phaseRetrievalLimit,
+                        windowStartUtc,
+                        nowUtc,
+                        minimumDocuments,
+                        cancellationToken)
+                    .ConfigureAwait(false);
             }
 
-            if (retrievalsUsed >= maxRetrievalsPerRun)
+            eligible = state.Documents.Values
+                .Where(document => IsEligibleForWindow(document, windowStartUtc, nowUtc))
+                .ToArray();
+            var minimumReached = eligible.Count >= minimumDocuments;
+            var phaseLimitReached = state.RetrievalsUsed >= phaseRetrievalLimit;
+            var isFinalPhase = phaseIndex == SlidingWindows.Length - 1;
+            state.WindowHistory.Add(new
+            {
+                windowDays,
+                windowStartUtc = windowStartUtc.ToString("O"),
+                retrievalLimit = phaseRetrievalLimit,
+                retrievalAttempts = state.RetrievalsUsed - retrievalsBefore,
+                cumulativeRetrievalAttempts = state.RetrievalsUsed,
+                queriesExecuted = state.GeneratedQueries.Count - queriesBefore,
+                eligibleCandidateCount = eligible.Count,
+                stopReason = state.SearchRateLimited
+                    ? "searchRateLimited"
+                    : minimumReached
+                    ? "minimumReached"
+                    : isFinalPhase && phaseLimitReached
+                        ? "retrievalBudgetExhausted"
+                        : phaseLimitReached
+                            ? "phaseBudgetReservedForLaterWindows"
+                            : "queriesExhausted",
+            });
+            if (minimumReached || state.SearchRateLimited)
             {
                 break;
             }
         }
 
-        var datedCount = allCandidates.Values.Count(
-            d => d.DateStatus == PublicationDateStatus.Verified &&
-                 d.PublicationTime.HasValue);
+        var rejectedTooOld = state.Documents.Values.Count(document =>
+            document.PublicationTime.HasValue && document.PublicationTime.Value < windowStartUtc);
+        var rejectedFuture = state.Documents.Values.Count(document =>
+            document.PublicationTime.HasValue &&
+            document.PublicationTime.Value > nowUtc + FutureDateTolerance);
+        var rejectedUnknown = state.Documents.Values.Count(document =>
+            document.DateStatus == PublicationDateStatus.Unknown || !document.PublicationTime.HasValue);
+        var insufficient = eligible.Count < minimumDocuments;
 
-        // Phase 2: Four-day window if below threshold
-        if (datedCount < minimumDocuments && retrievalsUsed < maxRetrievalsPerRun)
-        {
-            var fourDayQueries = QueryCompiler.Compile(
-                themes,
-                sourceLanguage,
-                4,
+        return await BuildProtectedResultAsync(
+                "sliding",
+                state,
+                eligible,
                 preferredDomains,
-                budgetRemaining);
-
-            var fourDayResults = await ExecuteQueriesAsync(
-                fourDayQueries,
-                maxResultsPerQuery,
-                cancellationToken).ConfigureAwait(false);
-            queriesExecuted += fourDayQueries.Count;
-
-            foreach (var queryResult in fourDayResults)
-            {
-                generatedQueries.Add(new
-                {
-                    query = queryResult.CompiledQuery.Query,
-                    themeIndex = queryResult.CompiledQuery.ThemeIndex,
-                    intent = queryResult.CompiledQuery.Intent.ToString(),
-                    resultCount = queryResult.SearchResults.Count,
-                });
-
-                foreach (var hit in queryResult.SearchResults)
-                {
-                    var canonicalUrl = UrlCanonicalizer.Canonicalize(hit.Url);
-                    if (allCandidates.ContainsKey(canonicalUrl))
-                    {
-                        continue;
-                    }
-
-                    if (retrievalsUsed >= maxRetrievalsPerRun)
-                    {
-                        break;
-                    }
-
-                    var document = await RetrieveAndScreenAsync(
-                        hit,
-                        canonicalUrl,
-                        queryResult.CompiledQuery.Query,
-                        cancellationToken).ConfigureAwait(false);
-
-                    if (document is not null)
-                    {
-                        allCandidates[canonicalUrl] = document;
-                        retrievalsUsed++;
-                    }
-                }
-
-                if (retrievalsUsed >= maxRetrievalsPerRun)
-                {
-                    break;
-                }
-            }
-
-            datedCount = allCandidates.Values.Count(
-                d => d.DateStatus == PublicationDateStatus.Verified &&
-                     d.PublicationTime.HasValue);
-        }
-
-        // Phase 3: Seven-day window if still below threshold
-        if (datedCount < minimumDocuments && retrievalsUsed < maxRetrievalsPerRun)
-        {
-            var sevenDayQueries = QueryCompiler.Compile(
-                themes,
-                sourceLanguage,
-                7,
-                preferredDomains,
-                budgetRemaining);
-
-            var sevenDayResults = await ExecuteQueriesAsync(
-                sevenDayQueries,
-                maxResultsPerQuery,
-                cancellationToken).ConfigureAwait(false);
-            queriesExecuted += sevenDayQueries.Count;
-
-            foreach (var queryResult in sevenDayResults)
-            {
-                generatedQueries.Add(new
-                {
-                    query = queryResult.CompiledQuery.Query,
-                    themeIndex = queryResult.CompiledQuery.ThemeIndex,
-                    intent = queryResult.CompiledQuery.Intent.ToString(),
-                    resultCount = queryResult.SearchResults.Count,
-                });
-
-                foreach (var hit in queryResult.SearchResults)
-                {
-                    var canonicalUrl = UrlCanonicalizer.Canonicalize(hit.Url);
-                    if (allCandidates.ContainsKey(canonicalUrl))
-                    {
-                        continue;
-                    }
-
-                    if (retrievalsUsed >= maxRetrievalsPerRun)
-                    {
-                        break;
-                    }
-
-                    var document = await RetrieveAndScreenAsync(
-                        hit,
-                        canonicalUrl,
-                        queryResult.CompiledQuery.Query,
-                        cancellationToken).ConfigureAwait(false);
-
-                    if (document is not null)
-                    {
-                        allCandidates[canonicalUrl] = document;
-                        retrievalsUsed++;
-                    }
-                }
-
-                if (retrievalsUsed >= maxRetrievalsPerRun)
-                {
-                    break;
-                }
-            }
-
-            datedCount = allCandidates.Values.Count(
-                d => d.DateStatus == PublicationDateStatus.Verified &&
-                     d.PublicationTime.HasValue);
-        }
-
-        var insufficient = datedCount < minimumDocuments;
-        var candidates = SortAndPrioritize(allCandidates.Values, preferredDomains);
-
-        // Translate if needed
-        IReadOnlyList<WebDocument> finalCandidates = candidates;
-        if (!string.IsNullOrEmpty(targetLanguage))
-        {
-            finalCandidates = await TranslateCandidatesAsync(
-                candidates,
                 targetLanguage,
-                cancellationToken).ConfigureAwait(false);
-        }
-
-        return BuildResult(
-            "sliding",
-            generatedQueries,
-            finalCandidates,
-            retrievalsUsed,
-            insufficient);
+                guardrails,
+                effectiveWindowDays,
+                windowStartUtc,
+                rejectedTooOld,
+                rejectedUnknown,
+                rejectedFuture,
+                insufficient,
+                minimumDocuments,
+                cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private async Task<string> RunNoneModeAsync(
@@ -352,93 +257,146 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
         IReadOnlyList<string> preferredDomains,
         int maxResultsPerQuery,
         int maxRetrievalsPerRun,
+        GuardrailsOptions guardrails,
         CancellationToken cancellationToken)
     {
-        var allCandidates = new Dictionary<string, WebDocument>(StringComparer.OrdinalIgnoreCase);
-        var generatedQueries = new List<object>();
-        var retrievalsUsed = 0;
+        var state = new DiscoveryCollectionState();
+        await CollectPhaseAsync(
+                state,
+                themes,
+                sourceLanguage,
+                null,
+                preferredDomains,
+                maxResultsPerQuery,
+                maxRetrievalsPerRun,
+                null,
+                null,
+                null,
+                cancellationToken)
+            .ConfigureAwait(false);
 
-        var budgetRemaining = Math.Min(themes.Count * 3, maxResultsPerQuery * 3);
+        return await BuildProtectedResultAsync(
+                "none",
+                state,
+                state.Documents.Values.ToArray(),
+                preferredDomains,
+                targetLanguage,
+                guardrails,
+                null,
+                null,
+                0,
+                0,
+                0,
+                false,
+                0,
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task CollectPhaseAsync(
+        DiscoveryCollectionState state,
+        IReadOnlyList<Theme> themes,
+        string sourceLanguage,
+        DateOnly? earliestPublicationDate,
+        IReadOnlyList<string> preferredDomains,
+        int maxResultsPerQuery,
+        int retrievalLimit,
+        DateTimeOffset? activeWindowStartUtc,
+        DateTimeOffset? nowUtc,
+        int? minimumDocuments,
+        CancellationToken cancellationToken)
+    {
+        var queryBudget = Math.Min(themes.Count * 3, maxResultsPerQuery * 3);
         var queries = QueryCompiler.Compile(
             themes,
             sourceLanguage,
-            0,
+            earliestPublicationDate,
             preferredDomains,
-            budgetRemaining);
+            queryBudget);
+        var results = await ExecuteQueriesAsync(state, queries, maxResultsPerQuery, cancellationToken)
+            .ConfigureAwait(false);
 
-        var queryResults = await ExecuteQueriesAsync(
-            queries,
-            maxResultsPerQuery,
-            cancellationToken).ConfigureAwait(false);
-
-        foreach (var queryResult in queryResults)
+        foreach (var queryResult in results)
         {
-            generatedQueries.Add(new
+            state.GeneratedQueries.Add(new
             {
                 query = queryResult.CompiledQuery.Query,
                 themeIndex = queryResult.CompiledQuery.ThemeIndex,
                 intent = queryResult.CompiledQuery.Intent.ToString(),
                 resultCount = queryResult.SearchResults.Count,
+                succeeded = queryResult.Succeeded,
+                errorStatusCode = queryResult.ErrorStatusCode,
             });
+        }
 
+        foreach (var queryResult in results)
+        {
             foreach (var hit in queryResult.SearchResults)
             {
-                var canonicalUrl = UrlCanonicalizer.Canonicalize(hit.Url);
-                if (allCandidates.ContainsKey(canonicalUrl))
+                if (state.RetrievalsUsed >= retrievalLimit)
+                {
+                    return;
+                }
+
+                if (!TryGetSupportedAbsoluteUrl(hit.Url, out var supportedUrl))
                 {
                     continue;
                 }
 
-                if (retrievalsUsed >= maxRetrievalsPerRun)
+                var canonicalUrl = UrlCanonicalizer.Canonicalize(supportedUrl);
+                if (!state.AttemptedUrls.Add(canonicalUrl))
                 {
-                    break;
+                    continue;
                 }
 
-                var document = await RetrieveAndScreenAsync(
-                    hit,
-                    canonicalUrl,
-                    queryResult.CompiledQuery.Query,
-                    cancellationToken).ConfigureAwait(false);
-
-                if (document is not null)
+                state.RetrievalsUsed++;
+                var document = await RetrieveDocumentAsync(
+                        hit,
+                        canonicalUrl,
+                        queryResult.CompiledQuery.Query,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                if (document is null)
                 {
-                    allCandidates[canonicalUrl] = document;
-                    retrievalsUsed++;
+                    continue;
+                }
+
+                if (state.Documents.TryGetValue(document.CanonicalUrl, out var existing))
+                {
+                    state.Documents[document.CanonicalUrl] = existing with
+                    {
+                        DiscoveryQueryIds = existing.DiscoveryQueryIds
+                            .Concat(document.DiscoveryQueryIds)
+                            .Distinct(StringComparer.Ordinal)
+                            .ToArray(),
+                    };
+                }
+                else
+                {
+                    state.Documents[document.CanonicalUrl] = document;
+                }
+
+                if (activeWindowStartUtc.HasValue &&
+                    nowUtc.HasValue &&
+                    minimumDocuments.HasValue &&
+                    CountEligibleDocuments(
+                        state.Documents.Values,
+                        activeWindowStartUtc.Value,
+                        nowUtc.Value) >= minimumDocuments.Value)
+                {
+                    return;
                 }
             }
-
-            if (retrievalsUsed >= maxRetrievalsPerRun)
-            {
-                break;
-            }
         }
-
-        var candidates = SortAndPrioritize(allCandidates.Values, preferredDomains);
-
-        IReadOnlyList<WebDocument> finalCandidates = candidates;
-        if (!string.IsNullOrEmpty(targetLanguage))
-        {
-            finalCandidates = await TranslateCandidatesAsync(
-                candidates,
-                targetLanguage,
-                cancellationToken).ConfigureAwait(false);
-        }
-
-        return BuildResult(
-            "none",
-            generatedQueries,
-            finalCandidates,
-            retrievalsUsed,
-            insufficient: false);
     }
 
     private async Task<IReadOnlyList<QuerySearchResult>> ExecuteQueriesAsync(
+        DiscoveryCollectionState state,
         IReadOnlyList<CompiledQuery> queries,
         int maxResultsPerQuery,
         CancellationToken cancellationToken)
     {
         var results = new List<QuerySearchResult>();
-
         foreach (var query in queries)
         {
             try
@@ -446,27 +404,45 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
                 var searchResult = await _webSearchConnector
                     .SearchAsync(query.Query, maxResultsPerQuery, cancellationToken)
                     .ConfigureAwait(false);
-
+                state.SuccessfulSearchQueryCount++;
                 results.Add(new QuerySearchResult(query, searchResult.Items));
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 throw;
             }
+            catch (WebSearchApiException exception)
+            {
+                state.SearchFailureCount++;
+                state.LastSearchErrorStatusCode = exception.StatusCode;
+                state.SearchRateLimited |= exception.StatusCode == (int)HttpStatusCode.TooManyRequests;
+                _logger.LogWarning(
+                    "Query execution failed for '{Query}': {ExceptionType} (HTTP {StatusCode})",
+                    query.Query,
+                    exception.GetType().Name,
+                    exception.StatusCode);
+                results.Add(new QuerySearchResult(query, [], false, exception.StatusCode));
+                if (state.SearchRateLimited ||
+                    exception.StatusCode is (int)HttpStatusCode.Unauthorized or (int)HttpStatusCode.Forbidden)
+                {
+                    break;
+                }
+            }
             catch (Exception exception)
             {
+                state.SearchFailureCount++;
                 _logger.LogWarning(
                     "Query execution failed for '{Query}': {ExceptionType}",
                     query.Query,
                     exception.GetType().Name);
-                results.Add(new QuerySearchResult(query, []));
+                results.Add(new QuerySearchResult(query, [], false));
             }
         }
 
         return results;
     }
 
-    private async Task<WebDocument?> RetrieveAndScreenAsync(
+    private async Task<WebDocument?> RetrieveDocumentAsync(
         WebSearchResultItem hit,
         string canonicalUrl,
         string queryId,
@@ -474,31 +450,8 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
     {
         try
         {
-            var domain = UrlCanonicalizer.ExtractDomain(hit.Url);
-            var document = await FetchDocumentAsync(
-                hit,
-                canonicalUrl,
-                domain,
-                queryId,
-                cancellationToken).ConfigureAwait(false);
-
-            if (document is null)
-            {
-                return null;
-            }
-
-            // Apply Guardrails screening to the document content
-            var screeningResult = await ScreenWithFallbackAsync(
-                document.ShortSummary,
-                cancellationToken).ConfigureAwait(false);
-
-            return document with
-            {
-                TrustScore = screeningResult.TrustScore ?? 0,
-                TrustDisposition = ContentTrustPolicy.Decide(
-                    screeningResult,
-                    _guardrailsOptions.CurrentValue).ToString(),
-            };
+            return await FetchDocumentAsync(hit, canonicalUrl, queryId, cancellationToken)
+                .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -507,8 +460,8 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
         catch (Exception exception)
         {
             _logger.LogWarning(
-                "Document retrieval failed for '{Url}': {ExceptionType}",
-                hit.Url,
+                "Document retrieval failed for '{Domain}': {ExceptionType}",
+                UrlCanonicalizer.ExtractDomain(hit.Url),
                 exception.GetType().Name);
             return null;
         }
@@ -517,7 +470,6 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
     private async Task<WebDocument?> FetchDocumentAsync(
         WebSearchResultItem hit,
         string canonicalUrl,
-        string domain,
         string queryId,
         CancellationToken cancellationToken)
     {
@@ -527,65 +479,219 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
         using var linkedSource = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken,
             timeoutSource.Token);
-
-        try
+        var client = _httpClientFactory.CreateClient(HttpTool.HttpClientName);
+        using var request = new HttpRequestMessage(HttpMethod.Get, hit.Url);
+        if (!string.IsNullOrWhiteSpace(_httpOptions.CurrentValue.UserAgent))
         {
-            var client = _httpClientFactory.CreateClient(HttpTool.HttpClientName);
-            using var request = new HttpRequestMessage(HttpMethod.Get, hit.Url);
-            if (!string.IsNullOrWhiteSpace(_httpOptions.CurrentValue.UserAgent))
-            {
-                request.Headers.UserAgent.ParseAdd(_httpOptions.CurrentValue.UserAgent);
-            }
+            request.Headers.UserAgent.ParseAdd(_httpOptions.CurrentValue.UserAgent);
+        }
 
-            using var response = await client.SendAsync(
+        using var response = await client.SendAsync(
                 request,
                 HttpCompletionOption.ResponseHeadersRead,
-                linkedSource.Token).ConfigureAwait(false);
-
-            response.EnsureSuccessStatusCode();
-
-            var body = await response.Content.ReadAsStringAsync(linkedSource.Token)
-                .ConfigureAwait(false);
-            var mediaType = response.Content.Headers.ContentType?.MediaType;
-            var title = ExtractTitle(body, mediaType) ?? hit.Title;
-            var publicationTime = ExtractPublicationDate(body, mediaType);
-            var dateStatus = publicationTime.HasValue
-                ? PublicationDateStatus.Verified
-                : PublicationDateStatus.Unknown;
-            var kind = ClassifyDocumentKind(hit.Url, body, mediaType);
-            var shortSummary = ExtractSummary(body, mediaType);
-            var finalUrl = response.RequestMessage?.RequestUri?.ToString() ?? hit.Url;
-            var canonicalFinalUrl = UrlCanonicalizer.Canonicalize(finalUrl);
-
-            return new WebDocument(
-                HitId: Guid.NewGuid().ToString("N"),
-                SourceUrl: hit.Url,
-                FinalUrl: finalUrl,
-                CanonicalUrl: canonicalUrl,
-                Title: title,
-                Domain: domain,
-                Kind: kind,
-                PublicationTime: publicationTime,
-                DateStatus: dateStatus,
-                ShortSummary: shortSummary,
-                ContentType: mediaType ?? "text/html",
-                TrustScore: 0,
-                TrustDisposition: "Pending",
-                DiscoveryQueryIds: [queryId],
-                RetrievalTimeUtc: _timeProvider.GetUtcNow());
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                linkedSource.Token)
+            .ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        var body = await response.Content.ReadAsStringAsync(linkedSource.Token)
+            .ConfigureAwait(false);
+        if (body.Length > _httpOptions.CurrentValue.MaxResponseCharacters)
         {
-            throw;
+            body = body[.._httpOptions.CurrentValue.MaxResponseCharacters];
         }
-        catch
+
+        var mediaType = response.Content.Headers.ContentType?.MediaType;
+        var finalUrl = response.RequestMessage?.RequestUri?.ToString() ?? hit.Url;
+        var canonicalFinalUrl = UrlCanonicalizer.Canonicalize(finalUrl);
+        var publicationTime = ExtractPublicationDate(body, mediaType);
+        return new WebDocument(
+            Guid.NewGuid().ToString("N"),
+            hit.Url,
+            finalUrl,
+            canonicalFinalUrl.Length == 0 ? canonicalUrl : canonicalFinalUrl,
+            ExtractTitle(body, mediaType) ?? hit.Title,
+            UrlCanonicalizer.ExtractDomain(finalUrl),
+            ClassifyDocumentKind(finalUrl, mediaType),
+            publicationTime,
+            publicationTime.HasValue ? PublicationDateStatus.Verified : PublicationDateStatus.Unknown,
+            ExtractSummary(body, mediaType),
+            mediaType ?? "text/html",
+            [queryId],
+            _timeProvider.GetUtcNow());
+    }
+
+    private async Task<string> BuildProtectedResultAsync(
+        string mode,
+        DiscoveryCollectionState state,
+        IReadOnlyList<WebDocument> eligibleCandidates,
+        IReadOnlyList<string> preferredDomains,
+        string? targetLanguage,
+        GuardrailsOptions guardrails,
+        int? effectiveWindowDays,
+        DateTimeOffset? windowStartUtc,
+        int rejectedTooOld,
+        int rejectedUnknown,
+        int rejectedFuture,
+        bool insufficient,
+        int minimumDocuments,
+        CancellationToken cancellationToken)
+    {
+        var ordered = SortAndPrioritize(eligibleCandidates, preferredDomains);
+        var budgeted = BuildBudgetedPayload(ordered, guardrails.MaxContentChars);
+        var finalBudget = budgeted;
+        var trust = await ScreenWithFallbackAsync(
+                budgeted.CanonicalPayload,
+                "research.discover final source payload",
+                cancellationToken)
+            .ConfigureAwait(false);
+        var disposition = ContentTrustPolicy.Decide(trust, guardrails);
+        var delivery = GuardrailDelivery.Apply(budgeted.CanonicalPayload, trust, guardrails);
+        var screeningCallCount = 1;
+        var translationRequested = !string.IsNullOrEmpty(targetLanguage);
+        var translationApplied = false;
+
+        if (translationRequested &&
+            disposition == TrustDisposition.PassThrough &&
+            budgeted.Items.Count > 0)
         {
-            return null;
+            try
+            {
+                var translated = await _translationService.TranslateAsync(
+                        delivery.Content,
+                        budgeted.Items.Select(static item => item.Id).ToArray(),
+                        targetLanguage!,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                var translatedCandidates = translated.Select(item =>
+                    new ExternalCandidateContent(item.Id, item.Title, item.ShortSummary)).ToArray();
+                var translatedBudget = BuildBudgetedPayload(
+                    translatedCandidates,
+                    guardrails.MaxContentChars);
+                var translatedTrust = await ScreenWithFallbackAsync(
+                        translatedBudget.CanonicalPayload,
+                        "research.discover final translated payload",
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                screeningCallCount++;
+                var translatedDisposition = ContentTrustPolicy.Decide(translatedTrust, guardrails);
+                var translatedDelivery = GuardrailDelivery.Apply(
+                    translatedBudget.CanonicalPayload,
+                    translatedTrust,
+                    guardrails);
+                finalBudget = translatedBudget;
+                trust = translatedTrust;
+                disposition = translatedDisposition;
+                delivery = translatedDelivery;
+                translationApplied = true;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                _logger.LogWarning(
+                    "Research candidate translation failed: {ExceptionType}",
+                    exception.GetType().Name);
+            }
         }
+
+        var deliverExternalData = disposition != TrustDisposition.Withhold;
+        HashSet<string> deliveredIds = deliverExternalData
+            ? finalBudget.Items.Select(static item => item.Id).ToHashSet(StringComparer.Ordinal)
+            : [];
+        var deliveredCandidates = deliverExternalData
+            ? ordered.Where(candidate => deliveredIds.Contains(candidate.HitId)).ToArray()
+            : [];
+        var searchStatus = state.SearchRateLimited
+            ? "rateLimited"
+            : state.SearchFailureCount > 0 && state.SuccessfulSearchQueryCount == 0
+                ? "unavailable"
+                : state.SearchFailureCount > 0
+                    ? "degraded"
+                    : "available";
+        var output = new Dictionary<string, object?>
+        {
+            ["freshnessWindow"] = mode,
+            ["effectiveWindowDays"] = effectiveWindowDays,
+            ["windowStartUtc"] = windowStartUtc?.ToString("O"),
+            ["queries"] = state.GeneratedQueries,
+            ["queryCount"] = state.GeneratedQueries.Count,
+            ["successfulSearchQueryCount"] = state.SuccessfulSearchQueryCount,
+            ["searchFailureCount"] = state.SearchFailureCount,
+            ["searchStatus"] = searchStatus,
+            ["searchErrorStatusCode"] = state.LastSearchErrorStatusCode,
+            ["windowHistory"] = state.WindowHistory,
+            ["retrievalsUsed"] = state.RetrievalsUsed,
+            ["discoveredCandidateCount"] = state.Documents.Count,
+            ["eligibleCandidateCount"] = ordered.Count,
+            ["candidateCount"] = deliveredCandidates.Length,
+            ["datedCount"] = ordered.Count(candidate =>
+                candidate.DateStatus == PublicationDateStatus.Verified && candidate.PublicationTime.HasValue),
+            ["unknownDateCount"] = ordered.Count(candidate =>
+                candidate.DateStatus == PublicationDateStatus.Unknown || !candidate.PublicationTime.HasValue),
+            ["rejectedTooOldCount"] = rejectedTooOld,
+            ["rejectedUnknownDateCount"] = rejectedUnknown,
+            ["rejectedFutureDateCount"] = rejectedFuture,
+            ["omittedBecauseOfBudget"] = ordered.Count - finalBudget.Items.Count,
+            ["truncated"] = finalBudget.Truncated,
+            ["candidates"] = deliveredCandidates.Select(candidate => new
+            {
+                hitId = candidate.HitId,
+                sourceUrl = candidate.SourceUrl,
+                finalUrl = candidate.FinalUrl,
+                canonicalUrl = candidate.CanonicalUrl,
+                domain = candidate.Domain,
+                kind = candidate.Kind.ToString(),
+                publicationTime = candidate.PublicationTime?.ToString("O"),
+                dateStatus = candidate.DateStatus.ToString(),
+                contentType = candidate.ContentType,
+                discoveryQueryIds = candidate.DiscoveryQueryIds,
+                retrievalTimeUtc = candidate.RetrievalTimeUtc.ToString("O"),
+            }),
+            ["protectedResults"] = delivery.Content,
+            ["guardrails"] = new
+            {
+                screened = trust.Screened,
+                trustStatus = trust.Status.ToString(),
+                trustScore = trust.TrustScore,
+                suspiciousIndicatorCount = trust.SuspiciousIndicators.Count,
+                disposition = disposition.ToString(),
+                contentEncoding = delivery.ContentEncoding,
+                screeningCallCount,
+            },
+            ["translation"] = new
+            {
+                requested = translationRequested,
+                applied = translationApplied,
+                targetLanguage,
+            },
+        };
+
+        if (disposition == TrustDisposition.Withhold)
+        {
+            output["withheld"] = $"score {trust.TrustScore}";
+        }
+
+        if (insufficient)
+        {
+            output["insufficient"] = true;
+            output["insufficientReason"] = searchStatus switch
+            {
+                "rateLimited" =>
+                    "The web-search provider rejected the discovery request because its request limit was reached (HTTP 429). Source availability could not be determined.",
+                "unavailable" =>
+                    "Every attempted web-search query failed. Source availability could not be determined.",
+                _ =>
+                    $"Only {ordered.Count} eligible dated documents were found in the {effectiveWindowDays}-day window, below the minimum threshold of {minimumDocuments}.",
+            };
+        }
+
+        return ToolJson.Serialize(output);
     }
 
     private async Task<ContentTrustResult> ScreenWithFallbackAsync(
         string content,
+        string incidentContext,
         CancellationToken cancellationToken)
     {
         try
@@ -601,187 +707,182 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
         catch (GuardrailScreeningException exception)
         {
             _ = await _incidentReporter
-                .ReportAsync(
-                    exception,
-                    "research.discover guardrail screening",
-                    CancellationToken.None)
+                .ReportAsync(exception, incidentContext, CancellationToken.None)
                 .ConfigureAwait(false);
             return exception.FallbackResult;
         }
     }
 
-    private async Task<IReadOnlyList<WebDocument>> TranslateCandidatesAsync(
+    private static BudgetedPayload BuildBudgetedPayload(
         IReadOnlyList<WebDocument> candidates,
-        string targetLanguage,
-        CancellationToken cancellationToken)
+        int maximumCharacters) =>
+        BuildBudgetedPayload(
+            candidates.Select(candidate => new ExternalCandidateContent(
+                candidate.HitId,
+                candidate.Title,
+                candidate.ShortSummary)).ToArray(),
+            maximumCharacters);
+
+    private static BudgetedPayload BuildBudgetedPayload(
+        IReadOnlyList<ExternalCandidateContent> candidates,
+        int maximumCharacters)
     {
-        if (candidates.Count == 0)
+        var accepted = new List<ExternalCandidateContent>(candidates.Count);
+        var truncated = false;
+        foreach (var candidate in candidates)
         {
-            return candidates;
-        }
-
-        // Build a single translation prompt for all candidates
-        var sb = new StringBuilder();
-        for (var i = 0; i < candidates.Count; i++)
-        {
-            var doc = candidates[i];
-            sb.AppendLine($"--- DOCUMENT {i + 1} ---");
-            sb.AppendLine($"TITLE: {doc.Title}");
-            sb.AppendLine($"SUMMARY: {doc.ShortSummary}");
-            sb.AppendLine();
-        }
-
-        sb.Insert(0, $"Translate the titles and summaries below to {targetLanguage}. Return each document's translated title and summary in the exact same format with --- DOCUMENT N --- separators. Do not add any commentary.\n\n");
-
-        try
-        {
-            // Use the existing LLM infrastructure for translation
-            // This is a bounded, deterministic call
-            var translated = await TranslateAsync(
-                sb.ToString(),
-                targetLanguage,
-                cancellationToken).ConfigureAwait(false);
-
-            return ParseTranslatedCandidates(candidates, translated);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch
-        {
-            // If translation fails, return original candidates
-            return candidates;
-        }
-    }
-
-    private async Task<string> TranslateAsync(
-        string content,
-        string targetLanguage,
-        CancellationToken cancellationToken)
-    {
-        // Use the Guardrails service for a bounded translation call
-        // This uses the configured LLM provider without tools or agent
-        var result = await _contentTrustService
-            .SummarizeAsync(
-                content,
-                content.Length,
-                cancellationToken)
-            .ConfigureAwait(false);
-
-        return result.Summary ?? content;
-    }
-
-    private static IReadOnlyList<WebDocument> ParseTranslatedCandidates(
-        IReadOnlyList<WebDocument> originals,
-        string translated)
-    {
-        // If parsing fails, return originals
-        var sections = translated.Split(
-            "--- DOCUMENT ",
-            StringSplitOptions.RemoveEmptyEntries);
-
-        if (sections.Length < originals.Count)
-        {
-            return originals;
-        }
-
-        var result = new List<WebDocument>(originals.Count);
-        for (var i = 0; i < originals.Count; i++)
-        {
-            var section = i < sections.Length ? sections[i] : string.Empty;
-            var titleMatch = ExtractTranslatedField(section, "TITLE:");
-            var summaryMatch = ExtractTranslatedField(section, "SUMMARY:");
-
-            result.Add(originals[i] with
+            if (Fits(accepted, candidate, maximumCharacters))
             {
-                Title = titleMatch ?? originals[i].Title,
-                ShortSummary = summaryMatch ?? originals[i].ShortSummary,
-            });
+                accepted.Add(candidate);
+                continue;
+            }
+
+            var shortened = TryCreateTruncatedCandidate(accepted, candidate, maximumCharacters);
+            if (shortened is not null)
+            {
+                accepted.Add(shortened);
+                truncated = true;
+            }
+
+            break;
         }
 
-        return result;
+        return new BudgetedPayload(
+            accepted,
+            SerializeCanonical(accepted),
+            truncated);
     }
 
-    private static string? ExtractTranslatedField(string section, string prefix)
+    private static ExternalCandidateContent? TryCreateTruncatedCandidate(
+        IReadOnlyList<ExternalCandidateContent> accepted,
+        ExternalCandidateContent source,
+        int maximumCharacters)
     {
-        var prefixIndex = section.IndexOf(prefix, StringComparison.OrdinalIgnoreCase);
-        if (prefixIndex < 0)
+        if (source.ShortSummary.Length > 0)
         {
-            return null;
+            var summaryCandidate = FindLongestPrefix(
+                source.ShortSummary,
+                prefix => source with { ShortSummary = prefix + TruncationMarker },
+                accepted,
+                maximumCharacters);
+            if (summaryCandidate is not null)
+            {
+                return summaryCandidate;
+            }
         }
 
-        var start = prefixIndex + prefix.Length;
-        var lineEnd = section.IndexOf('\n', start);
-        if (lineEnd < 0)
+        var replacementSummary = source.ShortSummary.Length == 0 ? string.Empty : TruncationMarker;
+        if (source.Title.Length > 0)
         {
-            lineEnd = section.Length;
+            var titleCandidate = FindLongestPrefix(
+                source.Title,
+                prefix => source with
+                {
+                    Title = prefix + TruncationMarker,
+                    ShortSummary = replacementSummary,
+                },
+                accepted,
+                maximumCharacters);
+            if (titleCandidate is not null)
+            {
+                return titleCandidate;
+            }
         }
 
-        var value = section[start..lineEnd].Trim();
-        return string.IsNullOrWhiteSpace(value) ? null : value;
+        var markerOnly = source with { Title = TruncationMarker, ShortSummary = string.Empty };
+        return Fits(accepted, markerOnly, maximumCharacters) ? markerOnly : null;
     }
+
+    private static ExternalCandidateContent? FindLongestPrefix(
+        string source,
+        Func<string, ExternalCandidateContent> createCandidate,
+        IReadOnlyList<ExternalCandidateContent> accepted,
+        int maximumCharacters)
+    {
+        var lower = 0;
+        var upper = source.Length;
+        ExternalCandidateContent? best = null;
+        while (lower <= upper)
+        {
+            var length = lower + ((upper - lower) / 2);
+            var candidate = createCandidate(source[..length]);
+            if (Fits(accepted, candidate, maximumCharacters))
+            {
+                best = candidate;
+                lower = length + 1;
+            }
+            else
+            {
+                upper = length - 1;
+            }
+        }
+
+        return best;
+    }
+
+    private static bool Fits(
+        IReadOnlyList<ExternalCandidateContent> accepted,
+        ExternalCandidateContent candidate,
+        int maximumCharacters)
+    {
+        var pending = new ExternalCandidateContent[accepted.Count + 1];
+        for (var index = 0; index < accepted.Count; index++)
+        {
+            pending[index] = accepted[index];
+        }
+
+        pending[^1] = candidate;
+        return SerializeCanonical(pending).Length <= maximumCharacters;
+    }
+
+    private static string SerializeCanonical(IReadOnlyList<ExternalCandidateContent> items) =>
+        JsonSerializer.Serialize(
+            items.Select(static item => new
+            {
+                id = item.Id,
+                title = item.Title,
+                shortSummary = item.ShortSummary,
+            }),
+            ToolJson.Options);
+
+    private DateTimeOffset GetStartOfLocalDateUtc(DateOnly localDate)
+    {
+        var localDateTime = localDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
+        var offset = _timeProvider.LocalTimeZone.GetUtcOffset(localDateTime);
+        return new DateTimeOffset(localDateTime, offset).ToUniversalTime();
+    }
+
+    private static int CalculateCumulativeRetrievalLimit(
+        int maximumRetrievals,
+        int phaseIndex,
+        int phaseCount) =>
+        ((maximumRetrievals * (phaseIndex + 1)) + phaseCount - 1) / phaseCount;
+
+    private static int CountEligibleDocuments(
+        IEnumerable<WebDocument> documents,
+        DateTimeOffset windowStartUtc,
+        DateTimeOffset nowUtc) =>
+        documents.Count(document => IsEligibleForWindow(document, windowStartUtc, nowUtc));
+
+    private static bool IsEligibleForWindow(
+        WebDocument document,
+        DateTimeOffset windowStartUtc,
+        DateTimeOffset nowUtc) =>
+        document.DateStatus == PublicationDateStatus.Verified &&
+        document.PublicationTime is { } publicationTime &&
+        publicationTime >= windowStartUtc &&
+        publicationTime <= nowUtc + FutureDateTolerance;
 
     private static List<WebDocument> SortAndPrioritize(
         IEnumerable<WebDocument> documents,
-        IReadOnlyList<string> preferredDomains)
-    {
-        return documents
-            .OrderByDescending(d => preferredDomains.Any(
-                p => string.Equals(d.Domain, p, StringComparison.OrdinalIgnoreCase)))
-            .ThenByDescending(d => d.DateStatus == PublicationDateStatus.Verified)
-            .ThenByDescending(d => d.PublicationTime)
-            .ThenBy(d => d.DateStatus == PublicationDateStatus.Unknown ? 1 : 0)
+        IReadOnlyList<string> preferredDomains) =>
+        documents
+            .OrderByDescending(document => preferredDomains.Any(domain =>
+                string.Equals(document.Domain, domain, StringComparison.OrdinalIgnoreCase)))
+            .ThenByDescending(document => document.DateStatus == PublicationDateStatus.Verified)
+            .ThenByDescending(document => document.PublicationTime)
+            .ThenBy(document => document.CanonicalUrl, StringComparer.Ordinal)
             .ToList();
-    }
-
-    private static string BuildResult(
-        string mode,
-        IReadOnlyList<object> queries,
-        IReadOnlyList<WebDocument> candidates,
-        int retrievalsUsed,
-        bool insufficient)
-    {
-        var output = new Dictionary<string, object?>
-        {
-            ["freshnessWindow"] = mode,
-            ["queries"] = queries,
-            ["queryCount"] = queries.Count,
-            ["retrievalsUsed"] = retrievalsUsed,
-            ["candidateCount"] = candidates.Count,
-            ["datedCount"] = candidates.Count(
-                d => d.DateStatus == PublicationDateStatus.Verified),
-            ["unknownDateCount"] = candidates.Count(
-                d => d.DateStatus == PublicationDateStatus.Unknown),
-            ["candidates"] = candidates.Select(c => new
-            {
-                hitId = c.HitId,
-                sourceUrl = c.SourceUrl,
-                finalUrl = c.FinalUrl,
-                canonicalUrl = c.CanonicalUrl,
-                title = c.Title,
-                domain = c.Domain,
-                kind = c.Kind.ToString(),
-                publicationTime = c.PublicationTime?.ToString("O"),
-                dateStatus = c.DateStatus.ToString(),
-                shortSummary = c.ShortSummary,
-                contentType = c.ContentType,
-                trustScore = c.TrustScore,
-                trustDisposition = c.TrustDisposition,
-                discoveryQueryIds = c.DiscoveryQueryIds,
-                retrievalTimeUtc = c.RetrievalTimeUtc.ToString("O"),
-            }),
-        };
-
-        if (insufficient)
-        {
-            output["insufficient"] = true;
-            output["insufficientReason"] =
-                $"Only {candidates.Count(d => d.DateStatus == PublicationDateStatus.Verified)} dated documents found after 7-day expansion, below the minimum threshold.";
-        }
-
-        return ToolJson.Serialize(output);
-    }
 
     private static string? SummarizeResult(string json)
     {
@@ -793,11 +894,21 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
             return null;
         }
 
-        var insufficient = root.TryGetProperty("insufficient", out var insuff) &&
-                           insuff.GetBoolean();
-        var suffix = insufficient ? " (insufficient)" : string.Empty;
+        var insufficient = root.TryGetProperty("insufficient", out var insuff) && insuff.GetBoolean();
+        if (root.TryGetProperty("searchStatus", out var status) &&
+            !string.Equals(status.GetString(), "available", StringComparison.Ordinal))
+        {
+            var failures = root.TryGetProperty("searchFailureCount", out var failureCount)
+                ? failureCount.GetInt32()
+                : 0;
+            var httpStatus = root.TryGetProperty("searchErrorStatusCode", out var errorStatus) &&
+                             errorStatus.ValueKind == JsonValueKind.Number
+                ? $" (HTTP {errorStatus.GetInt32()})"
+                : string.Empty;
+            return $"Web search status is {status.GetString()}{httpStatus} after {failures} failed query attempt(s); source availability could not be determined.";
+        }
 
-        return $"Discovered {count.GetInt32()} candidate(s) using {retrievals.GetInt32()} retrieval(s){suffix}.";
+        return $"Discovered {count.GetInt32()} protected candidate(s) using {retrievals.GetInt32()} retrieval attempt(s){(insufficient ? " (insufficient)" : string.Empty)}.";
     }
 
     private static IReadOnlyList<Theme> ParseThemes(string themesJson)
@@ -811,38 +922,36 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
         {
             using var document = JsonDocument.Parse(themesJson);
             var themes = new List<Theme>();
-
-            if (document.RootElement.ValueKind == JsonValueKind.Array)
+            if (document.RootElement.ValueKind != JsonValueKind.Array)
             {
-                foreach (var element in document.RootElement.EnumerateArray())
+                return themes;
+            }
+
+            foreach (var element in document.RootElement.EnumerateArray())
+            {
+                var terms = ParseStringArray(element, "terms");
+                if (terms.Count == 0)
                 {
-                    var terms = ParseStringArray(element, "terms");
-                    if (terms.Count == 0)
-                    {
-                        continue;
-                    }
-
-                    var includeTerms = ParseStringArray(element, "includeTerms");
-                    var excludeTerms = ParseStringArray(element, "excludeTerms");
-
-                    themes.Add(new Theme(
-                        terms,
-                        includeTerms.Count > 0 ? includeTerms : null,
-                        excludeTerms.Count > 0 ? excludeTerms : null));
+                    continue;
                 }
+
+                var includeTerms = ParseStringArray(element, "includeTerms");
+                var excludeTerms = ParseStringArray(element, "excludeTerms");
+                themes.Add(new Theme(
+                    terms,
+                    includeTerms.Count > 0 ? includeTerms : null,
+                    excludeTerms.Count > 0 ? excludeTerms : null));
             }
 
             return themes;
         }
-        catch
+        catch (JsonException)
         {
             return [];
         }
     }
 
-    private static IReadOnlyList<string> ParseStringArray(
-        JsonElement parent,
-        string propertyName)
+    private static IReadOnlyList<string> ParseStringArray(JsonElement parent, string propertyName)
     {
         if (!parent.TryGetProperty(propertyName, out var element) ||
             element.ValueKind != JsonValueKind.Array)
@@ -850,20 +959,12 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
             return [];
         }
 
-        var result = new List<string>();
-        foreach (var item in element.EnumerateArray())
-        {
-            if (item.ValueKind == JsonValueKind.String)
-            {
-                var value = item.GetString();
-                if (!string.IsNullOrWhiteSpace(value))
-                {
-                    result.Add(value);
-                }
-            }
-        }
-
-        return result;
+        return element.EnumerateArray()
+            .Where(static item => item.ValueKind == JsonValueKind.String)
+            .Select(static item => item.GetString())
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .Select(static value => value!)
+            .ToArray();
     }
 
     private static IReadOnlyList<string> ParseDomains(string domainsJson)
@@ -876,108 +977,157 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
         try
         {
             using var document = JsonDocument.Parse(domainsJson);
-            var domains = new List<string>();
-
-            if (document.RootElement.ValueKind == JsonValueKind.Array)
+            if (document.RootElement.ValueKind != JsonValueKind.Array)
             {
-                foreach (var element in document.RootElement.EnumerateArray())
-                {
-                    if (element.ValueKind == JsonValueKind.String)
-                    {
-                        var value = element.GetString();
-                        if (!string.IsNullOrWhiteSpace(value))
-                        {
-                            domains.Add(value);
-                        }
-                    }
-                }
+                return [];
             }
 
-            return domains;
+            return document.RootElement.EnumerateArray()
+                .Where(static item => item.ValueKind == JsonValueKind.String)
+                .Select(static item => item.GetString()?.Trim().ToLowerInvariant())
+                .Where(static value => !string.IsNullOrWhiteSpace(value))
+                .Select(static value => value!)
+                .ToArray();
         }
-        catch
+        catch (JsonException)
         {
             return [];
         }
     }
 
-    private static FreshnessWindow ParseFreshnessWindow(string value)
-    {
-        return string.Equals(value, "none", StringComparison.OrdinalIgnoreCase)
+    private static FreshnessWindow ParseFreshnessWindow(string value) =>
+        string.Equals(value, "none", StringComparison.OrdinalIgnoreCase)
             ? FreshnessWindow.None
             : FreshnessWindow.Sliding;
+
+    private static bool TryGetSupportedAbsoluteUrl(string? value, out string url)
+    {
+        url = string.Empty;
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) ||
+            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            return false;
+        }
+
+        url = uri.AbsoluteUri;
+        return true;
     }
 
     private static string? ExtractTitle(string html, string? mediaType)
     {
-        if (mediaType is not null && !mediaType.Contains("html", StringComparison.OrdinalIgnoreCase))
+        if (!IsHtml(mediaType))
         {
             return null;
         }
 
-        var titleTag = "<title";
-        var titleIndex = html.IndexOf(titleTag, StringComparison.OrdinalIgnoreCase);
-        if (titleIndex < 0)
-        {
-            return null;
-        }
-
-        var start = html.IndexOf('>', titleIndex);
-        if (start < 0)
-        {
-            return null;
-        }
-
-        var end = html.IndexOf("</title", start, StringComparison.OrdinalIgnoreCase);
-        if (end < 0)
-        {
-            end = Math.Min(start + 500, html.Length);
-        }
-
-        return html[(start + 1)..end].Trim();
+        var title = LoadHtml(html).DocumentNode.SelectSingleNode("//title")?.InnerText;
+        return string.IsNullOrWhiteSpace(title) ? null : WebUtility.HtmlDecode(title).Trim();
     }
 
     private static DateTimeOffset? ExtractPublicationDate(string html, string? mediaType)
     {
-        if (mediaType is not null && !mediaType.Contains("html", StringComparison.OrdinalIgnoreCase))
+        if (!IsHtml(mediaType))
         {
             return null;
         }
 
-        // Look for common date patterns in meta tags
-        var datePatterns = new[]
+        var document = LoadHtml(html);
+        var metadataNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            "<meta property=\"article:published_time\" content=\"",
-            "<meta name=\"date\" content=\"",
-            "<meta name=\"publish_date\" content=\"",
-            "<meta name=\"DC.date\" content=\"",
+            "article:published_time", "date", "publish_date", "pubdate",
+            "dc.date", "datepublished", "parsely-pub-date",
         };
-
-        foreach (var pattern in datePatterns)
+        foreach (var meta in document.DocumentNode.SelectNodes("//meta[@content]") ?? Enumerable.Empty<HtmlAgilityPack.HtmlNode>())
         {
-            var index = html.IndexOf(pattern, StringComparison.OrdinalIgnoreCase);
-            if (index >= 0)
+            var property = meta.GetAttributeValue("property", string.Empty);
+            var name = meta.GetAttributeValue("name", string.Empty);
+            var itemProperty = meta.GetAttributeValue("itemprop", string.Empty);
+            if ((metadataNames.Contains(property) ||
+                 metadataNames.Contains(name) ||
+                 metadataNames.Contains(itemProperty)) &&
+                TryParsePublicationDate(meta.GetAttributeValue("content", string.Empty), out var date))
             {
-                var start = index + pattern.Length;
-                var end = html.IndexOf('"', start);
-                if (end > start)
+                return date;
+            }
+        }
+
+        foreach (var script in document.DocumentNode.SelectNodes("//script[@type]") ?? Enumerable.Empty<HtmlAgilityPack.HtmlNode>())
+        {
+            if (!string.Equals(
+                    script.GetAttributeValue("type", string.Empty).Trim(),
+                    "application/ld+json",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            try
+            {
+                using var json = JsonDocument.Parse(WebUtility.HtmlDecode(script.InnerText));
+                if (TryFindJsonDatePublished(json.RootElement, out var jsonDate))
                 {
-                    var dateStr = html[start..end];
-                    if (DateTimeOffset.TryParse(dateStr, out var date))
-                    {
-                        return date;
-                    }
+                    return jsonDate;
                 }
+            }
+            catch (JsonException)
+            {
+                // Ignore malformed optional metadata.
+            }
+        }
+
+        foreach (var time in document.DocumentNode.SelectNodes("//time[@datetime]") ?? Enumerable.Empty<HtmlAgilityPack.HtmlNode>())
+        {
+            if (TryParsePublicationDate(time.GetAttributeValue("datetime", string.Empty), out var date))
+            {
+                return date;
             }
         }
 
         return null;
     }
 
-    private static WebDocumentKind ClassifyDocumentKind(
-        string url,
-        string html,
-        string? mediaType)
+    private static bool TryFindJsonDatePublished(JsonElement element, out DateTimeOffset date)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in element.EnumerateObject())
+            {
+                if (string.Equals(property.Name, "datePublished", StringComparison.OrdinalIgnoreCase) &&
+                    property.Value.ValueKind == JsonValueKind.String &&
+                    TryParsePublicationDate(property.Value.GetString(), out date))
+                {
+                    return true;
+                }
+
+                if (TryFindJsonDatePublished(property.Value, out date))
+                {
+                    return true;
+                }
+            }
+        }
+        else if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in element.EnumerateArray())
+            {
+                if (TryFindJsonDatePublished(item, out date))
+                {
+                    return true;
+                }
+            }
+        }
+
+        date = default;
+        return false;
+    }
+
+    private static bool TryParsePublicationDate(string? value, out DateTimeOffset date) =>
+        DateTimeOffset.TryParse(
+            WebUtility.HtmlDecode(value ?? string.Empty),
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeUniversal,
+            out date);
+
+    private static WebDocumentKind ClassifyDocumentKind(string url, string? mediaType)
     {
         if (mediaType is not null && mediaType.Contains("video", StringComparison.OrdinalIgnoreCase))
         {
@@ -996,20 +1146,17 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
             return WebDocumentKind.Documentation;
         }
 
-        if (lowerUrl.Contains("release") || lowerUrl.Contains("changelog") ||
-            lowerUrl.Contains("breaking"))
+        if (lowerUrl.Contains("release") || lowerUrl.Contains("changelog") || lowerUrl.Contains("breaking"))
         {
             return WebDocumentKind.ReleaseNote;
         }
 
-        if (lowerUrl.Contains("blog") || lowerUrl.Contains("news") ||
-            lowerUrl.Contains("article"))
+        if (lowerUrl.Contains("blog") || lowerUrl.Contains("news") || lowerUrl.Contains("article"))
         {
             return WebDocumentKind.Article;
         }
 
-        if (lowerUrl.Contains("stackoverflow.com") || lowerUrl.Contains("reddit.com") ||
-            lowerUrl.Contains("forum"))
+        if (lowerUrl.Contains("stackoverflow.com") || lowerUrl.Contains("reddit.com") || lowerUrl.Contains("forum"))
         {
             return WebDocumentKind.Post;
         }
@@ -1019,118 +1166,83 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
 
     private static string ExtractSummary(string html, string? mediaType)
     {
-        if (mediaType is not null && !mediaType.Contains("html", StringComparison.OrdinalIgnoreCase))
+        if (!IsHtml(mediaType))
         {
             return string.Empty;
         }
 
-        // Try meta description first
-        var metaDesc = ExtractMetaContent(html, "description");
-        if (!string.IsNullOrWhiteSpace(metaDesc))
+        var document = LoadHtml(html);
+        foreach (var meta in document.DocumentNode.SelectNodes("//meta[@content]") ?? Enumerable.Empty<HtmlAgilityPack.HtmlNode>())
         {
-            return TruncateSummary(metaDesc);
-        }
-
-        // Fall back to first paragraph
-        var firstP = ExtractFirstParagraph(html);
-        if (!string.IsNullOrWhiteSpace(firstP))
-        {
-            return TruncateSummary(firstP);
-        }
-
-        return string.Empty;
-    }
-
-    private static string? ExtractMetaContent(string html, string name)
-    {
-        var patterns = new[]
-        {
-            $"<meta name=\"{name}\" content=\"",
-            $"<meta property=\"og:{name}\" content=\"",
-        };
-
-        foreach (var pattern in patterns)
-        {
-            var index = html.IndexOf(pattern, StringComparison.OrdinalIgnoreCase);
-            if (index >= 0)
+            var name = meta.GetAttributeValue("name", string.Empty);
+            var property = meta.GetAttributeValue("property", string.Empty);
+            if (string.Equals(name, "description", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(property, "og:description", StringComparison.OrdinalIgnoreCase))
             {
-                var start = index + pattern.Length;
-                var end = html.IndexOf('"', start);
-                if (end > start)
+                var content = WebUtility.HtmlDecode(meta.GetAttributeValue("content", string.Empty)).Trim();
+                if (!string.IsNullOrWhiteSpace(content))
                 {
-                    return html[start..end].Trim();
+                    return TruncateSummary(content);
                 }
             }
         }
 
-        return null;
+        var paragraph = document.DocumentNode.SelectSingleNode("//article//p|//main//p|//body//p|//p");
+        var text = paragraph is null ? string.Empty : WebUtility.HtmlDecode(paragraph.InnerText).Trim();
+        return TruncateSummary(text);
     }
 
-    private static string ExtractFirstParagraph(string html)
+    private static HtmlAgilityPack.HtmlDocument LoadHtml(string html)
     {
-        var pIndex = html.IndexOf("<p", StringComparison.OrdinalIgnoreCase);
-        if (pIndex < 0)
-        {
-            return string.Empty;
-        }
-
-        var start = html.IndexOf('>', pIndex);
-        if (start < 0)
-        {
-            return string.Empty;
-        }
-
-        var end = html.IndexOf("</p", start, StringComparison.OrdinalIgnoreCase);
-        if (end < 0)
-        {
-            end = Math.Min(start + 1000, html.Length);
-        }
-
-        // Strip HTML tags from the paragraph content
-        var content = html[(start + 1)..end];
-        return StripHtmlTags(content).Trim();
+        var document = new HtmlAgilityPack.HtmlDocument();
+        document.LoadHtml(html);
+        return document;
     }
 
-    private static string StripHtmlTags(string html)
-    {
-        var result = new StringBuilder();
-        var inTag = false;
-
-        foreach (var c in html)
-        {
-            if (c == '<')
-            {
-                inTag = true;
-                continue;
-            }
-
-            if (c == '>')
-            {
-                inTag = false;
-                continue;
-            }
-
-            if (!inTag)
-            {
-                result.Append(c);
-            }
-        }
-
-        return result.ToString();
-    }
+    private static bool IsHtml(string? mediaType) =>
+        mediaType is null || mediaType.Contains("html", StringComparison.OrdinalIgnoreCase);
 
     private static string TruncateSummary(string text)
     {
-        const int maxLength = 500;
-        if (text.Length <= maxLength)
-        {
-            return text;
-        }
-
-        return text[..maxLength] + TruncationMarker;
+        const int maximumLength = 500;
+        return text.Length <= maximumLength
+            ? text
+            : text[..maximumLength] + TruncationMarker;
     }
 
     private sealed record QuerySearchResult(
         CompiledQuery CompiledQuery,
-        IReadOnlyList<WebSearchResultItem> SearchResults);
+        IReadOnlyList<WebSearchResultItem> SearchResults,
+        bool Succeeded = true,
+        int? ErrorStatusCode = null);
+
+    private sealed record ExternalCandidateContent(string Id, string Title, string ShortSummary);
+
+    private sealed record BudgetedPayload(
+        IReadOnlyList<ExternalCandidateContent> Items,
+        string CanonicalPayload,
+        bool Truncated);
+
+    private sealed class DiscoveryCollectionState
+    {
+        public Dictionary<string, WebDocument> Documents { get; } =
+            new(StringComparer.OrdinalIgnoreCase);
+
+        public HashSet<string> AttemptedUrls { get; } =
+            new(StringComparer.OrdinalIgnoreCase);
+
+        public List<object> GeneratedQueries { get; } = [];
+
+        public List<object> WindowHistory { get; } = [];
+
+        public int SuccessfulSearchQueryCount { get; set; }
+
+        public int SearchFailureCount { get; set; }
+
+        public int? LastSearchErrorStatusCode { get; set; }
+
+        public bool SearchRateLimited { get; set; }
+
+        public int RetrievalsUsed { get; set; }
+    }
 }

@@ -1735,6 +1735,28 @@ ollama list</code></pre>
                     URLs are metadata; they disappear when Guardrails withholds the content.
                     Disabled or failed screening still uses marked Base64—never raw text.
                 </div>
+<div class="callout">
+                    For multi-theme monitoring, also enable the
+                    <span class="ui-label">Web Discovery</span> group and use
+                    <code>research.discover</code>. <code>sliding</code> mode verifies dates locally
+                    after retrieval: it starts at two local calendar days and expands to four and
+                    seven days only when the requested minimum of recent documents is not met.
+                    Old, future, and unverifiable-date pages are excluded; use
+                    <code>freshnessWindow: "none"</code> to allow undated content explicitly.
+                    Search, reading, and ranking remain deterministic; only the final selected
+                    titles and summaries cross Guardrails and are delivered in
+                    <code>protectedResults</code>. Requested translation runs only after a clean
+                    verdict, and its exact output is screened again. The
+                    <code>windowHistory</code> field makes the 2, 4, and 7-day budgets and outcomes
+                    auditable. Provider failures are not treated as zero results:
+                    <code>searchStatus</code> distinguishes available, degraded, unavailable, and
+                    rate-limited search. HTTP 429 stops the remaining queries and produces a
+                    diagnostic stating that source availability could not be determined. The
+                    editorial samples do not invent material when sources are
+                    scarce: zero candidates produce zero LinkedIn posts and no Sunday article.
+                    One source supports a focused article, two a limited cross-analysis, and
+                    three or more a full multi-source article.
+                </div>
 </section>
 <section data-title="Scenario: use the AI playground" id="scenario-playground">
 <p class="section-kicker">Guided scenario 07</p>
@@ -1950,7 +1972,7 @@ ollama list</code></pre>
 </article>
 <article class="page-item">
 <strong>Tasks</strong>
-<p>Enabled and Registered state, creation, editing, deletion, prompt editing, Run now, and runner output.</p>
+<p>Enabled and Registered state, creation, editing, deletion, prompt editing, Run now, and runner output. If a JSON file prevents loading, a prominent error panel replaces the misleading empty list, confirms that no file was deleted, and offers <span class="ui-label">Open Tasks folder</span> and <span class="ui-label">Refresh</span>.</p>
 </article>
 <article class="page-item">
 <strong>Direct Chat</strong>

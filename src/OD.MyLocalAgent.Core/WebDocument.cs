@@ -14,8 +14,6 @@ namespace OD.MyLocalAgent.Core;
 /// <param name="DateStatus">The publication date verification status.</param>
 /// <param name="ShortSummary">A compact text summary of the document content.</param>
 /// <param name="ContentType">The HTTP content type of the fetched page.</param>
-/// <param name="TrustScore">The Guardrails trust score for the content.</param>
-/// <param name="TrustDisposition">The Guardrails trust disposition.</param>
 /// <param name="DiscoveryQueryIds">The query identifiers that discovered this document.</param>
 /// <param name="RetrievalTimeUtc">The UTC time when the document was retrieved.</param>
 public sealed record WebDocument(
@@ -30,7 +28,5 @@ public sealed record WebDocument(
     PublicationDateStatus DateStatus,
     string ShortSummary,
     string ContentType,
-    int TrustScore,
-    string TrustDisposition,
     IReadOnlyList<string> DiscoveryQueryIds,
     DateTimeOffset RetrievalTimeUtc);

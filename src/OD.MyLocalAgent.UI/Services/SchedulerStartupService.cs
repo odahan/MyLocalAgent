@@ -1,6 +1,8 @@
+using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using OD.MyLocalAgent.Core;
+using OD.MyLocalAgent.UI.Messages;
 
 namespace OD.MyLocalAgent.UI.Services;
 
@@ -9,15 +11,18 @@ internal sealed class SchedulerStartupService : BackgroundService
     private readonly ITaskSchedulerService _scheduler;
     private readonly IIncidentReporter _incidentReporter;
     private readonly ILogger<SchedulerStartupService> _logger;
+    private readonly IMessenger _messenger;
 
     public SchedulerStartupService(
         ITaskSchedulerService scheduler,
         IIncidentReporter incidentReporter,
-        ILogger<SchedulerStartupService> logger)
+        ILogger<SchedulerStartupService> logger,
+        IMessenger messenger)
     {
         _scheduler = scheduler;
         _incidentReporter = incidentReporter;
         _logger = logger;
+        _messenger = messenger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -47,6 +52,9 @@ internal sealed class SchedulerStartupService : BackgroundService
                     "Scheduler startup resynchronization",
                     CancellationToken.None)
                 .ConfigureAwait(false);
+            _messenger.Send(
+                new SnackbarNotificationMessage(
+                    "Tasks could not be loaded. Open Tasks to review the invalid task-file error."));
         }
     }
 }

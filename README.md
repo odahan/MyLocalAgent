@@ -212,6 +212,36 @@ and URL are metadata outside the screened block; they are removed when content i
 Clean content is marked plaintext, caution content is marked Base64, and low-trust content is
 withheld. Disabled or failed screening still uses marked Base64—there is no raw fallback.
 
+`research.discover` adds deterministic multi-query discovery for editorial and technical
+watch workflows. In `sliding` mode it starts with the current local day minus two calendar
+days, then expands to four and seven days only while the number of verified, in-window
+documents remains below `minimumDocuments`. The query contains an absolute `after:yyyy-MM-dd`
+hint, but correctness is enforced locally after HTML, Open Graph, JSON-LD, and `<time>` date
+extraction. Old, future, and unknown-date documents are excluded from sliding results;
+`freshnessWindow: "none"` retains undated documents. The global retrieval budget is reserved
+across the three windows through cumulative one-third, two-third, and full-budget ceilings, so
+the initial window cannot prevent expansion. `windowHistory` reports each window's budget,
+attempts, eligible count, and stop reason.
+
+Search-provider failures are not reported as genuine empty discoveries. The output exposes
+`searchStatus`, successful and failed query counts, and the last HTTP error code. A provider-wide
+HTTP 429 stops the remaining search phases immediately and is reported as `rateLimited`, allowing
+the next workflow step to explain that source availability could not be determined.
+
+Discovery performs search, retrieval, date extraction, deduplication, and ranking entirely in
+C# before Guardrails runs. Only the final bounded title/summary JSON enters the trust boundary.
+URLs and parsed dates remain whitelisted metadata; external titles and summaries appear only in
+`protectedResults`. With translation enabled, the approved source block is checked immediately
+before the tool-less translation call and the exact translated block is checked again before
+delivery. Disabled screening skips translation and still forces marked Base64 protection.
+
+The bundled editorial workflows fail closed on insufficient source material. The daily LinkedIn
+sample produces no topics or posts when discovery returns zero candidates and never treats an
+empty result as an editorial trend. Web-search throttling or unavailability is reported separately
+from a verified zero-source result. The Sunday sample writes a focused article from one source,
+a limited cross-analysis from two, and a full multi-source article from three or more. Only zero
+candidates produce a factual collection diagnostic without a long-form article.
+
 Stage 8 implements Ollama only, behind a provider-neutral connector boundary so a later local
 provider such as SearXNG can be added without changing the Tool Map or workflow contract.
 
@@ -536,6 +566,11 @@ not to compact Gmail/HTTP extraction.
 
 The JSON task store is the source of truth. Task Scheduler mirrors only each enabled task's
 next cron occurrence:
+
+If any `*.json` file in the task-store directory is invalid, the Tasks page displays a prominent
+non-destructive error with the offending validation message, **Open Tasks folder**, and
+**Refresh** actions. Startup also raises a notification. A load failure is never presented as an
+ordinary empty task list, and no task file is deleted automatically.
 
 - Folder: `OD.MyLocalAgent` by default.
 - Registration name: `OD.MyLocalAgent.<taskId>`.
@@ -1014,6 +1049,7 @@ JSON, and every new-task whitelist choice starts disabled.
 | `http.post` | `http_post` | `HttpTool.PostAsync` | `url`, `body`, `contentType` | `HttpPost` |
 | `http.getText` | `http_get_text` | `HttpTool.GetTextAsync` | `url` | — |
 | `web.search` | `web_search` | `WebSearchTool.SearchAsync` | `query`, optional `maxResults` | cloud opt-in |
+| `research.discover` | `research_discover` | `ResearchDiscoverTool.DiscoverAsync` | `themes`, optional discovery and budget arguments | cloud opt-in |
 | `ai.summarize` | — | `SummarizeTextSkill` | optional `text` | — |
 | `ai.extractActionItems` | — | `ExtractActionItemsSkill` | optional `text` | — |
 | `ai.classifyEmail` | — | `ClassifyEmailSkill` | optional `text` | — |

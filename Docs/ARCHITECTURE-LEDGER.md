@@ -715,7 +715,10 @@ setters without a nonexistent named `BasedOn` resource.
   scheduler registration state, persists enabled toggles, confirms delete and unregisters
   first, synchronizes explicit Register/Unregister, and executes Run now exclusively through
   the cancellable `IRunnerService` child-process path. Stdout and stderr stream into the
-  docked runner pane. Completion publishes `TaskExecutionCompletedMessage`.
+  docked runner pane. Completion publishes `TaskExecutionCompletedMessage`. Task-store load
+  failures produce a prominent non-destructive error panel with the validation detail, folder
+  and retry actions; startup also publishes a visible notification instead of silently showing
+  zero tasks.
 - Task editor enforces immutable ids after creation, produces live three-occurrence cron
   previews and direct common-pattern labels, exposes all five tool-group checkboxes, validates
   workflow JSON through `ScheduledTaskValidator`, supplies a bounded Levenshtein
@@ -1827,12 +1830,14 @@ dynamic-catalog behavior are covered by compilation and deterministic tests.
 ### Stage 23 — web discovery tool
 
 Added the `research.discover` workflow tool for bounded web-document discovery with search-theme
-compilation, freshness-window expansion, document classification, and guardrails screening.
+compilation, freshness-window expansion, document classification, and late protected delivery.
 
 #### Files created
 
-- `src/OD.MyLocalAgent.Core/ResearchDiscoverTool.cs` — main tool implementation (1136 lines)
+- `src/OD.MyLocalAgent.Core/ResearchDiscoverTool.cs` — main deterministic collection and protected-delivery implementation
 - `src/OD.MyLocalAgent.Core/IResearchDiscoverTool.cs` — tool interface
+- `src/OD.MyLocalAgent.Core/IResearchTranslationService.cs` and `ResearchTranslationService.cs`
+  — dedicated bounded, tool-less translation boundary
 - `src/OD.MyLocalAgent.Core/QueryCompiler.cs` — internal query compilation (themes → queries)
 - `src/OD.MyLocalAgent.Core/UrlCanonicalizer.cs` — internal URL normalization
 - `src/OD.MyLocalAgent.Core/SearchHit.cs` — data contract
@@ -1859,10 +1864,26 @@ compilation, freshness-window expansion, document classification, and guardrails
 - `QueryCompiler` and `UrlCanonicalizer` are `internal static` classes, exposed to tests via `InternalsVisibleTo`.
 - `CompiledQuery` record and `QueryIntent` enum are `internal` types, accessible from test project.
 - All parameters are inline (S23-D1); no profiles, no database, no Settings UI (S23-D1/D2).
-- `freshnessWindow = "sliding"`: 2→4→7 day expansion until dated docs ≥ `minimumDocuments`; `"none"`: no date filter.
+- `freshnessWindow = "sliding"`: authoritative local-calendar 2→4→7 day expansion until
+  verified in-window docs ≥ `minimumDocuments`; old, future, and unknown-date documents are
+  excluded. Cumulative one-third, two-third, and full-budget retrieval ceilings reserve work for
+  every window, and `windowHistory` exposes attempts, eligibility, and stop reasons. `"none"`
+  keeps the unfiltered and undated behavior.
+- Search-provider failures are never represented as genuine empty discovery. The result exposes
+  `searchStatus`, success/failure counts, and the last HTTP code. HTTP 429 stops remaining phases
+  and yields a rate-limit diagnostic instead of an unsupported zero-source conclusion.
 - Tool auto-discovered via `[ToolGroup]` / `[Tool]` attributes; `ToolCatalog.FromAssembly` reflection.
-- Reuses existing `IWebSearchConnector`, `IContentTrustService`, `IIncidentReporter`, `IHttpClientFactory` infrastructure.
-- Translation stub uses `IContentTrustService.SummarizeAsync` as a bounded LLM call; no dedicated translation service.
+- Reuses existing `IWebSearchConnector`, `IContentTrustService`, `IIncidentReporter`, and
+  `IHttpClientFactory` infrastructure. Search, retrieval, date extraction, filtering,
+  deduplication, and ranking execute before Guardrails.
+- The final bounded title/summary JSON is the unit screened and delivered through
+  `protectedResults`; raw external text never appears in candidate metadata. Disabled or failed
+  screening keeps mandatory marked-Base64 delivery.
+- Translation uses `IResearchTranslationService` only after a clean source verdict. Its exact
+  translated JSON receives a second final screening before delivery; other dispositions skip it.
+- The bundled daily LinkedIn workflow emits no post for zero candidates. The Sunday long-form
+  workflow emits only a factual diagnostic for zero candidates, a focused single-source article
+  for one, a limited cross-analysis for two, and a full multi-source article from three.
 - Document classification is URL-based heuristic; no AI classification step.
 - Integration tests read API key from DPAPI secret store (`%LOCALAPPDATA%\OD.MyLocalAgent\secrets.dat`).
 - Default test filter excludes integration tests: `dotnet test --filter "Category!=Integration"`.
@@ -2087,3 +2108,17 @@ compilation, freshness-window expansion, document classification, and guardrails
   fallback, Trust Filter JSON/budget behavior, and Direct Chat separation of visible reasoning from
   persisted assistant content. The non-integration test gate completed with 630 passed tests and
   one expected skipped local integration probe.
+
+### Version 1.4.7 — Reliable sliding discovery and workflow diagnostics — 2026-08-16
+
+- Enforced the local 2→4→7 calendar-day freshness window after retrieval, with cumulative
+  retrieval budgets reserved for each expansion phase and auditable `windowHistory` diagnostics.
+- Moved discovery prompt-injection screening to the final bounded delivery boundary, after
+  deterministic search, retrieval, date extraction, filtering, deduplication, and ranking.
+- Distinguished genuine empty discovery from web-search provider failures through `searchStatus`,
+  query success/failure counters, and the last HTTP status. Provider-wide HTTP 429 responses stop
+  later phases and are reported explicitly to the next workflow step.
+- Updated the LinkedIn and Sunday editorial workflows to fail closed on unavailable search and to
+  write a focused article when exactly one eligible source is available.
+- Added task-load diagnostics, preserved scheduled task files during workflow updates, and updated
+  the technical documentation, README, and English/French user guides.

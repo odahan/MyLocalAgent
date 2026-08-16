@@ -1,5 +1,23 @@
 # Stage 23 — Spec changelog
 
+## V4 — 2026-08-16
+
+- Made local publication-date comparison authoritative; provider `after:` syntax is only an
+  absolute-date query hint.
+- Reserved the global retrieval budget across cumulative 2/4/7-day phase ceilings and exposed
+  `windowHistory`, preventing the first window from exhausting all later expansion capacity.
+- Sliding mode now excludes old, future, and unknown-date documents and reports rejection counts.
+- Moved Guardrails after deterministic collection, date extraction, filtering, deduplication,
+  ranking, and delivery budgeting.
+- Replaced raw candidate titles and summaries with one bounded `protectedResults` block and safe
+  metadata, including mandatory Base64 fallback when LLM screening is disabled or fails.
+- Replaced the summarization-based translation stub with a dedicated tool-less translation
+  service. Translation runs only after a clean source verdict, and its exact output is screened
+  again before delivery.
+- Updated both bundled editorial workflows: the daily LinkedIn report emits no posts for an empty
+  selection. The Sunday workflow emits only a diagnostic for zero candidates, but writes a
+  carefully scoped article from one or two sources rather than discarding usable evidence.
+
 ## V3 — 2026-08-09
 
 **Fichier :** `Prompts/23-Stage23-WebDiscoveryResearch.md`

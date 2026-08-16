@@ -26,12 +26,12 @@ Settings UI.
 | S23-D1 | `research.discover` accepts all search parameters inline in the workflow step. There are no persisted profiles. |
 | S23-D2 | `web.search` remains a generic single-query capability. It gains stable hit metadata but does not accept themes, retention settings, or a storage-space identifier. |
 | S23-D3 | `research.discover` runs bounded code-owned loops. It is not an LLM agent loop. |
-| S23-D4 | `freshnessWindow` controls date filtering. `"sliding"`: starts at two calendar days, expands to 4 then 7 days only when unique eligible dated documents are below `minimumDocuments`. `"none"`: no date filter; limits are `maxResultsPerQuery` and `maxRetrievalsPerRun` only. |
-| S23-D5 | A document with an unknown publication date may be returned as `dateStatus: Unknown`, but it never satisfies the `minimumDocuments` threshold and is ranked below dated documents. |
+| S23-D4 | `freshnessWindow` controls authoritative local date filtering. `"sliding"`: starts at the beginning of the local calendar day minus two days, expands to 4 then 7 days only when unique verified in-window documents are below `minimumDocuments`. `"none"`: no date filter; query syntax is only a provider hint. |
+| S23-D5 | Sliding mode never delivers old, future, or unknown-date documents. `dateStatus: Unknown` may be returned only in `none` mode. |
 | S23-D6 | Query creation is deterministic C# from the inline theme terms. No model may invent queries during a run. |
-| S23-D7 | Every retrieval is bounded by the inline limits. The tool fetches only the highest-priority unique hits needed to meet the per-query and per-run budget; it never crawls arbitrary links found in a page. |
-| S23-D8 | `sourceLanguage` is a search qualifier (BCP-47 tag, default `"en"`). It filters results by language at query time. `language` is a translation target: when specified, title and short_summary of each candidate are translated to that language by an internal LLM call after the deterministic collection phase. When `language` is absent or empty, all content is returned in its original language. |
-| S23-D9 | Guardrails applied to `research.discover` follow the same rules as the existing `web.search` tool: search snippets and fetched content are untrusted external data. The protected-delivery contract is preserved end-to-end. Metadata is never presented as proof of page content. |
+| S23-D7 | Every retrieval is bounded by the inline limits. Sliding mode reserves the global retrieval budget with cumulative one-third, two-third, and full-budget ceilings for the 2/4/7-day phases, so an earlier phase cannot consume later phases' share. The tool stops a phase as soon as the minimum is reached and never crawls arbitrary links found in a page. |
+| S23-D8 | `sourceLanguage` is a search qualifier (BCP-47 tag, default `"en"`). `language` is a translation target. Translation is allowed only after the final source payload receives a clean Guardrails verdict; the exact translated payload is screened again before delivery. Disabled, failed, caution, or withheld source screening skips translation. |
+| S23-D9 | Search, retrieval, parsing, date filtering, deduplication, and ranking remain deterministic C# and run before Guardrails. Only the exact bounded final title/summary payload is screened. External titles and summaries never appear outside `protectedResults`; disabled or failed screening still forces marked Base64. |
 | S23-D10 | All code, UI text, error text, comments and XML documentation are English. |
 
 ## 3. Data contracts
@@ -73,8 +73,9 @@ public enum FreshnessWindow
 ```
 
 `WebDocument` contains the stable hit id, source URL, final URL, canonical URL,
-title, domain, kind, nullable publication time, date status, compact protected text,
-content type, trust metadata, discovery query ids, and retrieval time. Canonical URL
+title, domain, kind, nullable publication time, date status, compact text, content type,
+discovery query ids, and retrieval time. Trust metadata belongs to the final composite
+delivery rather than each deterministically collected document. Canonical URL
 normalization removes fragment identifiers and known non-semantic tracking parameters,
 normalizes host casing and default ports, and never changes a path's semantic case.
 
@@ -123,8 +124,9 @@ optional filters applied to query compilation.
 
 For each theme, compile exactly two query intents: `current change` and `practical
 engineering`. Templates incorporate its terms, include/exclude terms, the
-`sourceLanguage` qualifier, and the freshness window when `sliding` mode is active (no
-date qualifier for `none`). Preferred domains may produce a third domain-targeted query
+`sourceLanguage` qualifier, and an absolute `after:yyyy-MM-dd` hint when `sliding` mode is
+active (no date qualifier for `none`). The hint is never trusted as enforcement; the local
+post-retrieval filter is authoritative. Preferred domains may produce a third domain-targeted query
 only when the global query budget permits it.
 
 Record every generated query and its theme index in the run output; never log the
@@ -141,16 +143,16 @@ query's returned content.
 5. Retrieve the bounded top candidates (up to `maxRetrievalsPerRun`) through the
    existing safe HTTP infrastructure. Extract canonical URL, title, publication date
    from supported HTML/JSON-LD/Open Graph metadata, and main text projection.
-6. Apply Guardrails with the same rules as `web.search`: search snippets and fetched
-   content are untrusted external data; the protected-delivery contract is preserved.
-7. Count unique documents whose date is verified and inside the active window. If below
-   `minimumDocuments`, repeat only the missing work for windows four then seven days.
-8. If still below threshold at seven days, return a successful but explicitly
+6. Count unique documents whose date is verified and inside the active window. If below
+   `minimumDocuments`, repeat only the missing work for windows four then seven days. The
+   cumulative retrieval ceilings are one third, two thirds, then the full global budget.
+7. If still below threshold at seven days, return a successful but explicitly
    insufficient result; do not backfill with older or unknown-date documents.
-9. If `language` is set, translate title and short_summary of each candidate to the
-   target language via a single internal LLM call (no tools, no skills). This step
-   is deterministic and bounded by the candidate count.
-10. Return the result.
+8. Rank eligible documents and build the exact bounded canonical title/summary payload.
+9. Screen that payload immediately before delivery. If `language` is set and the
+   disposition is `PassThrough`, translate it through one internal tool-less LLM call and
+   screen the exact translated payload again. Otherwise skip translation.
+10. Deliver titles and summaries only through `protectedResults`.
 
 ### 5.2 Mode `none`
 
@@ -162,22 +164,23 @@ query's returned content.
 5. Retrieve the bounded top candidates (up to `maxRetrievalsPerRun`) through the
    existing safe HTTP infrastructure. Extract canonical URL, title, publication date
    from supported HTML/JSON-LD/Open Graph metadata, and main text projection.
-6. Apply Guardrails with the same rules as `web.search`: search snippets and fetched
-   content are untrusted external data; the protected-delivery contract is preserved.
-7. If `language` is set, translate title and short_summary of each candidate to the
-   target language via a single internal LLM call (no tools, no skills). This step
-   is deterministic and bounded by the candidate count.
-8. Return the result.
+6. Rank documents and build the exact bounded canonical title/summary payload.
+7. Apply the same late Guardrails and optional protected translation boundary as sliding mode.
+8. Deliver titles and summaries only through `protectedResults`.
 
 `minimumDocuments` is ignored in this mode. Documents with `dateStatus: Unknown` are
 returned and counted normally.
 
 ### 5.3 Common result shape
 
-The result contains: active `freshnessWindow` mode, generated queries per theme,
-counts, candidate metadata (as `WebDocument` list), explicit insufficiency state
-(`sliding` mode only), and source URLs. Content values follow the existing
-protected-delivery contract. A run may be cancelled at any point.
+The result contains the active mode and effective UTC boundary, generated queries, retrieval
+and rejection counts, safe candidate metadata, budget counters, explicit insufficiency state,
+per-window `windowHistory` diagnostics, one `protectedResults` block, aggregate Guardrails
+metadata, and translation status. Titles and summaries occur only inside `protectedResults`.
+A search-provider failure is distinct from a successful query with no hits: `searchStatus`,
+successful and failed query counts, and the last HTTP status make that state explicit. HTTP 429,
+401, and 403 stop the current query batch; a provider-wide 429 also stops later sliding windows.
+A run may be cancelled at any point.
 
 ## 6. Workflow integration
 
@@ -185,8 +188,9 @@ The tool is decorated with group `research`, display order 1200, and alias
 `research.discover`. It requires the `web` and `http` groups to be enabled by the
 task; validation reports both missing dependencies clearly.
 
-The tool returns JSON, never runs a model, and cannot call arbitrary URLs supplied by
-the model.
+The deterministic collection pipeline never runs a model. The only optional model operation is
+the bounded tool-less translation after a clean source verdict. The tool cannot crawl links or
+call arbitrary URLs found inside fetched content.
 
 ### 6.1 Example workflow step
 
@@ -243,7 +247,7 @@ the model.
 ## 8. Tests and gate
 
 Add deterministic tests for query compilation, sourceLanguage qualifier injection,
-2/4/7 expansion (sliding mode), no-filter behavior (none mode), date eligibility,
+2/4/7 expansion and per-window budget reservation (sliding mode), no-filter behavior (none mode), date eligibility,
 unknown dates, budget limits, canonicalization, deduplication, no-old-content backfill,
 translation step (language set vs empty), Guardrails delivery contract, tool dependency
 validation, and protected output. Use fixture HTML and fake search/HTTP providers; no
@@ -254,7 +258,9 @@ Run:
 ```text
 dotnet restore OD.MyLocalAgent.sln -m:1
 dotnet build OD.MyLocalAgent.sln --configuration Release --no-restore -m:1
-dotnet test OD.MyLocalAgent.sln --configuration Release --no-build --no-restore -m:1
+dotnet test OD.MyLocalAgent.sln --configuration Release --no-build --no-restore --filter "Category!=Integration" -m:1
 ```
+
+Integration tests remain opt-in because they require the configured Web Search credential.
 
 Update the architecture ledger, README, Tool Map documentation, and privacy text.
