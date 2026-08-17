@@ -3,7 +3,7 @@ using System.Text;
 namespace OD.MyLocalAgent.Core;
 
 /// <summary>
-/// Deterministically compiles search themes into query intents.
+/// Deterministically compiles search themes into bounded primary and fallback queries.
 /// </summary>
 internal static class QueryCompiler
 {
@@ -13,19 +13,17 @@ internal static class QueryCompiler
     private const string DateQualifierPrefix = "after:";
 
     /// <summary>
-    /// Compiles themes into query intents for a given date window.
+    /// Compiles one primary query per theme for a given date window.
     /// </summary>
     /// <param name="themes">The search themes.</param>
     /// <param name="sourceLanguage">The BCP-47 source language qualifier.</param>
     /// <param name="earliestPublicationDate">The inclusive local publication date, or <see langword="null"/> for no filter.</param>
-    /// <param name="preferredDomains">The preferred domains for domain-targeted queries.</param>
     /// <param name="budgetRemaining">The remaining query budget.</param>
     /// <returns>The ordered compiled queries with theme indices.</returns>
     public static IReadOnlyList<CompiledQuery> Compile(
         IReadOnlyList<Theme> themes,
         string sourceLanguage,
         DateOnly? earliestPublicationDate,
-        IReadOnlyList<string> preferredDomains,
         int budgetRemaining)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceLanguage);
@@ -44,7 +42,6 @@ internal static class QueryCompiler
         {
             var theme = themes[themeIndex];
 
-            // Current change query
             var currentChangeQuery = BuildQuery(
                 theme,
                 "current change",
@@ -53,40 +50,31 @@ internal static class QueryCompiler
             queries.Add(new CompiledQuery(
                 currentChangeQuery,
                 themeIndex,
-                QueryIntent.CurrentChange));
-
-            if (queries.Count >= budgetRemaining)
-            {
-                break;
-            }
-
-            // Practical engineering query
-            var practicalQuery = BuildQuery(
-                theme,
-                "practical engineering",
-                dateQualifier,
-                langQualifier);
-            queries.Add(new CompiledQuery(
-                practicalQuery,
-                themeIndex,
-                QueryIntent.PracticalEngineering));
-
-            // Domain-targeted query (only if budget permits and preferred domains exist)
-            if (preferredDomains.Count > 0 && queries.Count < budgetRemaining)
-            {
-                var domainQuery = BuildDomainQuery(
-                    theme,
-                    preferredDomains[0],
-                    dateQualifier,
-                    langQualifier);
-                queries.Add(new CompiledQuery(
-                    domainQuery,
-                    themeIndex,
-                    QueryIntent.DomainTargeted));
-            }
+                QueryIntent.Primary));
         }
 
         return queries;
+    }
+
+    /// <summary>
+    /// Compiles the single fallback query for one theme.
+    /// </summary>
+    public static CompiledQuery CompileFallback(
+        Theme theme,
+        int themeIndex,
+        string sourceLanguage,
+        DateOnly? earliestPublicationDate)
+    {
+        ArgumentNullException.ThrowIfNull(theme);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceLanguage);
+        var dateQualifier = earliestPublicationDate.HasValue
+            ? $" {DateQualifierPrefix}{earliestPublicationDate.Value:yyyy-MM-dd}"
+            : string.Empty;
+        var langQualifier = $" lang:{sourceLanguage}";
+        return new CompiledQuery(
+            BuildQuery(theme, "practical engineering", dateQualifier, langQualifier),
+            themeIndex,
+            QueryIntent.Fallback);
     }
 
     private static string BuildQuery(
@@ -120,22 +108,6 @@ internal static class QueryCompiler
 
         return builder.ToString();
     }
-
-    private static string BuildDomainQuery(
-        Theme theme,
-        string domain,
-        string dateQualifier,
-        string langQualifier)
-    {
-        var builder = new StringBuilder();
-        builder.Append(string.Join(" ", theme.Terms));
-        builder.Append(" site:");
-        builder.Append(domain);
-        builder.Append(langQualifier);
-        builder.Append(dateQualifier);
-
-        return builder.ToString();
-    }
 }
 
 /// <summary>
@@ -151,12 +123,9 @@ internal sealed record CompiledQuery(
 /// </summary>
 internal enum QueryIntent
 {
-    /// <summary>Query for current changes.</summary>
-    CurrentChange,
+    /// <summary>The mandatory current-change query for a theme.</summary>
+    Primary,
 
-    /// <summary>Query for practical engineering information.</summary>
-    PracticalEngineering,
-
-    /// <summary>Query targeting specific domains.</summary>
-    DomainTargeted,
+    /// <summary>The optional practical-engineering query for a theme.</summary>
+    Fallback,
 }

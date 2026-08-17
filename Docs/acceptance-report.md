@@ -433,12 +433,13 @@ integration are nevertheless compiled and covered by deterministic tests.
 | Acceptance item | Status | Executed evidence |
 |---|---:|---|
 | `research.discover` is available as a task-whitelisted, inline-parameter workflow tool with no profiles or persistent research store. | ✅ | Catalog and contract tests cover the `research` group, declared argument metadata, query compilation, URL canonicalization, and Tool Map registration. |
-| Sliding freshness is enforced locally after retrieval rather than delegated to provider query syntax. | ✅ | Deterministic tests cover absolute date hints, 2→4→7 expansion, cumulative per-window budget reservation, local calendar boundaries, `windowHistory`, and rejection of old, future, and unknown-date documents. |
+| Sliding freshness is enforced locally after retrieval rather than delegated to provider query syntax. | ✅ | Deterministic tests cover one seven-day collection with local 2→4→7 evaluation, local calendar boundaries, `windowHistory`, and rejection of old, future, and unknown-date documents. |
+| Paid search usage is bounded independently from ordinary HTTP retrieval. | ✅ | Tests cover the fixed eight-request ceiling, rejection of a ninth theme before provider contact, one primary query per theme, conditional fallbacks, and fair rank-by-rank retrieval across themes. |
 | Search-provider throttling is distinguished from a genuine empty result. | ✅ | Deterministic coverage verifies HTTP 429 sets `searchStatus: rateLimited`, records the failure, stops subsequent phases, and emits a source-availability diagnostic. |
 | Discovery output remains bounded and external content crosses one late Guardrails boundary only after deterministic selection. | ✅ | Behavioral tests verify exact `protectedResults`, safe metadata, marked Base64 fallback, no raw overflow, and no translation for non-clean content. |
 | Optional translation is protected before and after its tool-less model call. | ✅ | Tests verify the approved source payload is screened before translation and the exact translated payload is screened again before delivery. |
 | Bundled editorial workflows adapt publication scope to the available evidence. | ✅ | The daily LinkedIn sample emits no topics or posts for zero candidates. The Sunday sample emits only a diagnostic for zero, a focused article for one source, a limited cross-analysis for two, and a full multi-source article from three. |
-| Release verification completed for the corrected discovery boundary. | ✅ | Current Release verification records 648 non-integration tests passing and one environment-dependent local Ollama probe skipped. The credential-dependent Web Search integration suite remains explicitly opt-in. |
+| Release verification completed for the corrected discovery boundary. | ✅ | Current Release verification records 652 non-integration tests passing and one environment-dependent local Ollama probe skipped. The credential-dependent Web Search integration suite remains explicitly opt-in. |
 
 ## Stage 24 Direct Chat and subsequent 1.4.0 improvements
 

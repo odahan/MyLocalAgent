@@ -24,9 +24,7 @@
         "sourceLanguage": "en",
         "language": "fr",
         "preferredDomains": "[\"learn.microsoft.com\",\"devblogs.microsoft.com\",\"github.com\",\"dotnet.microsoft.com\",\"openai.com\",\"anthropic.com\",\"microsoft.com\"]",
-        "minimumDocuments": 12,
-        "maxResultsPerQuery": 5,
-        "maxRetrievalsPerRun": 40
+        "minimumDocuments": 12
       }
     },
     {

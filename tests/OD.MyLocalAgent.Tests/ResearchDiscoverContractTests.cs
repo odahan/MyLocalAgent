@@ -11,10 +11,10 @@ namespace OD.MyLocalAgent.Tests;
 public sealed class ResearchDiscoverContractTests
 {
     /// <summary>
-    /// Verifies single theme produces two base queries.
+    /// Verifies single theme produces one primary query.
     /// </summary>
     [Fact]
-    public void CompileSingleThemeProducesTwoQueries()
+    public void CompileSingleThemeProducesOnePrimaryQuery()
     {
         var themes = new[]
         {
@@ -25,14 +25,11 @@ public sealed class ResearchDiscoverContractTests
             themes,
             "en",
             null,
-            [],
             10);
 
-        queries.Should().HaveCount(2);
-        queries[0].Intent.Should().Be(QueryIntent.CurrentChange);
-        queries[1].Intent.Should().Be(QueryIntent.PracticalEngineering);
+        queries.Should().ContainSingle();
+        queries[0].Intent.Should().Be(QueryIntent.Primary);
         queries[0].ThemeIndex.Should().Be(0);
-        queries[1].ThemeIndex.Should().Be(0);
         queries[0].Query.Should().Contain(".NET");
         queries[0].Query.Should().Contain("C#");
         queries[0].Query.Should().Contain("ASP.NET Core");
@@ -44,10 +41,10 @@ public sealed class ResearchDiscoverContractTests
     }
 
     /// <summary>
-    /// Verifies two themes produce four base queries.
+    /// Verifies two themes produce one primary query each.
     /// </summary>
     [Fact]
-    public void CompileTwoThemesProducesFourQueries()
+    public void CompileTwoThemesProducesTwoQueries()
     {
         var themes = new[]
         {
@@ -59,37 +56,29 @@ public sealed class ResearchDiscoverContractTests
             themes,
             "en",
             null,
-            [],
             10);
 
-        queries.Should().HaveCount(4);
+        queries.Should().HaveCount(2);
         queries[0].ThemeIndex.Should().Be(0);
-        queries[1].ThemeIndex.Should().Be(0);
-        queries[2].ThemeIndex.Should().Be(1);
-        queries[3].ThemeIndex.Should().Be(1);
+        queries[1].ThemeIndex.Should().Be(1);
     }
 
     /// <summary>
-    /// Verifies preferred domains produce a third domain-targeted query when budget permits.
+    /// Verifies fallback compilation produces one practical-engineering query.
     /// </summary>
     [Fact]
-    public void CompileWithPreferredDomainsProducesThirdQuery()
+    public void CompileFallbackProducesPracticalEngineeringQuery()
     {
         var themes = new[]
         {
             new Theme([".NET"]),
         };
 
-        var queries = QueryCompiler.Compile(
-            themes,
-            "en",
-            null,
-            ["learn.microsoft.com"],
-            10);
+        var query = QueryCompiler.CompileFallback(themes[0], 0, "en", null);
 
-        queries.Should().HaveCount(3);
-        queries[2].Intent.Should().Be(QueryIntent.DomainTargeted);
-        queries[2].Query.Should().Contain("site:learn.microsoft.com");
+        query.Intent.Should().Be(QueryIntent.Fallback);
+        query.ThemeIndex.Should().Be(0);
+        query.Query.Should().Contain("practical engineering");
     }
 
     /// <summary>
@@ -109,10 +98,9 @@ public sealed class ResearchDiscoverContractTests
             themes,
             "en",
             null,
-            [],
-            4);
+            2);
 
-        queries.Should().HaveCount(4);
+        queries.Should().HaveCount(2);
     }
 
     /// <summary>
@@ -130,12 +118,10 @@ public sealed class ResearchDiscoverContractTests
             themes,
             "en",
             new DateOnly(2026, 8, 14),
-            [],
             10);
 
-        queries.Should().HaveCount(2);
+        queries.Should().ContainSingle();
         queries[0].Query.Should().Contain("after:2026-08-14");
-        queries[1].Query.Should().Contain("after:2026-08-14");
     }
 
     /// <summary>
@@ -153,12 +139,10 @@ public sealed class ResearchDiscoverContractTests
             themes,
             "en",
             null,
-            [],
             10);
 
-        queries.Should().HaveCount(2);
+        queries.Should().ContainSingle();
         queries[0].Query.Should().NotContain("after:");
-        queries[1].Query.Should().NotContain("after:");
     }
 
     /// <summary>
@@ -237,7 +221,6 @@ public sealed class ResearchDiscoverContractTests
             [],
             "en",
             null,
-            [],
             10);
 
         queries.Should().BeEmpty();
@@ -258,16 +241,12 @@ public sealed class ResearchDiscoverContractTests
             themes,
             "en",
             null,
-            [],
             10);
 
-        queries.Should().HaveCount(2);
+        queries.Should().ContainSingle();
         queries[0].Query.Should().Contain("Rust");
         queries[0].Query.Should().Contain("Cargo");
         queries[0].Query.Should().NotContain("-");
-        queries[1].Query.Should().Contain("Rust");
-        queries[1].Query.Should().Contain("Cargo");
-        queries[1].Query.Should().NotContain("-");
     }
 
     /// <summary>
@@ -285,14 +264,11 @@ public sealed class ResearchDiscoverContractTests
             themes,
             "en",
             null,
-            [],
             10);
 
-        queries.Should().HaveCount(2);
+        queries.Should().ContainSingle();
         queries[0].Query.Should().Contain("release");
         queries[0].Query.Should().Contain("preview");
-        queries[1].Query.Should().Contain("release");
-        queries[1].Query.Should().Contain("preview");
     }
 
     /// <summary>
@@ -310,14 +286,11 @@ public sealed class ResearchDiscoverContractTests
             themes,
             "en",
             null,
-            [],
             10);
 
-        queries.Should().HaveCount(2);
+        queries.Should().ContainSingle();
         queries[0].Query.Should().Contain("-job");
         queries[0].Query.Should().Contain("-course");
-        queries[1].Query.Should().Contain("-job");
-        queries[1].Query.Should().Contain("-course");
     }
 
     /// <summary>
@@ -335,12 +308,10 @@ public sealed class ResearchDiscoverContractTests
             themes,
             "fr",
             null,
-            [],
             10);
 
-        queries.Should().HaveCount(2);
+        queries.Should().ContainSingle();
         queries[0].Query.Should().Contain("lang:fr");
-        queries[1].Query.Should().Contain("lang:fr");
     }
 
     /// <summary>

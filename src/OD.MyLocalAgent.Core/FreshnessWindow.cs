@@ -6,14 +6,14 @@ namespace OD.MyLocalAgent.Core;
 public enum FreshnessWindow
 {
     /// <summary>
-    /// Sliding window: starts at two calendar days, expands to 4 then 7 days
-    /// when unique eligible documents are below the minimum threshold.
+    /// Sliding window: collects once for seven days, then evaluates the 2, 4,
+    /// and 7-day calendar windows locally until the minimum is reached.
     /// </summary>
     Sliding,
 
     /// <summary>
-    /// No date filtering; limits are applied by maxResultsPerQuery and
-    /// maxRetrievalsPerRun only.
+    /// No date filtering; the run-level search ceiling and compatibility
+    /// safeguards still apply.
     /// </summary>
     None,
 }

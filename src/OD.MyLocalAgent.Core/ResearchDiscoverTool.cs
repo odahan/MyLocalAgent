@@ -21,6 +21,8 @@ namespace OD.MyLocalAgent.Core;
 public sealed class ResearchDiscoverTool : IResearchDiscoverTool
 {
     private const string TruncationMarker = "[truncated by OD.MyLocalAgent]";
+    private const int MaximumSearchRequestsPerRun = 8;
+    private const int MaximumThemesPerRun = 8;
     private static readonly int[] SlidingWindows = [2, 4, 7];
     private static readonly TimeSpan FutureDateTolerance = TimeSpan.FromMinutes(5);
 
@@ -77,8 +79,8 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
         [ToolArgument(WorkflowArgumentKind.String, "BCP-47 target language for translation, or empty for original language.", Example = "fr")] string language = "",
         [ToolArgument(WorkflowArgumentKind.String, "JSON array of preferred domains for ranking.", Example = "[\"learn.microsoft.com\"]")] string preferredDomains = "[]",
         [ToolArgument(WorkflowArgumentKind.Integer, "Minimum unique dated documents target (1-100), ignored in 'none' mode.", Example = "8")] int minimumDocuments = 8,
-        [ToolArgument(WorkflowArgumentKind.Integer, "Maximum search hits per compiled query (1-10).", Example = "5")] int maxResultsPerQuery = 5,
-        [ToolArgument(WorkflowArgumentKind.Integer, "Maximum page fetch attempts for the entire run (1-100).", Example = "24")] int maxRetrievalsPerRun = 24,
+        [ToolArgument(WorkflowArgumentKind.Integer, "Advanced compatibility setting: maximum search hits returned per request (1-10).", Example = "10")] int maxResultsPerQuery = 10,
+        [ToolArgument(WorkflowArgumentKind.Integer, "Advanced compatibility safeguard: maximum page fetch attempts for the entire run (1-100).", Example = "40")] int maxRetrievalsPerRun = 40,
         CancellationToken cancellationToken = default)
     {
         return ToolCallLog.ExecuteAsync(
@@ -98,6 +100,13 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
             async () =>
             {
                 var parsedThemes = ParseThemes(themes ?? "[]");
+                if (parsedThemes.Count > MaximumThemesPerRun)
+                {
+                    throw new ArgumentException(
+                        $"Web Discovery accepts at most {MaximumThemesPerRun} themes per run.",
+                        nameof(themes));
+                }
+
                 var parsedDomains = ParseDomains(preferredDomains);
                 var mode = ParseFreshnessWindow(freshnessWindow);
                 var effectiveMaxPerQuery = Math.Clamp(maxResultsPerQuery, 1, 10);
@@ -154,68 +163,95 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
     {
         var state = new DiscoveryCollectionState();
         var nowUtc = localNow.ToUniversalTime();
-        var effectiveWindowDays = SlidingWindows[0];
-        DateTimeOffset windowStartUtc = default;
-        IReadOnlyList<WebDocument> eligible = [];
-
-        for (var phaseIndex = 0; phaseIndex < SlidingWindows.Length; phaseIndex++)
-        {
-            var windowDays = SlidingWindows[phaseIndex];
-            effectiveWindowDays = windowDays;
-            var earliestLocalDate = DateOnly.FromDateTime(localNow.DateTime).AddDays(-windowDays);
-            windowStartUtc = GetStartOfLocalDateUtc(earliestLocalDate);
-            var phaseRetrievalLimit = CalculateCumulativeRetrievalLimit(
+        var oldestWindowDays = SlidingWindows[^1];
+        var earliestLocalDate = DateOnly.FromDateTime(localNow.DateTime).AddDays(-oldestWindowDays);
+        var oldestWindowStartUtc = GetStartOfLocalDateUtc(earliestLocalDate);
+        var primaryQueries = QueryCompiler.Compile(
+            themes,
+            sourceLanguage,
+            earliestLocalDate,
+            RemainingSearchRequests(state));
+        var primaryResults = await ExecuteQueriesAsync(
+                state,
+                primaryQueries,
+                maxResultsPerQuery,
+                cancellationToken)
+            .ConfigureAwait(false);
+        await RetrieveRoundRobinAsync(
+                state,
+                primaryResults,
                 maxRetrievalsPerRun,
-                phaseIndex,
-                SlidingWindows.Length);
-            var retrievalsBefore = state.RetrievalsUsed;
-            var queriesBefore = state.GeneratedQueries.Count;
-            var eligibleBefore = CountEligibleDocuments(
-                state.Documents.Values,
-                windowStartUtc,
-                nowUtc);
-            if (eligibleBefore < minimumDocuments &&
-                state.RetrievalsUsed < phaseRetrievalLimit)
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        if (CountEligibleDocuments(state.Documents.Values, oldestWindowStartUtc, nowUtc) < minimumDocuments)
+        {
+            foreach (var primaryResult in primaryResults.Where(static result => result.Succeeded))
             {
-                await CollectPhaseAsync(
+                if (state.SearchStopped ||
+                    RemainingSearchRequests(state) == 0 ||
+                    state.RetrievalsUsed >= maxRetrievalsPerRun)
+                {
+                    break;
+                }
+
+                var fallback = QueryCompiler.CompileFallback(
+                    themes[primaryResult.CompiledQuery.ThemeIndex],
+                    primaryResult.CompiledQuery.ThemeIndex,
+                    sourceLanguage,
+                    earliestLocalDate);
+                var fallbackResult = await ExecuteQueryAsync(
                         state,
-                        themes,
-                        sourceLanguage,
-                        earliestLocalDate,
-                        preferredDomains,
+                        fallback,
                         maxResultsPerQuery,
-                        phaseRetrievalLimit,
-                        windowStartUtc,
-                        nowUtc,
-                        minimumDocuments,
                         cancellationToken)
                     .ConfigureAwait(false);
-            }
+                if (fallbackResult is not null)
+                {
+                    await RetrieveRoundRobinAsync(
+                            state,
+                            [fallbackResult],
+                            maxRetrievalsPerRun,
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                }
 
+                if (CountEligibleDocuments(state.Documents.Values, oldestWindowStartUtc, nowUtc) >= minimumDocuments)
+                {
+                    break;
+                }
+            }
+        }
+
+        var effectiveWindowDays = oldestWindowDays;
+        var windowStartUtc = oldestWindowStartUtc;
+        IReadOnlyList<WebDocument> eligible = [];
+        foreach (var windowDays in SlidingWindows)
+        {
+            windowStartUtc = GetStartOfLocalDateUtc(
+                DateOnly.FromDateTime(localNow.DateTime).AddDays(-windowDays));
             eligible = state.Documents.Values
                 .Where(document => IsEligibleForWindow(document, windowStartUtc, nowUtc))
                 .ToArray();
+            effectiveWindowDays = windowDays;
             var minimumReached = eligible.Count >= minimumDocuments;
-            var phaseLimitReached = state.RetrievalsUsed >= phaseRetrievalLimit;
-            var isFinalPhase = phaseIndex == SlidingWindows.Length - 1;
+            var isFinalWindow = windowDays == oldestWindowDays;
             state.WindowHistory.Add(new
             {
                 windowDays,
                 windowStartUtc = windowStartUtc.ToString("O"),
-                retrievalLimit = phaseRetrievalLimit,
-                retrievalAttempts = state.RetrievalsUsed - retrievalsBefore,
-                cumulativeRetrievalAttempts = state.RetrievalsUsed,
-                queriesExecuted = state.GeneratedQueries.Count - queriesBefore,
                 eligibleCandidateCount = eligible.Count,
                 stopReason = state.SearchRateLimited
                     ? "searchRateLimited"
                     : minimumReached
-                    ? "minimumReached"
-                    : isFinalPhase && phaseLimitReached
-                        ? "retrievalBudgetExhausted"
-                        : phaseLimitReached
-                            ? "phaseBudgetReservedForLaterWindows"
-                            : "queriesExhausted",
+                        ? "minimumReached"
+                        : !isFinalWindow
+                            ? "broaderWindowRequired"
+                            : state.RetrievalsUsed >= maxRetrievalsPerRun
+                                ? "retrievalBudgetExhausted"
+                                : RemainingSearchRequests(state) == 0
+                                    ? "searchRequestLimitReached"
+                                    : "queriesExhausted",
             });
             if (minimumReached || state.SearchRateLimited)
             {
@@ -261,19 +297,56 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
         CancellationToken cancellationToken)
     {
         var state = new DiscoveryCollectionState();
-        await CollectPhaseAsync(
+        var primaryQueries = QueryCompiler.Compile(
+            themes,
+            sourceLanguage,
+            null,
+            RemainingSearchRequests(state));
+        var primaryResults = await ExecuteQueriesAsync(
                 state,
-                themes,
-                sourceLanguage,
-                null,
-                preferredDomains,
+                primaryQueries,
                 maxResultsPerQuery,
-                maxRetrievalsPerRun,
-                null,
-                null,
-                null,
                 cancellationToken)
             .ConfigureAwait(false);
+        await RetrieveRoundRobinAsync(
+                state,
+                primaryResults,
+                maxRetrievalsPerRun,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        foreach (var primaryResult in primaryResults)
+        {
+            if (!primaryResult.Succeeded ||
+                HasDocumentForQuery(state, primaryResult.CompiledQuery.Query) ||
+                state.SearchStopped ||
+                RemainingSearchRequests(state) == 0 ||
+                state.RetrievalsUsed >= maxRetrievalsPerRun)
+            {
+                continue;
+            }
+
+            var fallback = QueryCompiler.CompileFallback(
+                themes[primaryResult.CompiledQuery.ThemeIndex],
+                primaryResult.CompiledQuery.ThemeIndex,
+                sourceLanguage,
+                null);
+            var fallbackResult = await ExecuteQueryAsync(
+                    state,
+                    fallback,
+                    maxResultsPerQuery,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            if (fallbackResult is not null)
+            {
+                await RetrieveRoundRobinAsync(
+                        state,
+                        [fallbackResult],
+                        maxRetrievalsPerRun,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+        }
 
         return await BuildProtectedResultAsync(
                 "none",
@@ -293,51 +366,30 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
             .ConfigureAwait(false);
     }
 
-    private async Task CollectPhaseAsync(
+    private async Task RetrieveRoundRobinAsync(
         DiscoveryCollectionState state,
-        IReadOnlyList<Theme> themes,
-        string sourceLanguage,
-        DateOnly? earliestPublicationDate,
-        IReadOnlyList<string> preferredDomains,
-        int maxResultsPerQuery,
+        IReadOnlyList<QuerySearchResult> queryResults,
         int retrievalLimit,
-        DateTimeOffset? activeWindowStartUtc,
-        DateTimeOffset? nowUtc,
-        int? minimumDocuments,
         CancellationToken cancellationToken)
     {
-        var queryBudget = Math.Min(themes.Count * 3, maxResultsPerQuery * 3);
-        var queries = QueryCompiler.Compile(
-            themes,
-            sourceLanguage,
-            earliestPublicationDate,
-            preferredDomains,
-            queryBudget);
-        var results = await ExecuteQueriesAsync(state, queries, maxResultsPerQuery, cancellationToken)
-            .ConfigureAwait(false);
-
-        foreach (var queryResult in results)
+        var maximumRank = queryResults.Count == 0
+            ? 0
+            : queryResults.Max(static result => result.SearchResults.Count);
+        for (var rank = 0; rank < maximumRank; rank++)
         {
-            state.GeneratedQueries.Add(new
-            {
-                query = queryResult.CompiledQuery.Query,
-                themeIndex = queryResult.CompiledQuery.ThemeIndex,
-                intent = queryResult.CompiledQuery.Intent.ToString(),
-                resultCount = queryResult.SearchResults.Count,
-                succeeded = queryResult.Succeeded,
-                errorStatusCode = queryResult.ErrorStatusCode,
-            });
-        }
-
-        foreach (var queryResult in results)
-        {
-            foreach (var hit in queryResult.SearchResults)
+            foreach (var queryResult in queryResults)
             {
                 if (state.RetrievalsUsed >= retrievalLimit)
                 {
                     return;
                 }
 
+                if (rank >= queryResult.SearchResults.Count)
+                {
+                    continue;
+                }
+
+                var hit = queryResult.SearchResults[rank];
                 if (!TryGetSupportedAbsoluteUrl(hit.Url, out var supportedUrl))
                 {
                     continue;
@@ -346,6 +398,7 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
                 var canonicalUrl = UrlCanonicalizer.Canonicalize(supportedUrl);
                 if (!state.AttemptedUrls.Add(canonicalUrl))
                 {
+                    AddQueryAssociation(state, canonicalUrl, queryResult.CompiledQuery.Query);
                     continue;
                 }
 
@@ -375,17 +428,6 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
                 {
                     state.Documents[document.CanonicalUrl] = document;
                 }
-
-                if (activeWindowStartUtc.HasValue &&
-                    nowUtc.HasValue &&
-                    minimumDocuments.HasValue &&
-                    CountEligibleDocuments(
-                        state.Documents.Values,
-                        activeWindowStartUtc.Value,
-                        nowUtc.Value) >= minimumDocuments.Value)
-                {
-                    return;
-                }
             }
         }
     }
@@ -399,47 +441,108 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
         var results = new List<QuerySearchResult>();
         foreach (var query in queries)
         {
-            try
+            if (state.SearchStopped || RemainingSearchRequests(state) == 0)
             {
-                var searchResult = await _webSearchConnector
-                    .SearchAsync(query.Query, maxResultsPerQuery, cancellationToken)
-                    .ConfigureAwait(false);
-                state.SuccessfulSearchQueryCount++;
-                results.Add(new QuerySearchResult(query, searchResult.Items));
+                break;
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+
+            var result = await ExecuteQueryAsync(
+                    state,
+                    query,
+                    maxResultsPerQuery,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            if (result is not null)
             {
-                throw;
-            }
-            catch (WebSearchApiException exception)
-            {
-                state.SearchFailureCount++;
-                state.LastSearchErrorStatusCode = exception.StatusCode;
-                state.SearchRateLimited |= exception.StatusCode == (int)HttpStatusCode.TooManyRequests;
-                _logger.LogWarning(
-                    "Query execution failed for '{Query}': {ExceptionType} (HTTP {StatusCode})",
-                    query.Query,
-                    exception.GetType().Name,
-                    exception.StatusCode);
-                results.Add(new QuerySearchResult(query, [], false, exception.StatusCode));
-                if (state.SearchRateLimited ||
-                    exception.StatusCode is (int)HttpStatusCode.Unauthorized or (int)HttpStatusCode.Forbidden)
-                {
-                    break;
-                }
-            }
-            catch (Exception exception)
-            {
-                state.SearchFailureCount++;
-                _logger.LogWarning(
-                    "Query execution failed for '{Query}': {ExceptionType}",
-                    query.Query,
-                    exception.GetType().Name);
-                results.Add(new QuerySearchResult(query, [], false));
+                results.Add(result);
             }
         }
 
         return results;
+    }
+
+    private async Task<QuerySearchResult?> ExecuteQueryAsync(
+        DiscoveryCollectionState state,
+        CompiledQuery query,
+        int maxResultsPerQuery,
+        CancellationToken cancellationToken)
+    {
+        if (state.SearchStopped || RemainingSearchRequests(state) == 0)
+        {
+            return null;
+        }
+
+        QuerySearchResult result;
+        try
+        {
+            var searchResult = await _webSearchConnector
+                .SearchAsync(query.Query, maxResultsPerQuery, cancellationToken)
+                .ConfigureAwait(false);
+            state.SuccessfulSearchQueryCount++;
+            result = new QuerySearchResult(query, searchResult.Items);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (WebSearchApiException exception)
+        {
+            state.SearchFailureCount++;
+            state.LastSearchErrorStatusCode = exception.StatusCode;
+            state.SearchRateLimited |= exception.StatusCode == (int)HttpStatusCode.TooManyRequests;
+            state.SearchStopped |= state.SearchRateLimited ||
+                exception.StatusCode is (int)HttpStatusCode.Unauthorized or (int)HttpStatusCode.Forbidden;
+            _logger.LogWarning(
+                "Query execution failed for '{Query}': {ExceptionType} (HTTP {StatusCode})",
+                query.Query,
+                exception.GetType().Name,
+                exception.StatusCode);
+            result = new QuerySearchResult(query, [], false, exception.StatusCode);
+        }
+        catch (Exception exception)
+        {
+            state.SearchFailureCount++;
+            _logger.LogWarning(
+                "Query execution failed for '{Query}': {ExceptionType}",
+                query.Query,
+                exception.GetType().Name);
+            result = new QuerySearchResult(query, [], false);
+        }
+
+        state.GeneratedQueries.Add(new
+        {
+            query = result.CompiledQuery.Query,
+            themeIndex = result.CompiledQuery.ThemeIndex,
+            intent = result.CompiledQuery.Intent.ToString(),
+            resultCount = result.SearchResults.Count,
+            succeeded = result.Succeeded,
+            errorStatusCode = result.ErrorStatusCode,
+        });
+        return result;
+    }
+
+    private static int RemainingSearchRequests(DiscoveryCollectionState state) =>
+        Math.Max(0, MaximumSearchRequestsPerRun - state.GeneratedQueries.Count);
+
+    private static bool HasDocumentForQuery(DiscoveryCollectionState state, string query) =>
+        state.Documents.Values.Any(document =>
+            document.DiscoveryQueryIds.Contains(query, StringComparer.Ordinal));
+
+    private static void AddQueryAssociation(
+        DiscoveryCollectionState state,
+        string canonicalUrl,
+        string query)
+    {
+        if (state.Documents.TryGetValue(canonicalUrl, out var existing))
+        {
+            state.Documents[canonicalUrl] = existing with
+            {
+                DiscoveryQueryIds = existing.DiscoveryQueryIds
+                    .Append(query)
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray(),
+            };
+        }
     }
 
     private async Task<WebDocument?> RetrieveDocumentAsync(
@@ -616,6 +719,7 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
             ["windowStartUtc"] = windowStartUtc?.ToString("O"),
             ["queries"] = state.GeneratedQueries,
             ["queryCount"] = state.GeneratedQueries.Count,
+            ["searchRequestLimit"] = MaximumSearchRequestsPerRun,
             ["successfulSearchQueryCount"] = state.SuccessfulSearchQueryCount,
             ["searchFailureCount"] = state.SearchFailureCount,
             ["searchStatus"] = searchStatus,
@@ -851,12 +955,6 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
         var offset = _timeProvider.LocalTimeZone.GetUtcOffset(localDateTime);
         return new DateTimeOffset(localDateTime, offset).ToUniversalTime();
     }
-
-    private static int CalculateCumulativeRetrievalLimit(
-        int maximumRetrievals,
-        int phaseIndex,
-        int phaseCount) =>
-        ((maximumRetrievals * (phaseIndex + 1)) + phaseCount - 1) / phaseCount;
 
     private static int CountEligibleDocuments(
         IEnumerable<WebDocument> documents,
@@ -1242,6 +1340,8 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
         public int? LastSearchErrorStatusCode { get; set; }
 
         public bool SearchRateLimited { get; set; }
+
+        public bool SearchStopped { get; set; }
 
         public int RetrievalsUsed { get; set; }
     }

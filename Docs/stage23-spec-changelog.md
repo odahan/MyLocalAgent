@@ -1,5 +1,20 @@
 # Stage 23 — Spec changelog
 
+## V5 — 2026-08-17
+
+- Replaced three independent 2/4/7-day search phases with one seven-day collection followed by
+  local in-memory evaluation of the three windows.
+- Reduced normal query compilation to one primary request per theme. A single fallback per theme
+  is conditional and only runs while the result is insufficient and the global budget permits it.
+- Added a fixed ceiling of eight paid search requests per run and reject more than eight themes
+  before any provider call. Preferred domains now affect local ranking only.
+- Changed the default provider result count from 5 to 10. Kept `maxResultsPerQuery` and
+  `maxRetrievalsPerRun` as advanced compatibility safeguards, with a retrieval default of 40,
+  and removed both from bundled workflow examples.
+- Retrieval remains bounded for runtime, memory, politeness, and pathological-result protection,
+  not because ordinary HTTP page loads consume the paid search quota. Primary results are fetched
+  rank-by-rank across themes for fair use of that safeguard.
+
 ## V4 — 2026-08-16
 
 - Made local publication-date comparison authoritative; provider `after:` syntax is only an

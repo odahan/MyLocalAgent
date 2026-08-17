@@ -37,7 +37,7 @@ public sealed class ResearchDiscoverToolTests
                 "https://example.test/unknown",
                 "https://example.test/future",
             };
-            if (query.Contains("after:2026-08-12", StringComparison.Ordinal))
+            if (query.Contains("after:2026-08-09", StringComparison.Ordinal))
             {
                 urls.Add("https://example.test/three-day");
             }
@@ -70,6 +70,8 @@ public sealed class ResearchDiscoverToolTests
 
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
+        root.GetProperty("queryCount").GetInt32().Should().Be(1);
+        root.GetProperty("searchRequestLimit").GetInt32().Should().Be(8);
         root.GetProperty("effectiveWindowDays").GetInt32().Should().Be(4);
         root.GetProperty("windowStartUtc").GetString().Should().Be("2026-08-11T22:00:00.0000000+00:00");
         root.GetProperty("eligibleCandidateCount").GetInt32().Should().Be(2);
@@ -79,10 +81,7 @@ public sealed class ResearchDiscoverToolTests
         root.GetProperty("rejectedFutureDateCount").GetInt32().Should().Be(1);
         root.GetProperty("queries").EnumerateArray()
             .Select(item => item.GetProperty("query").GetString())
-            .Should().Contain(query => query!.Contains("after:2026-08-14", StringComparison.Ordinal));
-        root.GetProperty("queries").EnumerateArray()
-            .Select(item => item.GetProperty("query").GetString())
-            .Should().Contain(query => query!.Contains("after:2026-08-12", StringComparison.Ordinal));
+            .Should().OnlyContain(query => query!.Contains("after:2026-08-09", StringComparison.Ordinal));
 
         var protectedResults = root.GetProperty("protectedResults").GetString();
         protectedResults.Should().Contain("Recent title").And.Contain("Three day title");
@@ -96,13 +95,17 @@ public sealed class ResearchDiscoverToolTests
         order.Should().EndWith("guardrail");
         order.LastIndexOf("guardrail").Should().Be(order.Count - 1);
         translation.Calls.Should().BeEmpty();
+        connector.Verify(instance => instance.SearchAsync(
+            It.IsAny<string>(),
+            It.IsAny<int>(),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     /// <summary>
-    /// Verifies the initial window cannot consume the retrieval budget reserved for expansion.
+    /// Verifies all sliding windows reuse one seven-day search collection.
     /// </summary>
     [Fact]
-    public async Task SlidingModeReservesRetrievalBudgetForEveryWindow()
+    public async Task SlidingModeEvaluatesWindowsLocallyFromOneCollection()
     {
         var pages = new Dictionary<string, string>(StringComparer.Ordinal);
         var queryCall = 0;
@@ -136,20 +139,16 @@ public sealed class ResearchDiscoverToolTests
         root.GetProperty("retrievalsUsed").GetInt32().Should().Be(6);
         root.GetProperty("queries").EnumerateArray()
             .Select(item => item.GetProperty("query").GetString())
-            .Should().Contain(query => query!.Contains("after:2026-08-14", StringComparison.Ordinal))
-            .And.Contain(query => query!.Contains("after:2026-08-12", StringComparison.Ordinal))
-            .And.Contain(query => query!.Contains("after:2026-08-09", StringComparison.Ordinal));
+            .Should().OnlyContain(query => query!.Contains("after:2026-08-09", StringComparison.Ordinal));
 
         var history = root.GetProperty("windowHistory").EnumerateArray().ToArray();
         history.Should().HaveCount(3);
-        history.Select(item => item.GetProperty("retrievalLimit").GetInt32())
-            .Should().Equal(2, 4, 6);
-        history.Select(item => item.GetProperty("retrievalAttempts").GetInt32())
-            .Should().Equal(2, 2, 2);
+        history.Select(item => item.GetProperty("windowDays").GetInt32())
+            .Should().Equal(2, 4, 7);
         history.Select(item => item.GetProperty("stopReason").GetString())
             .Should().Equal(
-                "phaseBudgetReservedForLaterWindows",
-                "phaseBudgetReservedForLaterWindows",
+                "broaderWindowRequired",
+                "broaderWindowRequired",
                 "retrievalBudgetExhausted");
     }
 
@@ -444,6 +443,94 @@ public sealed class ResearchDiscoverToolTests
         using var document = JsonDocument.Parse(json);
         document.RootElement.GetProperty("retrievalsUsed").GetInt32().Should().Be(1);
         document.RootElement.GetProperty("candidateCount").GetInt32().Should().Be(1);
+    }
+
+    /// <summary>
+    /// Verifies the paid-search request ceiling cannot be exceeded in one run.
+    /// </summary>
+    [Fact]
+    public async Task DiscoverNeverExecutesMoreThanEightSearchRequests()
+    {
+        var connector = CreateConnector(_ => []);
+        var themes = JsonSerializer.Serialize(Enumerable.Range(1, 8).Select(index => new
+        {
+            terms = new[] { $"theme-{index}" },
+        }));
+        var tool = CreateTool(
+            connector.Object,
+            new Dictionary<string, string>(),
+            new StubContentTrustService(),
+            new StubResearchTranslationService());
+
+        var json = await tool.DiscoverAsync(themes, freshnessWindow: "none");
+
+        using var document = JsonDocument.Parse(json);
+        document.RootElement.GetProperty("queryCount").GetInt32().Should().Be(8);
+        document.RootElement.GetProperty("searchRequestLimit").GetInt32().Should().Be(8);
+        connector.Verify(instance => instance.SearchAsync(
+            It.IsAny<string>(),
+            10,
+            It.IsAny<CancellationToken>()), Times.Exactly(8));
+    }
+
+    /// <summary>
+    /// Verifies too many themes are rejected before the search provider is contacted.
+    /// </summary>
+    [Fact]
+    public async Task MoreThanEightThemesAreRejectedBeforeSearch()
+    {
+        var connector = CreateConnector(_ => []);
+        var themes = JsonSerializer.Serialize(Enumerable.Range(1, 9).Select(index => new
+        {
+            terms = new[] { $"theme-{index}" },
+        }));
+        var tool = CreateTool(
+            connector.Object,
+            new Dictionary<string, string>(),
+            new StubContentTrustService(),
+            new StubResearchTranslationService());
+
+        var action = () => tool.DiscoverAsync(themes, freshnessWindow: "none");
+
+        await action.Should().ThrowAsync<ArgumentException>()
+            .WithMessage("*at most 8 themes*");
+        connector.Verify(instance => instance.SearchAsync(
+            It.IsAny<string>(),
+            It.IsAny<int>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    /// <summary>
+    /// Verifies a small retrieval budget is shared fairly between themes.
+    /// </summary>
+    [Fact]
+    public async Task RetrievalsAreRoundRobinAcrossPrimaryThemes()
+    {
+        var connector = CreateConnector(query => query.StartsWith("alpha", StringComparison.Ordinal)
+            ? ["https://example.test/alpha-0", "https://example.test/alpha-1"]
+            : ["https://example.test/beta-0", "https://example.test/beta-1"]);
+        var pages = new Dictionary<string, string>
+        {
+            ["/alpha-0"] = Html("Alpha zero", null, "Alpha"),
+            ["/alpha-1"] = Html("Alpha one", null, "Alpha"),
+            ["/beta-0"] = Html("Beta zero", null, "Beta"),
+            ["/beta-1"] = Html("Beta one", null, "Beta"),
+        };
+        var tool = CreateTool(
+            connector.Object,
+            pages,
+            new StubContentTrustService(),
+            new StubResearchTranslationService());
+
+        var json = await tool.DiscoverAsync(
+            "[{\"terms\":[\"alpha\"]},{\"terms\":[\"beta\"]}]",
+            freshnessWindow: "none",
+            maxRetrievalsPerRun: 2);
+
+        using var document = JsonDocument.Parse(json);
+        var protectedResults = document.RootElement.GetProperty("protectedResults").GetString();
+        protectedResults.Should().Contain("Alpha zero").And.Contain("Beta zero");
+        protectedResults.Should().NotContain("Alpha one").And.NotContain("Beta one");
     }
 
     private static Mock<IWebSearchConnector> CreateConnector(

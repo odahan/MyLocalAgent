@@ -26,10 +26,10 @@ Settings UI.
 | S23-D1 | `research.discover` accepts all search parameters inline in the workflow step. There are no persisted profiles. |
 | S23-D2 | `web.search` remains a generic single-query capability. It gains stable hit metadata but does not accept themes, retention settings, or a storage-space identifier. |
 | S23-D3 | `research.discover` runs bounded code-owned loops. It is not an LLM agent loop. |
-| S23-D4 | `freshnessWindow` controls authoritative local date filtering. `"sliding"`: starts at the beginning of the local calendar day minus two days, expands to 4 then 7 days only when unique verified in-window documents are below `minimumDocuments`. `"none"`: no date filter; query syntax is only a provider hint. |
+| S23-D4 | `freshnessWindow` controls authoritative local date filtering. `"sliding"` collects once with a seven-day provider hint, then evaluates the 2, 4, and 7-day windows locally in memory until `minimumDocuments` is reached. `"none"`: no date filter; query syntax is only a provider hint. |
 | S23-D5 | Sliding mode never delivers old, future, or unknown-date documents. `dateStatus: Unknown` may be returned only in `none` mode. |
 | S23-D6 | Query creation is deterministic C# from the inline theme terms. No model may invent queries during a run. |
-| S23-D7 | Every retrieval is bounded by the inline limits. Sliding mode reserves the global retrieval budget with cumulative one-third, two-third, and full-budget ceilings for the 2/4/7-day phases, so an earlier phase cannot consume later phases' share. The tool stops a phase as soon as the minimum is reached and never crawls arbitrary links found in a page. |
+| S23-D7 | Paid search is the constrained resource: a run executes at most eight search requests and accepts at most eight themes. It executes one primary request per theme and only then an optional single fallback per eligible theme while budget remains. Page retrieval stays bounded by a compatibility safeguard for runtime, memory, remote-server politeness, and pathological-result protection; it is not treated as a financial quota. The tool never crawls arbitrary links found in a page. |
 | S23-D8 | `sourceLanguage` is a search qualifier (BCP-47 tag, default `"en"`). `language` is a translation target. Translation is allowed only after the final source payload receives a clean Guardrails verdict; the exact translated payload is screened again before delivery. Disabled, failed, caution, or withheld source screening skips translation. |
 | S23-D9 | Search, retrieval, parsing, date filtering, deduplication, and ranking remain deterministic C# and run before Guardrails. Only the exact bounded final title/summary payload is screened. External titles and summaries never appear outside `protectedResults`; disabled or failed screening still forces marked Base64. |
 | S23-D10 | All code, UI text, error text, comments and XML documentation are English. |
@@ -101,14 +101,14 @@ research.discover(
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `themes` | `Theme[]` | yes | — | 1–20 search themes |
+| `themes` | `Theme[]` | yes | — | 1–8 search themes; more than 8 are rejected before contacting the provider |
 | `freshnessWindow` | `FreshnessWindow` | no | `"sliding"` | `"sliding"`: 2→4→7 day expansion. `"none"`: no date filter. |
 | `sourceLanguage` | `string` | no | `"en"` | BCP-47 language tag. Search qualifier that filters results by language. |
 | `language` | `string` | no | empty | BCP-47 language tag. If set, translates title and short_summary of each candidate to this language via internal LLM call after collection. If empty, content is returned in original language. |
 | `preferredDomains` | `string[]` | no | `[]` | 1–50 domains used as ranking signal |
 | `minimumDocuments` | `int` | no | `8` | 1–100; target unique dated docs. Ignored when `freshnessWindow` is `"none"`. |
-| `maxResultsPerQuery` | `int` | no | `5` | 1–10; max search hits per compiled query |
-| `maxRetrievalsPerRun` | `int` | no | `24` | 1–100; max page fetches for the entire run |
+| `maxResultsPerQuery` | `int` | no | `10` | Advanced compatibility setting, 1–10; normally omitted from workflows |
+| `maxRetrievalsPerRun` | `int` | no | `40` | Advanced compatibility safeguard, 1–100; normally omitted from workflows |
 
 ```csharp
 public sealed record Theme(
@@ -122,12 +122,12 @@ optional filters applied to query compilation.
 
 ## 4. Query compilation
 
-For each theme, compile exactly two query intents: `current change` and `practical
-engineering`. Templates incorporate its terms, include/exclude terms, the
+For each theme, compile one primary `current change` query. A single `practical
+engineering` fallback may be compiled later if the primary collection is insufficient. Templates incorporate the terms, include/exclude terms, the
 `sourceLanguage` qualifier, and an absolute `after:yyyy-MM-dd` hint when `sliding` mode is
 active (no date qualifier for `none`). The hint is never trusted as enforcement; the local
-post-retrieval filter is authoritative. Preferred domains may produce a third domain-targeted query
-only when the global query budget permits it.
+post-retrieval filter is authoritative. Preferred domains affect local ranking only and never
+create an additional query.
 
 Record every generated query and its theme index in the run output; never log the
 query's returned content.
@@ -136,16 +136,18 @@ query's returned content.
 
 ### 5.1 Mode `sliding`
 
-1. Compile the two-day query set from all themes, bounded by `maxResultsPerQuery`.
-2. Execute queries via `web.search`.
-3. Normalize URLs and deduplicate hits.
-4. Prioritize preferred domains, primary-source-looking URLs, and rank.
-5. Retrieve the bounded top candidates (up to `maxRetrievalsPerRun`) through the
+1. Compile one primary query per theme with a single seven-day absolute date hint.
+2. Execute the primary queries via `web.search`, subject to the eight-request run ceiling.
+3. Normalize URLs, deduplicate hits, and retrieve them rank-by-rank across themes so one
+   large result set cannot consume the entire retrieval safeguard.
+4. Retrieve candidates (normally using the default safeguard) through the
    existing safe HTTP infrastructure. Extract canonical URL, title, publication date
    from supported HTML/JSON-LD/Open Graph metadata, and main text projection.
-6. Count unique documents whose date is verified and inside the active window. If below
-   `minimumDocuments`, repeat only the missing work for windows four then seven days. The
-   cumulative retrieval ceilings are one third, two thirds, then the full global budget.
+5. Count unique verified documents in the seven-day window. If below `minimumDocuments`,
+   execute at most one fallback query per successful primary theme, in theme order, while
+   both search and retrieval safeguards allow it. Re-evaluate after each fallback.
+6. Evaluate the 2, 4, and 7-day windows locally from this one collection and select the
+   first window that reaches `minimumDocuments`.
 7. If still below threshold at seven days, return a successful but explicitly
    insufficient result; do not backfill with older or unknown-date documents.
 8. Rank eligible documents and build the exact bounded canonical title/summary payload.
@@ -156,12 +158,12 @@ query's returned content.
 
 ### 5.2 Mode `none`
 
-1. Compile query set from all themes without any date filter, bounded by
-   `maxResultsPerQuery`.
-2. Execute queries via `web.search`.
-3. Normalize URLs and deduplicate hits.
-4. Prioritize preferred domains, primary-source-looking URLs, and rank.
-5. Retrieve the bounded top candidates (up to `maxRetrievalsPerRun`) through the
+1. Compile one primary query per theme without any date filter.
+2. Execute the primary queries via `web.search`, subject to the eight-request run ceiling.
+3. Normalize URLs, deduplicate hits, and retrieve them rank-by-rank across themes.
+4. If a successful primary query yields no usable document, execute at most one fallback
+   for that theme while safeguards allow it. Failed primary queries are not retried.
+5. Retrieve candidates through the
    existing safe HTTP infrastructure. Extract canonical URL, title, publication date
    from supported HTML/JSON-LD/Open Graph metadata, and main text projection.
 6. Rank documents and build the exact bounded canonical title/summary payload.
@@ -173,13 +175,14 @@ returned and counted normally.
 
 ### 5.3 Common result shape
 
-The result contains the active mode and effective UTC boundary, generated queries, retrieval
+The result contains the active mode and effective UTC boundary, generated queries, the fixed
+`searchRequestLimit` of 8, retrieval
 and rejection counts, safe candidate metadata, budget counters, explicit insufficiency state,
 per-window `windowHistory` diagnostics, one `protectedResults` block, aggregate Guardrails
 metadata, and translation status. Titles and summaries occur only inside `protectedResults`.
 A search-provider failure is distinct from a successful query with no hits: `searchStatus`,
 successful and failed query counts, and the last HTTP status make that state explicit. HTTP 429,
-401, and 403 stop the current query batch; a provider-wide 429 also stops later sliding windows.
+401, and 403 stop all later search requests in the run.
 A run may be cancelled at any point.
 
 ## 6. Workflow integration
@@ -209,9 +212,7 @@ call arbitrary URLs found inside fetched content.
     "sourceLanguage": "en",
     "language": "fr",
     "preferredDomains": ["learn.microsoft.com", "devblogs.microsoft.com"],
-    "minimumDocuments": 8,
-    "maxResultsPerQuery": 5,
-    "maxRetrievalsPerRun": 24
+    "minimumDocuments": 8
   }
 }
 ```
@@ -228,8 +229,7 @@ call arbitrary URLs found inside fetched content.
         "excludeTerms": ["job"]
       }
     ],
-    "freshnessWindow": "none",
-    "maxRetrievalsPerRun": 10
+    "freshnessWindow": "none"
   }
 }
 ```
@@ -247,7 +247,8 @@ call arbitrary URLs found inside fetched content.
 ## 8. Tests and gate
 
 Add deterministic tests for query compilation, sourceLanguage qualifier injection,
-2/4/7 expansion and per-window budget reservation (sliding mode), no-filter behavior (none mode), date eligibility,
+one-collection 2/4/7 local evaluation (sliding mode), the eight-request ceiling, fair
+rank-by-rank retrieval, no-filter behavior (none mode), date eligibility,
 unknown dates, budget limits, canonicalization, deduplication, no-old-content backfill,
 translation step (language set vs empty), Guardrails delivery contract, tool dependency
 validation, and protected output. Use fixture HTML and fake search/HTTP providers; no

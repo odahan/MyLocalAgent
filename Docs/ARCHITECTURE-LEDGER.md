@@ -1864,11 +1864,14 @@ compilation, freshness-window expansion, document classification, and late prote
 - `QueryCompiler` and `UrlCanonicalizer` are `internal static` classes, exposed to tests via `InternalsVisibleTo`.
 - `CompiledQuery` record and `QueryIntent` enum are `internal` types, accessible from test project.
 - All parameters are inline (S23-D1); no profiles, no database, no Settings UI (S23-D1/D2).
-- `freshnessWindow = "sliding"`: authoritative local-calendar 2→4→7 day expansion until
-  verified in-window docs ≥ `minimumDocuments`; old, future, and unknown-date documents are
-  excluded. Cumulative one-third, two-third, and full-budget retrieval ceilings reserve work for
-  every window, and `windowHistory` exposes attempts, eligibility, and stop reasons. `"none"`
-  keeps the unfiltered and undated behavior.
+- `freshnessWindow = "sliding"`: one seven-day search collection is evaluated locally against the
+  2→4→7 local-calendar windows until verified in-window docs ≥ `minimumDocuments`; old, future,
+  and unknown-date documents are excluded. `windowHistory` exposes eligibility and stop reasons.
+  `"none"` keeps the unfiltered and undated behavior.
+- A discovery run accepts at most eight themes and performs at most eight paid search requests:
+  one primary per theme, then conditional single fallbacks while budget remains. Preferred domains
+  are a local ranking signal and never generate extra searches. Page-fetch limits remain advanced
+  compatibility safeguards for runtime, memory, politeness, and pathological results.
 - Search-provider failures are never represented as genuine empty discovery. The result exposes
   `searchStatus`, success/failure counts, and the last HTTP code. HTTP 429 stops remaining phases
   and yields a rate-limit diagnostic instead of an unsupported zero-source conclusion.
@@ -2122,3 +2125,18 @@ compilation, freshness-window expansion, document classification, and late prote
   write a focused article when exactly one eligible source is available.
 - Added task-load diagnostics, preserved scheduled task files during workflow updates, and updated
   the technical documentation, README, and English/French user guides.
+
+### Version 1.4.8 — Search-efficient Web Discovery — 2026-08-17
+
+- Replaced repeated 2/4/7-day provider searches with one seven-day collection and local in-memory
+  window evaluation.
+- Limited discovery to eight themes and eight paid search requests per run. Each theme gets one
+  primary query; a single fallback is conditional on insufficient usable results and remaining
+  budget. Preferred domains remain local ranking signals.
+- Increased the normal provider result count to ten. Retained the page-fetch ceiling only as an
+  advanced compatibility safeguard for runtime, memory, politeness, and pathological results,
+  with a default of forty; bundled workflows no longer configure either advanced limit.
+- Retrieval consumes primary results rank-by-rank across themes so a small safeguard is shared
+  fairly. Diagnostics expose `searchRequestLimit` and locally evaluated `windowHistory` entries.
+- Release verification completed with zero build warnings or errors, 652 non-integration tests
+  passing, and one expected environment-dependent local Ollama probe skipped.
