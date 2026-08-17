@@ -360,7 +360,8 @@ entirely deterministic: they call no model, tool, file, or network.
   inserted verbatim with a manual-repair warning.
 - **Edit workflow text**: the metadata-driven editor lists long-text arguments in order. It
   edits `ai.prompt.prompt` with `includeContext` and `filesystem.powerShell.script` with a local
-  execution warning. **Apply** writes every change atomically.
+  execution warning, as well as `research.discover.themes` and
+  `research.discover.preferredDomains`. **Apply** writes every change atomically.
 - **AI Helper**: model-assisted generation, best reserved for cases where an
   English description is faster than writing the workflow directly.
 

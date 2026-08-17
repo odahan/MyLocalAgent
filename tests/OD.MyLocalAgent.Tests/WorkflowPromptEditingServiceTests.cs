@@ -266,6 +266,74 @@ public sealed class WorkflowPromptEditingServiceTests
     }
 
     /// <summary>
+    /// Verifies discovery JSON-string arguments use the generic long-text editor contract.
+    /// </summary>
+    [Fact]
+    public void DiscoverThemesAndPreferredDomainsRoundTripAsLongText()
+    {
+        var workflow = WorkflowDefinitionSerializer.Deserialize(
+            """
+            [
+              {
+                "step": "research.discover",
+                "id": "discover",
+                "args": {
+                  "themes": "[{\"terms\":[\".NET\"]}]",
+                  "sourceLanguage": "en",
+                  "preferredDomains": "[\"learn.microsoft.com\"]",
+                  "minimumDocuments": 3
+                }
+              }
+            ]
+            """);
+
+        var entries = WorkflowPromptEditingService.Extract(workflow);
+
+        entries.Select(static entry => entry.ArgumentName).Should().Equal(
+            "themes",
+            "preferredDomains");
+
+        const string updatedThemes = "[\n  { \"terms\": [\"C#\", \"WPF\"] }\n]";
+        const string updatedDomains = "[\n  \"devblogs.microsoft.com\",\n  \"github.com\"\n]";
+        var applied = WorkflowPromptEditingService.Apply(
+            workflow,
+            [
+                new WorkflowPromptEdit(0, updatedThemes, false) { ArgumentName = "themes" },
+                new WorkflowPromptEdit(0, updatedDomains, false) { ArgumentName = "preferredDomains" },
+            ]);
+
+        var step = WorkflowDefinitionSerializer.Deserialize(applied).Single();
+        step.Args.GetProperty("themes").GetString().Should().Be(updatedThemes);
+        step.Args.GetProperty("preferredDomains").GetString().Should().Be(updatedDomains);
+        step.Args.GetProperty("sourceLanguage").GetString().Should().Be("en");
+        step.Args.GetProperty("minimumDocuments").GetInt32().Should().Be(3);
+        applied.Split('\n').Count(static line =>
+            line.Contains("\"themes\"", StringComparison.Ordinal)).Should().Be(1);
+        applied.Split('\n').Count(static line =>
+            line.Contains("\"preferredDomains\"", StringComparison.Ordinal)).Should().Be(1);
+    }
+
+    /// <summary>
+    /// Verifies an omitted optional long-text argument does not create a blocking repair entry.
+    /// </summary>
+    [Fact]
+    public void OmittedOptionalDiscoveryLongTextIsNotExtracted()
+    {
+        var entries = Extract(
+            """
+            [
+              {
+                "step": "research.discover",
+                "args": { "themes": "[{\"terms\":[\".NET\"]}]" }
+              }
+            ]
+            """);
+
+        entries.Should().ContainSingle();
+        entries[0].ArgumentName.Should().Be("themes");
+    }
+
+    /// <summary>
     /// Verifies duplication detection for context-bearing placeholders.
     /// </summary>
     /// <param name="prompt">The prompt text to inspect.</param>

@@ -50,7 +50,13 @@ public static class WorkflowPromptEditingService
 
             foreach (var argument in longTextArguments)
             {
-                var hasText = TryGetArgument(step, argument.Name, out var textValue) &&
+                var hasArgument = TryGetArgument(step, argument.Name, out var textValue);
+                if (!hasArgument && !argument.IsRequired)
+                {
+                    continue;
+                }
+
+                var hasText = hasArgument &&
                     textValue.ValueKind == JsonValueKind.String;
                 var rawText = hasText ? textValue.GetString() ?? string.Empty : string.Empty;
                 var supportsContext = IsPromptStep(step) &&
