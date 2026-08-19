@@ -1,6 +1,5 @@
 using System.Text;
 using System.Text.Json;
-using Microsoft.Extensions.Options;
 using OD.MyLocalAgent.Core;
 
 namespace OD.MyLocalAgent.Workflows;
@@ -13,24 +12,23 @@ public sealed class MarkdownReportWriter : IReportWriter
     private static readonly JsonSerializerOptions SerializerOptions =
         new(JsonSerializerDefaults.Web);
 
-    private readonly string? _explicitReportsDirectory;
-    private readonly IOptionsMonitor<FileSystemOptions>? _fileSystemOptions;
+    private readonly string _reportsDirectory;
     private readonly TimeProvider _timeProvider;
     private readonly SemaphoreSlim _indexGate = new(1, 1);
 
     /// <summary>
-    /// Initializes a writer using the configured file-system workspace.
+    /// Initializes a writer using the configured workspace paths.
     /// </summary>
-    /// <param name="fileSystemOptions">The configured file-system sandbox options.</param>
+    /// <param name="workspacePaths">The configured application workspace paths.</param>
     /// <param name="timeProvider">The time provider used for lock retries.</param>
     public MarkdownReportWriter(
-        IOptionsMonitor<FileSystemOptions> fileSystemOptions,
+        WorkspacePaths workspacePaths,
         TimeProvider timeProvider)
+        : this(
+            workspacePaths?.ReportsDirectory
+                ?? throw new ArgumentNullException(nameof(workspacePaths)),
+            timeProvider)
     {
-        ArgumentNullException.ThrowIfNull(fileSystemOptions);
-        ArgumentNullException.ThrowIfNull(timeProvider);
-        _fileSystemOptions = fileSystemOptions;
-        _timeProvider = timeProvider;
     }
 
     /// <summary>
@@ -43,7 +41,7 @@ public sealed class MarkdownReportWriter : IReportWriter
         TimeProvider? timeProvider = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reportsDirectory);
-        _explicitReportsDirectory = Path.GetFullPath(reportsDirectory);
+        _reportsDirectory = Path.GetFullPath(reportsDirectory);
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
@@ -58,7 +56,7 @@ public sealed class MarkdownReportWriter : IReportWriter
         ArgumentNullException.ThrowIfNull(result);
         ArgumentException.ThrowIfNullOrWhiteSpace(providerName);
 
-        var reportsDirectory = GetReportsDirectory();
+        var reportsDirectory = _reportsDirectory;
         var taskDirectory = Path.Combine(reportsDirectory, task.Id);
         Directory.CreateDirectory(taskDirectory);
         var reportPath = Path.Combine(
@@ -158,23 +156,6 @@ public sealed class MarkdownReportWriter : IReportWriter
         }
 
         return builder.ToString();
-    }
-
-    private string GetReportsDirectory()
-    {
-        if (_explicitReportsDirectory is not null)
-        {
-            return _explicitReportsDirectory;
-        }
-
-        var rootPath = _fileSystemOptions?.CurrentValue.RootPath
-            ?? throw new InvalidOperationException("File-system workspace options are unavailable.");
-        if (string.IsNullOrWhiteSpace(rootPath) || !Path.IsPathRooted(rootPath))
-        {
-            throw new InvalidOperationException("File-system workspace path must be absolute.");
-        }
-
-        return Path.Combine(Path.GetFullPath(rootPath), "reports");
     }
 
     private async Task AppendIndexAsync(

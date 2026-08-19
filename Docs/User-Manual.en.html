@@ -6,8 +6,8 @@
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
 <meta content="#08111f" name="theme-color"/>
-<meta content="Complete user manual for the OD.MyLocalAgent Windows application." name="description"/>
-<title>User Manual · OD.MyLocalAgent</title>
+<meta content="Complete user manual for the OD.MyLocalAgent 1.4.9 Windows application." name="description"/>
+<title>User Manual 1.4.9 · OD.MyLocalAgent</title>
 <style>
         :root {
             color-scheme: dark;
@@ -1279,7 +1279,7 @@
 <main class="content" id="contenu">
 <div class="content-inner">
 <section class="hero" data-title="Overview" id="accueil">
-<span class="eyebrow">Local-first · Windows · Ollama</span>
+<span class="eyebrow">Version 1.4.9 · Local-first · Windows · Ollama</span>
 <h1>Your local agent,<br/><span class="gradient-text">from intent to execution.</span></h1>
 <p class="hero-lead">
                     This manual explains how to configure OD.MyLocalAgent, create scheduled tasks,
@@ -1867,7 +1867,7 @@ ollama list</code></pre>
                 </div>
 <div class="callout warning">
                     Conversations are stored as clear text in
-                    <code>%LOCALAPPDATA%\OD.MyLocalAgent\direct-chat.db</code>. This dedicated
+                    <code>&lt;FileSystem:RootPath&gt;\.od-my-local-agent\data\direct-chat.db</code>. This dedicated
                     SQLite database is not the SQLite Tool, is unavailable to workflows, and is
                     not protected by DPAPI. With a cloud provider, relevant context is sent to the
                     configured endpoint.
@@ -2840,11 +2840,11 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
                     Technical events appear in the live logs.
                 </p>
 <p>
-                    Reports and their index are written below
-                    <code>FileSystem:RootPath\reports\</code>, the configured application
-                    sandbox. Neither the installation directory nor <code>%LOCALAPPDATA%</code>
-                    is a default destination. For a prompt-only task, the agent final output stays
-                    ordinary Markdown and the report has no empty <em>Steps</em> section.
+                    Reports and their index are written in the workspace's centralized storage,
+                    below <code>FileSystem:RootPath\.od-my-local-agent\outputs\reports\</code>.
+                    Neither the installation directory nor <code>%LOCALAPPDATA%</code> is a default
+                    destination. For a prompt-only task, the agent final output stays ordinary
+                    Markdown and the report has no empty <em>Steps</em> section.
                 </p>
 <div class="grid three">
 <article class="card">
@@ -2930,7 +2930,7 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
 </ul>
 <p>
                     Logs are kept under
-                    <code>%LOCALAPPDATA%\OD.MyLocalAgent\logs\runs\&lt;taskId&gt;\</code>
+                    <code>&lt;FileSystem:RootPath&gt;\.od-my-local-agent\logs\runs\&lt;taskId&gt;\</code>
                     (50 files per task by default, adjustable via
                     <code>Logging:MaxRunLogsPerTask</code>). They contain the same output as
                     the runner console: treat them as private diagnostic data, exactly like
@@ -3093,13 +3093,15 @@ ollama list</code></pre></div>
 <tbody>
 <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\settings.json</code></td><td>Non-secret user settings.</td></tr>
 <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\secrets.dat</code></td><td>DPAPI-protected OpenAI, Dropbox, and Web Search secrets.</td></tr>
-<tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\direct-chat.db</code></td><td>Direct Chat conversations and summaries in an unencrypted local SQLite database.</td></tr>
+<tr><td><code>&lt;FileSystem:RootPath&gt;\.od-my-local-agent\data\direct-chat.db</code></td><td>Direct Chat conversations and summaries in an unencrypted local SQLite database.</td></tr>
 <tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\Auth\Google\</code></td><td>Refreshable Google OAuth data.</td></tr>
-<tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\tasks\</code></td><td>One validated JSON file per task.</td></tr>
-<tr><td><code>&lt;FileSystem:RootPath&gt;\reports\&lt;taskId&gt;\</code></td><td>Per-task Markdown reports.</td></tr>
-<tr><td><code>&lt;FileSystem:RootPath&gt;\reports\index.jsonl</code></td><td>Index of all executions.</td></tr>
-<tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\logs\</code></td><td>Application logs and incidents.</td></tr>
-<tr><td><code>%LOCALAPPDATA%\OD.MyLocalAgent\logs\runs\&lt;taskId&gt;\</code></td><td>Runner output logs, one file per execution (Runs page).</td></tr>
+<tr><td><code>&lt;FileSystem:RootPath&gt;\.od-my-local-agent\tasks\</code></td><td>One validated JSON file per task.</td></tr>
+<tr><td><code>&lt;FileSystem:RootPath&gt;\.od-my-local-agent\tasks\backups\</code></td><td>Archived task definitions retained for reference.</td></tr>
+<tr><td><code>&lt;FileSystem:RootPath&gt;\.od-my-local-agent\examples\tasks\</code></td><td>Ready-to-copy task examples.</td></tr>
+<tr><td><code>&lt;FileSystem:RootPath&gt;\.od-my-local-agent\outputs\reports\&lt;taskId&gt;\</code></td><td>Per-task Markdown reports.</td></tr>
+<tr><td><code>&lt;FileSystem:RootPath&gt;\.od-my-local-agent\outputs\reports\index.jsonl</code></td><td>Index of all executions.</td></tr>
+<tr><td><code>&lt;FileSystem:RootPath&gt;\.od-my-local-agent\logs\</code></td><td>Application logs and incidents.</td></tr>
+<tr><td><code>&lt;FileSystem:RootPath&gt;\.od-my-local-agent\logs\runs\&lt;taskId&gt;\</code></td><td>Runner output logs, one file per execution (Runs page).</td></tr>
 </tbody>
 </table>
 </div>
@@ -3135,7 +3137,7 @@ ollama list</code></pre></div>
 <span class="status warn">3 task not found</span>
 </p>
 </section>
-<footer class="footer"><p>Revised document organization — English validation version.</p><p>OD.MyLocalAgent · User manual<br/>Standalone HTML5 document. Paths, screens, and behaviors described correspond to the project version dated July 29, 2026. <a href="User-Manual.html" lang="fr">Lire en français</a>.</p></footer>
+<footer class="footer"><p>Revised document organization — English version 1.4.9.</p><p>OD.MyLocalAgent · User manual<br/>Standalone HTML5 document. Paths, screens, and behaviors described correspond to version 1.4.9 dated August 20, 2026. <a href="User-Manual.html" lang="fr">Lire en français</a>.</p></footer>
 </div>
 <section id="stage22-local-files">
 <h2>Archives, Office documents, and PDF</h2>

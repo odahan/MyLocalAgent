@@ -15,15 +15,6 @@ public sealed class JsonTaskStore : ITaskStore, IDisposable
     private bool _disposed;
 
     /// <summary>
-    /// Initializes a new instance using the standard per-user task directory.
-    /// </summary>
-    /// <param name="timeProvider">The application clock reserved for store coordination.</param>
-    public JsonTaskStore(TimeProvider timeProvider)
-        : this(LocalAppPaths.TasksDirectory, timeProvider)
-    {
-    }
-
-    /// <summary>
     /// Initializes a new instance using an explicit directory.
     /// </summary>
     /// <param name="directoryPath">The task directory.</param>

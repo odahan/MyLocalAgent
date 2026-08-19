@@ -52,11 +52,18 @@ public static class HostApplicationBuilderExtensions
                 reloadOnChange: true)
             .AddInMemoryCollection(secrets);
 
+        var workspacePaths = new WorkspacePaths(
+            builder.Configuration[$"{FileSystemOptions.SectionName}:RootPath"]
+            ?? throw new InvalidOperationException(
+                "FileSystem:RootPath is required."));
+        workspacePaths.EnsureDirectories();
+
         RegisterOptions(builder);
-        ConfigureLogging(builder, configureAdditionalSinks);
+        ConfigureLogging(builder, workspacePaths, configureAdditionalSinks);
 
         builder.Services.TryAddSingleton(TimeProvider.System);
         builder.Services.TryAddSingleton<IExecutionDebugTrace, NullExecutionDebugTrace>();
+        builder.Services.AddSingleton(workspacePaths);
         builder.Services.AddSingleton<ISecretStore>(secretStore);
         builder.Services.AddLlmProviders(builder.Configuration);
         builder.Services.AddGuardrails(builder.Configuration);
@@ -113,12 +120,29 @@ public static class HostApplicationBuilderExtensions
         builder.Services.AddSingleton<ISkill>(
             static services => services.GetRequiredService<ClassifyEmailSkill>());
 
-        builder.Services.AddSingleton<IIncidentLogService, JsonlIncidentLogService>();
+        builder.Services.AddSingleton<IIncidentLogService>(
+            static services => new JsonlIncidentLogService(
+                services.GetRequiredService<WorkspacePaths>().IncidentsPath,
+                services.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton<IIncidentReporter, IncidentReporter>();
-        builder.Services.AddSingleton<JsonTaskStore>();
+        builder.Services.AddSingleton<JsonTaskStore>(
+            static services => new JsonTaskStore(
+                services.GetRequiredService<WorkspacePaths>().TasksDirectory,
+                services.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton<ITaskStore>(
             static services => services.GetRequiredService<JsonTaskStore>());
-        builder.Services.AddSingleton<SqliteDirectChatStore>();
+        builder.Services.AddSingleton<SqliteDirectChatStore>(
+            static services =>
+            {
+                var options = services
+                    .GetRequiredService<Microsoft.Extensions.Options.IOptions<DirectChatOptions>>()
+                    .Value;
+                return new SqliteDirectChatStore(
+                    services.GetRequiredService<WorkspacePaths>().DirectChatDatabasePath,
+                    services.GetRequiredService<TimeProvider>(),
+                    options.MaximumMediaBytes,
+                    options.MaximumConversationMediaBytes);
+            });
         builder.Services.AddSingleton<IDirectChatStore>(
             static services => services.GetRequiredService<SqliteDirectChatStore>());
         builder.Services.AddSingleton<ITokenEstimator, ConservativeTokenEstimator>();
@@ -128,7 +152,9 @@ public static class HostApplicationBuilderExtensions
         builder.Services.AddSingleton<ITaskSchedulerService, WindowsTaskSchedulerService>();
         builder.Services.AddSingleton<IMyLocalAgentService, MyLocalAgentService>();
         builder.Services.AddSingleton<IRunnerService, RunnerService>();
-        builder.Services.AddSingleton<IRunLogCatalog, RunLogCatalog>();
+        builder.Services.AddSingleton<IRunLogCatalog>(
+            static services => new RunLogCatalog(
+                services.GetRequiredService<WorkspacePaths>().RunLogsDirectory));
         return builder;
     }
 
@@ -192,6 +218,7 @@ public static class HostApplicationBuilderExtensions
 
     private static void ConfigureLogging(
         IHostApplicationBuilder builder,
+        WorkspacePaths workspacePaths,
         Action<LoggerConfiguration>? configureAdditionalSinks)
     {
         var options = builder.Configuration
@@ -207,12 +234,12 @@ public static class HostApplicationBuilderExtensions
         builder.Services.AddSingleton(inMemorySink);
         builder.Services.AddSingleton<IInMemoryLogSink>(inMemorySink);
 
-        Directory.CreateDirectory(LocalAppPaths.LogsDirectory);
+        Directory.CreateDirectory(workspacePaths.ApplicationLogsDirectory);
         var loggerConfiguration = new LoggerConfiguration()
             .MinimumLevel.Is(minimumLevel)
             .Enrich.FromLogContext()
             .WriteTo.File(
-                Path.Combine(LocalAppPaths.LogsDirectory, "application-.log"),
+                Path.Combine(workspacePaths.ApplicationLogsDirectory, "application-.log"),
                 rollingInterval: RollingInterval.Day,
                 retainedFileCountLimit: 14,
                 shared: true)

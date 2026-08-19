@@ -73,7 +73,8 @@ public sealed class TasksViewModelTests
             Mock.Of<IRunLogCatalog>(),
             incidentReporter.Object,
             Mock.Of<IDesktopInteractionService>(),
-            new WeakReferenceMessenger())
+            new WeakReferenceMessenger(),
+            TestWorkspacePaths())
         {
             SelectedTask = new TaskListItem(
                 "demo-task",
@@ -147,7 +148,8 @@ public sealed class TasksViewModelTests
             runLogCatalog.Object,
             Mock.Of<IIncidentReporter>(),
             Mock.Of<IDesktopInteractionService>(),
-            new WeakReferenceMessenger());
+            new WeakReferenceMessenger(),
+            TestWorkspacePaths());
 
         await viewModel.RefreshCommand.ExecuteAsync(null);
 
@@ -189,7 +191,8 @@ public sealed class TasksViewModelTests
             runLogCatalog.Object,
             Mock.Of<IIncidentReporter>(),
             Mock.Of<IDesktopInteractionService>(),
-            new WeakReferenceMessenger());
+            new WeakReferenceMessenger(),
+            TestWorkspacePaths());
 
         await viewModel.RefreshCommand.ExecuteAsync(null);
 
@@ -239,7 +242,8 @@ public sealed class TasksViewModelTests
             runLogCatalog.Object,
             incidentReporter.Object,
             Mock.Of<IDesktopInteractionService>(),
-            new WeakReferenceMessenger());
+            new WeakReferenceMessenger(),
+            TestWorkspacePaths());
 
         await viewModel.RefreshCommand.ExecuteAsync(null);
 
@@ -264,9 +268,10 @@ public sealed class TasksViewModelTests
     [Fact]
     public void OpenFolderUsesCanonicalTasksDirectory()
     {
+        var workspacePaths = TestWorkspacePaths();
         var desktop = new Mock<IDesktopInteractionService>(MockBehavior.Strict);
         desktop
-            .Setup(service => service.OpenFolder(LocalAppPaths.TasksDirectory));
+            .Setup(service => service.OpenFolder(workspacePaths.TasksDirectory));
         var viewModel = new TasksViewModel(
             Mock.Of<ITaskStore>(),
             Mock.Of<ITaskSchedulerService>(),
@@ -274,7 +279,8 @@ public sealed class TasksViewModelTests
             Mock.Of<IRunLogCatalog>(),
             Mock.Of<IIncidentReporter>(),
             desktop.Object,
-            new WeakReferenceMessenger());
+            new WeakReferenceMessenger(),
+            workspacePaths);
 
         viewModel.OpenTasksFolderCommand.Execute(null);
 
@@ -289,5 +295,9 @@ public sealed class TasksViewModelTests
             Mock.Of<IRunLogCatalog>(),
             Mock.Of<IIncidentReporter>(),
             Mock.Of<IDesktopInteractionService>(),
-            new WeakReferenceMessenger());
+            new WeakReferenceMessenger(),
+            TestWorkspacePaths());
+
+    private static WorkspacePaths TestWorkspacePaths() =>
+        new(Path.Combine(Path.GetTempPath(), "OD.MyLocalAgent.Tests", "workspace"));
 }

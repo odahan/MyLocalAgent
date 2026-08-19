@@ -16,15 +16,6 @@ public sealed class JsonlIncidentLogService : IIncidentLogService
     private readonly TimeProvider _timeProvider;
 
     /// <summary>
-    /// Initializes a new instance using the standard per-user incident path.
-    /// </summary>
-    /// <param name="timeProvider">The time provider used for lock retries.</param>
-    public JsonlIncidentLogService(TimeProvider timeProvider)
-        : this(LocalAppPaths.IncidentsPath, timeProvider)
-    {
-    }
-
-    /// <summary>
     /// Initializes a new instance using an explicit path.
     /// </summary>
     /// <param name="path">The incident JSONL path.</param>

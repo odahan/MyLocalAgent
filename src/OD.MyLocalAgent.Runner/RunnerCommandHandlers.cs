@@ -77,7 +77,8 @@ internal static class RunnerCommandHandlers
                 services
                     .GetRequiredService<IOptions<LoggingOptions>>()
                     .Value.MaxRunLogsPerTask,
-                services.GetRequiredService<TimeProvider>());
+                services.GetRequiredService<TimeProvider>(),
+                services.GetRequiredService<WorkspacePaths>().RunLogsDirectory);
         }
         catch (Exception exception) when (
             exception is not OperationCanceledException)

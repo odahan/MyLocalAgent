@@ -1,5 +1,7 @@
 # MyLocalAgent — first-run guide
 
+Application version: **1.4.9**.
+
 This guide summarizes the setup used to build the application, publish it, and
 configure its connectors. It does not cover creating a business task, setup
 incidents, or intermediate fixes.
@@ -84,10 +86,11 @@ In **Settings**:
 The copy buttons separately place the reports directory and the executable
 directory on the clipboard.
 
-Task reports are always written below the configured **FileSystem:RootPath**, in
-`reports\<taskId>\`. This root is the task sandbox: neither the installation directory nor
-`%LOCALAPPDATA%` is a fallback report destination. A prompt-only task produces ordinary
-Markdown there, without an empty workflow-steps section.
+Task reports are always written in the workspace's centralized storage, below
+`<FileSystem:RootPath>\.od-my-local-agent\outputs\reports\<taskId>\`. The configured root
+remains the task sandbox: neither the installation directory nor `%LOCALAPPDATA%` is a fallback
+report destination. A prompt-only task produces ordinary Markdown there, without an empty
+workflow-steps section.
 
 ### Project-wide AI instructions
 

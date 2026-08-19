@@ -15,21 +15,13 @@ public sealed class RunLogCatalog : IRunLogCatalog
     /// <summary>
     /// Initializes a new instance of the <see cref="RunLogCatalog"/> class.
     /// </summary>
-    public RunLogCatalog()
-        : this(null)
-    {
-    }
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="RunLogCatalog"/> class.
-    /// </summary>
     /// <param name="rootDirectory">
-    /// An optional run-log root override; defaults to
-    /// <see cref="LocalAppPaths.RunLogsDirectory"/>.
+    /// The run-log root directory.
     /// </param>
-    public RunLogCatalog(string? rootDirectory)
+    public RunLogCatalog(string rootDirectory)
     {
-        _rootDirectory = rootDirectory ?? LocalAppPaths.RunLogsDirectory;
+        ArgumentException.ThrowIfNullOrWhiteSpace(rootDirectory);
+        _rootDirectory = Path.GetFullPath(rootDirectory);
     }
 
     /// <inheritdoc />

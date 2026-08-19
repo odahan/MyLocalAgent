@@ -23,7 +23,7 @@ This ledger is the binding project memory for OD.MyLocalAgent. Every stage must 
   best-effort; workflows (`workflow` array) are the deterministic path and the README steers
   users to them.
 - **H. Direct Chat owns an application-only database, not a workflow tool database.**
-  `%LOCALAPPDATA%\OD.MyLocalAgent\direct-chat.db` is accessed only through
+  `<FileSystem:RootPath>\.od-my-local-agent\data\direct-chat.db` is accessed only through
   `IDirectChatStore`; `SqliteTool`, task path authorization, and workflow capabilities do not
   participate. Context compression never deletes original messages.
 
@@ -1920,7 +1920,7 @@ compilation, freshness-window expansion, document classification, and late prote
   exposes no tools or skills.
 - Added `DirectChatConversation`, `DirectChatMessage`, role/state enums, and the
   `IDirectChatStore` contract in Core. `SqliteDirectChatStore` owns
-  `%LOCALAPPDATA%\OD.MyLocalAgent\direct-chat.db`, schema version 2, parameterized SQL,
+  `<FileSystem:RootPath>\.od-my-local-agent\data\direct-chat.db`, schema version 2, parameterized SQL,
   foreign-key cascades, transactional updates, deterministic ordering, and recovery of abandoned
   `Pending`/`Streaming` messages as `Failed`. The Windows-serviced SQLite provider initialization
   is centralized in `SqliteNativeBootstrap` and shared with `SqliteTool`.
@@ -2140,3 +2140,22 @@ compilation, freshness-window expansion, document classification, and late prote
   fairly. Diagnostics expose `searchRequestLimit` and locally evaluated `windowHistory` entries.
 - Release verification completed with zero build warnings or errors, 652 non-integration tests
   passing, and one expected environment-dependent local Ollama probe skipped.
+
+### Version 1.4.9 — Workspace-centered durable storage — 2026-08-20
+
+- Added the immutable `WorkspacePaths` composition service. The UI and runner now resolve task
+  JSON, Direct Chat storage, application and run logs, incidents, examples, and generated reports
+  below `<FileSystem:RootPath>\.od-my-local-agent`. Only settings, DPAPI secrets, and Google OAuth
+  credentials remain under `%LOCALAPPDATA%\OD.MyLocalAgent`.
+- Report output moved from the workspace-level `reports` directory to
+  `.od-my-local-agent\outputs\reports`; UI folder commands and execution history use the same
+  injected paths as their stores.
+- Kept legacy data migration out of both executables. The one-time
+  `scripts\Migrate-DataToWorkspace.ps1` utility previews with `-WhatIf`, requires stopped runtime
+  processes and disabled scheduled tasks for a real run, creates a verified backup, copies through
+  temporary files, compares SHA-256 hashes, merges and rebases historical report indexes, and
+  removes only verified legacy sources. Historical task backups are retained below
+  `.od-my-local-agent\tasks\backups`.
+- Release verification completed with zero build warnings or errors, 657 non-integration tests
+  passing, one expected environment-dependent Ollama probe skipped, all task examples parsing as
+  JSON, and a successful end-to-end migration against an isolated temporary fixture.

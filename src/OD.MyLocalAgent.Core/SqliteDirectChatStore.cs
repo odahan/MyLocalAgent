@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
-using Microsoft.Extensions.Options;
 
 namespace OD.MyLocalAgent.Core;
 
@@ -16,18 +15,6 @@ public sealed class SqliteDirectChatStore : IDirectChatStore, IDisposable
     private readonly SemaphoreSlim _gate = new(1, 1);
     private bool _initialized;
     private bool _disposed;
-
-    /// <summary>Initializes a store at the standard per-user database path.</summary>
-    public SqliteDirectChatStore(
-        TimeProvider timeProvider,
-        IOptions<DirectChatOptions> options)
-        : this(
-            LocalAppPaths.DirectChatDatabasePath,
-            timeProvider,
-            options?.Value.MaximumMediaBytes ?? throw new ArgumentNullException(nameof(options)),
-            options.Value.MaximumConversationMediaBytes)
-    {
-    }
 
     /// <summary>Initializes a store at an explicit database path.</summary>
     public SqliteDirectChatStore(

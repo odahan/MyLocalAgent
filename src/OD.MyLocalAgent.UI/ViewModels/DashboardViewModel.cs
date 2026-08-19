@@ -6,7 +6,6 @@ using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
-using Microsoft.Extensions.Options;
 using OD.MyLocalAgent.Core;
 using OD.MyLocalAgent.Ollama;
 using OD.MyLocalAgent.UI.Messages;
@@ -35,7 +34,7 @@ public sealed partial class DashboardViewModel :
     private readonly IIncidentReporter _incidentReporter;
     private readonly IDesktopInteractionService _desktopInteraction;
     private readonly IMessenger _messenger;
-    private readonly IOptionsMonitor<FileSystemOptions> _fileSystemOptions;
+    private readonly WorkspacePaths _workspacePaths;
 
     [ObservableProperty]
     private int _taskCount;
@@ -65,7 +64,7 @@ public sealed partial class DashboardViewModel :
         IIncidentReporter incidentReporter,
         IDesktopInteractionService desktopInteraction,
         IMessenger messenger,
-        IOptionsMonitor<FileSystemOptions> fileSystemOptions)
+        WorkspacePaths workspacePaths)
         : base(messenger)
     {
         _taskStore = taskStore;
@@ -74,7 +73,7 @@ public sealed partial class DashboardViewModel :
         _incidentReporter = incidentReporter;
         _desktopInteraction = desktopInteraction;
         _messenger = messenger;
-        _fileSystemOptions = fileSystemOptions;
+        _workspacePaths = workspacePaths;
         _taskStore.TasksChanged += OnTasksChanged;
         IsActive = true;
     }
@@ -186,7 +185,7 @@ public sealed partial class DashboardViewModel :
     [RelayCommand]
     private void OpenLogsFolder()
     {
-        _desktopInteraction.OpenFolder(LocalAppPaths.LogsDirectory);
+        _desktopInteraction.OpenFolder(_workspacePaths.LogsDirectory);
     }
 
     private async Task RefreshNextRunsAsync(
@@ -223,10 +222,7 @@ public sealed partial class DashboardViewModel :
     private async Task RefreshExecutionsAsync(
         CancellationToken cancellationToken)
     {
-        var reportIndexPath = Path.Combine(
-            _fileSystemOptions.CurrentValue.RootPath,
-            "reports",
-            "index.jsonl");
+        var reportIndexPath = _workspacePaths.ReportIndexPath;
         var recent = new Queue<ReportIndexLine>(10);
         if (File.Exists(reportIndexPath))
         {

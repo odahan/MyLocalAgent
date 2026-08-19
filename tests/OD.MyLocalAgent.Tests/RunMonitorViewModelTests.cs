@@ -139,7 +139,13 @@ public sealed class RunMonitorViewModelTests
     private static RunMonitorViewModel CreateViewModel(
         IRunLogCatalog catalog,
         IDesktopInteractionService? desktopInteraction = null) =>
-        new(catalog, desktopInteraction ?? Mock.Of<IDesktopInteractionService>());
+        new(
+            catalog,
+            desktopInteraction ?? Mock.Of<IDesktopInteractionService>(),
+            new WorkspacePaths(Path.Combine(
+                Path.GetTempPath(),
+                "OD.MyLocalAgent.Tests",
+                "workspace")));
 
     private static RunLogLine CreateLine(int number) =>
         new(Started.AddSeconds(number), RunLogStream.Output, $"line {number}");

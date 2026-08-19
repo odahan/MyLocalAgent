@@ -331,7 +331,8 @@ public sealed partial class SettingsViewModel :
         IMessenger messenger,
         TimeProvider timeProvider,
         IOptionsMonitor<SQLiteOptions>? sqliteOptions = null,
-        IOptionsMonitor<FileContentOptions>? fileContentOptions = null)
+        IOptionsMonitor<FileContentOptions>? fileContentOptions = null,
+        WorkspacePaths? workspacePaths = null)
         : base(messenger)
     {
         _aiOptions = aiOptions;
@@ -360,8 +361,10 @@ public sealed partial class SettingsViewModel :
 
         LoggingLevels = Enum.GetNames<LogEventLevel>();
         ThemeNames = AppThemeCatalog.Names;
-        TasksFolder = LocalAppPaths.TasksDirectory;
-        ReportsFolder = Path.Combine(fileSystemOptions.CurrentValue.RootPath, "reports");
+        var resolvedWorkspacePaths = workspacePaths ??
+            new WorkspacePaths(fileSystemOptions.CurrentValue.RootPath);
+        TasksFolder = resolvedWorkspacePaths.TasksDirectory;
+        ReportsFolder = resolvedWorkspacePaths.ReportsDirectory;
         ExecutableFolder = Path.GetFullPath(AppContext.BaseDirectory);
         ApplicationExecutablePath = Path.Combine(
             ExecutableFolder,

@@ -128,7 +128,7 @@ internal static class RunnerApplication
         }
     }
 
-    private static async Task<string> ReportTopLevelExceptionAsync(
+    private static async Task<string?> ReportTopLevelExceptionAsync(
         Exception exception)
     {
         try
@@ -140,14 +140,9 @@ internal static class RunnerApplication
         }
         catch (InvalidOperationException)
         {
-            var fallbackReporter = new IncidentReporter(
-                new JsonlIncidentLogService(TimeProvider.System),
-                TimeProvider.System);
-            AppExceptionHandlers.Initialize(fallbackReporter);
-            return await AppExceptionHandlers.HandleAsync(
-                exception,
-                "OD.MyLocalAgent.Runner",
-                CancellationToken.None).ConfigureAwait(false);
+            // Configuration or workspace resolution failed before durable incident
+            // storage was available. The caller still writes the original error.
+            return null;
         }
     }
 

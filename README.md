@@ -1,5 +1,7 @@
 # OD.MyLocalAgent
 
+Current application release: **1.4.9**.
+
 OD.MyLocalAgent is a native Windows desktop application for running scheduled, AI-driven
 tasks locally. It combines a WPF management UI, a headless runner, Ollama, deterministic
 workflows, a guarded tool layer, and rolling Windows Task Scheduler registrations.
@@ -266,13 +268,16 @@ The process working directory is never used to locate configuration.
 | `%LOCALAPPDATA%\OD.MyLocalAgent\settings.json` | Non-secret user overrides |
 | `%LOCALAPPDATA%\OD.MyLocalAgent\secrets.dat` | DPAPI CurrentUser-protected OpenAI, Dropbox, and Web Search secrets |
 | `%LOCALAPPDATA%\OD.MyLocalAgent\Auth\Google\` | Google OAuth token data |
-| `%LOCALAPPDATA%\OD.MyLocalAgent\tasks\<id>.json` | One validated definition per task |
-| `<FileSystem:RootPath>\reports\<taskId>\*.md` | Per-run Markdown reports |
-| `<FileSystem:RootPath>\reports\index.jsonl` | Append-only execution index |
-| `%LOCALAPPDATA%\OD.MyLocalAgent\logs\application-<date>.log` | Rolling application logs, retained for 14 files |
-| `%LOCALAPPDATA%\OD.MyLocalAgent\logs\runs\<taskId>\*.jsonl` | Per-execution runner output logs (`Logging:MaxRunLogsPerTask` retained per task, default 50) |
-| `%LOCALAPPDATA%\OD.MyLocalAgent\logs\incidents.jsonl` | Durable incidents with correlation ids |
-| `%LOCALAPPDATA%\OD.MyLocalAgent\logs\archive\<timestamp>\` | Log copies created by Diagnostics Reset |
+| `<FileSystem:RootPath>\.od-my-local-agent\tasks\<id>.json` | One validated definition per task |
+| `<FileSystem:RootPath>\.od-my-local-agent\tasks\backups\` | Archived task definitions retained for reference |
+| `<FileSystem:RootPath>\.od-my-local-agent\examples\tasks\` | Ready-to-copy task examples |
+| `<FileSystem:RootPath>\.od-my-local-agent\data\direct-chat.db` | Direct Chat history and media |
+| `<FileSystem:RootPath>\.od-my-local-agent\outputs\reports\<taskId>\*.md` | Per-run Markdown reports |
+| `<FileSystem:RootPath>\.od-my-local-agent\outputs\reports\index.jsonl` | Append-only execution index |
+| `<FileSystem:RootPath>\.od-my-local-agent\logs\application\application-<date>.log` | Rolling application logs, retained for 14 files |
+| `<FileSystem:RootPath>\.od-my-local-agent\logs\runs\<taskId>\*.jsonl` | Per-execution runner output logs (`Logging:MaxRunLogsPerTask` retained per task, default 50) |
+| `<FileSystem:RootPath>\.od-my-local-agent\logs\incidents.jsonl` | Durable incidents with correlation ids |
+| `<FileSystem:RootPath>\.od-my-local-agent\logs\application\archive\<timestamp>\` | Log copies created by Diagnostics Reset |
 
 The DPAPI keys are `OpenAI:ApiKey`, `Dropbox:AccessToken`, `Dropbox:RefreshToken`,
 `Dropbox:AppKey`, and `WebSearch:ApiKey`. They must not be added to either JSON configuration
@@ -600,7 +605,7 @@ account because `%LOCALAPPDATA%`, Google tokens, and DPAPI secrets are user-spec
 
 The runner is a **windowless executable**: a scheduled execution never opens or flashes a
 console window. Every `run --task <id>` execution is instead recorded as a per-run JSONL log
-under `%LOCALAPPDATA%\OD.MyLocalAgent\logs\runs\<taskId>\`, flushed line by line and readable
+under `<FileSystem:RootPath>\.od-my-local-agent\logs\runs\<taskId>\`, flushed line by line and readable
 while the run executes. The UI **Runs** page lists past and in-progress executions, follows a
 live run (including one already started), and can export any run as plain text.
 
@@ -1362,18 +1367,19 @@ disabled by default: enable it after checking its paths against `FileSystem:Root
 ### OAuth-free acceptance sample
 
 When Google consent is unavailable, copy
-`Docs\samples\acceptance-filesystem.json` to the task directory and run:
+`.od-my-local-agent\examples\tasks\acceptance-filesystem.json` to the task directory and run:
 
 ```powershell
 Copy-Item `
-  -LiteralPath '.\Docs\samples\acceptance-filesystem.json' `
-  -Destination (Join-Path $env:LOCALAPPDATA `
-    'OD.MyLocalAgent\tasks\acceptance-filesystem.json')
+  -LiteralPath 'C:\OD.MyLocalAgent\.od-my-local-agent\examples\tasks\acceptance-filesystem.json' `
+  -Destination 'C:\OD.MyLocalAgent\.od-my-local-agent\tasks\acceptance-filesystem.json'
 & $runner run --task acceptance-filesystem
 ```
 
 This deterministic sample creates, writes, and reads a file under `FileSystem:RootPath`, then
-writes the normal Markdown report beneath `FileSystem:RootPath`, appends `reports\index.jsonl`, and rolls the next scheduler
+writes the normal Markdown report beneath
+`<FileSystem:RootPath>\.od-my-local-agent\outputs\reports`, appends the centralized
+`index.jsonl`, and rolls the next scheduler
 registration. It validates the local execution pipeline but does not validate Gmail OAuth;
 the Gmail leg of `daily-mail-summary` still requires a separate human-authorized run.
 
@@ -1460,7 +1466,7 @@ overall layout. The permissions list scrolls independently, and every message of
 that places its text on the Windows clipboard.
 
 Conversations are stored in the dedicated
-`%LOCALAPPDATA%\OD.MyLocalAgent\direct-chat.db` SQLite database. This internal database is not
+`<FileSystem:RootPath>\.od-my-local-agent\data\direct-chat.db` SQLite database. This internal database is not
 opened through `SqliteTool`, is not governed by task SQLite authorizations, and is not exposed to
 workflows. Schema migrations use `PRAGMA user_version`, foreign keys delete messages with their
 conversation, startup changes abandoned `Pending` or `Streaming` replies to `Failed`, and response
@@ -1587,7 +1593,7 @@ channels are never persisted. The display is intentionally compact: one persiste
 occupies one visual line unless its content wraps.
 
 Every real execution writes its Markdown report under the configured filesystem root:
-`<FileSystem:RootPath>\reports\<taskId>\`. The report preserves the agent's final Markdown as
+`<FileSystem:RootPath>\.od-my-local-agent\outputs\reports\<taskId>\`. The report preserves the agent's final Markdown as
 ordinary Markdown, and a prompt-only task has no empty workflow-steps section. The installation
 directory and `%LOCALAPPDATA%` user-data directory are never fallback report destinations.
 
@@ -1647,10 +1653,10 @@ that its action points to the stable published runner.
 
 ### Where to investigate failures
 
-- Normal logs: `%LOCALAPPDATA%\OD.MyLocalAgent\logs\application-<date>.log`
-- Incident records: `%LOCALAPPDATA%\OD.MyLocalAgent\logs\incidents.jsonl`
-- Run index: `<FileSystem:RootPath>\reports\index.jsonl`
-- Per-task report: `<FileSystem:RootPath>\reports\<taskId>\`
+- Normal logs: `<FileSystem:RootPath>\.od-my-local-agent\logs\application\application-<date>.log`
+- Incident records: `<FileSystem:RootPath>\.od-my-local-agent\logs\incidents.jsonl`
+- Run index: `<FileSystem:RootPath>\.od-my-local-agent\outputs\reports\index.jsonl`
+- Per-task report: `<FileSystem:RootPath>\.od-my-local-agent\outputs\reports\<taskId>\`
 
 ## Extension points
 

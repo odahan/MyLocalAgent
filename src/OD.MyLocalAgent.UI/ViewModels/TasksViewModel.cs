@@ -25,6 +25,7 @@ public sealed partial class TasksViewModel :
     private readonly IIncidentReporter _incidentReporter;
     private readonly IDesktopInteractionService _desktopInteraction;
     private readonly IMessenger _messenger;
+    private readonly WorkspacePaths _workspacePaths;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(EditTaskCommand))]
@@ -79,7 +80,8 @@ public sealed partial class TasksViewModel :
         IRunLogCatalog runLogCatalog,
         IIncidentReporter incidentReporter,
         IDesktopInteractionService desktopInteraction,
-        IMessenger messenger)
+        IMessenger messenger,
+        WorkspacePaths workspacePaths)
         : base(messenger)
     {
         _taskStore = taskStore;
@@ -89,6 +91,7 @@ public sealed partial class TasksViewModel :
         _incidentReporter = incidentReporter;
         _desktopInteraction = desktopInteraction;
         _messenger = messenger;
+        _workspacePaths = workspacePaths;
         _taskStore.TasksChanged += OnTasksChanged;
         IsActive = true;
     }
@@ -233,7 +236,7 @@ public sealed partial class TasksViewModel :
 
     [RelayCommand]
     private void OpenTasksFolder() =>
-        _desktopInteraction.OpenFolder(LocalAppPaths.TasksDirectory);
+        _desktopInteraction.OpenFolder(_workspacePaths.TasksDirectory);
 
     [RelayCommand(CanExecute = nameof(CanUseSelection))]
     private async Task DeleteTaskAsync(CancellationToken cancellationToken)

@@ -1,7 +1,5 @@
 using System.Text.Json;
 using FluentAssertions;
-using Microsoft.Extensions.Options;
-using Moq;
 using OD.MyLocalAgent.Core;
 using OD.MyLocalAgent.Workflows;
 using Xunit;
@@ -200,10 +198,8 @@ public sealed class MarkdownReportWriterTests : IDisposable
     public async Task DefaultWriterStoresReportsInsideConfiguredWorkspace()
     {
         var workspace = Path.Combine(_directoryPath, "workspace");
-        var options = new Mock<IOptionsMonitor<FileSystemOptions>>();
-        options.SetupGet(instance => instance.CurrentValue).Returns(
-            new FileSystemOptions { RootPath = workspace });
-        var writer = new MarkdownReportWriter(options.Object, TimeProvider.System);
+        var workspacePaths = new WorkspacePaths(workspace);
+        var writer = new MarkdownReportWriter(workspacePaths, TimeProvider.System);
         var started = new DateTimeOffset(2026, 8, 12, 10, 0, 0, TimeSpan.Zero);
         var task = new ScheduledTask
         {
@@ -229,11 +225,13 @@ public sealed class MarkdownReportWriterTests : IDisposable
         written.ReportPath.Should().Be(
             Path.Combine(
                 workspace,
+                WorkspacePaths.ApplicationDirectoryName,
+                "outputs",
                 "reports",
                 "workspace-report",
                 "20260812-100000.md"));
         File.Exists(written.ReportPath).Should().BeTrue();
-        File.Exists(Path.Combine(workspace, "reports", "index.jsonl")).Should().BeTrue();
+        File.Exists(workspacePaths.ReportIndexPath).Should().BeTrue();
     }
 
     /// <summary>

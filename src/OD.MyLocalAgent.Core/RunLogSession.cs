@@ -40,22 +40,22 @@ public sealed class RunLogSession : IDisposable
     /// <param name="maxRunLogsPerTask">The per-task retained file count.</param>
     /// <param name="timeProvider">The time provider.</param>
     /// <param name="rootDirectory">
-    /// An optional run-log root override; defaults to
-    /// <see cref="LocalAppPaths.RunLogsDirectory"/>.
+    /// The run-log root directory.
     /// </param>
     /// <returns>The opened session.</returns>
     public static RunLogSession Start(
         string taskId,
         int maxRunLogsPerTask,
         TimeProvider timeProvider,
-        string? rootDirectory = null)
+        string rootDirectory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(taskId);
         ArgumentOutOfRangeException.ThrowIfLessThan(maxRunLogsPerTask, 1);
         ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentException.ThrowIfNullOrWhiteSpace(rootDirectory);
 
         var directory = Path.Combine(
-            rootDirectory ?? LocalAppPaths.RunLogsDirectory,
+            Path.GetFullPath(rootDirectory),
             taskId);
         Directory.CreateDirectory(directory);
         Prune(directory, maxRunLogsPerTask - 1);

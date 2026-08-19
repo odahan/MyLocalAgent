@@ -10,13 +10,16 @@ internal sealed class LogManagementService : ILogManagementService
 {
     private readonly IInMemoryLogSink _logSink;
     private readonly TimeProvider _timeProvider;
+    private readonly WorkspacePaths _workspacePaths;
 
     public LogManagementService(
         IInMemoryLogSink logSink,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        WorkspacePaths workspacePaths)
     {
         _logSink = logSink;
         _timeProvider = timeProvider;
+        _workspacePaths = workspacePaths;
     }
 
     public async Task ExportAsync(
@@ -50,17 +53,17 @@ internal sealed class LogManagementService : ILogManagementService
 
     public async Task ResetAsync(CancellationToken cancellationToken)
     {
-        Directory.CreateDirectory(LocalAppPaths.LogsDirectory);
+        Directory.CreateDirectory(_workspacePaths.ApplicationLogsDirectory);
         var rollingFiles = Directory
             .EnumerateFiles(
-                LocalAppPaths.LogsDirectory,
+                _workspacePaths.ApplicationLogsDirectory,
                 "application-*.log",
                 SearchOption.TopDirectoryOnly)
             .ToArray();
         if (rollingFiles.Length > 0)
         {
             var archiveDirectory = Path.Combine(
-                LocalAppPaths.LogsDirectory,
+                _workspacePaths.ApplicationLogsDirectory,
                 "archive",
                 _timeProvider.GetLocalNow().ToString(
                     "yyyyMMdd-HHmmss",

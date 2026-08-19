@@ -1,5 +1,7 @@
 # MyLocalAgent — guide de première mise en route
 
+Version de l’application : **1.4.9**.
+
 Ce guide reprend le parcours réalisé pour compiler l’application, la publier et
 configurer ses connecteurs. Il ne couvre ni la création d’une tâche métier ni
 les incidents de mise en place.
@@ -84,11 +86,11 @@ Dans **Settings** :
 Les boutons de copie permettent de récupérer séparément le dossier des rapports
 et le dossier de l’exécutable.
 
-Les rapports de tâches sont toujours écrits sous la racine déclarée dans
-**FileSystem:RootPath**, dans `reports\<taskId>\`. Cette racine est le bac à sable de la tâche :
-le dossier d’installation et `%LOCALAPPDATA%` ne sont pas des destinations de repli pour les
-rapports. Une tâche sans workflow y produit un rapport Markdown normal, sans section d’étapes
-vide.
+Les rapports de tâches sont toujours écrits dans le stockage central du workspace, sous
+`<FileSystem:RootPath>\.od-my-local-agent\outputs\reports\<taskId>\`. La racine configurée
+reste le bac à sable de la tâche : le dossier d’installation et `%LOCALAPPDATA%` ne sont pas des
+destinations de repli pour les rapports. Une tâche sans workflow y produit un rapport Markdown
+normal, sans section d’étapes vide.
 
 ### Instructions IA globales
 

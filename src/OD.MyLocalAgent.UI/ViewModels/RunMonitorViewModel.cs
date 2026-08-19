@@ -21,6 +21,7 @@ public sealed partial class RunMonitorViewModel :
 
     private readonly IRunLogCatalog _catalog;
     private readonly IDesktopInteractionService _desktopInteraction;
+    private readonly WorkspacePaths _workspacePaths;
     private DispatcherTimer? _timer;
     private long _tailOffset;
     private int _tickCount;
@@ -42,12 +43,15 @@ public sealed partial class RunMonitorViewModel :
     /// </summary>
     public RunMonitorViewModel(
         IRunLogCatalog catalog,
-        IDesktopInteractionService desktopInteraction)
+        IDesktopInteractionService desktopInteraction,
+        WorkspacePaths workspacePaths)
     {
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(desktopInteraction);
+        ArgumentNullException.ThrowIfNull(workspacePaths);
         _catalog = catalog;
         _desktopInteraction = desktopInteraction;
+        _workspacePaths = workspacePaths;
     }
 
     /// <summary>
@@ -164,8 +168,8 @@ public sealed partial class RunMonitorViewModel :
     [RelayCommand]
     private void OpenRunLogsFolder()
     {
-        Directory.CreateDirectory(LocalAppPaths.RunLogsDirectory);
-        _desktopInteraction.OpenFolder(LocalAppPaths.RunLogsDirectory);
+        Directory.CreateDirectory(_workspacePaths.RunLogsDirectory);
+        _desktopInteraction.OpenFolder(_workspacePaths.RunLogsDirectory);
     }
 
     /// <summary>

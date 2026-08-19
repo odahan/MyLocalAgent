@@ -1,5 +1,7 @@
 # Publish Script Explained
 
+Application version: **1.4.9**.
+
 Step-by-step breakdown of `scripts/publish.ps1`.
 
 ## 1. Script Parameters
