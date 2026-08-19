@@ -92,6 +92,12 @@ remains the task sandbox: neither the installation directory nor `%LOCALAPPDATA%
 report destination. A prompt-only task produces ordinary Markdown there, without an empty
 workflow-steps section.
 
+The `.od-my-local-agent` directory is reserved for the application and hidden by Windows. Managed
+file tools cannot display or access it, even when an absolute authorization covers it; recursive
+or destructive operations against a parent directory are also rejected. Hiding is only a visual
+safeguard. The `PowerShellExecution` and `ShellExecute` capabilities start unrestricted local
+processes and must be granted only to a trusted task.
+
 ### Project-wide AI instructions
 
 In **Settings → AI provider**, **Project-wide AI instructions** holds stable conventions such as

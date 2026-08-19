@@ -53,6 +53,7 @@ public sealed partial class TaskEditorViewModel :
     private readonly IWorkflowPromptEditorDialogService? _promptEditorDialog;
     private readonly IOptionsMonitor<AIOptions>? _aiOptions;
     private readonly IOptionsMonitor<SQLiteOptions>? _sqliteOptions;
+    private readonly IPathSandbox? _pathSandbox;
     private readonly ObservableCollection<ToolGroupSelectionItem> _toolGroupSelectionItems;
     private readonly ObservableCollection<TaskCapabilitySelectionItem> _capabilitySelectionItems;
     private string? _requestedTaskId;
@@ -208,7 +209,8 @@ public sealed partial class TaskEditorViewModel :
         IWorkflowToolCatalogDialogService? toolCatalogDialog = null,
         IWorkflowPromptEditorDialogService? promptEditorDialog = null,
         IOptionsMonitor<AIOptions>? aiOptions = null,
-        IOptionsMonitor<SQLiteOptions>? sqliteOptions = null)
+        IOptionsMonitor<SQLiteOptions>? sqliteOptions = null,
+        IPathSandbox? pathSandbox = null)
     {
         _taskStore = taskStore;
         _scheduler = scheduler;
@@ -221,6 +223,7 @@ public sealed partial class TaskEditorViewModel :
         _promptEditorDialog = promptEditorDialog;
         _aiOptions = aiOptions;
         _sqliteOptions = sqliteOptions;
+        _pathSandbox = pathSandbox;
         ErrorPolicies = Enum.GetValues<WorkflowErrorPolicy>();
         WorkflowAliases = ToolMap.Definitions;
         _toolGroupSelectionItems = new ObservableCollection<ToolGroupSelectionItem>(
@@ -461,6 +464,7 @@ public sealed partial class TaskEditorViewModel :
         IsBusy = true;
         try
         {
+            EnsureNoApplicationOwnedAuthorization();
             var generationOptions = CreateGenerationOptions();
             var workflow = DeserializeWorkflow(WorkflowText);
             var task = new ScheduledTask
@@ -866,6 +870,13 @@ public sealed partial class TaskEditorViewModel :
         }
 
         var normalizedPath = NormalizeDirectoryPath(selectedPath);
+        if (_pathSandbox?.IsApplicationOwnedPath(normalizedPath) == true)
+        {
+            ValidationText =
+                $"Location '{normalizedPath}' is reserved for application data and cannot be authorized.";
+            return;
+        }
+
         if (AuthorizedLocations.Any(
                 item => string.Equals(
                     item.Path,
@@ -902,6 +913,17 @@ public sealed partial class TaskEditorViewModel :
         if (item is not null)
         {
             AuthorizedLocations.Remove(item);
+        }
+    }
+
+    private void EnsureNoApplicationOwnedAuthorization()
+    {
+        var reserved = AuthorizedLocations.FirstOrDefault(
+            item => _pathSandbox?.IsApplicationOwnedPath(item.Path) == true);
+        if (reserved is not null)
+        {
+            throw new TaskValidationException(
+                $"File-system access path '{reserved.Path}' is reserved for application data.");
         }
     }
 

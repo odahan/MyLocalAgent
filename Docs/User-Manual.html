@@ -3285,6 +3285,14 @@ ollama list</code></pre>
 </tbody>
 </table>
 </div>
+<div class="callout warning">
+<strong>Dossier interne protégé.</strong> <code>.od-my-local-agent</code> est masqué par Windows et
+réservé à l’application. Les outils de fichiers des tâches et de Direct Chat ne peuvent ni
+l’afficher ni y accéder ; les opérations récursives ou destructrices sur un dossier parent sont
+également refusées. Le masquage est seulement visuel. Les capacités
+<code>PowerShellExecution</code> et <code>ShellExecute</code> lancent des processus locaux non
+confinés et doivent rester réservées aux usages de confiance.
+</div>
 <h3>Runner CLI</h3>
 <p>
                     Ces commandes sont destinées au diagnostic avancé ou à l’exploitation sans

@@ -96,6 +96,7 @@ public sealed class FileSystemTool : IFileSystemTool
                             .Where(static t =>
                                 !t.attributes.HasFlag(FileAttributes.Hidden) &&
                                 !t.attributes.HasFlag(FileAttributes.System))
+                            .Where(t => !_sandbox.IsApplicationOwnedPath(t.entry))
                             .Select(static t =>
                             {
                                 var isDirectory = t.attributes.HasFlag(FileAttributes.Directory);

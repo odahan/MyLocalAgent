@@ -93,6 +93,14 @@ public sealed class WorkspacePaths
     /// </summary>
     public void EnsureDirectories()
     {
+        Directory.CreateDirectory(ApplicationDataDirectory);
+        if (OperatingSystem.IsWindows())
+        {
+            File.SetAttributes(
+                ApplicationDataDirectory,
+                File.GetAttributes(ApplicationDataDirectory) | FileAttributes.Hidden);
+        }
+
         Directory.CreateDirectory(TasksDirectory);
         Directory.CreateDirectory(TaskBackupsDirectory);
         Directory.CreateDirectory(TaskExamplesDirectory);

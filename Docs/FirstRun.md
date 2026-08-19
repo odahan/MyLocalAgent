@@ -92,6 +92,12 @@ reste le bac à sable de la tâche : le dossier d’installation et `%LOCALAPPDA
 destinations de repli pour les rapports. Une tâche sans workflow y produit un rapport Markdown
 normal, sans section d’étapes vide.
 
+Le dossier `.od-my-local-agent` est réservé à l’application et masqué par Windows. Les outils de
+fichiers gérés ne peuvent ni l’afficher ni y accéder, même si une autorisation absolue le couvre ;
+les opérations récursives ou destructrices sur un dossier parent sont également refusées. Le
+masquage reste une protection visuelle. Les capacités `PowerShellExecution` et `ShellExecute`
+lancent des processus locaux non confinés et ne doivent être accordées qu’à une tâche de confiance.
+
 ### Instructions IA globales
 
 Dans **Settings → AI provider**, le champ **Project-wide AI instructions** permet de définir des

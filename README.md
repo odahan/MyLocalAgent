@@ -279,6 +279,12 @@ The process working directory is never used to locate configuration.
 | `<FileSystem:RootPath>\.od-my-local-agent\logs\incidents.jsonl` | Durable incidents with correlation ids |
 | `<FileSystem:RootPath>\.od-my-local-agent\logs\application\archive\<timestamp>\` | Log copies created by Diagnostics Reset |
 
+The `.od-my-local-agent` directory is application-owned. On Windows it is marked hidden whenever
+the UI or runner initializes the workspace. Managed local-path tools cannot list or address it,
+and destructive or recursive operations cannot target a parent directory that contains it. Task
+and Direct Chat location pickers also refuse to authorize the directory explicitly. The hidden
+attribute is only a visual safeguard; the managed-tool path policy is the enforcement boundary.
+
 The DPAPI keys are `OpenAI:ApiKey`, `Dropbox:AccessToken`, `Dropbox:RefreshToken`,
 `Dropbox:AppKey`, and `WebSearch:ApiKey`. They must not be added to either JSON configuration
 file.
@@ -456,6 +462,11 @@ authorize additional absolute directories in its **Authorized locations** editor
 each location is read-only or read-write. Absolute paths without a matching task rule,
 parent traversal, sibling-prefix confusion, and reparse-point escapes are rejected. Dropbox
 local paths use the same policy, and Windows ACLs remain authoritative.
+The application-owned `<FileSystem:RootPath>\.od-my-local-agent` subtree is always denied by
+managed path tools, even when an absolute authorization rule covers it. `PowerShellExecution`
+and `ShellExecute` deliberately start unrestricted local processes under the current Windows
+account; those processes are outside this path policy and must be granted only to fully trusted
+tasks or conversations.
 `Http:AllowedHosts` is an exact hostname allowlist.
 An empty list allows every HTTP or HTTPS host; that is convenient for interactive use but
 increases unattended-network risk, so production tasks should use an explicit list.

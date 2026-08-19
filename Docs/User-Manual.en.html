@@ -3105,6 +3105,13 @@ ollama list</code></pre></div>
 </tbody>
 </table>
 </div>
+<div class="callout warning">
+<strong>Protected internal directory.</strong> <code>.od-my-local-agent</code> is hidden by Windows
+and reserved for the application. Managed task and Direct Chat file tools cannot display or
+access it; recursive or destructive operations against a parent directory are also rejected.
+Hiding is only visual. The <code>PowerShellExecution</code> and <code>ShellExecute</code>
+capabilities start unrestricted local processes and must remain limited to trusted uses.
+</div>
 <h3>Runner CLI</h3>
 <p>These commands support advanced diagnostics or headless operation from PowerShell.</p>
 <div class="code-block">

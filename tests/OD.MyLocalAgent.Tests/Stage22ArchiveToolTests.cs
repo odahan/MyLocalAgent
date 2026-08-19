@@ -60,6 +60,25 @@ public sealed class Stage22ArchiveToolTests : IDisposable
             .Should().Be(TaskCapability.ArchiveWrite);
     }
 
+    /// <summary>Verifies recursive archives cannot capture application-owned workspace data.</summary>
+    [Fact]
+    public async Task CreateFromWorkspaceRootRejectsApplicationOwnedData()
+    {
+        Directory.CreateDirectory(Path.Combine(
+            _root,
+            WorkspacePaths.ApplicationDirectoryName,
+            "data"));
+        await File.WriteAllTextAsync(
+            Path.Combine(_root, WorkspacePaths.ApplicationDirectoryName, "data", "private.txt"),
+            "private");
+
+        var action = () => _tool.CreateZipAsync("workspace.zip", ".");
+
+        await action.Should().ThrowAsync<PathSandboxException>()
+            .WithMessage("*recursive access*");
+        File.Exists(Path.Combine(_root, "workspace.zip")).Should().BeFalse();
+    }
+
     /// <summary>Verifies unsafe existing ZIP entries prevent archive replacement.</summary>
     [Fact]
     public async Task AddRejectsUnsafeExistingEntryAndPreservesArchive()

@@ -17,6 +17,51 @@ namespace OD.MyLocalAgent.Tests;
 public sealed class TaskEditorViewModelTests
 {
     /// <summary>
+    /// Verifies application-owned workspace data cannot be added as a task grant.
+    /// </summary>
+    [Fact]
+    public void ApplicationOwnedLocationCannotBeAuthorized()
+    {
+        var workspace = Path.Combine(
+            Path.GetTempPath(),
+            "OD.MyLocalAgent.Editor",
+            Guid.NewGuid().ToString("N"));
+        var reserved = Path.Combine(
+            workspace,
+            WorkspacePaths.ApplicationDirectoryName,
+            "tasks");
+        Directory.CreateDirectory(reserved);
+        try
+        {
+            var desktop = new Mock<IDesktopInteractionService>(MockBehavior.Strict);
+            desktop.Setup(instance => instance.SelectFolder(
+                    "Select an authorized task location"))
+                .Returns(reserved);
+            var sandbox = new PathSandbox(
+                Microsoft.Extensions.Options.Options.Create(
+                    new FileSystemOptions { RootPath = workspace }));
+            var viewModel = new TaskEditorViewModel(
+                Mock.Of<ITaskStore>(),
+                Mock.Of<ITaskSchedulerService>(),
+                Mock.Of<IIncidentReporter>(),
+                desktop.Object,
+                Mock.Of<IMessenger>(),
+                TimeProvider.System,
+                pathSandbox: sandbox);
+
+            viewModel.AddAuthorizedLocationCommand.Execute(null);
+
+            viewModel.AuthorizedLocations.Should().BeEmpty();
+            viewModel.ValidationText.Should().Contain("reserved for application data");
+            desktop.VerifyAll();
+        }
+        finally
+        {
+            Directory.Delete(workspace, recursive: true);
+        }
+    }
+
+    /// <summary>
     /// Verifies selecting a plain-language preset applies its cron expression.
     /// </summary>
     [Fact]

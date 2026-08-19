@@ -299,6 +299,7 @@ public sealed class ArchiveTool : IArchiveTool
     {
         if (!File.Exists(source) && !Directory.Exists(source)) throw new FileContentToolException("CorruptFile");
         RejectReparsePoint(source);
+        if (Directory.Exists(source)) _sandbox.EnsureNoApplicationOwnedDescendant(source);
         var root = ValidateEntryPath(entryPath ?? Path.GetFileName(source.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)));
         var entries = new List<SourceEntry>();
         long totalBytes = 0;

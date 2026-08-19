@@ -2150,12 +2150,18 @@ compilation, freshness-window expansion, document classification, and late prote
 - Report output moved from the workspace-level `reports` directory to
   `.od-my-local-agent\outputs\reports`; UI folder commands and execution history use the same
   injected paths as their stores.
+- The application-owned directory is marked hidden on Windows and is an unconditional deny zone
+  for `IPathSandbox`: direct reads and writes are rejected even with an explicit absolute grant,
+  listings omit it, recursive archive sources cannot contain it, and write operations cannot
+  target an ancestor that would modify it. Task and Direct Chat editors reject explicit grants.
+  PowerShell and Shell Execute remain intentionally unrestricted process capabilities outside the
+  managed path boundary and expose that distinction in their permission descriptions.
 - Kept legacy data migration out of both executables. The one-time
   `scripts\Migrate-DataToWorkspace.ps1` utility previews with `-WhatIf`, requires stopped runtime
   processes and disabled scheduled tasks for a real run, creates a verified backup, copies through
   temporary files, compares SHA-256 hashes, merges and rebases historical report indexes, and
   removes only verified legacy sources. Historical task backups are retained below
   `.od-my-local-agent\tasks\backups`.
-- Release verification completed with zero build warnings or errors, 657 non-integration tests
+- Release verification completed with zero build warnings or errors, 663 non-integration tests
   passing, one expected environment-dependent Ollama probe skipped, all task examples parsing as
   JSON, and a successful end-to-end migration against an isolated temporary fixture.

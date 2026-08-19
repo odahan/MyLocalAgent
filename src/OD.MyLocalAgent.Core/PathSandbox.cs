@@ -9,6 +9,7 @@ public sealed class PathSandbox : IPathSandbox
 {
     private readonly string _rootPath;
     private readonly string _rootPrefix;
+    private readonly string _applicationDataPath;
     private readonly StringComparison _comparison;
 
     /// <summary>
@@ -30,6 +31,9 @@ public sealed class PathSandbox : IPathSandbox
         _rootPath = Path.GetFullPath(options.Value.RootPath);
         _rootPrefix = Path.TrimEndingDirectorySeparator(_rootPath) +
             Path.DirectorySeparatorChar;
+        _applicationDataPath = Path.Combine(
+            _rootPath,
+            WorkspacePaths.ApplicationDirectoryName);
         _comparison = OperatingSystem.IsWindows()
             ? StringComparison.OrdinalIgnoreCase
             : StringComparison.Ordinal;
@@ -51,6 +55,7 @@ public sealed class PathSandbox : IPathSandbox
             if (Path.IsPathRooted(path))
             {
                 absolutePath = Path.GetFullPath(path);
+                RejectApplicationOwnedAccess(path, absolutePath, requiredAccess);
                 var matchingRule = context.FileSystemAccess
                     .Select(
                         static rule => new
@@ -83,6 +88,7 @@ public sealed class PathSandbox : IPathSandbox
                     throw new PathSandboxException(path);
                 }
 
+                RejectApplicationOwnedAccess(path, absolutePath, requiredAccess);
                 authorizedRoot = _rootPath;
             }
         }
@@ -100,10 +106,48 @@ public sealed class PathSandbox : IPathSandbox
     }
 
     /// <inheritdoc />
+    public bool IsApplicationOwnedPath(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        try
+        {
+            var absolutePath = Path.IsPathRooted(path)
+                ? Path.GetFullPath(path)
+                : Path.GetFullPath(path, _rootPath);
+            return IsWithin(absolutePath, _applicationDataPath);
+        }
+        catch (Exception exception) when (
+            exception is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return false;
+        }
+    }
+
+    /// <inheritdoc />
+    public void EnsureNoApplicationOwnedDescendant(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var absolutePath = Path.GetFullPath(path);
+        if (IsWithin(_applicationDataPath, absolutePath))
+        {
+            throw new PathSandboxException(
+                path,
+                $"recursive access to '{WorkspacePaths.ApplicationDirectoryName}' is reserved for the application.");
+        }
+    }
+
+    /// <inheritdoc />
     public string ToRelative(string absolutePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(absolutePath);
         var fullPath = Path.GetFullPath(absolutePath);
+        if (IsWithin(fullPath, _applicationDataPath))
+        {
+            throw new PathSandboxException(
+                absolutePath,
+                $"'{WorkspacePaths.ApplicationDirectoryName}' is reserved for the application.");
+        }
+
         if (!string.Equals(fullPath, _rootPath, _comparison) &&
             !fullPath.StartsWith(_rootPrefix, _comparison))
         {
@@ -112,6 +156,27 @@ public sealed class PathSandbox : IPathSandbox
 
         var relative = Path.GetRelativePath(_rootPath, fullPath);
         return relative == "." ? string.Empty : relative.Replace('\\', '/');
+    }
+
+    private void RejectApplicationOwnedAccess(
+        string requestedPath,
+        string absolutePath,
+        FileSystemAccessMode requiredAccess)
+    {
+        if (IsWithin(absolutePath, _applicationDataPath))
+        {
+            throw new PathSandboxException(
+                requestedPath,
+                $"'{WorkspacePaths.ApplicationDirectoryName}' is reserved for the application.");
+        }
+
+        if (requiredAccess == FileSystemAccessMode.ReadWrite &&
+            IsWithin(_applicationDataPath, absolutePath))
+        {
+            throw new PathSandboxException(
+                requestedPath,
+                $"write access to a parent of '{WorkspacePaths.ApplicationDirectoryName}' could modify application-owned data.");
+        }
     }
 
     private static void RejectReparsePointEscape(
@@ -157,14 +222,14 @@ public sealed class PathSandbox : IPathSandbox
         }
     }
 
-    private static bool IsWithin(string absolutePath, string rootPath)
+    private bool IsWithin(string absolutePath, string rootPath)
     {
         var normalizedRoot = Path.TrimEndingDirectorySeparator(rootPath);
         var normalizedPath = Path.TrimEndingDirectorySeparator(absolutePath);
         if (string.Equals(
                 normalizedPath,
                 normalizedRoot,
-                StringComparison.OrdinalIgnoreCase))
+                _comparison))
         {
             return true;
         }
@@ -172,6 +237,6 @@ public sealed class PathSandbox : IPathSandbox
         var rootPrefix = normalizedRoot + Path.DirectorySeparatorChar;
         return normalizedPath.StartsWith(
             rootPrefix,
-            StringComparison.OrdinalIgnoreCase);
+            _comparison);
     }
 }

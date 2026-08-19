@@ -36,6 +36,7 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
     private readonly IDesktopInteractionService _desktopInteraction;
     private readonly IMarkdownRenderingService _markdown;
     private readonly IDirectChatMediaFileService _mediaFileService;
+    private readonly IPathSandbox? _pathSandbox;
     private readonly bool _isMarkdownAvailable;
     private bool _loaded;
     private bool _selectingConversation;
@@ -56,7 +57,8 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
         IDesktopInteractionService desktopInteraction,
         IMarkdownRenderingService markdown,
         IWebView2AvailabilityService webViewAvailability,
-        IDirectChatMediaFileService mediaFileService)
+        IDirectChatMediaFileService mediaFileService,
+        IPathSandbox? pathSandbox = null)
     {
         _store = store;
         _contextBuilder = contextBuilder;
@@ -71,6 +73,7 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
         _desktopInteraction = desktopInteraction;
         _markdown = markdown;
         _mediaFileService = mediaFileService;
+        _pathSandbox = pathSandbox;
         _isMarkdownAvailable = webViewAvailability.IsAvailable();
         foreach (var selection in ToolSelections)
             selection.PropertyChanged += (_, _) => RefreshAgentSummary();
@@ -479,6 +482,15 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
     {
         var selected = SelectedConversation;
         if (selected is null) return;
+        var reserved = AuthorizedLocations.FirstOrDefault(
+            item => _pathSandbox?.IsApplicationOwnedPath(item.Path) == true);
+        if (reserved is not null)
+        {
+            StatusText =
+                $"Location '{reserved.Path}' is reserved for application data and cannot be authorized.";
+            return;
+        }
+
         await _store.UpdateConversationAgentProfileAsync(
                 selected.Id,
                 AgentEnabled,
@@ -789,6 +801,13 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
         }
 
         var normalizedPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(selectedPath));
+        if (_pathSandbox?.IsApplicationOwnedPath(normalizedPath) == true)
+        {
+            StatusText =
+                $"Location '{normalizedPath}' is reserved for application data and cannot be authorized.";
+            return;
+        }
+
         if (AuthorizedLocations.Any(item => string.Equals(
                 item.Path,
                 normalizedPath,

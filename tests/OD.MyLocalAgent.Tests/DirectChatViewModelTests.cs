@@ -16,6 +16,63 @@ public sealed class DirectChatViewModelTests
 {
     private static readonly byte[] PngBytes = Convert.FromBase64String(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+
+    /// <summary>Verifies application-owned workspace data cannot be added as a chat grant.</summary>
+    [Fact]
+    public void ApplicationOwnedLocationCannotBeAuthorized()
+    {
+        var workspace = Path.Combine(
+            Path.GetTempPath(),
+            "OD.MyLocalAgent.DirectChat",
+            Guid.NewGuid().ToString("N"));
+        var reserved = Path.Combine(
+            workspace,
+            WorkspacePaths.ApplicationDirectoryName,
+            "data");
+        Directory.CreateDirectory(reserved);
+        try
+        {
+            var desktop = new Mock<IDesktopInteractionService>(MockBehavior.Strict);
+            desktop.Setup(instance => instance.SelectFolder(
+                    "Select an authorized Direct Chat location"))
+                .Returns(reserved);
+            var webView = new Mock<IWebView2AvailabilityService>(MockBehavior.Strict);
+            webView.Setup(instance => instance.IsAvailable()).Returns(false);
+            var aiOptions = new MutableOptionsMonitor<AIOptions>(new AIOptions());
+            var directOptions = Options.Create(new DirectChatOptions());
+            var estimator = new ConservativeTokenEstimator(directOptions);
+            var sandbox = new PathSandbox(
+                Options.Create(new FileSystemOptions { RootPath = workspace }));
+            var viewModel = new DirectChatViewModel(
+                Mock.Of<IDirectChatStore>(),
+                new DirectChatContextBuilder(estimator, aiOptions, directOptions),
+                Mock.Of<IDirectChatHistoryCompressor>(),
+                estimator,
+                Mock.Of<ILlmClientFactory>(),
+                Mock.Of<IMyLocalAgentService>(),
+                Mock.Of<ITaskStore>(),
+                WeakReferenceMessenger.Default,
+                aiOptions,
+                Mock.Of<IIncidentReporter>(),
+                desktop.Object,
+                new MarkdownRenderingService(),
+                webView.Object,
+                new DirectChatMediaFileService(),
+                sandbox);
+
+            viewModel.AddAuthorizedLocationCommand.Execute(null);
+
+            viewModel.AuthorizedLocations.Should().BeEmpty();
+            viewModel.StatusText.Should().Contain("reserved for application data");
+            desktop.VerifyAll();
+            webView.VerifyAll();
+        }
+        finally
+        {
+            Directory.Delete(workspace, recursive: true);
+        }
+    }
+
     /// <summary>Verifies a user message and streamed assistant reply are persisted to SQLite.</summary>
     [Fact]
     public async Task SendStreamsAndPersistsCompletedConversation()

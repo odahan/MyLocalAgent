@@ -19,6 +19,28 @@ public sealed class FileSystemToolTests : IDisposable
         Path.Combine(Path.GetTempPath(), "OD.MyLocalAgent.Authorized", Guid.NewGuid().ToString("N"));
 
     /// <summary>
+    /// Verifies the workspace listing does not reveal application-owned data.
+    /// </summary>
+    [Fact]
+    public async Task WorkspaceListingOmitsApplicationOwnedDirectory()
+    {
+        Directory.CreateDirectory(Path.Combine(
+            _rootPath,
+            WorkspacePaths.ApplicationDirectoryName));
+        Directory.CreateDirectory(Path.Combine(_rootPath, "documents"));
+        var tool = CreateTool(allowDelete: false);
+
+        using var result = JsonDocument.Parse(
+            await tool.ListAsync(".", CancellationToken.None));
+        var names = result.RootElement.GetProperty("entries")
+            .EnumerateArray()
+            .Select(static entry => entry.GetProperty("name").GetString())
+            .ToArray();
+
+        names.Should().Equal("documents");
+    }
+
+    /// <summary>
     /// Verifies create, write, read, list, move, rename, extension, and gated delete behavior.
     /// </summary>
     [Fact]

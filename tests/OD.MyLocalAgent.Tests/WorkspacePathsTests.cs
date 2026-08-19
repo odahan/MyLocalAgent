@@ -62,6 +62,12 @@ public sealed class WorkspacePathsTests : IDisposable
         Directory.Exists(paths.ApplicationLogsDirectory).Should().BeTrue();
         Directory.Exists(paths.RunLogsDirectory).Should().BeTrue();
         Directory.Exists(paths.ReportsDirectory).Should().BeTrue();
+        if (OperatingSystem.IsWindows())
+        {
+            File.GetAttributes(paths.ApplicationDataDirectory)
+                .Should().HaveFlag(FileAttributes.Hidden);
+        }
+
         File.Exists(paths.DirectChatDatabasePath).Should().BeFalse();
         File.Exists(paths.IncidentsPath).Should().BeFalse();
     }

@@ -45,6 +45,12 @@ Default workspace: `C:\OD.MyLocalAgent`
 | `.od-my-local-agent/logs/runs/` | Per-execution runner output logs |
 | `.od-my-local-agent/outputs/reports/` | Generated Markdown reports and execution index |
 
+`.od-my-local-agent` is marked hidden on Windows and is reserved for application services.
+Managed task and Direct Chat file tools omit it from listings and reject direct, recursive, and
+parent-destructive access. The hidden attribute is a visual safeguard, not a security boundary.
+The unrestricted `PowerShellExecution` and `ShellExecute` capabilities run outside the managed
+path policy and should be enabled only for trusted workloads.
+
 `direct-chat.db` is an application-owned database. It is separate from the SQLite Tool, is not
 available to workflows, and should be included when backing up Direct Chat history. Conversation
 deletion is permanent. The history database contains message text in clear form; DPAPI protects

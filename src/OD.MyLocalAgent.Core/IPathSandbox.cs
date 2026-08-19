@@ -18,6 +18,19 @@ public interface IPathSandbox
         ToolExecutionContext context);
 
     /// <summary>
+    /// Determines whether a path identifies application-owned workspace data.
+    /// </summary>
+    /// <param name="path">An absolute path or a path relative to the workspace root.</param>
+    /// <returns><see langword="true"/> when the path is reserved for the application.</returns>
+    bool IsApplicationOwnedPath(string path);
+
+    /// <summary>
+    /// Rejects a recursive operation whose source contains application-owned workspace data.
+    /// </summary>
+    /// <param name="path">The resolved absolute source path.</param>
+    void EnsureNoApplicationOwnedDescendant(string path);
+
+    /// <summary>
     /// Converts an absolute sandboxed path to a relative display path.
     /// </summary>
     /// <param name="absolutePath">The absolute sandboxed path.</param>
