@@ -35,6 +35,7 @@ Ce dossier contient la version révisée du « Master Prompt » v1, corrigée pu
 | `23-Stage23-WebDiscoveryResearch.md` | **Extension post-v1** — outil `research.discover` : paramètres inline, fenêtre 2→4→7 contrôlée localement, collecte C# déterministe, Guardrails tardifs sur `protectedResults`, traduction protégée, pas de profils ni stockage. Ancienne spec archivée sous `OldSpecs/23-Stage23-WebDiscoveryResearchStorage.md`. |
 | `24-Stage24-PublicationsAndMarkdownReports.md` | **Extension post-v1** — registre local de publications par espace de stockage, saisie et filtrage simples, périodes/tags/types explicites et export Markdown `PublicationReport`, sans conservation du contenu intégral. Requiert l’étape 23. |
 | `25-Stage25-HumanWorkflowTextEditing.md` | **Extension post-v1** — édition de workflow par texte humain déterministe, éditeurs multiligne typés et mode JSON avancé conservé. JSON reste le format persistant ; AI Helper et AI Explain restent complémentaires. |
+| `26-Stage26-EmbeddedKnowledgeAndDeclarativePromptTools.md` | **Extension post-v1** — supprime l'invariant historique « `ai.prompt` sans tools », autorise tout tool agentique par alias déclaratif sous les droits existants, et ajoute une bibliothèque Knowledge/RAG SQLite embarquée avec filtrage par tags pour les tâches, les steps `ai.prompt` et Direct Chat. |
 
 ## Mode d'emploi
 
@@ -42,7 +43,7 @@ Ce dossier contient la version révisée du « Master Prompt » v1, corrigée pu
 2. Ouvrez votre agent **dans ce dossier**, en lui donnant la permission d'écrire des fichiers et d'exécuter des commandes (`dotnet build`, `dotnet test`).
 3. Collez le **prompt de l'étape 0**. Attendez que l'agent annonce le *gate* vert (build + tests OK). Les prompts supposent que la spec partagée est lisible à `docs/prompts/00-Shared-Specification.md` ; si votre agent ne lit pas les fichiers du dépôt, collez la spec partagée en entier avant le prompt d'étape 0 (elle tiendra dans la fenêtre de contexte).
 4. Vérifiez rapidement le résultat (arborescence, absence de `// TODO`, `dotnet build` vert de votre côté aussi si possible), puis enchaînez avec l'étape suivante.
-5. Suivez l'ordre 0–8, puis 11–18, 18A, 18C, 18D, et les extensions 19–25 selon leurs dépendances explicites (l'étape 15 est documentée directement dans la spec partagée, §18, sans fichier de prompt dédié). Les anciennes propositions 9 et 10 sont abandonnées et ne doivent pas être exécutées. Ne fusionnez pas les autres étapes : chacune suppose l'état exact laissé par la précédente.
+5. Suivez l'ordre 0–8, puis 11–18, 18A, 18C, 18D, et les extensions 19–26 selon leurs dépendances explicites (l'étape 15 est documentée directement dans la spec partagée, §18, sans fichier de prompt dédié). Les anciennes propositions 9 et 10 sont abandonnées et ne doivent pas être exécutées. Ne fusionnez pas les autres étapes : chacune suppose l'état exact laissé par la précédente.
 6. Le fichier `docs/ARCHITECTURE-LEDGER.md`, créé à l'étape 0 puis complété à chaque étape, est la **mémoire inter-étapes** (décisions, API publiques, versions choisies). Si une étape dévie, c'est là qu'on le voit.
 
 ## Prérequis machine
