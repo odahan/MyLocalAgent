@@ -1,6 +1,6 @@
 # OD.MyLocalAgent
 
-Current application release: **1.4.9**.
+Current application release: **1.5.0**.
 
 OD.MyLocalAgent is a native Windows desktop application for running scheduled, AI-driven
 tasks locally. It combines a WPF management UI, a headless runner, Ollama, deterministic
@@ -1789,3 +1789,21 @@ unless Tool Tester is explicitly bound to a saved task context.
 The task editor shows only permissions relevant to selected tool groups while preserving saved
 grants. **Edit workflow text** is metadata-driven and edits long-form `ai.prompt.prompt` and
 `filesystem.powerShell.script` values atomically without changing step identity or structure.
+# Embedded Knowledge and RAG
+
+The **Knowledge** page imports TXT, Markdown, DOCX, and text-based PDF files into private application storage below `.od-my-local-agent/data/knowledge`. OCR is not provided. Files are extracted, deterministically chunked, embedded, and searched locally through the ordinary `knowledge.search` tool. The SQLite vector baseline uses exact cosine similarity and requires no vector server or native vector extension.
+
+Knowledge access is deny-by-default. Enabling the task or Direct Chat `knowledge` group does not grant documents until explicit tags are authorized. Task `tools` values are group names, while an `ai.prompt` step's `toolAliases` values are exact catalog aliases. A prompt step may narrow its task tags but cannot broaden them. Retrieval is tool-driven; excerpts are never injected automatically and are always untrusted data.
+
+```json
+{
+  "tools": ["knowledge"],
+  "knowledgeAccess": { "allowedTags": ["dotnet", "architecture"] },
+  "workflow": [
+    { "step": "knowledge.search", "args": { "query": "startup failure policy", "tags": ["architecture"] } },
+    { "step": "ai.prompt", "args": { "prompt": "Find and cite the applicable guidance." }, "toolAliases": ["knowledge.search"], "knowledgeAccess": { "allowedTags": ["dotnet"] } }
+  ]
+}
+```
+
+Configure the independent embedding provider and model in **Settings → Knowledge embeddings**. Ollama defaults to the pinned multilingual model `embeddinggemma:300m`; OpenAI-compatible embeddings reuse the configured endpoint and DPAPI-protected API key. The card tests the embedding endpoint separately from chat and reports the active index contract. Changing the embedding model or chunking contract marks the library as requiring reindex; **Knowledge → Reindex library** builds every replacement revision first and activates the complete new contract atomically. Knowledge data is not encrypted at rest and private workspace storage is an application-tool boundary, not an operating-system security boundary.

@@ -73,6 +73,13 @@ public static class HostApplicationBuilderExtensions
         builder.Services.AddSingleton<IPathSandbox, PathSandbox>();
         builder.Services.AddSingleton<IRecycleBinService, WindowsRecycleBinService>();
         builder.Services.AddSingleton<IResearchTranslationService, ResearchTranslationService>();
+        builder.Services.AddSingleton<SqliteKnowledgeStore>();
+        builder.Services.AddSingleton<IKnowledgeDocumentExtractor, KnowledgeDocumentExtractor>();
+        builder.Services.AddSingleton<KnowledgeChunker>();
+        builder.Services.AddSingleton<IKnowledgeEmbeddingGeneratorFactory, KnowledgeEmbeddingGeneratorFactory>();
+        builder.Services.AddSingleton<IKnowledgeEmbeddingService, KnowledgeEmbeddingService>();
+        builder.Services.AddSingleton<IKnowledgeSearchService, KnowledgeSearchService>();
+        builder.Services.AddSingleton<IKnowledgeLibraryService, KnowledgeLibraryService>();
 
         var catalog = ToolCatalog.Default;
         builder.Services.AddSingleton<IToolCatalog>(catalog);
@@ -160,6 +167,11 @@ public static class HostApplicationBuilderExtensions
 
     private static void RegisterOptions(IHostApplicationBuilder builder)
     {
+        builder.Services
+            .AddOptions<KnowledgeOptions>()
+            .Bind(builder.Configuration.GetSection(KnowledgeOptions.SectionName))
+            .Validate(KnowledgeOptions.IsValid, "Knowledge settings are invalid.")
+            .ValidateOnStart();
         builder.Services
             .AddOptions<DirectChatOptions>()
             .Bind(builder.Configuration.GetSection(DirectChatOptions.SectionName))

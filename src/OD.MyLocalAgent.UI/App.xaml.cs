@@ -151,6 +151,7 @@ public partial class App : Application
         services.AddSingleton<MainWindowViewModel>();
         services.AddSingleton<DashboardViewModel>();
         services.AddSingleton<TasksViewModel>();
+        services.AddSingleton<KnowledgeViewModel>();
         services.AddSingleton<DirectChatViewModel>();
         services.AddSingleton<TaskEditorViewModel>();
         services.AddSingleton<PromptEditorViewModel>();
@@ -165,6 +166,7 @@ public partial class App : Application
 
         services.AddTransient<DashboardPage>();
         services.AddTransient<TasksPage>();
+        services.AddTransient<KnowledgePage>();
         services.AddTransient<DirectChatPage>();
         services.AddTransient<TaskEditorPage>();
         services.AddTransient<PromptEditorPage>();

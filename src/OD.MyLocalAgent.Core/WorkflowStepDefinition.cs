@@ -48,6 +48,12 @@ public sealed record WorkflowStepDefinition
     /// <summary>Gets the optional model used only while this AI step executes.</summary>
     public string? Model { get; init; }
 
+    /// <summary>Gets exact declarative Tool Map aliases available to an <c>ai.prompt</c> step.</summary>
+    public IReadOnlyList<string> ToolAliases { get; init; } = [];
+
+    /// <summary>Gets an optional Knowledge scope that narrows the task scope.</summary>
+    public KnowledgeAccessDefinition? KnowledgeAccess { get; init; }
+
     /// <summary>
     /// Gets a value indicating whether the step was read from string form.
     /// </summary>

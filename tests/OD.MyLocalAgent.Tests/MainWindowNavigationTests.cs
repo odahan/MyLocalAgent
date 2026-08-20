@@ -13,9 +13,9 @@ namespace OD.MyLocalAgent.Tests;
 /// </summary>
 public sealed class MainWindowNavigationTests
 {
-    /// <summary>Verifies Direct Chat immediately follows Tasks in the navigation rail.</summary>
+    /// <summary>Verifies Knowledge appears between Tasks and Direct Chat.</summary>
     [Fact]
-    public void DirectChatNavigationImmediatelyFollowsTasks()
+    public void KnowledgeAndDirectChatNavigationImmediatelyFollowTasks()
     {
         var viewModel = new MainWindowViewModel(
             static _ => new object(),
@@ -28,9 +28,11 @@ public sealed class MainWindowNavigationTests
             .index;
 
         viewModel.NavigationItems[tasksIndex + 1].Route
-            .Should().Be(PageRoute.DirectChat);
+            .Should().Be(PageRoute.Knowledge);
         viewModel.NavigationItems[tasksIndex + 1].Title
-            .Should().Be("Direct Chat");
+            .Should().Be("Knowledge");
+        viewModel.NavigationItems[tasksIndex + 2].Route
+            .Should().Be(PageRoute.DirectChat);
     }
 
     /// <summary>

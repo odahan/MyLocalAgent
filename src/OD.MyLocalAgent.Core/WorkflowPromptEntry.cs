@@ -89,6 +89,12 @@ public sealed record WorkflowPromptEntry
     /// <summary>Gets the optional model override for this AI prompt step.</summary>
     public string? Model { get; init; }
 
+    /// <summary>Gets the exact agent tool aliases currently attached to this prompt step.</summary>
+    public IReadOnlyList<string> ToolAliases { get; init; }=[];
+
+    /// <summary>Gets the optional Knowledge tag narrowing currently attached to this prompt step.</summary>
+    public KnowledgeAccessDefinition? KnowledgeAccess { get; init; }
+
     /// <summary>
     /// Gets the effective identifiers declared before this step.
     /// </summary>

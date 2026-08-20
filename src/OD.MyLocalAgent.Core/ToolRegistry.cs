@@ -50,6 +50,44 @@ public sealed class ToolRegistry : IToolRegistry
     }
 
     /// <inheritdoc />
+    public AITool[] GetAgentToolsByAliases(
+        IEnumerable<string> aliases,
+        IEnumerable<string> enabledToolGroups,
+        ToolExecutionContext executionContext)
+    {
+        ArgumentNullException.ThrowIfNull(aliases);
+        ArgumentNullException.ThrowIfNull(executionContext);
+        var whitelist = NormalizeWhitelist(enabledToolGroups);
+        var selected = new List<ToolDefinition>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var alias in aliases)
+        {
+            if (string.IsNullOrWhiteSpace(alias) || !seen.Add(alias))
+            {
+                throw new WorkflowValidationException("Prompt-step tool aliases must be non-empty and unique.");
+            }
+
+            var definition = _catalog.Find(alias)
+                ?? throw new WorkflowValidationException($"Unknown Tool Map alias '{alias}'.");
+            if (!definition.IsAgentTool)
+            {
+                throw new WorkflowValidationException($"Alias '{alias}' is not an agent-callable tool.");
+            }
+
+            if (!whitelist.Contains(definition.ToolGroup))
+            {
+                throw new WorkflowValidationException($"Alias '{alias}' requires whitelisted tool group '{definition.ToolGroup}'.");
+            }
+
+            EnsureAuthorized(definition, executionContext);
+            selected.Add(definition);
+        }
+
+        var functions = CreateFunctions(selected, executionContext);
+        return selected.Select(definition => (AITool)functions[definition.Alias]).ToArray();
+    }
+
+    /// <inheritdoc />
     public bool TryGetDefinition(string alias, out ToolDefinition? definition)
     {
         definition = _catalog.Find(alias);
@@ -186,6 +224,30 @@ public sealed class ToolRegistry : IToolRegistry
                     definition.AgentFunctionName!,
                     definition.Description,
                     ToolJson.Options));
+        }
+
+        return functions;
+    }
+
+    private Dictionary<string, AIFunction> CreateFunctions(
+        IEnumerable<ToolDefinition> definitions,
+        ToolExecutionContext executionContext)
+    {
+        var targets = new Dictionary<Type, object>();
+        var functions = new Dictionary<string, AIFunction>(StringComparer.OrdinalIgnoreCase);
+        foreach (var definition in definitions)
+        {
+            if (!targets.TryGetValue(definition.DeclaringType, out var target))
+            {
+                target = _targetActivator.CreateTarget(definition.DeclaringType, executionContext);
+                targets.Add(definition.DeclaringType, target);
+            }
+
+            var method = definition.Method
+                ?? throw new InvalidOperationException($"Tool method for '{definition.Alias}' is unavailable.");
+            functions.Add(
+                definition.Alias,
+                AIFunctionFactory.Create(method, target, definition.AgentFunctionName!, definition.Description, ToolJson.Options));
         }
 
         return functions;

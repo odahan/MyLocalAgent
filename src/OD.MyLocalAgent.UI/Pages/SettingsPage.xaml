@@ -318,6 +318,111 @@
             <materialDesign:Card Margin="0,18,0,0">
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionTitleStyle}"
+                               Text="Knowledge embeddings" />
+                    <TextBlock Margin="0,4,0,16"
+                               Style="{StaticResource CaptionTextStyle}"
+                               Text="Knowledge uses an embedding provider and model independently from the chat model. One vector contract applies to the complete library."
+                               TextWrapping="Wrap" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="16" />
+                            <ColumnDefinition Width="2*" />
+                            <ColumnDefinition Width="16" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="16" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <ComboBox ItemsSource="{Binding KnowledgeEmbeddingProviders}"
+                                  SelectedItem="{Binding KnowledgeEmbeddingProvider, Mode=TwoWay}"
+                                  materialDesign:HintAssist.Hint="Embedding provider" />
+                        <ComboBox Grid.Column="2"
+                                  IsEditable="True"
+                                  ItemsSource="{Binding OllamaModels}"
+                                  Text="{Binding KnowledgeEmbeddingModel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  materialDesign:HintAssist.Hint="Embedding model" />
+                        <TextBox Grid.Column="4"
+                                 Text="{Binding KnowledgeEmbeddingBatchSize, UpdateSourceTrigger=PropertyChanged}"
+                                 materialDesign:HintAssist.Hint="Batch size" />
+                        <TextBox Grid.Column="6"
+                                 Text="{Binding KnowledgeEmbeddingTimeoutSeconds, UpdateSourceTrigger=PropertyChanged}"
+                                 materialDesign:HintAssist.Hint="Timeout (seconds)" />
+                    </Grid>
+                    <Expander Margin="0,16,0,0" Header="Advanced chunking and retrieval limits">
+                        <StackPanel Margin="0,10,0,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="12" />
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="12" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox Text="{Binding KnowledgeTargetChunkTokens, UpdateSourceTrigger=PropertyChanged}"
+                                         materialDesign:HintAssist.Hint="Target chunk tokens" />
+                                <TextBox Grid.Column="2"
+                                         Text="{Binding KnowledgeMaximumChunkTokens, UpdateSourceTrigger=PropertyChanged}"
+                                         materialDesign:HintAssist.Hint="Maximum chunk tokens" />
+                                <TextBox Grid.Column="4"
+                                         Text="{Binding KnowledgeOverlapChunkTokens, UpdateSourceTrigger=PropertyChanged}"
+                                         materialDesign:HintAssist.Hint="Overlap tokens" />
+                            </Grid>
+                            <Grid Margin="0,12,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="12" />
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="12" />
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="12" />
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="12" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox Text="{Binding KnowledgeDefaultMaxResults, UpdateSourceTrigger=PropertyChanged}"
+                                         materialDesign:HintAssist.Hint="Default results" />
+                                <TextBox Grid.Column="2"
+                                         Text="{Binding KnowledgeMaximumResults, UpdateSourceTrigger=PropertyChanged}"
+                                         materialDesign:HintAssist.Hint="Maximum results" />
+                                <TextBox Grid.Column="4"
+                                         Text="{Binding KnowledgeDefaultMaximumResultTokens, UpdateSourceTrigger=PropertyChanged}"
+                                         materialDesign:HintAssist.Hint="Default result tokens" />
+                                <TextBox Grid.Column="6"
+                                         Text="{Binding KnowledgeMaximumResultTokens, UpdateSourceTrigger=PropertyChanged}"
+                                         materialDesign:HintAssist.Hint="Maximum result tokens" />
+                                <TextBox Grid.Column="8"
+                                         Text="{Binding KnowledgeMinimumSimilarity, UpdateSourceTrigger=PropertyChanged}"
+                                         materialDesign:HintAssist.Hint="Minimum similarity" />
+                            </Grid>
+                        </StackPanel>
+                    </Expander>
+                    <TextBlock Margin="0,12,0,0"
+                               Foreground="{DynamicResource ErrorBrush}"
+                               Text="{Binding KnowledgeValidationText}"
+                               TextWrapping="Wrap" />
+                    <StackPanel Margin="0,12,0,0" Orientation="Horizontal">
+                        <Button Command="{Binding TestKnowledgeEmbeddingCommand}"
+                                Content="Test embedding model" />
+                        <ProgressBar Width="70" Height="3" Margin="12,0,0,0"
+                                     VerticalAlignment="Center" IsIndeterminate="True"
+                                     Visibility="{Binding IsTestingKnowledgeEmbedding, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        <TextBlock Margin="12,0,0,0" VerticalAlignment="Center"
+                                   Text="{Binding KnowledgeConnectionStatus}" TextWrapping="Wrap" />
+                        <Button Margin="0,10,0,0"
+                                HorizontalAlignment="Left"
+                                Command="{Binding OpenKnowledgeCommand}"
+                                Content="Open Knowledge library"
+                                AutomationProperties.Name="Open Knowledge library" />
+                    </StackPanel>
+                    <Border Margin="0,14,0,0" Padding="12"
+                            BorderBrush="{DynamicResource WarningBrush}" BorderThickness="1" CornerRadius="6">
+                        <StackPanel>
+                            <TextBlock Foreground="{DynamicResource WarningBrush}"
+                                       Text="Changing the embedding model or chunking limits requires a complete library reindex. Existing vectors are never mixed with the new contract."
+                                       TextWrapping="Wrap" />
+                            <TextBlock Margin="0,6,0,0" Text="{Binding KnowledgeIndexContractStatus}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </materialDesign:Card>
+
+            <materialDesign:Card Margin="0,18,0,0">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionTitleStyle}"
                                Text="General" />
                     <TextBlock Margin="0,4,0,18"
                                Style="{StaticResource CaptionTextStyle}"

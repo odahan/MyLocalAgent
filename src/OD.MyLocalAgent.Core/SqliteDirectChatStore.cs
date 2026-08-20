@@ -7,7 +7,7 @@ namespace OD.MyLocalAgent.Core;
 /// <summary>Persists Direct Chat data in one dedicated SQLite database.</summary>
 public sealed class SqliteDirectChatStore : IDirectChatStore, IDisposable
 {
-    private const int CurrentSchemaVersion = 5;
+    private const int CurrentSchemaVersion = 6;
     private readonly string _databasePath;
     private readonly TimeProvider _timeProvider;
     private readonly long _maximumMediaBytes;
@@ -181,6 +181,13 @@ public sealed class SqliteDirectChatStore : IDirectChatStore, IDisposable
                 transaction.Commit();
             }
 
+            if (version < 6)
+            {
+                using var transaction = connection.BeginTransaction();
+                await ExecuteNonQueryAsync(connection,"ALTER TABLE conversations ADD COLUMN knowledge_access_json TEXT NULL; PRAGMA user_version=6;",cancellationToken,transaction).ConfigureAwait(false);
+                transaction.Commit();
+            }
+
             await ExecuteNonQueryAsync(
                     connection,
                     "UPDATE messages SET state = 'Failed' WHERE state IN ('Pending', 'Streaming');",
@@ -324,6 +331,17 @@ public sealed class SqliteDirectChatStore : IDirectChatStore, IDisposable
         IReadOnlyList<TaskCapability> capabilities,
         IReadOnlyList<FileSystemAccessRule> fileSystemAccess,
         CancellationToken cancellationToken)
+        => await UpdateConversationAgentProfileAsync(conversationId,agentEnabled,tools,capabilities,fileSystemAccess,null,cancellationToken).ConfigureAwait(false);
+
+    /// <inheritdoc />
+    public async Task UpdateConversationAgentProfileAsync(
+        string conversationId,
+        bool agentEnabled,
+        IReadOnlyList<string> tools,
+        IReadOnlyList<TaskCapability> capabilities,
+        IReadOnlyList<FileSystemAccessRule> fileSystemAccess,
+        KnowledgeAccessDefinition? knowledgeAccess,
+        CancellationToken cancellationToken)
     {
         ValidateIdentifier(conversationId, nameof(conversationId));
         ArgumentNullException.ThrowIfNull(tools);
@@ -335,11 +353,13 @@ public sealed class SqliteDirectChatStore : IDirectChatStore, IDisposable
         {
             await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
             using var command = connection.CreateCommand();
-            command.CommandText = "UPDATE conversations SET agent_enabled = $enabled, tools_json = $tools, capabilities_json = $capabilities, filesystem_access_json = $filesystemAccess, updated_utc = $updated WHERE id = $id";
+            command.CommandText = "UPDATE conversations SET agent_enabled = $enabled, tools_json = $tools, capabilities_json = $capabilities, filesystem_access_json = $filesystemAccess, knowledge_access_json = $knowledgeAccess, updated_utc = $updated WHERE id = $id";
             command.Parameters.AddWithValue("$enabled", agentEnabled ? 1 : 0);
             command.Parameters.AddWithValue("$tools", tools.Count == 0 ? DBNull.Value : JsonSerializer.Serialize(tools));
             command.Parameters.AddWithValue("$capabilities", capabilities.Count == 0 ? DBNull.Value : JsonSerializer.Serialize(capabilities));
             command.Parameters.AddWithValue("$filesystemAccess", fileSystemAccess.Count == 0 ? DBNull.Value : JsonSerializer.Serialize(fileSystemAccess));
+            var normalizedKnowledge = KnowledgeTagPolicy.NormalizeScope(knowledgeAccess?.AllowedTags);
+            command.Parameters.AddWithValue("$knowledgeAccess", normalizedKnowledge.Count == 0 ? DBNull.Value : JsonSerializer.Serialize(new KnowledgeAccessDefinition { AllowedTags = normalizedKnowledge }));
             command.Parameters.AddWithValue("$updated", FormatDate(_timeProvider.GetUtcNow()));
             command.Parameters.AddWithValue("$id", conversationId);
             if (await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 0)
@@ -663,7 +683,7 @@ public sealed class SqliteDirectChatStore : IDirectChatStore, IDisposable
     }
 
     private const string ConversationSelect =
-        "SELECT id, title, created_utc, updated_utc, summary_text, summary_through_sequence, summary_updated_utc, agent_enabled, tools_json, capabilities_json, filesystem_access_json FROM conversations";
+        "SELECT id, title, created_utc, updated_utc, summary_text, summary_through_sequence, summary_updated_utc, agent_enabled, tools_json, capabilities_json, filesystem_access_json, knowledge_access_json FROM conversations";
 
     private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
     {
@@ -742,6 +762,9 @@ public sealed class SqliteDirectChatStore : IDirectChatStore, IDisposable
             FileSystemAccess = reader.IsDBNull(10)
                 ? []
                 : JsonSerializer.Deserialize<List<FileSystemAccessRule>>(reader.GetString(10)) ?? [],
+            KnowledgeAccess = reader.IsDBNull(11)
+                ? null
+                : JsonSerializer.Deserialize<KnowledgeAccessDefinition>(reader.GetString(11)),
         };
 
     private static DirectChatMessage ReadMessage(SqliteDataReader reader) =>

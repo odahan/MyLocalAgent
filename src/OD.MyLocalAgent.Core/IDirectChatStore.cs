@@ -35,6 +35,23 @@ public interface IDirectChatStore
         IReadOnlyList<FileSystemAccessRule> fileSystemAccess,
         CancellationToken cancellationToken);
 
+    /// <summary>Updates agent permissions including the conversation-owned Knowledge tag scope.</summary>
+    Task UpdateConversationAgentProfileAsync(
+        string conversationId,
+        bool agentEnabled,
+        IReadOnlyList<string> tools,
+        IReadOnlyList<TaskCapability> capabilities,
+        IReadOnlyList<FileSystemAccessRule> fileSystemAccess,
+        KnowledgeAccessDefinition? knowledgeAccess,
+        CancellationToken cancellationToken) =>
+        UpdateConversationAgentProfileAsync(
+            conversationId,
+            agentEnabled,
+            tools,
+            capabilities,
+            fileSystemAccess,
+            cancellationToken);
+
     /// <summary>Deletes a conversation and all its messages.</summary>
     Task<bool> DeleteConversationAsync(
         string conversationId,

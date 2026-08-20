@@ -1,6 +1,6 @@
 # What's Where
 
-Application version: **1.4.9**.
+Application version: **1.5.0**.
 
 All file and folder locations used by OD.MyLocalAgent after deployment.
 
@@ -97,3 +97,9 @@ Close the UI and disable its Windows scheduled tasks before running the command 
 | Setting | Default | Purpose |
 |---------|---------|---------|
 | `Scheduler:TaskFolder` | `OD.MyLocalAgent` | Folder in Windows Task Scheduler for scheduled tasks |
+# Embedded Knowledge (Stage 26)
+
+- Contracts, authorization, embeddings, extraction, chunking, SQLite storage, portable vector retrieval, and `knowledge.search`: `src/OD.MyLocalAgent.Core/Knowledge*.cs` and `SqliteKnowledgeStore.cs`.
+- Private runtime data: `<FileSystem:RootPath>/.od-my-local-agent/data/knowledge/knowledge.db`, `documents/`, and `staging/`.
+- Administration UI: `src/OD.MyLocalAgent.UI/Pages/KnowledgePage.xaml` and `ViewModels/KnowledgeViewModel.cs`.
+- `ScheduledTask.tools` stores group names; an `ai.prompt.toolAliases` list stores exact aliases; Knowledge tags authorize document selection.

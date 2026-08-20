@@ -285,6 +285,7 @@ internal sealed class UserSettingsService : IUserSettingsService
                 ["AudioModel"] = settings.OpenAIAudioModel,
                 ["AudioVoice"] = settings.OpenAIAudioVoice,
             },
+            ["Knowledge"] = CreateKnowledgeDocument(settings.Knowledge ?? new KnowledgeOptions()),
             ["Google"] = new Dictionary<string, object>
             {
                 ["ClientId"] = googleClientId,
@@ -352,8 +353,36 @@ internal sealed class UserSettingsService : IUserSettingsService
             },
         };
 
+    private static Dictionary<string, object> CreateKnowledgeDocument(KnowledgeOptions options) =>
+        new(StringComparer.Ordinal)
+        {
+            ["EmbeddingProvider"] = options.EmbeddingProvider,
+            ["EmbeddingModel"] = options.EmbeddingModel,
+            ["EmbeddingBatchSize"] = options.EmbeddingBatchSize,
+            ["EmbeddingTimeoutSeconds"] = options.EmbeddingTimeoutSeconds,
+            ["TargetChunkTokens"] = options.TargetChunkTokens,
+            ["MaximumChunkTokens"] = options.MaximumChunkTokens,
+            ["OverlapChunkTokens"] = options.OverlapChunkTokens,
+            ["DefaultMaxResults"] = options.DefaultMaxResults,
+            ["MaximumResults"] = options.MaximumResults,
+            ["DefaultMaximumResultTokens"] = options.DefaultMaximumResultTokens,
+            ["MaximumResultTokens"] = options.MaximumResultTokens,
+            ["MinimumSimilarity"] = options.MinimumSimilarity,
+            ["MaximumImportBytes"] = options.MaximumImportBytes,
+            ["MaximumExtractedCharacters"] = options.MaximumExtractedCharacters,
+            ["MaximumChunksPerDocument"] = options.MaximumChunksPerDocument,
+            ["MaximumQueryCharacters"] = options.MaximumQueryCharacters,
+            ["MaximumExcerptCharacters"] = options.MaximumExcerptCharacters,
+            ["MaximumToolResultCharacters"] = options.MaximumToolResultCharacters,
+        };
+
     private static void Validate(UserSettingsData settings)
     {
+        if (!KnowledgeOptions.IsValid(settings.Knowledge ?? new KnowledgeOptions()))
+        {
+            throw new InvalidOperationException("Knowledge embedding settings are invalid.");
+        }
+
         if (!AppThemeCatalog.TryParse(settings.Theme, out _))
         {
             throw new InvalidOperationException(

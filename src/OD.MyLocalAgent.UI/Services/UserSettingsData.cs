@@ -1,3 +1,5 @@
+using OD.MyLocalAgent.Core;
+
 namespace OD.MyLocalAgent.UI.Services;
 
 /// <summary>
@@ -59,6 +61,7 @@ namespace OD.MyLocalAgent.UI.Services;
 /// <param name="OpenAIImageModel">The dedicated image-generation model.</param>
 /// <param name="OpenAIAudioModel">The dedicated speech-generation model.</param>
 /// <param name="OpenAIAudioVoice">The dedicated speech voice.</param>
+/// <param name="Knowledge">The independent Knowledge embedding and retrieval settings.</param>
 public sealed record UserSettingsData(
     string Provider,
     string OllamaEndpoint,
@@ -115,4 +118,5 @@ public sealed record UserSettingsData(
     bool OpenAISupportsAudioOutput = false,
     string OpenAIImageModel = "gpt-image-2",
     string OpenAIAudioModel = "gpt-4o-mini-tts",
-    string OpenAIAudioVoice = "coral");
+    string OpenAIAudioVoice = "coral",
+    KnowledgeOptions? Knowledge = null);

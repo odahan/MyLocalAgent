@@ -80,6 +80,8 @@ public static class WorkflowPromptEditingService
                     RetryBackoffSeconds = step.RetryBackoffSeconds,
                     GenerationOptions = step.GenerationOptions,
                     Model = step.Model,
+                    ToolAliases = step.ToolAliases,
+                    KnowledgeAccess = step.KnowledgeAccess,
                     PriorStepIds = [.. priorIds],
                 });
             }
@@ -125,6 +127,8 @@ public static class WorkflowPromptEditingService
             {
                 IsStringForm = false,
                 Model = string.IsNullOrWhiteSpace(edit.Model) ? null : edit.Model.Trim(),
+                ToolAliases = edit.ToolAliases.ToArray(),
+                KnowledgeAccess = edit.KnowledgeAccess,
                 Args = RewriteArguments(step, edit),
             };
         }

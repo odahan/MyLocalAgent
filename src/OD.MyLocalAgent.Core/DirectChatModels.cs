@@ -146,6 +146,9 @@ public sealed record DirectChatConversation
 
     /// <summary>Gets absolute local locations explicitly authorized for this conversation.</summary>
     public IReadOnlyList<FileSystemAccessRule> FileSystemAccess { get; init; } = [];
+
+    /// <summary>Gets the deny-by-default Knowledge tag authorization for this conversation.</summary>
+    public KnowledgeAccessDefinition? KnowledgeAccess { get; init; }
 }
 
 /// <summary>Describes one persisted message in a Direct Chat conversation.</summary>

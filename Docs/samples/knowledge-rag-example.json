@@ -1,0 +1,47 @@
+{
+  "id": "knowledge-rag-example",
+  "name": "Knowledge RAG example",
+  "schedule": "0 9 * * 1-5",
+  "enabled": false,
+  "prompt": "Search the authorized local Knowledge library and summarize the applicable guidance.",
+  "tools": [
+    "knowledge"
+  ],
+  "capabilities": [],
+  "fileSystemAccess": [],
+  "knowledgeAccess": {
+    "allowedTags": [
+      "architecture",
+      "dotnet"
+    ]
+  },
+  "workflow": [
+    {
+      "step": "knowledge.search",
+      "id": "deterministic-search",
+      "args": {
+        "query": "application startup failure policy",
+        "tags": [
+          "architecture"
+        ],
+        "maxResults": 5
+      }
+    },
+    {
+      "step": "ai.prompt",
+      "id": "semantic-follow-up",
+      "args": {
+        "prompt": "Search the authorized Knowledge library as needed, then answer with citations."
+      },
+      "toolAliases": [
+        "knowledge.search"
+      ],
+      "knowledgeAccess": {
+        "allowedTags": [
+          "dotnet"
+        ]
+      }
+    }
+  ],
+  "errorPolicy": "StopOnError"
+}

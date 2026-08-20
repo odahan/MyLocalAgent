@@ -238,6 +238,7 @@ public sealed class ToolMapMetadataTests
             ["http.getText"] = (["url"], []),
             ["web.search"] = (["query", "maxResults"], ["maxResults"]),
             ["research.discover"] = (["themes", "freshnessWindow", "sourceLanguage", "language", "preferredDomains", "minimumDocuments", "maxResultsPerQuery", "maxRetrievalsPerRun"], ["freshnessWindow", "sourceLanguage", "language", "preferredDomains", "minimumDocuments", "maxResultsPerQuery", "maxRetrievalsPerRun"]),
+            ["knowledge.search"] = (["query", "tags", "maxResults"], ["tags", "maxResults"]),
         };
 
         var actual = ToolMap.Definitions

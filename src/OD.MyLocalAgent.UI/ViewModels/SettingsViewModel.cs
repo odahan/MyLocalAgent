@@ -44,6 +44,18 @@ public sealed partial class SettingsViewModel :
         nameof(OpenAIImageModel),
         nameof(OpenAIAudioModel),
         nameof(OpenAIAudioVoice),
+        nameof(KnowledgeEmbeddingProvider),
+        nameof(KnowledgeEmbeddingModel),
+        nameof(KnowledgeEmbeddingBatchSize),
+        nameof(KnowledgeEmbeddingTimeoutSeconds),
+        nameof(KnowledgeTargetChunkTokens),
+        nameof(KnowledgeMaximumChunkTokens),
+        nameof(KnowledgeOverlapChunkTokens),
+        nameof(KnowledgeDefaultMaxResults),
+        nameof(KnowledgeMaximumResults),
+        nameof(KnowledgeDefaultMaximumResultTokens),
+        nameof(KnowledgeMaximumResultTokens),
+        nameof(KnowledgeMinimumSimilarity),
         nameof(GenerationTemperatureText),
         nameof(GenerationTopPText),
         nameof(ContextWindowTokensText),
@@ -99,6 +111,9 @@ public sealed partial class SettingsViewModel :
     private readonly IOptionsMonitor<LoggingOptions> _loggingOptions;
     private readonly IOptionsMonitor<SQLiteOptions>? _sqliteOptions;
     private readonly IOptionsMonitor<FileContentOptions>? _fileContentOptions;
+    private readonly IOptionsMonitor<KnowledgeOptions>? _knowledgeOptions;
+    private readonly IKnowledgeEmbeddingService? _knowledgeEmbeddingService;
+    private readonly IKnowledgeLibraryService? _knowledgeLibraryService;
     private readonly ILlmClientFactory _llmClientFactory;
     private readonly IOllamaModelCatalog _ollamaModelCatalog;
     private readonly IOpenAIModelCatalog _openAIModelCatalog;
@@ -172,6 +187,25 @@ public sealed partial class SettingsViewModel :
 
     [ObservableProperty]
     private string _openAIAudioVoice = "coral";
+
+    [ObservableProperty] private string _knowledgeEmbeddingProvider = "Ollama";
+    [ObservableProperty] private string _knowledgeEmbeddingModel = "embeddinggemma:300m";
+    [ObservableProperty] private int _knowledgeEmbeddingBatchSize = 16;
+    [ObservableProperty] private int _knowledgeEmbeddingTimeoutSeconds = 120;
+    [ObservableProperty] private int _knowledgeTargetChunkTokens = 384;
+    [ObservableProperty] private int _knowledgeMaximumChunkTokens = 512;
+    [ObservableProperty] private int _knowledgeOverlapChunkTokens = 48;
+    [ObservableProperty] private int _knowledgeDefaultMaxResults = 5;
+    [ObservableProperty] private int _knowledgeMaximumResults = 20;
+    [ObservableProperty] private int _knowledgeDefaultMaximumResultTokens = 2048;
+    [ObservableProperty] private int _knowledgeMaximumResultTokens = 8192;
+    [ObservableProperty] private float _knowledgeMinimumSimilarity = 0.25f;
+    [ObservableProperty] private string _knowledgeValidationText = "Knowledge embedding settings are valid.";
+    [ObservableProperty] private bool _hasKnowledgeValidationError;
+    [ObservableProperty] private string _knowledgeConnectionStatus = "Embedding model has not been tested.";
+    [ObservableProperty] private bool _isTestingKnowledgeEmbedding;
+    [ObservableProperty] private bool _knowledgeRequiresReindex;
+    [ObservableProperty] private string _knowledgeIndexContractStatus = "The active Knowledge index contract has not been loaded.";
 
     [ObservableProperty]
     private string _generationTemperatureText = "0.2";
@@ -332,7 +366,10 @@ public sealed partial class SettingsViewModel :
         TimeProvider timeProvider,
         IOptionsMonitor<SQLiteOptions>? sqliteOptions = null,
         IOptionsMonitor<FileContentOptions>? fileContentOptions = null,
-        WorkspacePaths? workspacePaths = null)
+        WorkspacePaths? workspacePaths = null,
+        IOptionsMonitor<KnowledgeOptions>? knowledgeOptions = null,
+        IKnowledgeEmbeddingService? knowledgeEmbeddingService = null,
+        IKnowledgeLibraryService? knowledgeLibraryService = null)
         : base(messenger)
     {
         _aiOptions = aiOptions;
@@ -345,6 +382,9 @@ public sealed partial class SettingsViewModel :
         _loggingOptions = loggingOptions;
         _sqliteOptions = sqliteOptions;
         _fileContentOptions = fileContentOptions;
+        _knowledgeOptions = knowledgeOptions;
+        _knowledgeEmbeddingService = knowledgeEmbeddingService;
+        _knowledgeLibraryService = knowledgeLibraryService;
         _llmClientFactory = llmClientFactory;
         _ollamaModelCatalog = ollamaModelCatalog;
         _openAIModelCatalog = openAIModelCatalog;
@@ -382,6 +422,9 @@ public sealed partial class SettingsViewModel :
     /// Gets the supported application theme names.
     /// </summary>
     public IReadOnlyList<string> ThemeNames { get; }
+
+    /// <summary>Gets the embedding providers supported by the Knowledge library.</summary>
+    public IReadOnlyList<string> KnowledgeEmbeddingProviders { get; } = ["Ollama", "OpenAI"];
 
     /// <summary>
     /// Gets the model identifiers currently installed on the configured Ollama endpoint.
@@ -556,6 +599,19 @@ public sealed partial class SettingsViewModel :
 
     partial void OnSqliteCommandTimeoutSecondsChanged(int value) => UpdateSqliteValidation();
 
+    partial void OnKnowledgeEmbeddingProviderChanged(string value) => UpdateKnowledgeValidation();
+    partial void OnKnowledgeEmbeddingModelChanged(string value) => UpdateKnowledgeValidation();
+    partial void OnKnowledgeEmbeddingBatchSizeChanged(int value) => UpdateKnowledgeValidation();
+    partial void OnKnowledgeEmbeddingTimeoutSecondsChanged(int value) => UpdateKnowledgeValidation();
+    partial void OnKnowledgeTargetChunkTokensChanged(int value) => UpdateKnowledgeValidation();
+    partial void OnKnowledgeMaximumChunkTokensChanged(int value) => UpdateKnowledgeValidation();
+    partial void OnKnowledgeOverlapChunkTokensChanged(int value) => UpdateKnowledgeValidation();
+    partial void OnKnowledgeDefaultMaxResultsChanged(int value) => UpdateKnowledgeValidation();
+    partial void OnKnowledgeMaximumResultsChanged(int value) => UpdateKnowledgeValidation();
+    partial void OnKnowledgeDefaultMaximumResultTokensChanged(int value) => UpdateKnowledgeValidation();
+    partial void OnKnowledgeMaximumResultTokensChanged(int value) => UpdateKnowledgeValidation();
+    partial void OnKnowledgeMinimumSimilarityChanged(float value) => UpdateKnowledgeValidation();
+
     [RelayCommand]
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
@@ -573,6 +629,7 @@ public sealed partial class SettingsViewModel :
             var logging = _loggingOptions.CurrentValue;
             var sqlite = _sqliteOptions?.CurrentValue ?? new SQLiteOptions();
             var fileContent = _fileContentOptions?.CurrentValue ?? new FileContentOptions();
+            var knowledge = _knowledgeOptions?.CurrentValue ?? new KnowledgeOptions();
 
             IsOllamaProvider = string.Equals(
                 ai.Provider,
@@ -604,6 +661,20 @@ public sealed partial class SettingsViewModel :
             OpenAIImageModel = openAI.ImageModel;
             OpenAIAudioModel = openAI.AudioModel;
             OpenAIAudioVoice = openAI.AudioVoice;
+            KnowledgeEmbeddingProvider = knowledge.EmbeddingProvider;
+            KnowledgeEmbeddingModel = knowledge.EmbeddingModel;
+            KnowledgeEmbeddingBatchSize = knowledge.EmbeddingBatchSize;
+            KnowledgeEmbeddingTimeoutSeconds = knowledge.EmbeddingTimeoutSeconds;
+            KnowledgeTargetChunkTokens = knowledge.TargetChunkTokens;
+            KnowledgeMaximumChunkTokens = knowledge.MaximumChunkTokens;
+            KnowledgeOverlapChunkTokens = knowledge.OverlapChunkTokens;
+            KnowledgeDefaultMaxResults = knowledge.DefaultMaxResults;
+            KnowledgeMaximumResults = knowledge.MaximumResults;
+            KnowledgeDefaultMaximumResultTokens = knowledge.DefaultMaximumResultTokens;
+            KnowledgeMaximumResultTokens = knowledge.MaximumResultTokens;
+            KnowledgeMinimumSimilarity = knowledge.MinimumSimilarity;
+            UpdateKnowledgeValidation();
+            await RefreshKnowledgeIndexStatusAsync(cancellationToken).ConfigureAwait(true);
             await LoadOpenAIModelsAsync(cancellationToken).ConfigureAwait(true);
             OpenAIModel = openAI.Model;
             ApiKeyReplacement = string.Empty;
@@ -711,6 +782,12 @@ public sealed partial class SettingsViewModel :
                 return;
             }
 
+            if (!TryGetKnowledgeOptions(out var knowledgeOptions))
+            {
+                UpdateKnowledgeValidation();
+                return;
+            }
+
             var currentScheduler = _schedulerOptions.CurrentValue;
             var settings = new UserSettingsData(
                 IsOpenAIProvider
@@ -770,7 +847,8 @@ public sealed partial class SettingsViewModel :
                 OpenAISupportsAudioOutput,
                 OpenAIImageModel.Trim(),
                 OpenAIAudioModel.Trim(),
-                OpenAIAudioVoice.Trim());
+                OpenAIAudioVoice.Trim(),
+                knowledgeOptions);
             await _userSettingsService
                 .SaveAsync(
                     settings,
@@ -799,6 +877,7 @@ public sealed partial class SettingsViewModel :
                 new SnackbarNotificationMessage(
                     "Settings saved and reloaded."));
             _messenger.Send(new ProviderConfigurationChangedMessage());
+            await RefreshKnowledgeIndexStatusAsync(cancellationToken).ConfigureAwait(true);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -1129,7 +1208,7 @@ public sealed partial class SettingsViewModel :
             EditablePropertyNames.Contains(e.PropertyName))
         {
             IsDirty = true;
-            SaveStatus = HasGenerationValidationError || HasSqliteValidationError
+            SaveStatus = HasGenerationValidationError || HasSqliteValidationError || HasKnowledgeValidationError
                 ? "Fix the validation errors before saving."
                 : "Unsaved changes.";
         }
@@ -1137,7 +1216,7 @@ public sealed partial class SettingsViewModel :
 
     private bool CanSave() =>
         IsDirty && !IsBusy && TryGetGenerationDefaults(out _) &&
-        TryGetSqliteOptions(out _);
+        TryGetSqliteOptions(out _) && TryGetKnowledgeOptions(out _);
 
     private bool CanDiscardChanges() => IsDirty && !IsBusy;
 
@@ -1293,6 +1372,114 @@ public sealed partial class SettingsViewModel :
         }
 
         return true;
+    }
+
+    private void UpdateKnowledgeValidation()
+    {
+        HasKnowledgeValidationError = !TryGetKnowledgeOptions(out _);
+        if (!HasKnowledgeValidationError)
+        {
+            KnowledgeValidationText = "Knowledge embedding settings are valid.";
+        }
+
+        SaveCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool TryGetKnowledgeOptions(out KnowledgeOptions options)
+    {
+        var current = _knowledgeOptions?.CurrentValue ?? new KnowledgeOptions();
+        options = current with
+        {
+            EmbeddingProvider = KnowledgeEmbeddingProvider.Trim(),
+            EmbeddingModel = KnowledgeEmbeddingModel.Trim(),
+            EmbeddingBatchSize = KnowledgeEmbeddingBatchSize,
+            EmbeddingTimeoutSeconds = KnowledgeEmbeddingTimeoutSeconds,
+            TargetChunkTokens = KnowledgeTargetChunkTokens,
+            MaximumChunkTokens = KnowledgeMaximumChunkTokens,
+            OverlapChunkTokens = KnowledgeOverlapChunkTokens,
+            DefaultMaxResults = KnowledgeDefaultMaxResults,
+            MaximumResults = KnowledgeMaximumResults,
+            DefaultMaximumResultTokens = KnowledgeDefaultMaximumResultTokens,
+            MaximumResultTokens = KnowledgeMaximumResultTokens,
+            MinimumSimilarity = KnowledgeMinimumSimilarity,
+        };
+
+        if (!KnowledgeEmbeddingProviders.Contains(options.EmbeddingProvider, StringComparer.OrdinalIgnoreCase))
+        {
+            KnowledgeValidationText = "Select Ollama or OpenAI as the Knowledge embedding provider.";
+            return false;
+        }
+
+        if (!KnowledgeOptions.IsValid(options))
+        {
+            KnowledgeValidationText = "Check the embedding model, batch, timeout, chunk, result, token, and similarity limits.";
+            return false;
+        }
+
+        return true;
+    }
+
+    [RelayCommand]
+    private async Task TestKnowledgeEmbeddingAsync(CancellationToken cancellationToken)
+    {
+        if (_knowledgeEmbeddingService is null)
+        {
+            KnowledgeConnectionStatus = "The Knowledge embedding service is unavailable.";
+            return;
+        }
+
+        if (!TryGetKnowledgeOptions(out var candidate))
+        {
+            UpdateKnowledgeValidation();
+            return;
+        }
+
+        var active = _knowledgeOptions?.CurrentValue ?? new KnowledgeOptions();
+        if (!Equals(candidate, active))
+        {
+            KnowledgeConnectionStatus = "Save the Knowledge settings before testing the embedding model.";
+            return;
+        }
+
+        IsTestingKnowledgeEmbedding = true;
+        try
+        {
+            var vectors = await _knowledgeEmbeddingService
+                .GenerateAsync(["Knowledge embedding health check."], cancellationToken)
+                .ConfigureAwait(true);
+            KnowledgeConnectionStatus = $"Embedding model is healthy ({vectors[0].Length} dimensions).";
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            KnowledgeConnectionStatus = "Embedding model test was canceled.";
+        }
+        catch (Exception exception)
+        {
+            KnowledgeConnectionStatus = $"Embedding model test failed: {exception.Message}";
+        }
+        finally
+        {
+            IsTestingKnowledgeEmbedding = false;
+        }
+    }
+
+    [RelayCommand]
+    private void OpenKnowledge() => _messenger.Send(new NavigateMessage(PageRoute.Knowledge));
+
+    private async Task RefreshKnowledgeIndexStatusAsync(CancellationToken cancellationToken)
+    {
+        if (_knowledgeLibraryService is null)
+        {
+            return;
+        }
+
+        var status = await _knowledgeLibraryService.GetIndexStatusAsync(cancellationToken).ConfigureAwait(true);
+        KnowledgeRequiresReindex = status.RequiresReindex;
+        KnowledgeIndexContractStatus = !status.HasIndex
+            ? "No active index contract. The first imported document will establish it."
+            : status.RequiresReindex
+                ? $"Reindex required. Active contract: {status.IndexedContract}"
+                : $"Active contract: {status.IndexedContract}";
     }
 
     internal static bool TryParseCultureSafeDouble(

@@ -1,6 +1,6 @@
 # MyLocalAgent — first-run guide
 
-Application version: **1.4.9**.
+Application version: **1.5.0**.
 
 This guide summarizes the setup used to build the application, publish it, and
 configure its connectors. It does not cover creating a business task, setup
@@ -438,3 +438,6 @@ explicitly grant the required capability in addition to its tool group and `file
 paths. PowerShell and Shell Execute are separate permissions. A legacy task without a
 `capabilities` field remains readable but receives no sensitive permission. Use **Edit workflow
 text** to edit long AI prompts and PowerShell scripts without changing step structure.
+# Embedded Knowledge
+
+In **Settings → Knowledge embeddings**, select and test the embedding provider/model independently from the chat model; Ollama defaults to the pinned multilingual `embeddinggemma:300m`. Then open **Knowledge**, enter a name and at least one authorization tag, and import a TXT, Markdown, DOCX, or text PDF document. OCR is not supported. Enable the `knowledge` tool group and select explicit tags on each task or Direct Chat conversation; an empty tag scope denies access. After changing the embedding or chunking contract, use **Reindex library**: new revisions are prepared first and activated together only after the complete rebuild succeeds.

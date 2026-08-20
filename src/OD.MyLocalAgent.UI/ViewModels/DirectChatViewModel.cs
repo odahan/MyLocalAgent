@@ -37,10 +37,12 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
     private readonly IMarkdownRenderingService _markdown;
     private readonly IDirectChatMediaFileService _mediaFileService;
     private readonly IPathSandbox? _pathSandbox;
+    private readonly IKnowledgeLibraryService? _knowledgeLibrary;
     private readonly bool _isMarkdownAvailable;
     private bool _loaded;
     private bool _selectingConversation;
     private DirectChatConversationItem? _lastSelectedConversation;
+    private IReadOnlyList<string> _knowledgeTagCatalog = [];
 
     /// <summary>Initializes the Direct Chat surface.</summary>
     public DirectChatViewModel(
@@ -58,7 +60,8 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
         IMarkdownRenderingService markdown,
         IWebView2AvailabilityService webViewAvailability,
         IDirectChatMediaFileService mediaFileService,
-        IPathSandbox? pathSandbox = null)
+        IPathSandbox? pathSandbox = null,
+        IKnowledgeLibraryService? knowledgeLibrary = null)
     {
         _store = store;
         _contextBuilder = contextBuilder;
@@ -74,9 +77,15 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
         _markdown = markdown;
         _mediaFileService = mediaFileService;
         _pathSandbox = pathSandbox;
+        _knowledgeLibrary = knowledgeLibrary;
         _isMarkdownAvailable = webViewAvailability.IsAvailable();
         foreach (var selection in ToolSelections)
-            selection.PropertyChanged += (_, _) => RefreshAgentSummary();
+            selection.PropertyChanged += (_, _) =>
+            {
+                RefreshAgentSummary();
+                OnPropertyChanged(nameof(IsKnowledgeEnabled));
+                OnPropertyChanged(nameof(KnowledgeScopeWarning));
+            };
         foreach (var selection in CapabilitySelections)
             selection.PropertyChanged += (_, _) => RefreshAgentSummary();
     }
@@ -100,6 +109,28 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
 
     /// <summary>Gets local directories explicitly authorized for the selected conversation.</summary>
     public ObservableCollection<FileSystemAccessItem> AuthorizedLocations { get; } = [];
+
+    /// <summary>Gets normalized Knowledge tags authorized for the selected conversation.</summary>
+    public ObservableCollection<string> AuthorizedKnowledgeTags { get; } = [];
+
+    /// <summary>Gets catalog-driven Knowledge tag choices, including stale persisted tags.</summary>
+    public ObservableCollection<KnowledgeTagSelectionItem> KnowledgeTagSelections { get; } = [];
+
+    [ObservableProperty]
+    private string _knowledgeTagsText = string.Empty;
+
+    /// <summary>Gets whether Knowledge is enabled for the selected conversation.</summary>
+    public bool IsKnowledgeEnabled => ToolSelections.Any(item => item.IsSelected && string.Equals(item.Name, ToolGroups.Knowledge, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Gets the deny-by-default Knowledge scope warning.</summary>
+    public string KnowledgeScopeWarning => IsKnowledgeEnabled && string.IsNullOrWhiteSpace(KnowledgeTagsText)
+        ? "Knowledge is enabled, but no tags are authorized."
+        : string.Empty;
+
+    /// <summary>Gets a warning when the conversation still references unavailable tags.</summary>
+    public string KnowledgeStaleTagWarning => KnowledgeTagSelections.Any(item => item.IsSelected && !item.IsAvailable)
+        ? "One or more authorized Knowledge tags are unavailable. Remove them or recreate the tags in the library."
+        : string.Empty;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(DeleteConversationCommand))]
@@ -167,6 +198,7 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
     public bool HasReasoning => !string.IsNullOrWhiteSpace(ReasoningText);
 
     partial void OnAgentEnabledChanged(bool value) => RefreshAgentSummary();
+    partial void OnKnowledgeTagsTextChanged(string value) => OnPropertyChanged(nameof(KnowledgeScopeWarning));
 
     /// <inheritdoc />
     public void Activate()
@@ -210,6 +242,9 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
         IsBusy = true;
         try
         {
+            _knowledgeTagCatalog = _knowledgeLibrary is null
+                ? []
+                : await _knowledgeLibrary.GetTagCatalogAsync(cancellationToken).ConfigureAwait(true);
             await _store.InitializeAsync(cancellationToken).ConfigureAwait(true);
             var conversations = await _store.GetConversationsAsync(cancellationToken)
                 .ConfigureAwait(true);
@@ -497,6 +532,7 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
                 ToolSelections.Where(static item => item.IsSelected).Select(static item => item.Name).ToArray(),
                 CapabilitySelections.Where(static item => item.IsSelected).Select(static item => item.Capability).ToArray(),
                 AuthorizedLocations.Select(static item => item.ToRule()).ToArray(),
+                GetKnowledgeTags().Count == 0 ? null : new KnowledgeAccessDefinition { AllowedTags = GetKnowledgeTags() },
                 cancellationToken)
             .ConfigureAwait(true);
         RefreshAgentSummary();
@@ -519,6 +555,7 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
             Tools = ToolSelections.Where(static item => item.IsSelected).Select(static item => item.Name).ToArray(),
             Capabilities = CapabilitySelections.Where(static item => item.IsSelected).Select(static item => item.Capability).ToArray(),
             FileSystemAccess = AuthorizedLocations.Select(static item => item.ToRule()).ToArray(),
+            KnowledgeAccess = GetKnowledgeTags().Count == 0 ? null : new KnowledgeAccessDefinition { AllowedTags = GetKnowledgeTags() },
             GenerationOptions = new GenerationOptions
             {
                 ReasoningEnabled = ReasoningEnabled,
@@ -550,6 +587,15 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
         DirectChatMessageItem? assistantItem = null;
         try
         {
+            var agentEnabledSnapshot = AgentEnabled;
+            var toolGroupsSnapshot = ToolSelections.Where(static item => item.IsSelected).Select(static item => item.Name).ToArray();
+            var capabilitiesSnapshot = CapabilitySelections.Where(static item => item.IsSelected).Select(static item => item.Capability).ToArray();
+            var locationsSnapshot = AuthorizedLocations.Select(static item => item.ToRule()).ToArray();
+            var knowledgeTagsSnapshot = GetKnowledgeTags();
+            await _store.UpdateConversationAgentProfileAsync(
+                selected.Id, agentEnabledSnapshot, toolGroupsSnapshot, capabilitiesSnapshot, locationsSnapshot,
+                knowledgeTagsSnapshot.Count == 0 ? null : new KnowledgeAccessDefinition { AllowedTags = knowledgeTagsSnapshot },
+                cancellationToken).ConfigureAwait(true);
             var attachments = PendingAttachments.Select(static item => item.Attachment).ToArray();
             DraftMessage = string.Empty;
             PendingAttachments.Clear();
@@ -656,14 +702,15 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
                 "direct-chat");
             var response = new System.Text.StringBuilder();
             var checkpoint = Stopwatch.StartNew();
-            var chunks = AgentEnabled
+            var chunks = agentEnabledSnapshot
                 ? _agentService.RunPromptStreamingUpdatesAsync(
                     BuildAgentPrompt(plan.Messages),
-                    ToolSelections.Where(static item => item.IsSelected).Select(static item => item.Name),
+                    toolGroupsSnapshot,
                     new ToolExecutionContext(
                         "direct-chat-" + selected.Id,
-                        AuthorizedLocations.Select(static item => item.ToRule()),
-                        CapabilitySelections.Where(static item => item.IsSelected).Select(static item => item.Capability)),
+                        locationsSnapshot,
+                        capabilitiesSnapshot,
+                        knowledgeTags: knowledgeTagsSnapshot),
                     policy,
                     cancellationToken)
                 : GetChatUpdatesAsync(client, plan.Messages, cancellationToken);
@@ -789,8 +836,50 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
         {
             AuthorizedLocations.Add(new FileSystemAccessItem(rule.Path, rule.Access));
         }
+        AuthorizedKnowledgeTags.Clear();
+        foreach (var tag in conversation.KnowledgeAccess?.AllowedTags ?? [])
+        {
+            AuthorizedKnowledgeTags.Add(tag);
+        }
+        KnowledgeTagsText = string.Join(", ", AuthorizedKnowledgeTags);
+        BuildKnowledgeTagSelections(_knowledgeTagCatalog, AuthorizedKnowledgeTags);
         RefreshAgentSummary();
     }
+
+    private void BuildKnowledgeTagSelections(
+        IReadOnlyList<string> catalog,
+        IReadOnlyList<string> persistedTags)
+    {
+        foreach (var item in KnowledgeTagSelections)
+        {
+            item.PropertyChanged -= OnKnowledgeTagSelectionChanged;
+        }
+
+        KnowledgeTagSelections.Clear();
+        var available = catalog.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var selected = persistedTags.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var tag in catalog.Concat(persistedTags).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(static tag => tag, StringComparer.OrdinalIgnoreCase))
+        {
+            var item = new KnowledgeTagSelectionItem(tag, available.Contains(tag), selected.Contains(tag));
+            item.PropertyChanged += OnKnowledgeTagSelectionChanged;
+            KnowledgeTagSelections.Add(item);
+        }
+
+        OnPropertyChanged(nameof(KnowledgeStaleTagWarning));
+    }
+
+    private void OnKnowledgeTagSelectionChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs eventArgs)
+    {
+        if (eventArgs.PropertyName != nameof(KnowledgeTagSelectionItem.IsSelected))
+        {
+            return;
+        }
+
+        KnowledgeTagsText = string.Join(", ", KnowledgeTagSelections.Where(static item => item.IsSelected).Select(static item => item.Name));
+        OnPropertyChanged(nameof(KnowledgeStaleTagWarning));
+    }
+
+    private IReadOnlyList<string> GetKnowledgeTags() => string.IsNullOrWhiteSpace(KnowledgeTagsText) ? [] : KnowledgeTagPolicy.NormalizeScope(KnowledgeTagsText.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries));
 
     [RelayCommand]
     private void AddAuthorizedLocation()

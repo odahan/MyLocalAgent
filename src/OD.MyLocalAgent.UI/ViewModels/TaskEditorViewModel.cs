@@ -40,6 +40,7 @@ public sealed partial class TaskEditorViewModel :
         nameof(UseGlobalTopP),
         nameof(TopPOverrideText),
         nameof(SqliteGuardrailsEnabled),
+        nameof(KnowledgeTagsText),
     ];
 
     private readonly ITaskStore _taskStore;
@@ -54,12 +55,16 @@ public sealed partial class TaskEditorViewModel :
     private readonly IOptionsMonitor<AIOptions>? _aiOptions;
     private readonly IOptionsMonitor<SQLiteOptions>? _sqliteOptions;
     private readonly IPathSandbox? _pathSandbox;
+    private readonly IKnowledgeLibraryService? _knowledgeLibrary;
     private readonly ObservableCollection<ToolGroupSelectionItem> _toolGroupSelectionItems;
     private readonly ObservableCollection<TaskCapabilitySelectionItem> _capabilitySelectionItems;
     private string? _requestedTaskId;
     private string? _originalTaskId;
     private AIEditorSnapshot? _assistedUndoSnapshot;
     private bool _isLoading;
+
+    /// <summary>Gets catalog-driven Knowledge tag choices, including stale persisted tags.</summary>
+    public ObservableCollection<KnowledgeTagSelectionItem> KnowledgeTagSelections { get; } = [];
 
     [ObservableProperty]
     private string _editorTitle = "New task";
@@ -137,6 +142,22 @@ public sealed partial class TaskEditorViewModel :
 
     [ObservableProperty]
     private bool _sqliteGuardrailsEnabled = true;
+
+    [ObservableProperty]
+    private string _knowledgeTagsText = string.Empty;
+
+    /// <summary>Gets whether the ordinary Knowledge tool group is enabled.</summary>
+    public bool IsKnowledgeEnabled => _toolGroupSelectionItems.Any(item => item.IsSelected && string.Equals(item.Name, ToolGroups.Knowledge, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Gets the deny-by-default Knowledge authorization warning.</summary>
+    public string KnowledgeScopeWarning => IsKnowledgeEnabled && string.IsNullOrWhiteSpace(KnowledgeTagsText)
+        ? "Knowledge is enabled, but no tags are authorized."
+        : string.Empty;
+
+    /// <summary>Gets a warning when the task still references unavailable tags.</summary>
+    public string KnowledgeStaleTagWarning => KnowledgeTagSelections.Any(item => item.IsSelected && !item.IsAvailable)
+        ? "One or more authorized Knowledge tags are unavailable. Remove them or recreate the tags in the library."
+        : string.Empty;
 
     [ObservableProperty]
     private WorkflowErrorPolicy _selectedErrorPolicy =
@@ -222,7 +243,8 @@ public sealed partial class TaskEditorViewModel :
         IWorkflowPromptEditorDialogService? promptEditorDialog = null,
         IOptionsMonitor<AIOptions>? aiOptions = null,
         IOptionsMonitor<SQLiteOptions>? sqliteOptions = null,
-        IPathSandbox? pathSandbox = null)
+        IPathSandbox? pathSandbox = null,
+        IKnowledgeLibraryService? knowledgeLibrary = null)
     {
         _taskStore = taskStore;
         _scheduler = scheduler;
@@ -236,6 +258,7 @@ public sealed partial class TaskEditorViewModel :
         _aiOptions = aiOptions;
         _sqliteOptions = sqliteOptions;
         _pathSandbox = pathSandbox;
+        _knowledgeLibrary = knowledgeLibrary;
         ErrorPolicies = Enum.GetValues<WorkflowErrorPolicy>();
         WorkflowAliases = ToolMap.Definitions;
         _toolGroupSelectionItems = new ObservableCollection<ToolGroupSelectionItem>(
@@ -433,6 +456,12 @@ public sealed partial class TaskEditorViewModel :
                 task?.ErrorPolicy ?? WorkflowErrorPolicy.StopOnError;
             SetSelectedToolGroups(task?.Tools ?? []);
             SetSelectedCapabilities(task?.Capabilities ?? []);
+            var persistedKnowledgeTags = task?.KnowledgeAccess?.AllowedTags ?? [];
+            var knowledgeTagCatalog = _knowledgeLibrary is null
+                ? Array.Empty<string>()
+                : await _knowledgeLibrary.GetTagCatalogAsync(cancellationToken).ConfigureAwait(true);
+            BuildKnowledgeTagSelections(knowledgeTagCatalog, persistedKnowledgeTags);
+            KnowledgeTagsText = string.Join(", ", persistedKnowledgeTags);
             AuthorizedLocations.Clear();
             foreach (var rule in task?.FileSystemAccess ?? [])
             {
@@ -490,6 +519,7 @@ public sealed partial class TaskEditorViewModel :
                 GenerationOptions = generationOptions,
                 Model = UseSettingsModel ? null : ModelOverride.Trim(),
                 Tools = GetSelectedToolGroups(),
+                KnowledgeAccess = CreateKnowledgeAccess(),
                 Capabilities = GetSelectedCapabilities(),
                 FileSystemAccess = AuthorizedLocations
                     .Select(static item => item.ToRule())
@@ -707,6 +737,7 @@ public sealed partial class TaskEditorViewModel :
                     GenerationOptions = CreateGenerationOptions(),
                     Model = UseSettingsModel ? null : ModelOverride.Trim(),
                     Tools = GetSelectedToolGroups(),
+                    KnowledgeAccess = CreateKnowledgeAccess(),
                     Workflow = workflow,
                     Enabled = false,
                     ErrorPolicy = SelectedErrorPolicy,
@@ -801,7 +832,10 @@ public sealed partial class TaskEditorViewModel :
         WorkflowPromptEditorResult? result;
         try
         {
-            result = _promptEditorDialog.Show(new WorkflowPromptEditorRequest(WorkflowText));
+            result = _promptEditorDialog.Show(new WorkflowPromptEditorRequest(
+                WorkflowText,
+                GetSelectedToolGroups(),
+                CreateKnowledgeAccess()?.AllowedTags));
         }
         catch (WorkflowValidationException exception)
         {
@@ -818,7 +852,8 @@ public sealed partial class TaskEditorViewModel :
 
     [RelayCommand]
     private void OpenAIHelper()
-    {        if (_workflowHelperDialog is null)
+    {
+        if (_workflowHelperDialog is null)
         {
             ValidationText = "AI Workflow Helper is unavailable.";
             return;
@@ -1110,12 +1145,57 @@ public sealed partial class TaskEditorViewModel :
                 GenerationOptions = CreateGenerationOptions(),
                 Model = UseSettingsModel ? null : ModelOverride.Trim(),
                 Tools = GetSelectedToolGroups(),
+                KnowledgeAccess = CreateKnowledgeAccess(),
                 Capabilities = GetSelectedCapabilities(),
                 FileSystemAccess = AuthorizedLocations.Select(static item => item.ToRule()).ToArray(),
                 Workflow = workflow,
                 Enabled = false,
                 ErrorPolicy = SelectedErrorPolicy,
             });
+
+    private KnowledgeAccessDefinition? CreateKnowledgeAccess()
+    {
+        var tags = string.IsNullOrWhiteSpace(KnowledgeTagsText) ? [] : KnowledgeTagsText.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        return tags.Length == 0 ? null : new KnowledgeAccessDefinition { AllowedTags = KnowledgeTagPolicy.NormalizeScope(tags) };
+    }
+
+    partial void OnKnowledgeTagsTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(KnowledgeScopeWarning));
+    }
+
+    private void BuildKnowledgeTagSelections(
+        IReadOnlyList<string> catalog,
+        IReadOnlyList<string> persistedTags)
+    {
+        foreach (var item in KnowledgeTagSelections)
+        {
+            item.PropertyChanged -= OnKnowledgeTagSelectionChanged;
+        }
+
+        KnowledgeTagSelections.Clear();
+        var available = catalog.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var selected = persistedTags.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var tag in catalog.Concat(persistedTags).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(static tag => tag, StringComparer.OrdinalIgnoreCase))
+        {
+            var item = new KnowledgeTagSelectionItem(tag, available.Contains(tag), selected.Contains(tag));
+            item.PropertyChanged += OnKnowledgeTagSelectionChanged;
+            KnowledgeTagSelections.Add(item);
+        }
+
+        OnPropertyChanged(nameof(KnowledgeStaleTagWarning));
+    }
+
+    private void OnKnowledgeTagSelectionChanged(object? sender, PropertyChangedEventArgs eventArgs)
+    {
+        if (eventArgs.PropertyName != nameof(KnowledgeTagSelectionItem.IsSelected) || _isLoading)
+        {
+            return;
+        }
+
+        KnowledgeTagsText = string.Join(", ", KnowledgeTagSelections.Where(static item => item.IsSelected).Select(static item => item.Name));
+        OnPropertyChanged(nameof(KnowledgeStaleTagWarning));
+    }
 
     private void ApplyAIResult(AIWorkflowHelperResult result)
     {
@@ -1471,6 +1551,8 @@ public sealed partial class TaskEditorViewModel :
         }
 
         OnPropertyChanged(nameof(ShowAuthorizedLocations));
+        OnPropertyChanged(nameof(IsKnowledgeEnabled));
+        OnPropertyChanged(nameof(KnowledgeScopeWarning));
         UpdateCapabilityVisibility();
         OnPropertyChanged(nameof(CapabilityWarning));
         if (!_isLoading)

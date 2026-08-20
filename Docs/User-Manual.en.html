@@ -6,8 +6,8 @@
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
 <meta content="#08111f" name="theme-color"/>
-<meta content="Complete user manual for the OD.MyLocalAgent 1.4.9 Windows application." name="description"/>
-<title>User Manual 1.4.9 · OD.MyLocalAgent</title>
+<meta content="Complete user manual for the OD.MyLocalAgent 1.5.0 Windows application." name="description"/>
+<title>User Manual 1.5.0 · OD.MyLocalAgent</title>
 <style>
         :root {
             color-scheme: dark;
@@ -1279,7 +1279,7 @@
 <main class="content" id="contenu">
 <div class="content-inner">
 <section class="hero" data-title="Overview" id="accueil">
-<span class="eyebrow">Version 1.4.9 · Local-first · Windows · Ollama</span>
+<span class="eyebrow">Version 1.5.0 · Local-first · Windows · Ollama</span>
 <h1>Your local agent,<br/><span class="gradient-text">from intent to execution.</span></h1>
 <p class="hero-lead">
                     This manual explains how to configure OD.MyLocalAgent, create scheduled tasks,
@@ -3144,7 +3144,7 @@ capabilities start unrestricted local processes and must remain limited to trust
 <span class="status warn">3 task not found</span>
 </p>
 </section>
-<footer class="footer"><p>Revised document organization — English version 1.4.9.</p><p>OD.MyLocalAgent · User manual<br/>Standalone HTML5 document. Paths, screens, and behaviors described correspond to version 1.4.9 dated August 20, 2026. <a href="User-Manual.html" lang="fr">Lire en français</a>.</p></footer>
+<footer class="footer"><p>Revised document organization — English version 1.5.0.</p><p>OD.MyLocalAgent · User manual<br/>Standalone HTML5 document. Paths, screens, and behaviors described correspond to version 1.5.0 dated August 20, 2026. <a href="User-Manual.html" lang="fr">Lire en français</a>.</p></footer>
 </div>
 <section id="stage22-local-files">
 <h2>Archives, Office documents, and PDF</h2>
@@ -3408,6 +3408,12 @@ capabilities start unrestricted local processes and must remain limited to trust
             }
         })();
     </script>
+    <section id="embedded-knowledge">
+      <h2>Embedded Knowledge and RAG</h2>
+      <p>Open <strong>Knowledge</strong> to import TXT, Markdown, DOCX, or text-based PDF documents. Files are copied below the private application workspace, extracted, split into deterministic chunks, and embedded locally. OCR is not provided, image-only PDFs are unsupported, and Knowledge data is not encrypted at rest.</p>
+      <p>Configure and test the independent provider and model under <strong>Settings → Knowledge embeddings</strong>. Ollama defaults to <code>embeddinggemma:300m</code>. Changing the model or chunking contract requires <strong>Reindex library</strong>; the previous complete index remains active if rebuilding fails or is canceled.</p>
+      <p>Access is denied by default. Enable the ordinary <code>knowledge</code> group on a task or Direct Chat conversation, then select explicit library tags. An empty scope grants no document. An <code>ai.prompt</code> workflow step may declare the exact <code>knowledge.search</code> alias and may narrow, but never broaden, the task tags. Retrieval occurs only when the agent calls the tool; excerpts are untrusted data and are never injected automatically.</p>
+    </section>
     <section id="task-capabilities">
       <h2>Per-task sensitive permissions</h2>
       <p>Sensitive operations are denied by default. There is no global Safety switch. A task must explicitly grant the required capability in addition to its tool-group whitelist and file-system access rules. PowerShell and Shell Execute are separate permissions. Legacy tasks without <code>capabilities</code> receive no sensitive permission.</p>

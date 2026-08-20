@@ -50,7 +50,7 @@
                               DisplayMemberPath="Name"
                               ItemsSource="{Binding Tasks}"
                               SelectedItem="{Binding SelectedTask}"
-                              materialDesign:HintAssist.Hint="Task context (optional)" />
+                              materialDesign:HintAssist.Hint="Task context (required for Knowledge)" />
                     <ComboBox Margin="0,14,0,0"
                               DisplayMemberPath="Alias"
                               ItemsSource="{Binding Source={StaticResource GroupedAliases}}"

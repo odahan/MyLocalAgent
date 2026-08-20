@@ -7,6 +7,17 @@ using OD.MyLocalAgent.Ollama;
 /// </summary>
 public interface IMyLocalAgentService
 {
+    /// <summary>Runs one workflow prompt step with only its exact declared tool aliases.</summary>
+    Task<AgentRunResult> RunPromptStepAsync(
+        string prompt,
+        IReadOnlyList<string> toolAliases,
+        IReadOnlyList<string> enabledToolGroups,
+        ToolExecutionContext executionContext,
+        EffectiveGenerationPolicy generationPolicy,
+        string logicalOperation,
+        bool useGlobalSystemPrompt,
+        CancellationToken cancellationToken);
+
     /// <summary>
     /// Generates one model response without exposing any tool or entering a tool-call loop.
     /// </summary>

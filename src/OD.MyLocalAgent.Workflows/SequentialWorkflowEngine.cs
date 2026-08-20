@@ -315,18 +315,31 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
 
                 using var modelScope = ModelExecutionScope.Push(step.Model ?? task.Model);
                 await WarmUpSelectedModelAsync(generationPolicy, cancellationToken).ConfigureAwait(false);
-                var agentResult = task.UseGlobalSystemPrompt
-                    ? await _agentService.RunPromptWithoutToolsAsync(
+                var executionContext = ToolExecutionContext.FromTask(task);
+                if (step.KnowledgeAccess is not null)
+                {
+                    executionContext = executionContext.WithKnowledgeScope(step.KnowledgeAccess.AllowedTags);
+                }
+
+                AgentRunResult agentResult;
+                if (step.ToolAliases.Count == 0)
+                {
+                    agentResult = task.UseGlobalSystemPrompt
+                        ? await _agentService.RunPromptWithoutToolsAsync(prompt,generationPolicy,step.Id,cancellationToken).ConfigureAwait(false)
+                        : await _agentService.RunPromptWithoutToolsAsync(prompt,generationPolicy,step.Id,false,cancellationToken).ConfigureAwait(false);
+                }
+                else
+                {
+                    agentResult = await _agentService.RunPromptStepAsync(
                         prompt,
+                        step.ToolAliases,
+                        task.Tools,
+                        executionContext,
                         generationPolicy,
                         step.Id,
-                        cancellationToken).ConfigureAwait(false)
-                    : await _agentService.RunPromptWithoutToolsAsync(
-                        prompt,
-                        generationPolicy,
-                        step.Id,
-                        useGlobalSystemPrompt: false,
-                        cancellationToken: cancellationToken).ConfigureAwait(false);
+                        task.UseGlobalSystemPrompt,
+                        cancellationToken).ConfigureAwait(false);
+                }
                 return agentResult.Text;
             }
 

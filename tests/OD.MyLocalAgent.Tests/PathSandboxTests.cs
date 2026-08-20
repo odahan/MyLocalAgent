@@ -49,6 +49,7 @@ public sealed class PathSandboxTests : IDisposable
         absoluteRead.Should().Throw<PathSandboxException>()
             .WithMessage("*reserved for the application*");
         sandbox.IsApplicationOwnedPath(applicationData).Should().BeTrue();
+        sandbox.IsApplicationOwnedPath(Path.Combine(applicationData, "data", "knowledge", "knowledge.db")).Should().BeTrue();
         sandbox.IsApplicationOwnedPath(Path.Combine(_workspace, "documents"))
             .Should().BeFalse();
     }

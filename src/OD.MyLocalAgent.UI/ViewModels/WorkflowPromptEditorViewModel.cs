@@ -13,6 +13,10 @@ namespace OD.MyLocalAgent.UI.ViewModels;
 public sealed partial class WorkflowPromptEditorViewModel : ObservableObject
 {
     private IReadOnlyList<WorkflowStepDefinition> _workflow = [];
+    private readonly IToolCatalog? _toolCatalog;
+
+    /// <summary>Initializes a prompt editor backed by the declarative Tool Map.</summary>
+    public WorkflowPromptEditorViewModel(IToolCatalog? toolCatalog = null) => _toolCatalog = toolCatalog;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RevertStepCommand))]
@@ -65,10 +69,15 @@ public sealed partial class WorkflowPromptEditorViewModel : ObservableObject
 
         _workflow = WorkflowDefinitionSerializer.Deserialize(request.WorkflowText);
 
+        var enabledGroups = new HashSet<string>(request.EnabledToolGroups ?? [],StringComparer.OrdinalIgnoreCase);
+        var availableTools = (_toolCatalog?.Definitions ?? [])
+            .Where(definition => definition.IsAgentTool && enabledGroups.Contains(definition.ToolGroup))
+            .ToArray();
+
         Items.Clear();
         foreach (var entry in WorkflowPromptEditingService.Extract(_workflow))
         {
-            var item = new WorkflowPromptEditorItem(entry);
+            var item = new WorkflowPromptEditorItem(entry,availableTools,request.KnowledgeTags ?? []);
             item.PropertyChanged += OnItemPropertyChanged;
             Items.Add(item);
         }
@@ -97,6 +106,8 @@ public sealed partial class WorkflowPromptEditorViewModel : ObservableObject
             {
                 ArgumentName = item.ArgumentName,
                 Model = item.SupportsModelOverride ? item.ModelOverride : null,
+                ToolAliases = item.ToolAliases,
+                KnowledgeAccess = item.KnowledgeAccess,
             })
             .ToList();
 

@@ -16,6 +16,47 @@ namespace OD.MyLocalAgent.Tests;
 /// </summary>
 public sealed class TaskEditorViewModelTests
 {
+    /// <summary>Verifies Knowledge tags come from the library catalog and stale grants remain visible.</summary>
+    [Fact]
+    public async Task KnowledgeTagCatalogShowsStalePersistedScope()
+    {
+        var task = new ScheduledTask
+        {
+            Id = "knowledge-scope",
+            Name = "Knowledge scope",
+            Schedule = "0 7 * * *",
+            Prompt = "Search",
+            Tools = [ToolGroups.Knowledge],
+            KnowledgeAccess = new KnowledgeAccessDefinition { AllowedTags = ["current", "retired"] },
+            Workflow = [],
+        };
+        var store = new Mock<ITaskStore>(MockBehavior.Strict);
+        store.Setup(item => item.GetAsync(task.Id, It.IsAny<CancellationToken>())).ReturnsAsync(task);
+        var library = new Mock<IKnowledgeLibraryService>(MockBehavior.Strict);
+        library.Setup(item => item.GetTagCatalogAsync(It.IsAny<CancellationToken>())).ReturnsAsync(["current"]);
+        var viewModel = new TaskEditorViewModel(
+            store.Object,
+            Mock.Of<ITaskSchedulerService>(),
+            Mock.Of<IIncidentReporter>(),
+            Mock.Of<IDesktopInteractionService>(),
+            Mock.Of<IMessenger>(),
+            TimeProvider.System,
+            knowledgeLibrary: library.Object);
+
+        viewModel.Open(task.Id);
+        await (viewModel.LoadCommand.ExecutionTask ?? Task.CompletedTask);
+
+        viewModel.KnowledgeTagSelections.Should().HaveCount(2);
+        var stale = viewModel.KnowledgeTagSelections.Single(item => item.Name == "retired");
+        stale.IsAvailable.Should().BeFalse();
+        viewModel.KnowledgeStaleTagWarning.Should().NotBeEmpty();
+        stale.IsSelected = false;
+        viewModel.KnowledgeTagsText.Should().Be("current");
+        viewModel.IsDirty.Should().BeTrue();
+        store.VerifyAll();
+        library.VerifyAll();
+    }
+
     /// <summary>
     /// Verifies application-owned workspace data cannot be added as a task grant.
     /// </summary>

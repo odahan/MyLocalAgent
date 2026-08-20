@@ -60,6 +60,10 @@ public sealed record ScheduledTask
     /// </summary>
     public IReadOnlyList<string> Tools { get; init; } = [];
 
+    /// <summary>Gets the deny-by-default Knowledge tag authorization.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public KnowledgeAccessDefinition? KnowledgeAccess { get; init; }
+
     /// <summary>
     /// Gets the sensitive side effects explicitly authorized for this task.
     /// </summary>

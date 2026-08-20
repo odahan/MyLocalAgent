@@ -38,6 +38,8 @@ public abstract class WorkflowStep
         IsStringForm = definition.IsStringForm;
         GenerationOptions = definition.GenerationOptions;
         Model = definition.Model;
+        ToolAliases = definition.ToolAliases.ToArray();
+        KnowledgeAccess = definition.KnowledgeAccess;
     }
 
     /// <summary>
@@ -82,4 +84,10 @@ public abstract class WorkflowStep
 
     /// <summary>Gets the optional model selected for this AI step.</summary>
     public string? Model { get; }
+
+    /// <summary>Gets exact tool aliases available inside this prompt step.</summary>
+    public IReadOnlyList<string> ToolAliases { get; }
+
+    /// <summary>Gets the optional prompt-step Knowledge narrowing.</summary>
+    public KnowledgeAccessDefinition? KnowledgeAccess { get; }
 }

@@ -156,6 +156,22 @@
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
+                                    <StackPanel Visibility="{Binding IsKnowledgeEnabled,Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <TextBlock Margin="0,10,0,3" FontWeight="SemiBold" Text="Knowledge authorization" />
+                                        <TextBlock Foreground="{DynamicResource MutedTextBrush}" Text="Knowledge is deny-by-default. Select explicit library tags; an empty scope grants no documents." TextWrapping="Wrap" />
+                                        <ItemsControl Margin="0,7,0,0" ItemsSource="{Binding KnowledgeTagSelections}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Margin="0,2,0,2" Orientation="Horizontal">
+                                                        <CheckBox VerticalAlignment="Center" IsChecked="{Binding IsSelected}" Content="{Binding Name}" />
+                                                        <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource WarningBrush}" Text="{Binding AvailabilityText}" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <TextBlock Margin="0,6,0,0" Foreground="{DynamicResource WarningBrush}" Text="{Binding KnowledgeScopeWarning}" TextWrapping="Wrap" />
+                                        <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource WarningBrush}" Text="{Binding KnowledgeStaleTagWarning}" TextWrapping="Wrap" />
+                                    </StackPanel>
                                     <TextBlock Margin="0,10,0,3"
                                                FontWeight="SemiBold"
                                                Text="Sensitive permissions" />

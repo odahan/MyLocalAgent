@@ -135,6 +135,14 @@ public sealed partial class ToolTesterViewModel :
             return;
         }
 
+        if (string.Equals(SelectedAlias.Alias, "knowledge.search", StringComparison.OrdinalIgnoreCase) &&
+            SelectedTask is null)
+        {
+            ResultText = "Knowledge search requires a selected task with the Knowledge group and explicit authorized tags.";
+            StatusState = "Blocked";
+            return;
+        }
+
         IsBusy = true;
         StatusState = "Checking";
         ResultText = "Running tool…";

@@ -115,7 +115,22 @@ public static partial class ScheduledTaskValidator
                 "Task 'prompt' may be empty only when the workflow contains at least one step.");
         }
 
-        ValidateWorkflowDefinitions(task.Workflow, toolGroups);
+        IReadOnlyList<string> knowledgeTags;
+        try
+        {
+            knowledgeTags = KnowledgeTagPolicy.NormalizeScope(task.KnowledgeAccess?.AllowedTags);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new TaskValidationException($"Task 'knowledgeAccess' is invalid. {exception.Message}", exception);
+        }
+
+        if (knowledgeTags.Count > 0 && !toolGroups.Contains(ToolGroups.Knowledge))
+        {
+            throw new TaskValidationException("Task 'knowledgeAccess' requires the 'knowledge' tool group.");
+        }
+
+        ValidateWorkflow(task.Workflow, toolGroups, knowledgeTags);
     }
 
     /// <summary>
@@ -131,7 +146,8 @@ public static partial class ScheduledTaskValidator
         ArgumentNullException.ThrowIfNull(toolGroups);
         ValidateWorkflow(
             workflow,
-            new HashSet<string>(toolGroups, StringComparer.OrdinalIgnoreCase));
+            new HashSet<string>(toolGroups, StringComparer.OrdinalIgnoreCase),
+            []);
     }
 
     private static void ValidateFileSystemAccess(
@@ -220,7 +236,8 @@ public static partial class ScheduledTaskValidator
 
     private static void ValidateWorkflow(
         IReadOnlyList<WorkflowStepDefinition> workflow,
-        IReadOnlySet<string> toolGroups)
+        IReadOnlySet<string> toolGroups,
+        IReadOnlyList<string> taskKnowledgeTags)
     {
         var identifiers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -237,6 +254,8 @@ public static partial class ScheduledTaskValidator
                 throw new WorkflowValidationException(
                     $"Workflow alias '{step.Step}' requires whitelisted tool group '{definition.ToolGroup}'.");
             }
+
+            ValidatePromptTools(step, toolGroups, taskKnowledgeTags);
 
             if (!definition.IsAiStep && step.GenerationOptions is not null)
             {
@@ -321,6 +340,63 @@ public static partial class ScheduledTaskValidator
             ValidateArguments(step, definition);
             ValidatePlaceholders(step, identifiers);
             identifiers.Add(step.EffectiveId);
+        }
+    }
+
+    private static void ValidatePromptTools(
+        WorkflowStepDefinition step,
+        IReadOnlySet<string> toolGroups,
+        IReadOnlyList<string> taskKnowledgeTags)
+    {
+        var isPrompt = string.Equals(step.Step, ToolMap.PromptAlias, StringComparison.OrdinalIgnoreCase);
+        if (!isPrompt && (step.ToolAliases.Count > 0 || step.KnowledgeAccess is not null))
+        {
+            throw new WorkflowValidationException("Properties 'toolAliases' and 'knowledgeAccess' are valid only for 'ai.prompt'.");
+        }
+
+        if (!isPrompt)
+        {
+            return;
+        }
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var alias in step.ToolAliases)
+        {
+            if (string.IsNullOrWhiteSpace(alias) || !seen.Add(alias))
+            {
+                throw new WorkflowValidationException("Prompt-step tool aliases must be non-empty and unique.");
+            }
+
+            var selected = ToolCatalog.Default.Find(alias)
+                ?? throw new WorkflowValidationException($"Prompt step references unknown tool alias '{alias}'.");
+            if (!selected.IsAgentTool)
+            {
+                throw new WorkflowValidationException($"Prompt-step alias '{alias}' is not an agent-callable tool.");
+            }
+
+            if (!toolGroups.Contains(selected.ToolGroup))
+            {
+                throw new WorkflowValidationException($"Prompt-step alias '{alias}' requires whitelisted tool group '{selected.ToolGroup}'.");
+            }
+        }
+
+        var selectsKnowledge = step.ToolAliases.Any(alias =>
+            string.Equals(alias, "knowledge.search", StringComparison.OrdinalIgnoreCase));
+        if (step.KnowledgeAccess is not null && !selectsKnowledge)
+        {
+            throw new WorkflowValidationException("Prompt-step 'knowledgeAccess' requires alias 'knowledge.search'.");
+        }
+
+        if (step.KnowledgeAccess is not null)
+        {
+            try
+            {
+                _ = KnowledgeTagPolicy.Narrow(taskKnowledgeTags, step.KnowledgeAccess.AllowedTags);
+            }
+            catch (Exception exception) when (exception is ArgumentException or KnowledgeAuthorizationException)
+            {
+                throw new WorkflowValidationException($"Prompt-step 'knowledgeAccess' is invalid: {exception.Message}");
+            }
         }
     }
 

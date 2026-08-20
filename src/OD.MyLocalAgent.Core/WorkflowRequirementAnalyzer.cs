@@ -31,7 +31,7 @@ public static partial class WorkflowRequirementAnalyzer
             currentToolGroups,
             StringComparer.OrdinalIgnoreCase);
         var requiredGroups = workflow
-            .Select(step => ToolMap.Find(step.Step))
+            .SelectMany(EnumerateDefinitions)
             .Where(static definition => definition is { IsAiStep: false })
             .Select(static definition => definition!.ToolGroup)
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -79,6 +79,14 @@ public static partial class WorkflowRequirementAnalyzer
                 warnings.Add(
                     $"{definition.Alias} accesses local filesystem content, which is authorization-controlled but not classified by Guardrails.");
             }
+
+            foreach (var promptTool in step.ToolAliases.Select(alias => ToolCatalog.Default.Find(alias)).Where(static item => item is not null))
+            {
+                if (promptTool!.LocalPathArguments.Count > 0)
+                {
+                    warnings.Add($"{promptTool.Alias} receives model-generated path arguments in ai.prompt; no filesystem grant can be inferred and runtime authorization remains authoritative.");
+                }
+            }
         }
 
         var pathRequirements = candidates
@@ -113,7 +121,7 @@ public static partial class WorkflowRequirementAnalyzer
 
         var grantedCapabilities = currentCapabilities.ToHashSet();
         var capabilityRequirements = workflow
-            .Select(step => ToolMap.Find(step.Step))
+            .SelectMany(EnumerateDefinitions)
             .Where(static definition => definition?.RequiredCapability is not null)
             .GroupBy(
                 static definition => definition!.RequiredCapability!.Value)
@@ -140,6 +148,24 @@ public static partial class WorkflowRequirementAnalyzer
             pathRequirements,
             capabilityRequirements,
             warnings.Distinct(StringComparer.Ordinal).ToArray());
+    }
+
+    private static IEnumerable<ToolDefinition> EnumerateDefinitions(WorkflowStepDefinition step)
+    {
+        var direct = ToolMap.Find(step.Step);
+        if (direct is not null)
+        {
+            yield return direct;
+        }
+
+        foreach (var alias in step.ToolAliases)
+        {
+            var definition = ToolCatalog.Default.Find(alias);
+            if (definition is not null)
+            {
+                yield return definition;
+            }
+        }
     }
 
     private static void AnalyzePath(

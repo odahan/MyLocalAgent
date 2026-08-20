@@ -8,7 +8,7 @@ public sealed record ToolExecutionContext
     /// <summary>
     /// Gets the context used by interactive tools that are not associated with a task.
     /// </summary>
-    public static ToolExecutionContext Taskless { get; } = new(null, [], [], null);
+    public static ToolExecutionContext Taskless { get; } = new(null, [], [], null, null, []);
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ToolExecutionContext"/> class.
@@ -18,12 +18,14 @@ public sealed record ToolExecutionContext
     /// <param name="capabilities">The task's sensitive capability grants.</param>
     /// <param name="sqliteGuardrailsEnabled">The persisted SQLite Guardrails preference, or <see langword="null"/> for taskless use.</param>
     /// <param name="useGlobalSystemPrompt">Whether configured task system prompts apply, or <see langword="null"/> for taskless use.</param>
+    /// <param name="knowledgeTags">The normalized Knowledge tags authorized for this execution.</param>
     public ToolExecutionContext(
         string? taskId,
         IEnumerable<FileSystemAccessRule> fileSystemAccess,
         IEnumerable<TaskCapability> capabilities,
         bool? sqliteGuardrailsEnabled = null,
-        bool? useGlobalSystemPrompt = null)
+        bool? useGlobalSystemPrompt = null,
+        IEnumerable<string>? knowledgeTags = null)
     {
         ArgumentNullException.ThrowIfNull(fileSystemAccess);
         ArgumentNullException.ThrowIfNull(capabilities);
@@ -32,6 +34,7 @@ public sealed record ToolExecutionContext
         Capabilities = capabilities.ToHashSet();
         SqliteGuardrailsEnabled = sqliteGuardrailsEnabled;
         UseGlobalSystemPrompt = useGlobalSystemPrompt;
+        KnowledgeTags = KnowledgeTagPolicy.NormalizeScope(knowledgeTags);
     }
 
     /// <summary>
@@ -69,6 +72,19 @@ public sealed record ToolExecutionContext
     /// </summary>
     public bool? UseGlobalSystemPrompt { get; }
 
+    /// <summary>Gets the immutable normalized Knowledge tag authorization.</summary>
+    public IReadOnlyList<string> KnowledgeTags { get; }
+
+    /// <summary>Creates a context whose Knowledge scope is narrowed without changing other grants.</summary>
+    public ToolExecutionContext WithKnowledgeScope(IEnumerable<string>? requestedTags) =>
+        new(
+            TaskId,
+            FileSystemAccess,
+            Capabilities,
+            SqliteGuardrailsEnabled,
+            UseGlobalSystemPrompt,
+            KnowledgeTagPolicy.Narrow(KnowledgeTags, requestedTags));
+
     /// <summary>
     /// Creates an execution context from a validated scheduled task.
     /// </summary>
@@ -82,6 +98,7 @@ public sealed record ToolExecutionContext
             task.FileSystemAccess,
             task.Capabilities,
             task.SqliteGuardrailsEnabled,
-            task.UseGlobalSystemPrompt);
+            task.UseGlobalSystemPrompt,
+            task.KnowledgeAccess?.AllowedTags);
     }
 }

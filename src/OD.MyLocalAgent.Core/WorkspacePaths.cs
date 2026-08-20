@@ -34,6 +34,10 @@ public sealed class WorkspacePaths
         TaskExamplesDirectory = Path.Combine(ExamplesDirectory, "tasks");
         DataDirectory = Path.Combine(ApplicationDataDirectory, "data");
         DirectChatDatabasePath = Path.Combine(DataDirectory, "direct-chat.db");
+        KnowledgeDirectory = Path.Combine(DataDirectory, "knowledge");
+        KnowledgeDatabasePath = Path.Combine(KnowledgeDirectory, "knowledge.db");
+        KnowledgeDocumentsDirectory = Path.Combine(KnowledgeDirectory, "documents");
+        KnowledgeStagingDirectory = Path.Combine(KnowledgeDirectory, "staging");
         LogsDirectory = Path.Combine(ApplicationDataDirectory, "logs");
         ApplicationLogsDirectory = Path.Combine(LogsDirectory, "application");
         RunLogsDirectory = Path.Combine(LogsDirectory, "runs");
@@ -66,6 +70,15 @@ public sealed class WorkspacePaths
 
     /// <summary>Gets the Direct Chat SQLite database path.</summary>
     public string DirectChatDatabasePath { get; }
+
+    /// <summary>Gets the private Knowledge library directory.</summary>
+    public string KnowledgeDirectory { get; }
+    /// <summary>Gets the dedicated Knowledge database path.</summary>
+    public string KnowledgeDatabasePath { get; }
+    /// <summary>Gets the canonical imported-original directory.</summary>
+    public string KnowledgeDocumentsDirectory { get; }
+    /// <summary>Gets the temporary Knowledge ingestion directory.</summary>
+    public string KnowledgeStagingDirectory { get; }
 
     /// <summary>Gets the workspace log root.</summary>
     public string LogsDirectory { get; }
@@ -105,6 +118,9 @@ public sealed class WorkspacePaths
         Directory.CreateDirectory(TaskBackupsDirectory);
         Directory.CreateDirectory(TaskExamplesDirectory);
         Directory.CreateDirectory(DataDirectory);
+        Directory.CreateDirectory(KnowledgeDirectory);
+        Directory.CreateDirectory(KnowledgeDocumentsDirectory);
+        Directory.CreateDirectory(KnowledgeStagingDirectory);
         Directory.CreateDirectory(ApplicationLogsDirectory);
         Directory.CreateDirectory(RunLogsDirectory);
         Directory.CreateDirectory(ReportsDirectory);

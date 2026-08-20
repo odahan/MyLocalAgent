@@ -5,6 +5,8 @@ namespace OD.MyLocalAgent.Core;
 /// </summary>
 public static class ToolGroups
 {
+    /// <summary>Gets the embedded Knowledge tool group.</summary>
+    public const string Knowledge = "knowledge";
     /// <summary>
     /// Gets the Gmail tool-group name.
     /// </summary>

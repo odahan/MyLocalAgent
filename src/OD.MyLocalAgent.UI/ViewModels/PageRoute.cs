@@ -15,6 +15,9 @@ public enum PageRoute
     /// </summary>
     Tasks,
 
+    /// <summary>User-managed embedded Knowledge library.</summary>
+    Knowledge,
+
     /// <summary>
     /// Persistent direct conversation with the active AI provider.
     /// </summary>

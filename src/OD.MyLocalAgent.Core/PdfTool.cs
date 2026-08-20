@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Options;
 using UglyToad.PdfPig;
-using UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor;
 
 namespace OD.MyLocalAgent.Core;
 
@@ -81,7 +80,7 @@ public sealed class PdfTool : IPdfTool
         {
             cancellationToken.ThrowIfCancellationRequested();
             string text;
-            try { text = FileContentValidation.NormalizeText(ContentOrderTextExtractor.GetText(document.GetPage(pageNumber))); }
+            try { text = DocumentTextExtraction.ExtractPdfPage(document, pageNumber); }
             catch { throw new FileContentToolException("CorruptFile"); }
             var hasExtractableText = !string.IsNullOrWhiteSpace(text);
             var available = characterLimit - characterCount;

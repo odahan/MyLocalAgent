@@ -29,6 +29,14 @@ public sealed class DirectChatStoreTests
                 conversation = await store.CreateConversationAsync(
                     "New chat",
                     CancellationToken.None);
+                await store.UpdateConversationAgentProfileAsync(
+                    conversation.Id,
+                    true,
+                    [ToolGroups.Knowledge],
+                    [],
+                    [],
+                    new KnowledgeAccessDefinition { AllowedTags = ["architecture"] },
+                    CancellationToken.None);
                 var user = await store.AppendMessageAsync(
                     conversation.Id,
                     DirectChatMessageRole.User,
@@ -65,6 +73,8 @@ public sealed class DirectChatStoreTests
                 persisted.Should().NotBeNull();
                 persisted!.SummaryText.Should().Be("The user mentioned a blue folder.");
                 persisted.SummaryThroughSequence.Should().Be(1);
+                persisted.Tools.Should().ContainSingle().Which.Should().Be(ToolGroups.Knowledge);
+                persisted.KnowledgeAccess!.AllowedTags.Should().Equal("architecture");
                 messages.Should().HaveCount(2);
                 messages.Single(message => message.Id == assistant.Id)
                     .State.Should().Be(DirectChatMessageState.Failed);
@@ -195,9 +205,11 @@ public sealed class DirectChatStoreTests
             using (var store = new SqliteDirectChatStore(path))
             {
                 var message = (await store.GetMessagesAsync(conversationId, null, 10, CancellationToken.None)).Single();
+                var conversation = await store.GetConversationAsync(conversationId, CancellationToken.None);
                 message.Content.Should().Be("**Legacy text**");
                 message.Contents.Should().ContainSingle();
                 message.Contents[0].Text.Should().Be("**Legacy text**");
+                conversation!.KnowledgeAccess.Should().BeNull();
             }
         }
         finally

@@ -30,6 +30,13 @@ public interface IToolRegistry
         IEnumerable<string> enabledToolGroups,
         ToolExecutionContext executionContext);
 
+    /// <summary>Builds exactly the declared agent tools while enforcing the owning group whitelist.</summary>
+    AITool[] GetAgentToolsByAliases(
+        IEnumerable<string> aliases,
+        IEnumerable<string> enabledToolGroups,
+        ToolExecutionContext executionContext) =>
+        throw new NotSupportedException("This tool registry does not support exact-alias activation.");
+
     /// <summary>
     /// Resolves a Tool Map alias.
     /// </summary>

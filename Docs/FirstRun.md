@@ -1,6 +1,6 @@
 # MyLocalAgent — guide de première mise en route
 
-Version de l’application : **1.4.9**.
+Version de l’application : **1.5.0**.
 
 Ce guide reprend le parcours réalisé pour compiler l’application, la publier et
 configurer ses connecteurs. Il ne couvre ni la création d’une tâche métier ni
@@ -451,3 +451,6 @@ chemins `fileSystemAccess`. PowerShell et Shell Execute sont deux droits distinc
 tâche sans champ `capabilities` reste lisible mais ne reçoit aucun droit sensible. Utilisez
 **Edit workflow text** pour modifier les prompts IA et scripts PowerShell longs sans modifier la
 structure des étapes.
+# Connaissances intégrées
+
+Dans **Settings → Knowledge embeddings**, choisissez et testez le fournisseur et le modèle d’embeddings indépendamment du modèle de chat ; avec Ollama, la valeur par défaut épinglée est le modèle multilingue `embeddinggemma:300m`. Ouvrez ensuite **Knowledge**, saisissez un nom et au moins un tag d’autorisation, puis importez un fichier TXT, Markdown, DOCX ou un PDF textuel. L’OCR n’est pas pris en charge. Activez le groupe `knowledge` et choisissez explicitement les tags autorisés pour chaque tâche ou conversation Direct Chat ; une portée vide n’accorde aucun accès. Après une modification du modèle ou du découpage, utilisez **Reindex library** : les nouvelles révisions sont préparées puis activées ensemble uniquement si la reconstruction complète réussit.

@@ -51,6 +51,8 @@ internal sealed class WorkflowStepDefinitionJsonConverter : JsonConverter<Workfl
             RetryBackoffSeconds = ReadOptionalInt32(root, "retryBackoffSeconds"),
             GenerationOptions = ReadGenerationOptions(root, options),
             Model = ReadOptionalString(root, "model"),
+            ToolAliases = ReadToolAliases(root, options),
+            KnowledgeAccess = ReadKnowledgeAccess(root, options),
         };
     }
 
@@ -66,7 +68,9 @@ internal sealed class WorkflowStepDefinitionJsonConverter : JsonConverter<Workfl
             value.RetryCount is null &&
             value.RetryBackoffSeconds is null &&
             (value.GenerationOptions is null || value.GenerationOptions.IsEmpty) &&
-            value.Model is null)
+            value.Model is null &&
+            value.ToolAliases.Count == 0 &&
+            value.KnowledgeAccess is null)
         {
             writer.WriteStringValue(value.Step);
             return;
@@ -111,6 +115,18 @@ internal sealed class WorkflowStepDefinitionJsonConverter : JsonConverter<Workfl
             writer.WriteString("model", value.Model);
         }
 
+        if (value.ToolAliases.Count > 0)
+        {
+            writer.WritePropertyName("toolAliases");
+            JsonSerializer.Serialize(writer, value.ToolAliases, options);
+        }
+
+        if (value.KnowledgeAccess is not null)
+        {
+            writer.WritePropertyName("knowledgeAccess");
+            JsonSerializer.Serialize(writer, value.KnowledgeAccess, options);
+        }
+
         writer.WriteEndObject();
     }
 
@@ -126,6 +142,8 @@ internal sealed class WorkflowStepDefinitionJsonConverter : JsonConverter<Workfl
             "retryBackoffSeconds",
             "generationOptions",
             "model",
+            "toolAliases",
+            "knowledgeAccess",
         ];
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var property in root.EnumerateObject())
@@ -144,6 +162,38 @@ internal sealed class WorkflowStepDefinitionJsonConverter : JsonConverter<Workfl
                     $"Workflow-step property '{property.Name}' is duplicated.");
             }
         }
+    }
+
+    private static IReadOnlyList<string> ReadToolAliases(JsonElement root, JsonSerializerOptions options)
+    {
+        if (!root.TryGetProperty("toolAliases", out var element))
+        {
+            return [];
+        }
+
+        if (element.ValueKind != JsonValueKind.Array)
+        {
+            throw new JsonException("Workflow property 'toolAliases' must be an array.");
+        }
+
+        return element.Deserialize<string[]>(options)
+            ?? throw new JsonException("Workflow property 'toolAliases' cannot be null.");
+    }
+
+    private static KnowledgeAccessDefinition? ReadKnowledgeAccess(JsonElement root, JsonSerializerOptions options)
+    {
+        if (!root.TryGetProperty("knowledgeAccess", out var element))
+        {
+            return null;
+        }
+
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            throw new JsonException("Workflow property 'knowledgeAccess' must be an object.");
+        }
+
+        return element.Deserialize<KnowledgeAccessDefinition>(options)
+            ?? throw new JsonException("Workflow property 'knowledgeAccess' cannot be null.");
     }
 
     private static GenerationOptions? ReadGenerationOptions(
