@@ -9,6 +9,7 @@ namespace OD.MyLocalAgent.Core;
 public sealed class JsonTaskStore : ITaskStore, IDisposable
 {
     private readonly string _directoryPath;
+    private readonly TimeProvider _timeProvider;
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _taskGates =
         new(StringComparer.OrdinalIgnoreCase);
     private readonly FileSystemWatcher _watcher;
@@ -22,7 +23,7 @@ public sealed class JsonTaskStore : ITaskStore, IDisposable
     public JsonTaskStore(string directoryPath, TimeProvider? timeProvider = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(directoryPath);
-        ArgumentNullException.ThrowIfNull(timeProvider ?? TimeProvider.System);
+        _timeProvider = timeProvider ?? TimeProvider.System;
         _directoryPath = Path.GetFullPath(directoryPath);
         Directory.CreateDirectory(_directoryPath);
         _watcher = new FileSystemWatcher(_directoryPath, "*.json")
@@ -100,19 +101,41 @@ public sealed class JsonTaskStore : ITaskStore, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task SaveAsync(
+    public async Task<ScheduledTask> SaveAsync(
         ScheduledTask task,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(task);
         ThrowIfDisposed();
         ScheduledTaskValidator.Validate(task);
-        var json = ScheduledTaskSerializer.Serialize(task);
         var gate = GetGate(task.Id);
+        ScheduledTask persistedTask;
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             var destinationPath = GetPath(task.Id);
+            var now = _timeProvider.GetUtcNow();
+            if (File.Exists(destinationPath))
+            {
+                var existing = await ReadTaskAsync(destinationPath, cancellationToken)
+                    .ConfigureAwait(false);
+                var createdUtc = existing.CreatedUtc ?? now;
+                persistedTask = task with
+                {
+                    CreatedUtc = createdUtc,
+                    UpdatedUtc = Latest(now, createdUtc, existing.UpdatedUtc),
+                };
+            }
+            else
+            {
+                persistedTask = task with
+                {
+                    CreatedUtc = now,
+                    UpdatedUtc = now,
+                };
+            }
+
+            var json = ScheduledTaskSerializer.Serialize(persistedTask);
             var temporaryPath = destinationPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
             try
             {
@@ -122,6 +145,9 @@ public sealed class JsonTaskStore : ITaskStore, IDisposable
                     new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
                     cancellationToken).ConfigureAwait(false);
                 File.Move(temporaryPath, destinationPath, overwrite: true);
+                File.SetLastWriteTimeUtc(
+                    destinationPath,
+                    persistedTask.UpdatedUtc!.Value.UtcDateTime);
             }
             finally
             {
@@ -139,6 +165,7 @@ public sealed class JsonTaskStore : ITaskStore, IDisposable
         TasksChanged?.Invoke(
             this,
             new TaskStoreChangedEventArgs(task.Id, TaskStoreChangeKind.Saved));
+        return persistedTask;
     }
 
     /// <inheritdoc />
@@ -212,7 +239,26 @@ public sealed class JsonTaskStore : ITaskStore, IDisposable
                 $"Task file '{Path.GetFileName(path)}' contains id '{task.Id}'. File name and id must match.");
         }
 
-        return task;
+        var file = new FileInfo(path);
+        var fileCreatedUtc = new DateTimeOffset(file.CreationTimeUtc);
+        var fileUpdatedUtc = new DateTimeOffset(file.LastWriteTimeUtc);
+        var createdUtc = task.CreatedUtc ??
+            (fileCreatedUtc <= fileUpdatedUtc ? fileCreatedUtc : fileUpdatedUtc);
+        var updatedUtc = Latest(fileUpdatedUtc, createdUtc, task.UpdatedUtc);
+        return task with
+        {
+            CreatedUtc = createdUtc,
+            UpdatedUtc = updatedUtc,
+        };
+    }
+
+    private static DateTimeOffset Latest(
+        DateTimeOffset first,
+        DateTimeOffset second,
+        DateTimeOffset? third = null)
+    {
+        var latest = first >= second ? first : second;
+        return third is not null && third > latest ? third.Value : latest;
     }
 
     private SemaphoreSlim GetGate(string id) =>

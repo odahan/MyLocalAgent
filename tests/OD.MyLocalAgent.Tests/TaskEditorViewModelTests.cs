@@ -111,7 +111,8 @@ public sealed class TaskEditorViewModelTests
                         It.IsAny<CancellationToken>()))
                 .Callback<ScheduledTask, CancellationToken>(
                     (task, _) => savedTask = task)
-                .Returns(Task.CompletedTask);
+                .ReturnsAsync(
+                    (ScheduledTask task, CancellationToken _) => task);
             var scheduler = new Mock<ITaskSchedulerService>(MockBehavior.Strict);
             scheduler.Setup(
                     instance => instance.RegisterAsync(
@@ -206,6 +207,52 @@ public sealed class TaskEditorViewModelTests
                 ToolGroups.Http,
                 ToolGroups.Web);
         viewModel.IsDirty.Should().BeFalse();
+        store.VerifyAll();
+    }
+
+    /// <summary>
+    /// Verifies persisted timestamps are shown as local task details with exact UTC tooltips.
+    /// </summary>
+    [Fact]
+    public async Task ExistingTaskShowsCreationAndModificationDetails()
+    {
+        var createdUtc = new DateTimeOffset(2026, 8, 19, 8, 15, 0, TimeSpan.Zero);
+        var updatedUtc = createdUtc.AddHours(5);
+        var storedTask = new ScheduledTask
+        {
+            Id = "timestamp-details",
+            Name = "Timestamp details",
+            Schedule = "0 8 * * *",
+            Prompt = "Test",
+            CreatedUtc = createdUtc,
+            UpdatedUtc = updatedUtc,
+        };
+        var store = new Mock<ITaskStore>(MockBehavior.Strict);
+        store.Setup(
+                instance => instance.GetAsync(
+                    storedTask.Id,
+                    It.IsAny<CancellationToken>()))
+            .ReturnsAsync(storedTask);
+        var timeProvider = TimeProvider.System;
+        var viewModel = new TaskEditorViewModel(
+            store.Object,
+            Mock.Of<ITaskSchedulerService>(),
+            Mock.Of<IIncidentReporter>(),
+            Mock.Of<IDesktopInteractionService>(),
+            Mock.Of<IMessenger>(),
+            timeProvider);
+
+        viewModel.Open(storedTask.Id);
+        await (viewModel.LoadCommand.ExecutionTask ?? Task.CompletedTask);
+
+        viewModel.CreatedText.Should().Be(
+            TimeZoneInfo.ConvertTime(createdUtc, timeProvider.LocalTimeZone)
+                .ToString("g", System.Globalization.CultureInfo.CurrentCulture));
+        viewModel.LastModifiedText.Should().Be(
+            TimeZoneInfo.ConvertTime(updatedUtc, timeProvider.LocalTimeZone)
+                .ToString("g", System.Globalization.CultureInfo.CurrentCulture));
+        viewModel.CreatedUtcToolTip.Should().Be(createdUtc.ToString("O"));
+        viewModel.LastModifiedUtcToolTip.Should().Be(updatedUtc.ToString("O"));
         store.VerifyAll();
     }
 
@@ -457,7 +504,8 @@ public sealed class TaskEditorViewModelTests
                     It.IsAny<CancellationToken>()))
             .Callback<ScheduledTask, CancellationToken>(
                 (task, _) => saved = task)
-            .Returns(Task.CompletedTask);
+            .ReturnsAsync(
+                (ScheduledTask task, CancellationToken _) => task);
         var scheduler = new Mock<ITaskSchedulerService>(MockBehavior.Strict);
         scheduler.Setup(
                 instance => instance.RegisterAsync(

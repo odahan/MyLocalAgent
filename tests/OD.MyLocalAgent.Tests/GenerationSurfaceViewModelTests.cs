@@ -213,7 +213,8 @@ public sealed class GenerationSurfaceViewModelTests
                 instance => instance.SaveAsync(
                     It.Is<ScheduledTask>(task => task.Prompt == unsavedTemplate),
                     It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+            .ReturnsAsync(
+                (ScheduledTask task, CancellationToken _) => task);
         var scheduler = new Mock<ITaskSchedulerService>(MockBehavior.Strict);
         scheduler.Setup(
                 instance => instance.RegisterAsync(

@@ -29,6 +29,14 @@ public static partial class ScheduledTaskValidator
             throw new TaskValidationException("Task 'name' is required.");
         }
 
+        if (task.CreatedUtc is not null &&
+            task.UpdatedUtc is not null &&
+            task.CreatedUtc > task.UpdatedUtc)
+        {
+            throw new TaskValidationException(
+                "Task 'createdUtc' must not be later than 'updatedUtc'.");
+        }
+
         if (task.GenerationOptions is not null &&
             GenerationPolicyValidation.ValidateOverrides(task.GenerationOptions)
                 is { } generationError)

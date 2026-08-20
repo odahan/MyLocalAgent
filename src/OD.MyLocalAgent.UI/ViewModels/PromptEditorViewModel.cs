@@ -166,14 +166,14 @@ public sealed partial class PromptEditorViewModel : ObservableObject
         {
             var updated = _task with { Prompt = Prompt };
             ScheduledTaskValidator.Validate(updated);
-            await _taskStore
+            var persistedTask = await _taskStore
                 .SaveAsync(updated, cancellationToken)
                 .ConfigureAwait(true);
-            await SynchronizeRegistrationAsync(updated, cancellationToken)
+            await SynchronizeRegistrationAsync(persistedTask, cancellationToken)
                 .ConfigureAwait(true);
-            _task = updated;
+            _task = persistedTask;
             StatusText = "Prompt saved and scheduler registration synchronized.";
-            _messenger.Send(new TaskSavedMessage(updated.Id));
+            _messenger.Send(new TaskSavedMessage(persistedTask.Id));
             _messenger.Send(
                 new SnackbarNotificationMessage(
                     $"Prompt for '{updated.Name}' saved."));

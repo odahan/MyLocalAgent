@@ -46,6 +46,27 @@
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionTitleStyle}"
                                Text="Definition" />
+                    <Grid Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="18" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource CaptionTextStyle}"
+                                       Text="Created" />
+                            <TextBlock Margin="0,2,0,0"
+                                       Text="{Binding CreatedText}"
+                                       ToolTip="{Binding CreatedUtcToolTip}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Style="{StaticResource CaptionTextStyle}"
+                                       Text="Last modified" />
+                            <TextBlock Margin="0,2,0,0"
+                                       Text="{Binding LastModifiedText}"
+                                       ToolTip="{Binding LastModifiedUtcToolTip}" />
+                        </StackPanel>
+                    </Grid>
                     <Grid Margin="0,16,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />

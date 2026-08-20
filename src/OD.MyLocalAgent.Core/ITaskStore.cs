@@ -30,8 +30,8 @@ public interface ITaskStore
     /// </summary>
     /// <param name="task">The task to save.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
-    /// <returns>A task that represents the asynchronous operation.</returns>
-    Task SaveAsync(ScheduledTask task, CancellationToken cancellationToken);
+    /// <returns>The task as persisted, including store-owned timestamps.</returns>
+    Task<ScheduledTask> SaveAsync(ScheduledTask task, CancellationToken cancellationToken);
 
     /// <summary>
     /// Deletes a task.

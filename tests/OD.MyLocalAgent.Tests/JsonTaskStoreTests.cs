@@ -50,6 +50,67 @@ public sealed class JsonTaskStoreTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies the store assigns timestamps, preserves creation, and advances modification.
+    /// </summary>
+    [Fact]
+    public async Task SaveOwnsCreationAndModificationTimestamps()
+    {
+        var createdUtc = new DateTimeOffset(2026, 8, 20, 8, 0, 0, TimeSpan.Zero);
+        var updatedUtc = createdUtc.AddHours(2);
+        var timeProvider = new MutableTimeProvider(createdUtc);
+        using var store = new JsonTaskStore(_directoryPath, timeProvider);
+        var task = ScheduledTaskSerializer.Deserialize(ValidMixedWorkflowJson);
+
+        var created = await store.SaveAsync(task, CancellationToken.None);
+        timeProvider.UtcNow = updatedUtc;
+        var updated = await store.SaveAsync(
+            created with
+            {
+                Name = "Updated task",
+                CreatedUtc = createdUtc.AddYears(-1),
+                UpdatedUtc = createdUtc.AddYears(-1),
+            },
+            CancellationToken.None);
+        var loaded = await store.GetAsync(task.Id, CancellationToken.None);
+
+        created.CreatedUtc.Should().Be(createdUtc);
+        created.UpdatedUtc.Should().Be(createdUtc);
+        updated.CreatedUtc.Should().Be(createdUtc);
+        updated.UpdatedUtc.Should().Be(updatedUtc);
+        loaded.Should().NotBeNull();
+        loaded!.Id.Should().Be(updated.Id);
+        loaded.Name.Should().Be(updated.Name);
+        loaded.CreatedUtc.Should().Be(updated.CreatedUtc);
+        loaded.UpdatedUtc.Should().Be(updated.UpdatedUtc);
+    }
+
+    /// <summary>
+    /// Verifies legacy files receive effective dates and persist them on their next save.
+    /// </summary>
+    [Fact]
+    public async Task LegacyTaskTimestampsAreInferredAndPersistedOnSave()
+    {
+        Directory.CreateDirectory(_directoryPath);
+        var path = Path.Combine(_directoryPath, "mixed-task.json");
+        await File.WriteAllTextAsync(path, ValidMixedWorkflowJson);
+        var savedUtc = DateTimeOffset.UtcNow.AddDays(1);
+        using var store = new JsonTaskStore(
+            _directoryPath,
+            new MutableTimeProvider(savedUtc));
+
+        var legacy = await store.GetAsync("mixed-task", CancellationToken.None);
+        var persisted = await store.SaveAsync(legacy!, CancellationToken.None);
+        var json = await File.ReadAllTextAsync(path);
+
+        legacy.Should().NotBeNull();
+        legacy!.CreatedUtc.Should().NotBeNull();
+        legacy.UpdatedUtc.Should().NotBeNull();
+        persisted.CreatedUtc.Should().Be(legacy.CreatedUtc);
+        persisted.UpdatedUtc.Should().Be(savedUtc);
+        json.Should().Contain("\"createdUtc\"").And.Contain("\"updatedUtc\"");
+    }
+
+    /// <summary>
     /// Verifies invalid task JSON fails validation when loaded.
     /// </summary>
     [Fact]
@@ -294,4 +355,11 @@ public sealed class JsonTaskStoreTests : IDisposable
           "errorPolicy": "StopOnError"
         }
         """;
+
+    private sealed class MutableTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        public DateTimeOffset UtcNow { get; set; } = utcNow;
+
+        public override DateTimeOffset GetUtcNow() => UtcNow;
+    }
 }

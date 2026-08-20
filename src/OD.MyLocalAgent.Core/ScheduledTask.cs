@@ -19,6 +19,18 @@ public sealed record ScheduledTask
     public required string Name { get; init; }
 
     /// <summary>
+    /// Gets the UTC instant when the task was first persisted.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTimeOffset? CreatedUtc { get; init; }
+
+    /// <summary>
+    /// Gets the UTC instant when the persisted task definition last changed.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTimeOffset? UpdatedUtc { get; init; }
+
+    /// <summary>
     /// Gets the five-field cron schedule.
     /// </summary>
     public required string Schedule { get; init; }

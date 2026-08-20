@@ -525,8 +525,10 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
             },
             Enabled = false,
         };
-        await _taskStore.SaveAsync(task, cancellationToken).ConfigureAwait(true);
-        _messenger.Send(new EditTaskMessage(task.Id));
+        var persistedTask = await _taskStore
+            .SaveAsync(task, cancellationToken)
+            .ConfigureAwait(true);
+        _messenger.Send(new EditTaskMessage(persistedTask.Id));
     }
 
     [RelayCommand(

@@ -65,6 +65,18 @@ public sealed partial class TaskEditorViewModel :
     private string _editorTitle = "New task";
 
     [ObservableProperty]
+    private string _createdText = "Not saved yet";
+
+    [ObservableProperty]
+    private string _createdUtcToolTip = string.Empty;
+
+    [ObservableProperty]
+    private string _lastModifiedText = "Not saved yet";
+
+    [ObservableProperty]
+    private string _lastModifiedUtcToolTip = string.Empty;
+
+    [ObservableProperty]
     private string _id = string.Empty;
 
     [ObservableProperty]
@@ -390,6 +402,7 @@ public sealed partial class TaskEditorViewModel :
             _originalTaskId = task?.Id;
             ClearAssistedUndo();
             EditorTitle = task is null ? "New task" : $"Edit task · {task.Name}";
+            UpdateTimestampDisplay(task);
             Id = task?.Id ?? string.Empty;
             Name = task?.Name ?? string.Empty;
             Schedule = task?.Schedule ?? "0 7 * * *";
@@ -507,22 +520,23 @@ public sealed partial class TaskEditorViewModel :
                     $"Task id '{task.Id}' already exists.");
             }
 
-            await _taskStore
+            var persistedTask = await _taskStore
                 .SaveAsync(task, cancellationToken)
                 .ConfigureAwait(true);
-            await SynchronizeRegistrationAsync(task, cancellationToken)
+            await SynchronizeRegistrationAsync(persistedTask, cancellationToken)
                 .ConfigureAwait(true);
-            _originalTaskId = task.Id;
+            _originalTaskId = persistedTask.Id;
             ClearAssistedUndo();
-            Id = task.Id;
+            Id = persistedTask.Id;
             IsIdReadOnly = true;
-            EditorTitle = $"Edit task · {task.Name}";
+            EditorTitle = $"Edit task · {persistedTask.Name}";
+            UpdateTimestampDisplay(persistedTask);
             ValidationText = "Task saved and scheduler registration synchronized.";
             IsDirty = false;
-            _messenger.Send(new TaskSavedMessage(task.Id));
+            _messenger.Send(new TaskSavedMessage(persistedTask.Id));
             _messenger.Send(
                 new SnackbarNotificationMessage(
-                    $"Task '{task.Name}' saved."));
+                    $"Task '{persistedTask.Name}' saved."));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -548,6 +562,29 @@ public sealed partial class TaskEditorViewModel :
             IsBusy = false;
         }
     }
+
+    private void UpdateTimestampDisplay(ScheduledTask? task)
+    {
+        CreatedText = FormatTimestamp(task?.CreatedUtc);
+        CreatedUtcToolTip = FormatUtcTimestamp(task?.CreatedUtc);
+        LastModifiedText = FormatTimestamp(task?.UpdatedUtc);
+        LastModifiedUtcToolTip = FormatUtcTimestamp(task?.UpdatedUtc);
+    }
+
+    private string FormatTimestamp(DateTimeOffset? timestamp)
+    {
+        if (timestamp is null)
+        {
+            return "Not saved yet";
+        }
+
+        return TimeZoneInfo.ConvertTime(timestamp.Value, _timeProvider.LocalTimeZone)
+            .ToString("g", CultureInfo.CurrentCulture);
+    }
+
+    private static string FormatUtcTimestamp(DateTimeOffset? timestamp) =>
+        timestamp?.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture) ??
+        string.Empty;
 
     [RelayCommand(CanExecute = nameof(CanOpenPrompt))]
     private void OpenPrompt()

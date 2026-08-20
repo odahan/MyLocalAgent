@@ -680,6 +680,8 @@ A task is stored as one JSON object:
 {
   "id": "daily-mail-summary",
   "name": "Daily mail summary",
+  "createdUtc": "2026-08-20T08:00:00+00:00",
+  "updatedUtc": "2026-08-20T08:00:00+00:00",
   "schedule": "0 7 * * *",
   "prompt": "Summarize today's important messages.",
   "tools": ["gmail", "filesystem"],
@@ -695,6 +697,11 @@ A task is stored as one JSON object:
 
 Task ids match `[a-z0-9-]+`. Cron is interpreted in the Windows local time zone. Tool groups
 are `gmail`, `calendar`, `dropbox`, `filesystem`, `http`, and `web`.
+
+`createdUtc` and `updatedUtc` are maintained by the task store and displayed in local time in the
+task editor. Saving an existing task preserves its creation time and advances its modification
+time. Legacy task files without these properties remain valid: file timestamps provide their
+initial best-effort values, which are written into the JSON on the next save.
 
 `fileSystemAccess` authorizes absolute directories for this task. An empty array grants no
 absolute paths; relative paths continue beneath `FileSystem:RootPath`. Rules use

@@ -301,12 +301,12 @@ public sealed partial class TasksViewModel :
             }
 
             var updated = task with { Enabled = !task.Enabled };
-            await _taskStore
+            var persistedTask = await _taskStore
                 .SaveAsync(updated, cancellationToken)
                 .ConfigureAwait(true);
-            await SynchronizeRegistrationAsync(updated, cancellationToken)
+            await SynchronizeRegistrationAsync(persistedTask, cancellationToken)
                 .ConfigureAwait(true);
-            _messenger.Send(new TaskSavedMessage(updated.Id));
+            _messenger.Send(new TaskSavedMessage(persistedTask.Id));
             _messenger.Send(
                 new SnackbarNotificationMessage(
                     updated.Enabled
