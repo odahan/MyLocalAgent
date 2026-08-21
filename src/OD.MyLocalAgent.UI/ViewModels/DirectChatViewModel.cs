@@ -1177,6 +1177,7 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
     private async Task CreateAndSelectConversationAsync(
         CancellationToken cancellationToken)
     {
+        ClearTransientResponseState();
         var conversation = await _store.CreateConversationAsync(
                 "New chat",
                 cancellationToken)
@@ -1219,6 +1220,7 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
 
     private async Task LoadSelectedConversationAsync(CancellationToken cancellationToken)
     {
+        ClearTransientResponseState();
         var selected = SelectedConversation;
         if (selected is null)
         {
@@ -1247,6 +1249,11 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
         HasOlderMessages = messages.Count == MessagePageSize;
         LoadAgentProfile(conversation);
         ConvertToTaskCommand.NotifyCanExecuteChanged();
+    }
+
+    private void ClearTransientResponseState()
+    {
+        ReasoningText = string.Empty;
     }
 
     private async Task<IReadOnlyList<DirectChatMessage>> GetAllMessagesAsync(

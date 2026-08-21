@@ -207,6 +207,35 @@ public sealed class DirectChatViewModelTests
         persisted[1].Content.Should().NotContain("Private reasoning");
     }
 
+    /// <summary>Verifies transient reasoning does not remain visible after changing conversations.</summary>
+    [Fact]
+    public async Task NewConversationClearsVisibleReasoning()
+    {
+        var chatClient = new StubChatClient("unused")
+        {
+            StreamingUpdates =
+            [
+                new Microsoft.Extensions.AI.ChatResponseUpdate
+                {
+                    Role = Microsoft.Extensions.AI.ChatRole.Assistant,
+                    Contents = [new Microsoft.Extensions.AI.TextReasoningContent("Private reasoning")],
+                },
+                new Microsoft.Extensions.AI.ChatResponseUpdate(
+                    Microsoft.Extensions.AI.ChatRole.Assistant,
+                    "Visible answer"),
+            ],
+        };
+        await using var context = await CreateViewModelAsync(
+            new StubLlmClientService(chatClient, "Stub"));
+        context.ViewModel.DraftMessage = "Question";
+
+        await context.ViewModel.SendCommand.ExecuteAsync(null);
+        await context.ViewModel.NewConversationCommand.ExecuteAsync(null);
+
+        context.ViewModel.ReasoningText.Should().BeEmpty();
+        context.ViewModel.HasReasoning.Should().BeFalse();
+    }
+
     /// <summary>Verifies image generation projects and persists a cloud media response.</summary>
     [Fact]
     public async Task GenerateImagePersistsAndProjectsMedia()
