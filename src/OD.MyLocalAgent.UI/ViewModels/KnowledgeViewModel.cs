@@ -13,16 +13,19 @@ public sealed partial class KnowledgeViewModel : ObservableObject, IActivatableP
     private readonly IKnowledgeLibraryService _library;
     private readonly IKnowledgeSearchService _search;
     private readonly IDesktopInteractionService _desktop;
+    private readonly IKnowledgeMetadataEditorDialogService? _metadataEditor;
 
     /// <summary>Initializes the Knowledge page model.</summary>
     public KnowledgeViewModel(
         IKnowledgeLibraryService library,
         IKnowledgeSearchService search,
-        IDesktopInteractionService desktop)
+        IDesktopInteractionService desktop,
+        IKnowledgeMetadataEditorDialogService? metadataEditor = null)
     {
         _library = library;
         _search = search;
         _desktop = desktop;
+        _metadataEditor = metadataEditor;
     }
 
     /// <summary>Gets imported documents.</summary>
@@ -31,26 +34,35 @@ public sealed partial class KnowledgeViewModel : ObservableObject, IActivatableP
     public ObservableCollection<KnowledgeSearchResult> SearchResults { get; } = [];
     /// <summary>Gets bounded active chunk previews for the selected document.</summary>
     public ObservableCollection<KnowledgeChunkPreview> ChunkPreviews { get; } = [];
+    /// <summary>Gets the normalized tags already used by documents in the library.</summary>
+    public ObservableCollection<string> ExistingTags { get; } = [];
 
     [ObservableProperty] private KnowledgeDocument? _selectedDocument;
     [ObservableProperty] private string _importName = string.Empty;
     [ObservableProperty] private string _importDescription = string.Empty;
     [ObservableProperty] private string _importTags = string.Empty;
     [ObservableProperty] private string _searchQuery = string.Empty;
-    [ObservableProperty] private string _searchTags = string.Empty;
-    [ObservableProperty] private string _statusText = "Knowledge has not been loaded.";
+    [ObservableProperty] private string? _searchTag1;
+    [ObservableProperty] private string? _searchTag2;
+    [ObservableProperty] private string? _searchTag3;
+    [ObservableProperty] private string? _searchTag4;
+    [ObservableProperty] private string _searchStatusText = string.Empty;
+    [ObservableProperty] private string _documentsStatusText = "Knowledge has not been loaded.";
+    [ObservableProperty] private string _documentProgressText = string.Empty;
+    [ObservableProperty] private string _importStatusText = string.Empty;
+    [ObservableProperty] private string _previewStatusText = string.Empty;
+    [ObservableProperty] private string _maintenanceStatusText = string.Empty;
+    [ObservableProperty] private string _maintenanceProgressText = string.Empty;
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private bool _requiresReindex;
     [ObservableProperty] private string _indexContractText = "The Knowledge index contract has not been loaded.";
-    [ObservableProperty] private string _progressText = string.Empty;
-    [ObservableProperty] private string _documentFilter = string.Empty;
+    [ObservableProperty] private string? _documentFilterTag;
+    [ObservableProperty] private string? _selectedExistingTag;
 
     /// <summary>Gets documents matching the current name or tag filter.</summary>
-    public IEnumerable<KnowledgeDocument> FilteredDocuments => string.IsNullOrWhiteSpace(DocumentFilter)
+    public IEnumerable<KnowledgeDocument> FilteredDocuments => string.IsNullOrWhiteSpace(DocumentFilterTag)
         ? Documents
-        : Documents.Where(document =>
-            document.Name.Contains(DocumentFilter.Trim(), StringComparison.OrdinalIgnoreCase) ||
-            document.Tags.Any(tag => tag.Contains(DocumentFilter.Trim(), StringComparison.OrdinalIgnoreCase)));
+        : Documents.Where(document => document.Tags.Contains(DocumentFilterTag, StringComparer.OrdinalIgnoreCase));
 
     /// <inheritdoc />
     public void Activate() => ReloadCommand.Execute(null);
@@ -67,13 +79,14 @@ public sealed partial class KnowledgeViewModel : ObservableObject, IActivatableP
             {
                 Documents.Add(document);
             }
+            RefreshExistingTags();
             OnPropertyChanged(nameof(FilteredDocuments));
             await RefreshIndexStatusAsync(cancellationToken).ConfigureAwait(true);
-            StatusText = $"{Documents.Count} Knowledge document(s).";
+            DocumentsStatusText = $"{Documents.Count} Knowledge document(s).";
         }
         catch (Exception exception)
         {
-            StatusText = exception.Message;
+            DocumentsStatusText = exception.Message;
         }
         finally
         {
@@ -94,7 +107,7 @@ public sealed partial class KnowledgeViewModel : ObservableObject, IActivatableP
         var tags = ParseTags(ImportTags);
         if (tags.Count == 0)
         {
-            StatusText = "Enter at least one authorization tag before importing.";
+            ImportStatusText = "Enter at least one authorization tag before importing.";
             return;
         }
         IsBusy = true;
@@ -114,17 +127,21 @@ public sealed partial class KnowledgeViewModel : ObservableObject, IActivatableP
             }
 
             Documents.Insert(0, document);
+            RefreshExistingTags();
             OnPropertyChanged(nameof(FilteredDocuments));
             SelectedDocument = document;
-            StatusText = "Document imported and indexed.";
+            ImportName = string.Empty;
+            ImportDescription = string.Empty;
+            ImportTags = string.Empty;
+            ImportStatusText = "Document imported and indexed.";
         }
         catch (KnowledgeDuplicateException duplicate)
         {
-            StatusText = $"Import canceled. Duplicate content already exists as '{duplicate.ExistingDocumentName}'.";
+            ImportStatusText = $"Import canceled. Duplicate content already exists as '{duplicate.ExistingDocumentName}'.";
         }
         catch (Exception exception)
         {
-            StatusText = exception.Message;
+            ImportStatusText = exception.Message;
         }
         finally
         {
@@ -149,14 +166,16 @@ public sealed partial class KnowledgeViewModel : ObservableObject, IActivatableP
             if (await _library.DeleteAsync(document.Id, cancellationToken).ConfigureAwait(true))
             {
                 Documents.Remove(document);
+                RefreshExistingTags();
                 OnPropertyChanged(nameof(FilteredDocuments));
                 SelectedDocument = null;
-                StatusText = "Knowledge document deleted.";
+                ResetSearch();
+                DocumentsStatusText = "Knowledge document deleted.";
             }
         }
         catch (Exception exception)
         {
-            StatusText = exception.Message;
+            DocumentsStatusText = exception.Message;
         }
         finally
         {
@@ -193,15 +212,15 @@ public sealed partial class KnowledgeViewModel : ObservableObject, IActivatableP
             var replacement = await _library.ReplaceAsync(document.Id, path, cancellationToken).ConfigureAwait(true);
             ReplaceDocument(document, replacement);
             SelectedDocument = replacement;
-            StatusText = "Document content replaced and indexed.";
+            DocumentsStatusText = "Document content replaced and indexed.";
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            StatusText = "Document replacement was canceled.";
+            DocumentsStatusText = "Document replacement was canceled.";
         }
         catch (Exception exception)
         {
-            StatusText = exception.Message;
+            DocumentsStatusText = exception.Message;
         }
         finally
         {
@@ -210,7 +229,7 @@ public sealed partial class KnowledgeViewModel : ObservableObject, IActivatableP
     }
 
     [RelayCommand]
-    private async Task ApplyDetailsAsync(CancellationToken cancellationToken)
+    private async Task EditMetadataAsync(CancellationToken cancellationToken)
     {
         var document = SelectedDocument;
         if (document is null)
@@ -218,23 +237,39 @@ public sealed partial class KnowledgeViewModel : ObservableObject, IActivatableP
             return;
         }
 
-        var tags = ParseTags(ImportTags);
-        if (tags.Count == 0)
+        if (_metadataEditor is null)
         {
-            StatusText = "Enter at least one authorization tag.";
+            DocumentsStatusText = "The document metadata editor is unavailable.";
             return;
         }
+
+        var result = _metadataEditor.Show(
+            new KnowledgeMetadataEditorRequest(
+                document.Name,
+                document.Description,
+                document.Tags));
+        if (result is null)
+        {
+            return;
+        }
+
         IsBusy = true;
         try
         {
-            var updated = await _library.UpdateDetailsAsync(document.Id, ImportName, ImportDescription, tags, cancellationToken).ConfigureAwait(true);
+            var updated = await _library.UpdateDetailsAsync(
+                document.Id,
+                result.Name,
+                result.Description,
+                result.Tags,
+                cancellationToken).ConfigureAwait(true);
             ReplaceDocument(document, updated);
+            RefreshExistingTags();
             SelectedDocument = updated;
-            StatusText = "Document details updated without re-embedding.";
+            DocumentsStatusText = "Document details updated without re-embedding.";
         }
         catch (Exception exception)
         {
-            StatusText = exception.Message;
+            DocumentsStatusText = exception.Message;
         }
         finally
         {
@@ -253,20 +288,20 @@ public sealed partial class KnowledgeViewModel : ObservableObject, IActivatableP
         IsBusy = true;
         try
         {
-            var progress = new Progress<KnowledgeIndexProgress>(UpdateProgress);
+            var progress = new Progress<KnowledgeIndexProgress>(UpdateDocumentProgress);
             var updated = await _library.ReindexDocumentAsync(document.Id, progress, cancellationToken).ConfigureAwait(true);
             ReplaceDocument(document, updated);
             SelectedDocument = updated;
             await RefreshIndexStatusAsync(cancellationToken).ConfigureAwait(true);
-            StatusText = "Document reindexed.";
+            DocumentsStatusText = "Document reindexed.";
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            StatusText = "Document reindex was canceled.";
+            DocumentsStatusText = "Document reindex was canceled.";
         }
         catch (Exception exception)
         {
-            StatusText = exception.Message;
+            DocumentsStatusText = exception.Message;
         }
         finally
         {
@@ -279,7 +314,7 @@ public sealed partial class KnowledgeViewModel : ObservableObject, IActivatableP
     {
         if (Documents.Count == 0)
         {
-            StatusText = "There are no Knowledge documents to reindex.";
+            MaintenanceStatusText = "There are no Knowledge documents to reindex.";
             return;
         }
 
@@ -292,17 +327,17 @@ public sealed partial class KnowledgeViewModel : ObservableObject, IActivatableP
         IsBusy = true;
         try
         {
-            await _library.ReindexLibraryAsync(new Progress<KnowledgeIndexProgress>(UpdateProgress), cancellationToken).ConfigureAwait(true);
+            await _library.ReindexLibraryAsync(new Progress<KnowledgeIndexProgress>(UpdateMaintenanceProgress), cancellationToken).ConfigureAwait(true);
             await ReloadAsync(cancellationToken).ConfigureAwait(true);
-            StatusText = "Knowledge library reindexed.";
+            MaintenanceStatusText = "Knowledge library reindexed.";
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            StatusText = "Library reindex was canceled; the previous active index was preserved.";
+            MaintenanceStatusText = "Library reindex was canceled; the previous active index was preserved.";
         }
         catch (Exception exception)
         {
-            StatusText = exception.Message;
+            MaintenanceStatusText = exception.Message;
         }
         finally
         {
@@ -313,10 +348,12 @@ public sealed partial class KnowledgeViewModel : ObservableObject, IActivatableP
     [RelayCommand]
     private async Task TestSearchAsync(CancellationToken cancellationToken)
     {
-        var tags = ParseTags(SearchTags);
+        SearchResults.Clear();
+        SearchStatusText = string.Empty;
+        var tags = GetSelectedSearchTags();
         if (tags.Count == 0)
         {
-            StatusText = "Select at least one diagnostic search tag.";
+            SearchStatusText = "Select at least one diagnostic search tag.";
             return;
         }
 
@@ -335,16 +372,55 @@ public sealed partial class KnowledgeViewModel : ObservableObject, IActivatableP
                 SearchResults.Add(item);
             }
 
-            StatusText = $"Search returned {result.ResultCount} result(s).";
+            SearchStatusText = $"Search returned {result.ResultCount} result(s).";
         }
         catch (Exception exception)
         {
-            StatusText = exception.Message;
+            SearchStatusText = exception.Message;
         }
         finally
         {
             IsBusy = false;
         }
+    }
+
+    [RelayCommand]
+    private void ClearSearchTags()
+    {
+        SearchTag1 = null;
+        SearchTag2 = null;
+        SearchTag3 = null;
+        SearchTag4 = null;
+    }
+
+    [RelayCommand]
+    private void ClearDocumentFilter() => DocumentFilterTag = null;
+
+    private void ResetSearch()
+    {
+        SearchQuery = string.Empty;
+        ClearSearchTags();
+        SearchResults.Clear();
+        SearchStatusText = string.Empty;
+    }
+
+    [RelayCommand]
+    private void AddSelectedExistingTag()
+    {
+        var selected = SelectedExistingTag;
+        if (string.IsNullOrWhiteSpace(selected))
+        {
+            return;
+        }
+
+        var tags = ParseTags(ImportTags).ToList();
+        if (tags.Contains(selected, StringComparer.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        tags.Add(selected);
+        ImportTags = string.Join(", ", tags);
     }
 
     [RelayCommand]
@@ -365,11 +441,11 @@ public sealed partial class KnowledgeViewModel : ObservableObject, IActivatableP
             {
                 ChunkPreviews.Add(preview);
             }
-            StatusText = $"Loaded {previews.Count} bounded chunk preview(s).";
+            PreviewStatusText = $"Loaded {previews.Count} bounded chunk preview(s).";
         }
         catch (Exception exception)
         {
-            StatusText = exception.Message;
+            PreviewStatusText = exception.Message;
         }
         finally
         {
@@ -379,19 +455,11 @@ public sealed partial class KnowledgeViewModel : ObservableObject, IActivatableP
 
     private static IReadOnlyList<string> ParseTags(string value) => string.IsNullOrWhiteSpace(value) ? [] : value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
 
-    partial void OnDocumentFilterChanged(string value) => OnPropertyChanged(nameof(FilteredDocuments));
+    partial void OnDocumentFilterTagChanged(string? value) => OnPropertyChanged(nameof(FilteredDocuments));
 
     partial void OnSelectedDocumentChanged(KnowledgeDocument? value)
     {
         ChunkPreviews.Clear();
-        if (value is null)
-        {
-            return;
-        }
-
-        ImportName = value.Name;
-        ImportDescription = value.Description;
-        ImportTags = string.Join(", ", value.Tags);
     }
 
     private async Task RefreshIndexStatusAsync(CancellationToken cancellationToken)
@@ -405,7 +473,11 @@ public sealed partial class KnowledgeViewModel : ObservableObject, IActivatableP
                 : $"Active index: {status.IndexedContract}.";
     }
 
-    private void UpdateProgress(KnowledgeIndexProgress value) => ProgressText = $"{value.Phase}: {value.CompletedDocuments}/{value.TotalDocuments} documents, {value.CompletedEmbeddings}/{value.TotalEmbeddings} embeddings";
+    private void UpdateDocumentProgress(KnowledgeIndexProgress value) => DocumentProgressText = FormatProgress(value);
+
+    private void UpdateMaintenanceProgress(KnowledgeIndexProgress value) => MaintenanceProgressText = FormatProgress(value);
+
+    private static string FormatProgress(KnowledgeIndexProgress value) => $"{value.Phase}: {value.CompletedDocuments}/{value.TotalDocuments} documents, {value.CompletedEmbeddings}/{value.TotalEmbeddings} embeddings";
 
     private void ReplaceDocument(KnowledgeDocument previous, KnowledgeDocument replacement)
     {
@@ -416,4 +488,43 @@ public sealed partial class KnowledgeViewModel : ObservableObject, IActivatableP
         }
         OnPropertyChanged(nameof(FilteredDocuments));
     }
+
+    private void RefreshExistingTags()
+    {
+        var selected = SelectedExistingTag;
+        var documentFilterTag = DocumentFilterTag;
+        var searchTag1 = SearchTag1;
+        var searchTag2 = SearchTag2;
+        var searchTag3 = SearchTag3;
+        var searchTag4 = SearchTag4;
+        ExistingTags.Clear();
+        foreach (var tag in Documents
+                     .SelectMany(static document => document.Tags)
+                     .Distinct(StringComparer.OrdinalIgnoreCase)
+                     .Order(StringComparer.OrdinalIgnoreCase))
+        {
+            ExistingTags.Add(tag);
+        }
+
+        SelectedExistingTag = selected is not null && ExistingTags.Contains(selected, StringComparer.OrdinalIgnoreCase)
+            ? ExistingTags.First(tag => string.Equals(tag, selected, StringComparison.OrdinalIgnoreCase))
+            : ExistingTags.FirstOrDefault();
+        SearchTag1 = ResolveExistingTag(searchTag1);
+        SearchTag2 = ResolveExistingTag(searchTag2);
+        SearchTag3 = ResolveExistingTag(searchTag3);
+        SearchTag4 = ResolveExistingTag(searchTag4);
+        DocumentFilterTag = ResolveExistingTag(documentFilterTag);
+    }
+
+    private IReadOnlyList<string> GetSelectedSearchTags() =>
+        new[] { SearchTag1, SearchTag2, SearchTag3, SearchTag4 }
+            .Where(static tag => !string.IsNullOrWhiteSpace(tag))
+            .Select(static tag => tag!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+    private string? ResolveExistingTag(string? tag) =>
+        tag is not null && ExistingTags.Contains(tag, StringComparer.OrdinalIgnoreCase)
+            ? ExistingTags.First(existing => string.Equals(existing, tag, StringComparison.OrdinalIgnoreCase))
+            : null;
 }

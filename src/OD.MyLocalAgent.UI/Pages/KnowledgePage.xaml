@@ -1,90 +1,440 @@
 <UserControl x:Class="OD.MyLocalAgent.UI.Pages.KnowledgePage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <Grid Margin="24">
-        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <Grid Margin="12,8,12,8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
         <StackPanel>
-            <TextBlock FontSize="28" FontWeight="SemiBold" Text="Knowledge"/>
-            <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Text="Imported files are copied into private application storage. TXT, Markdown, DOCX, and text PDF are supported; OCR is not."/>
+            <TextBlock FontSize="28"
+                       FontWeight="SemiBold"
+                       Text="Knowledge" />
+            <TextBlock Margin="0,6,0,0"
+                       Text="Imported files are copied into private application storage. TXT, Markdown, DOCX, and text PDF are supported; OCR is not."
+                       TextWrapping="Wrap" />
         </StackPanel>
-        <Border Grid.Row="1" Margin="0,14,0,0" Padding="12" BorderThickness="1" CornerRadius="6">
-            <Border.Style>
-                <Style TargetType="Border">
-                    <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}"/>
-                    <Style.Triggers><DataTrigger Binding="{Binding RequiresReindex}" Value="True"><Setter Property="BorderBrush" Value="{DynamicResource WarningBrush}"/></DataTrigger></Style.Triggers>
-                </Style>
-            </Border.Style>
-            <DockPanel>
-                <StackPanel DockPanel.Dock="Right" Margin="12,0,0,0" Orientation="Horizontal">
-                    <Button Command="{Binding ReindexLibraryCommand}" Content="Reindex library"/>
-                    <Button Margin="8,0,0,0" Command="{Binding ReindexLibraryCancelCommand}" Content="Cancel reindex"/>
-                </StackPanel>
-                <TextBlock Text="{Binding IndexContractText}" TextWrapping="Wrap" VerticalAlignment="Center"/>
-            </DockPanel>
-        </Border>
-        <Grid Grid.Row="2" Margin="0,16,0,12">
-            <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-            <TextBox Margin="0,0,8,0" Text="{Binding ImportName,UpdateSourceTrigger=PropertyChanged}" ToolTip="Document name"/>
-            <TextBox Grid.Column="1" Margin="0,0,8,0" Text="{Binding ImportDescription,UpdateSourceTrigger=PropertyChanged}" ToolTip="Description"/>
-            <TextBox Grid.Column="2" Margin="0,0,8,0" Text="{Binding ImportTags,UpdateSourceTrigger=PropertyChanged}" ToolTip="Comma-separated authorization tags"/>
-            <TextBox Grid.Column="3" Margin="0,0,8,0" Text="{Binding DocumentFilter,UpdateSourceTrigger=PropertyChanged}" ToolTip="Filter documents by name or tag"/>
-            <StackPanel Grid.Column="4" Orientation="Horizontal">
-                <Button Command="{Binding ImportCommand}" Content="Import document" AutomationProperties.Name="Import Knowledge document"/>
-                <Button Margin="8,0,0,0" Command="{Binding ImportCancelCommand}" Content="Cancel import" AutomationProperties.Name="Cancel Knowledge import"/>
-            </StackPanel>
-        </Grid>
-        <Grid Grid.Row="3">
-            <Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="3*"/></Grid.ColumnDefinitions>
-            <DockPanel Margin="0,0,12,0">
-                <WrapPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
-                    <Button Margin="0,0,8,8" Command="{Binding ApplyDetailsCommand}" Content="Apply details"/>
-                    <Button Margin="0,0,8,8" Command="{Binding ReplaceCommand}" Content="Replace content"/>
-                    <Button Margin="0,0,8,8" Command="{Binding ReplaceCancelCommand}" Content="Cancel replace"/>
-                    <Button Margin="0,0,8,8" Command="{Binding ReindexDocumentCommand}" Content="Reindex document"/>
-                    <Button Margin="0,0,8,8" Command="{Binding ReindexDocumentCancelCommand}" Content="Cancel reindex"/>
-                    <Button Margin="0,0,8,8" Command="{Binding DeleteCommand}" Content="Delete"/>
-                </WrapPanel>
-                <DataGrid ItemsSource="{Binding FilteredDocuments}" SelectedItem="{Binding SelectedDocument}" AutoGenerateColumns="False" IsReadOnly="True" AutomationProperties.Name="Knowledge documents">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*"/>
-                        <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
-                        <DataGridTextColumn Header="Tags" Binding="{Binding Tags}" Width="*"/>
-                        <DataGridTextColumn Header="Original file" Binding="{Binding OriginalFileName}" Width="*"/>
-                        <DataGridTextColumn Header="Type" Binding="{Binding MediaType}"/>
-                        <DataGridTextColumn Header="Bytes" Binding="{Binding SizeBytes}"/>
-                        <DataGridTextColumn Header="Characters" Binding="{Binding CharacterCount}"/>
-                        <DataGridTextColumn Header="Chunks" Binding="{Binding ChunkCount}"/>
-                        <DataGridTextColumn Header="Pages" Binding="{Binding PageCount}"/>
-                        <DataGridTextColumn Header="Status" Binding="{Binding Status}"/>
-                        <DataGridTextColumn Header="Updated" Binding="{Binding UpdatedUtc}" Width="Auto"/>
-                    </DataGrid.Columns>
-                </DataGrid>
-            </DockPanel>
-            <TabControl Grid.Column="1">
-                <TabItem Header="Test search">
-                    <DockPanel Margin="8">
-                        <StackPanel DockPanel.Dock="Top">
-                            <TextBox Text="{Binding SearchQuery,UpdateSourceTrigger=PropertyChanged}" ToolTip="Semantic query"/>
-                            <TextBox Margin="0,8,0,0" Text="{Binding SearchTags,UpdateSourceTrigger=PropertyChanged}" ToolTip="Comma-separated diagnostic tags"/>
-                            <Button Margin="0,8,0,8" Command="{Binding TestSearchCommand}" Content="Test search" HorizontalAlignment="Left" AutomationProperties.Name="Test Knowledge search"/>
+
+        <TabControl Grid.Row="1"
+                    Margin="0,10,0,0"
+                    SelectedIndex="0">
+            <TabItem Header="Documents">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Margin="0,0,10,0"
+                                   FontWeight="SemiBold"
+                                   Text="Filter list"
+                                   VerticalAlignment="Center" />
+                        <ComboBox Width="280"
+                                  Height="38"
+                                  AutomationProperties.Name="Filter document list by tag"
+                                  IsTextSearchEnabled="True"
+                                  ItemsSource="{Binding ExistingTags}"
+                                  SelectedItem="{Binding DocumentFilterTag}"
+                                  ToolTip="Show only documents that have the selected authorization tag" />
+                        <Button Margin="8,0,0,0"
+                                Command="{Binding ClearDocumentFilterCommand}"
+                                Content="Clear filter" />
+                        <TextBlock Margin="12,0,0,0"
+                                   Foreground="{DynamicResource MutedTextBrush}"
+                                   Text="Select one existing tag; this only changes the displayed list."
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <DataGrid Grid.Row="1"
+                              Margin="0,14,0,0"
+                              AutoGenerateColumns="False"
+                              AutomationProperties.Name="Knowledge documents"
+                              IsReadOnly="True"
+                              ItemsSource="{Binding FilteredDocuments}"
+                              RowHeight="34"
+                              SelectedItem="{Binding SelectedDocument}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="2*" />
+                            <DataGridTextColumn Header="Original file" Binding="{Binding OriginalFileName}" Width="3*" />
+                            <DataGridTextColumn Header="Bytes" Binding="{Binding SizeBytes}" />
+                            <DataGridTextColumn Header="Characters" Binding="{Binding CharacterCount}" />
+                            <DataGridTextColumn Header="Chunks" Binding="{Binding ChunkCount}" />
+                            <DataGridTextColumn Header="Pages" Binding="{Binding PageCount}" />
+                            <DataGridTextColumn Header="Status" Binding="{Binding Status}" />
+                            <DataGridTextColumn Header="Updated" Binding="{Binding UpdatedUtc}" Width="Auto" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <Border Grid.Row="2"
+                            Margin="0,10,0,0"
+                            Padding="10"
+                            BorderBrush="{DynamicResource DividerBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6">
+                        <StackPanel>
+                            <TextBlock FontWeight="SemiBold"
+                                       Text="Selected document details" />
+                            <UniformGrid Margin="0,8,0,0" Columns="4">
+                                <StackPanel Margin="0,0,12,6">
+                                    <TextBlock Foreground="{DynamicResource MutedTextBrush}" Text="Name" />
+                                    <TextBlock FontWeight="SemiBold" Text="{Binding SelectedDocument.Name}" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,12,6">
+                                    <TextBlock Foreground="{DynamicResource MutedTextBrush}" Text="Description" />
+                                    <TextBlock Text="{Binding SelectedDocument.Description}" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,12,6">
+                                    <TextBlock Foreground="{DynamicResource MutedTextBrush}" Text="Authorization tags" />
+                                    <ItemsControl ItemsSource="{Binding SelectedDocument.Tags}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Margin="0,0,8,0"
+                                                           FontWeight="SemiBold"
+                                                           Text="{Binding}" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                                <StackPanel Margin="0,0,0,6">
+                                    <TextBlock Foreground="{DynamicResource MutedTextBrush}" Text="Original file" />
+                                    <TextBlock Text="{Binding SelectedDocument.OriginalFileName}" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,12,0">
+                                    <TextBlock Foreground="{DynamicResource MutedTextBrush}" Text="Type" />
+                                    <TextBlock Text="{Binding SelectedDocument.MediaType}" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,12,0">
+                                    <TextBlock Foreground="{DynamicResource MutedTextBrush}" Text="Indexed content" />
+                                    <TextBlock>
+                                        <Run Text="{Binding SelectedDocument.CharacterCount,Mode=OneWay}" />
+                                        <Run Text=" characters · " />
+                                        <Run Text="{Binding SelectedDocument.ChunkCount,Mode=OneWay}" />
+                                        <Run Text=" chunks" />
+                                    </TextBlock>
+                                </StackPanel>
+                                <StackPanel Margin="0,0,12,0">
+                                    <TextBlock Foreground="{DynamicResource MutedTextBrush}" Text="Status" />
+                                    <TextBlock Text="{Binding SelectedDocument.Status}" />
+                                </StackPanel>
+                                <StackPanel>
+                                    <TextBlock Foreground="{DynamicResource MutedTextBrush}" Text="Updated" />
+                                    <TextBlock Text="{Binding SelectedDocument.UpdatedUtc}" />
+                                </StackPanel>
+                            </UniformGrid>
                         </StackPanel>
-                        <ListBox ItemsSource="{Binding SearchResults}"><ListBox.ItemTemplate><DataTemplate><StackPanel Margin="4"><TextBlock FontWeight="SemiBold" Text="{Binding Citation}"/><TextBlock TextWrapping="Wrap" Text="{Binding Text}"/></StackPanel></DataTemplate></ListBox.ItemTemplate></ListBox>
-                    </DockPanel>
-                </TabItem>
-                <TabItem Header="Chunk preview">
-                    <DockPanel Margin="8">
-                        <Button DockPanel.Dock="Top" Margin="0,0,0,8" HorizontalAlignment="Left" Command="{Binding LoadChunkPreviewCommand}" Content="Load selected document preview"/>
-                        <ListBox ItemsSource="{Binding ChunkPreviews}">
-                            <ListBox.ItemTemplate><DataTemplate><StackPanel Margin="4"><TextBlock FontWeight="SemiBold" Text="{Binding Ordinal,StringFormat=Chunk {0}}"/><TextBlock Foreground="{DynamicResource MutedTextBrush}" Text="{Binding PageNumber,StringFormat=Page {0}}"/><TextBlock Foreground="{DynamicResource MutedTextBrush}" Text="{Binding EstimatedTokens,StringFormat={}{0} estimated tokens}"/><TextBlock TextWrapping="Wrap" Text="{Binding Text}"/></StackPanel></DataTemplate></ListBox.ItemTemplate>
-                        </ListBox>
-                    </DockPanel>
-                </TabItem>
-            </TabControl>
-        </Grid>
-        <StackPanel Grid.Row="4" Margin="0,12,0,0">
-            <ProgressBar Height="3" IsIndeterminate="True" Visibility="{Binding IsBusy,Converter={StaticResource BooleanToVisibilityConverter}}"/>
-            <TextBlock Margin="0,6,0,0" Text="{Binding ProgressText}" TextWrapping="Wrap"/>
-            <TextBlock Margin="0,4,0,0" Text="{Binding StatusText}" TextWrapping="Wrap"/>
-        </StackPanel>
+                    </Border>
+
+                    <WrapPanel Grid.Row="3" Margin="0,10,0,0">
+                        <Button Margin="0,0,8,0"
+                                Command="{Binding EditMetadataCommand}"
+                                Content="Edit metadata…" />
+                        <Button Margin="0,0,8,0"
+                                Command="{Binding ReplaceCommand}"
+                                Content="Replace content" />
+                        <Button Margin="0,0,8,0"
+                                Command="{Binding ReplaceCancelCommand}"
+                                Content="Cancel replace" />
+                        <Button Margin="0,0,8,0"
+                                Command="{Binding ReindexDocumentCommand}"
+                                Content="Reindex document" />
+                        <Button Margin="0,0,8,0"
+                                Command="{Binding ReindexDocumentCancelCommand}"
+                                Content="Cancel reindex" />
+                        <Button Command="{Binding DeleteCommand}"
+                                Content="Delete" />
+                    </WrapPanel>
+                    <StackPanel Grid.Row="4" Margin="0,8,0,0">
+                        <TextBlock Text="{Binding DocumentProgressText}"
+                                   TextWrapping="Wrap"
+                                   Visibility="{Binding DocumentProgressText,Converter={StaticResource NullOrEmptyToCollapsedConverter}}" />
+                        <TextBlock Margin="0,3,0,0"
+                                   Text="{Binding DocumentsStatusText}"
+                                   TextWrapping="Wrap"
+                                   Visibility="{Binding DocumentsStatusText,Converter={StaticResource NullOrEmptyToCollapsedConverter}}" />
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Preview">
+                <DockPanel Margin="10">
+                    <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                        <TextBlock FontSize="20"
+                                   FontWeight="SemiBold"
+                                   Text="Document chunk preview" />
+                        <TextBlock Margin="0,3,0,8"
+                                   Foreground="{DynamicResource MutedTextBrush}"
+                                   Text="Select a document on the Documents tab, then inspect a bounded preview of its active indexed chunks."
+                                   TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal">
+                            <Button Command="{Binding LoadChunkPreviewCommand}"
+                                    Content="Load selected document preview" />
+                            <TextBlock Margin="12,0,0,0"
+                                       FontWeight="SemiBold"
+                                       Text="{Binding SelectedDocument.Name}"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock Margin="0,8,0,0"
+                                   Text="{Binding PreviewStatusText}"
+                                   TextWrapping="Wrap"
+                                   Visibility="{Binding PreviewStatusText,Converter={StaticResource NullOrEmptyToCollapsedConverter}}" />
+                    </StackPanel>
+                    <ListBox ItemsSource="{Binding ChunkPreviews}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="4">
+                                    <TextBlock FontWeight="SemiBold" Text="{Binding Ordinal,StringFormat=Chunk {0}}" />
+                                    <TextBlock Foreground="{DynamicResource MutedTextBrush}" Text="{Binding PageNumber,StringFormat=Page {0}}" />
+                                    <TextBlock Foreground="{DynamicResource MutedTextBrush}" Text="{Binding EstimatedTokens,StringFormat={}{0} estimated tokens}" />
+                                    <TextBlock Text="{Binding Text}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </TabItem>
+
+            <TabItem Header="Import document">
+                <Grid Margin="14">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="18" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                  VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <TextBlock FontSize="20"
+                                       FontWeight="SemiBold"
+                                       Text="Import a new document" />
+                            <TextBlock Margin="0,4,0,16"
+                                       Foreground="{DynamicResource MutedTextBrush}"
+                                       Text="These fields apply only to the next imported document and are cleared after a successful import."
+                                       TextWrapping="Wrap" />
+
+                            <TextBlock Margin="0,0,0,4"
+                                       FontWeight="SemiBold"
+                                       Text="Document name" />
+                            <TextBox AutomationProperties.Name="New document name"
+                                     Text="{Binding ImportName,UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="Leave blank to use the selected file name" />
+                            <TextBlock Margin="0,3,0,0"
+                                       Foreground="{DynamicResource MutedTextBrush}"
+                                       FontSize="11"
+                                       Text="Optional. When blank, the selected file name is used." />
+
+                            <TextBlock Margin="0,14,0,4"
+                                       FontWeight="SemiBold"
+                                       Text="Description" />
+                            <TextBox Height="82"
+                                     AcceptsReturn="True"
+                                     AutomationProperties.Name="New document description"
+                                     Text="{Binding ImportDescription,UpdateSourceTrigger=PropertyChanged}"
+                                     TextWrapping="Wrap"
+                                     ToolTip="Short description of the new document"
+                                     VerticalScrollBarVisibility="Auto" />
+
+                            <TextBlock Margin="0,14,0,4"
+                                       FontWeight="SemiBold"
+                                       Text="Authorization tags" />
+                            <TextBox AutomationProperties.Name="New document authorization tags"
+                                     Text="{Binding ImportTags,UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="Comma-separated tags that authorize access to the new document" />
+                            <TextBlock Margin="0,4,0,0"
+                                       Foreground="{DynamicResource MutedTextBrush}"
+                                       FontSize="11"
+                                       Text="Required. Choose existing tags on the right or enter new comma-separated tags."
+                                       TextWrapping="Wrap" />
+
+                            <StackPanel Margin="0,18,0,0" Orientation="Horizontal">
+                                <Button AutomationProperties.Name="Import Knowledge document"
+                                        Command="{Binding ImportCommand}"
+                                        Content="Select file and import" />
+                                <Button Margin="8,0,0,0"
+                                        AutomationProperties.Name="Cancel Knowledge import"
+                                        Command="{Binding ImportCancelCommand}"
+                                        Content="Cancel import" />
+                            </StackPanel>
+                            <TextBlock Margin="0,8,0,0"
+                                       Text="{Binding ImportStatusText}"
+                                       TextWrapping="Wrap"
+                                       Visibility="{Binding ImportStatusText,Converter={StaticResource NullOrEmptyToCollapsedConverter}}" />
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <Border Grid.Column="2"
+                            Padding="12"
+                            BorderBrush="{DynamicResource DividerBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                                <TextBlock FontSize="18"
+                                           FontWeight="SemiBold"
+                                           Text="Existing tags" />
+                                <TextBlock Margin="0,4,0,0"
+                                           Foreground="{DynamicResource MutedTextBrush}"
+                                           Text="Double-click a tag to add it to Authorization tags. Existing entries are not added twice."
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+                            <Button DockPanel.Dock="Bottom"
+                                    Margin="0,10,0,0"
+                                    HorizontalAlignment="Left"
+                                    Command="{Binding AddSelectedExistingTagCommand}"
+                                    Content="Add selected tag" />
+                            <ListBox AutomationProperties.Name="Existing Knowledge tags"
+                                     ItemsSource="{Binding ExistingTags}"
+                                     MouseDoubleClick="OnExistingTagMouseDoubleClick"
+                                     SelectedItem="{Binding SelectedExistingTag}">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Margin="4" Text="{Binding}" />
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Search">
+                <DockPanel Margin="12">
+                    <StackPanel DockPanel.Dock="Top">
+                        <TextBlock Margin="0,0,0,4"
+                                   FontWeight="SemiBold"
+                                   Text="Search query" />
+                        <TextBox AutomationProperties.Name="Knowledge search query"
+                                 Text="{Binding SearchQuery,UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Question, phrase, or keywords to search for semantically" />
+                        <TextBlock Margin="0,12,0,4"
+                                   FontWeight="SemiBold"
+                                   Text="Authorized search tags" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,8,0">
+                                <TextBlock Margin="0,0,0,3" Foreground="{DynamicResource MutedTextBrush}" Text="Tag 1" />
+                                <ComboBox AutomationProperties.Name="Knowledge search tag 1"
+                                          IsTextSearchEnabled="True"
+                                          ItemsSource="{Binding ExistingTags}"
+                                          SelectedItem="{Binding SearchTag1}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                                <TextBlock Margin="0,0,0,3" Foreground="{DynamicResource MutedTextBrush}" Text="Tag 2" />
+                                <ComboBox AutomationProperties.Name="Knowledge search tag 2"
+                                          IsTextSearchEnabled="True"
+                                          ItemsSource="{Binding ExistingTags}"
+                                          SelectedItem="{Binding SearchTag2}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Margin="0,0,8,0">
+                                <TextBlock Margin="0,0,0,3" Foreground="{DynamicResource MutedTextBrush}" Text="Tag 3" />
+                                <ComboBox AutomationProperties.Name="Knowledge search tag 3"
+                                          IsTextSearchEnabled="True"
+                                          ItemsSource="{Binding ExistingTags}"
+                                          SelectedItem="{Binding SearchTag3}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="3">
+                                <TextBlock Margin="0,0,0,3" Foreground="{DynamicResource MutedTextBrush}" Text="Tag 4" />
+                                <ComboBox AutomationProperties.Name="Knowledge search tag 4"
+                                          IsTextSearchEnabled="True"
+                                          ItemsSource="{Binding ExistingTags}"
+                                          SelectedItem="{Binding SearchTag4}" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Margin="0,4,0,0"
+                                   Foreground="{DynamicResource MutedTextBrush}"
+                                   FontSize="11"
+                                   Text="Select one to four existing tags. Documents matching any selected tag are searched; duplicate selections count once."
+                                   TextWrapping="Wrap" />
+                        <StackPanel Margin="0,10,0,10" Orientation="Horizontal">
+                            <Button AutomationProperties.Name="Test Knowledge search"
+                                    Command="{Binding TestSearchCommand}"
+                                    Content="Test search" />
+                            <Button Margin="8,0,0,0"
+                                    Command="{Binding ClearSearchTagsCommand}"
+                                    Content="Clear tags" />
+                        </StackPanel>
+                        <TextBlock Margin="0,0,0,10"
+                                   Text="{Binding SearchStatusText}"
+                                   TextWrapping="Wrap"
+                                   Visibility="{Binding SearchStatusText,Converter={StaticResource NullOrEmptyToCollapsedConverter}}" />
+                    </StackPanel>
+                    <ListBox ItemsSource="{Binding SearchResults}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="4">
+                                    <TextBlock FontWeight="SemiBold" Text="{Binding Citation}" />
+                                    <TextBlock Text="{Binding Text}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </TabItem>
+
+            <TabItem Header="Maintenance">
+                <StackPanel Margin="16" MaxWidth="900" HorizontalAlignment="Left">
+                    <TextBlock FontSize="20"
+                               FontWeight="SemiBold"
+                               Text="Knowledge index maintenance" />
+                    <TextBlock Margin="0,4,0,16"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="Review the active embedding and chunking contract or rebuild the complete library after a configuration change."
+                               TextWrapping="Wrap" />
+                    <Border Padding="14"
+                            BorderThickness="1"
+                            CornerRadius="6">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding RequiresReindex}" Value="True">
+                                        <Setter Property="BorderBrush" Value="{DynamicResource WarningBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <StackPanel>
+                            <TextBlock FontWeight="SemiBold" Text="Index contract" />
+                            <TextBlock Margin="0,6,0,0"
+                                       Text="{Binding IndexContractText}"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                    <StackPanel Margin="0,16,0,0" Orientation="Horizontal">
+                        <Button Command="{Binding ReindexLibraryCommand}"
+                                Content="Reindex library" />
+                        <Button Margin="8,0,0,0"
+                                Command="{Binding ReindexLibraryCancelCommand}"
+                                Content="Cancel reindex" />
+                    </StackPanel>
+                    <ProgressBar Height="3"
+                                 Margin="0,16,0,0"
+                                 IsIndeterminate="True"
+                                 Visibility="{Binding IsBusy,Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    <TextBlock Margin="0,5,0,0"
+                               Text="{Binding MaintenanceProgressText}"
+                               TextWrapping="Wrap"
+                               Visibility="{Binding MaintenanceProgressText,Converter={StaticResource NullOrEmptyToCollapsedConverter}}" />
+                    <TextBlock Margin="0,3,0,0"
+                               Text="{Binding MaintenanceStatusText}"
+                               TextWrapping="Wrap"
+                               Visibility="{Binding MaintenanceStatusText,Converter={StaticResource NullOrEmptyToCollapsedConverter}}" />
+                </StackPanel>
+            </TabItem>
+        </TabControl>
     </Grid>
 </UserControl>

@@ -391,9 +391,22 @@
                         </StackPanel>
                     </Expander>
                     <TextBlock Margin="0,12,0,0"
-                               Foreground="{DynamicResource ErrorBrush}"
                                Text="{Binding KnowledgeValidationText}"
-                               TextWrapping="Wrap" />
+                               TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="{x:Type TextBlock}">
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource SuccessBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasKnowledgeValidationError}"
+                                                 Value="True">
+                                        <Setter Property="Foreground"
+                                                Value="{DynamicResource ErrorBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
                     <StackPanel Margin="0,12,0,0" Orientation="Horizontal">
                         <Button Command="{Binding TestKnowledgeEmbeddingCommand}"
                                 Content="Test embedding model" />

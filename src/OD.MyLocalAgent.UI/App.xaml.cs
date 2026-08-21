@@ -140,6 +140,7 @@ public partial class App : Application
         services.AddSingleton<IAIWorkflowHelperDialogService, AIWorkflowHelperDialogService>();
         services.AddSingleton<IWorkflowToolCatalogDialogService, WorkflowToolCatalogDialogService>();
         services.AddSingleton<IWorkflowPromptEditorDialogService, WorkflowPromptEditorDialogService>();
+        services.AddSingleton<IKnowledgeMetadataEditorDialogService, KnowledgeMetadataEditorDialogService>();
         services.AddSingleton<IncidentMessengerBridge>();
 #if !DEBUG
         // Debug builds skip the automatic startup resync so a debugging session never
