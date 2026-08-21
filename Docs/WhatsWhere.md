@@ -40,6 +40,10 @@ Default workspace: `C:\OD.MyLocalAgent`
 | `.od-my-local-agent/tasks/backups/` | Archived task definitions retained for reference |
 | `.od-my-local-agent/examples/tasks/` | Ready-to-copy task examples |
 | `.od-my-local-agent/data/direct-chat.db` | Direct Chat conversations, messages, attachment content, and cumulative memory summaries (SQLite, not encrypted) |
+| `.od-my-local-agent/data/knowledge/` | Private Knowledge / RAG library root |
+| `.od-my-local-agent/data/knowledge/knowledge.db` | Knowledge document metadata, revisions, chunks, embedding vectors, index contract, and cleanup queue (SQLite, not encrypted) |
+| `.od-my-local-agent/data/knowledge/documents/` | Canonical copies of imported source documents, named by the application |
+| `.od-my-local-agent/data/knowledge/staging/` | Temporary files used while importing, replacing, or reindexing documents; not user content storage |
 | `.od-my-local-agent/logs/application/` | Rolling application logs and diagnostic-reset archives |
 | `.od-my-local-agent/logs/incidents.jsonl` | Incident log |
 | `.od-my-local-agent/logs/runs/` | Per-execution runner output logs |
@@ -56,6 +60,12 @@ available to workflows, and should be included when backing up Direct Chat histo
 deletion is permanent. The history database contains message text in clear form; DPAPI protects
 secrets, not chat content.
 
+The Knowledge / RAG library is also application-owned and separate from the SQLite Tool. Its
+database and imported files are not encrypted at rest; include the complete
+`.od-my-local-agent/data/knowledge/` directory when backing up the library. Do not alter its
+contents manually: imports, replacements, deletions, and reindexing are managed from the
+Knowledge page.
+
 ## Configuration Layers
 
 Configuration is loaded in this priority order (last wins):
@@ -63,6 +73,11 @@ Configuration is loaded in this priority order (last wins):
 1. **`appsettings.json`** (in each EXE folder) — base config, shipped with the app. Overwritten on publish.
 2. **`%LOCALAPPDATA%\OD.MyLocalAgent\settings.json`** — user overrides. Survives updates.
 3. **DPAPI secrets** — injected from `secrets.dat`. Highest priority.
+
+The `Knowledge` section is stored in `settings.json` when changed from **Settings → Knowledge
+embeddings**. It controls the independent embedding provider, model, chunking, import, and search
+bounds. By default it uses Ollama with `embeddinggemma:300m`; OpenAI-compatible embedding
+credentials are stored in `secrets.dat`, never in `settings.json`.
 
 ## File System Sandbox
 
@@ -97,9 +112,23 @@ Close the UI and disable its Windows scheduled tasks before running the command 
 | Setting | Default | Purpose |
 |---------|---------|---------|
 | `Scheduler:TaskFolder` | `OD.MyLocalAgent` | Folder in Windows Task Scheduler for scheduled tasks |
-# Embedded Knowledge (Stage 26)
+# Embedded Knowledge and RAG
 
-- Contracts, authorization, embeddings, extraction, chunking, SQLite storage, portable vector retrieval, and `knowledge.search`: `src/OD.MyLocalAgent.Core/Knowledge*.cs` and `SqliteKnowledgeStore.cs`.
-- Private runtime data: `<FileSystem:RootPath>/.od-my-local-agent/data/knowledge/knowledge.db`, `documents/`, and `staging/`.
-- Administration UI: `src/OD.MyLocalAgent.UI/Pages/KnowledgePage.xaml` and `ViewModels/KnowledgeViewModel.cs`.
-- `ScheduledTask.tools` stores group names; an `ai.prompt.toolAliases` list stores exact aliases; Knowledge tags authorize document selection.
+| Location | Responsibility |
+|----------|----------------|
+| `src/OD.MyLocalAgent.Core/Knowledge*.cs` | Knowledge contracts, tag authorization, extraction, chunking, embedding generation, library management, and exact-cosine retrieval |
+| `src/OD.MyLocalAgent.Core/SqliteKnowledgeStore.cs` | SQLite persistence for the Knowledge library and its index/revision lifecycle |
+| `src/OD.MyLocalAgent.Core/KnowledgeTool.cs` | Declarative `knowledge.search` tool exposed in the `knowledge` tool group |
+| `src/OD.MyLocalAgent.Core/WorkspacePaths.cs` | Definitions of the private Knowledge library paths in the configured workspace |
+| `src/OD.MyLocalAgent.Core/HostApplicationBuilderExtensions.cs` | Registration of Knowledge services and binding of the `Knowledge` configuration section |
+| `src/OD.MyLocalAgent.UI/Pages/KnowledgePage.xaml` | Knowledge administration page (documents, preview, import, search, and maintenance) |
+| `src/OD.MyLocalAgent.UI/ViewModels/KnowledgeViewModel.cs` | View-model for Knowledge administration operations |
+| `src/OD.MyLocalAgent.UI/ViewModels/SettingsViewModel.cs` | Knowledge embedding settings, validation, and endpoint test |
+| `src/OD.MyLocalAgent.UI/Services/UserSettingsService.cs` | Persistence of the `Knowledge` settings section in the user settings file |
+| `Docs/samples/knowledge-rag-example.json` | Ready-to-copy task example using `knowledge.search` and an agentic `ai.prompt` step |
+
+`ScheduledTask.tools` stores the `knowledge` group name. An `ai.prompt` step's `toolAliases`
+stores the exact `knowledge.search` alias. Knowledge tags are the document authorization boundary:
+an empty scope authorizes no documents, and a prompt step may narrow its task scope but cannot
+broaden it. Retrieval is always tool-driven; no RAG excerpt is injected automatically into a
+prompt.
