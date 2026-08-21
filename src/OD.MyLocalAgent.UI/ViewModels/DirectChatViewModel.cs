@@ -402,7 +402,8 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
             var attachment = await DirectChatAttachmentLoader.LoadAsync(path).ConfigureAwait(true);
             if (attachment.Kind == DirectChatAttachmentKind.Image && !SupportsImageInput)
             {
-                throw new NotSupportedException("The active provider has not declared image-input support.");
+                throw new DirectChatAttachmentException(
+                    "Current LLM does not support images. Select an image-capable model to attach this file.");
             }
             PendingAttachments.Add(new DirectChatAttachmentItem(attachment));
             SendCommand.NotifyCanExecuteChanged();
