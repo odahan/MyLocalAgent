@@ -374,6 +374,13 @@ internal sealed class UserSettingsService : IUserSettingsService
             ["MaximumQueryCharacters"] = options.MaximumQueryCharacters,
             ["MaximumExcerptCharacters"] = options.MaximumExcerptCharacters,
             ["MaximumToolResultCharacters"] = options.MaximumToolResultCharacters,
+            ["SemanticCandidatePoolSize"] = options.SemanticCandidatePoolSize,
+            ["LexicalCandidatePoolSize"] = options.LexicalCandidatePoolSize,
+            ["RrfRankConstant"] = options.RrfRankConstant,
+            ["MmrLambda"] = options.MmrLambda,
+            ["MaximumContextNeighborsEachSide"] = options.MaximumContextNeighborsEachSide,
+            ["MaximumLexicalQueryTerms"] = options.MaximumLexicalQueryTerms,
+            ["MaximumLexicalTermCharacters"] = options.MaximumLexicalTermCharacters,
         };
 
     private static void Validate(UserSettingsData settings)

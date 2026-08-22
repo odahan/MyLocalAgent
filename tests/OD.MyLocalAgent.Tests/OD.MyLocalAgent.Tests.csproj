@@ -42,5 +42,6 @@
     <None Include="Fixtures\injection-samples.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures\web-search-normal.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures\web-search-injection-lure.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Fixtures\knowledge-hybrid-evaluation.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

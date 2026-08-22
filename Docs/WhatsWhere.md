@@ -41,7 +41,7 @@ Default workspace: `C:\OD.MyLocalAgent`
 | `.od-my-local-agent/examples/tasks/` | Ready-to-copy task examples |
 | `.od-my-local-agent/data/direct-chat.db` | Direct Chat conversations, messages, attachment content, and cumulative memory summaries (SQLite, not encrypted) |
 | `.od-my-local-agent/data/knowledge/` | Private Knowledge / RAG library root |
-| `.od-my-local-agent/data/knowledge/knowledge.db` | Knowledge document metadata, revisions, chunks, embedding vectors, index contract, and cleanup queue (SQLite, not encrypted) |
+| `.od-my-local-agent/data/knowledge/knowledge.db` | Knowledge document metadata, revisions, chunks, embedding vectors, active-chunk FTS5 index, index contract, and cleanup queue (SQLite, not encrypted) |
 | `.od-my-local-agent/data/knowledge/documents/` | Canonical copies of imported source documents, named by the application |
 | `.od-my-local-agent/data/knowledge/staging/` | Temporary files used while importing, replacing, or reindexing documents; not user content storage |
 | `.od-my-local-agent/logs/application/` | Rolling application logs and diagnostic-reset archives |
@@ -116,14 +116,14 @@ Close the UI and disable its Windows scheduled tasks before running the command 
 
 | Location | Responsibility |
 |----------|----------------|
-| `src/OD.MyLocalAgent.Core/Knowledge*.cs` | Knowledge contracts, tag authorization, extraction, chunking, embedding generation, library management, and exact-cosine retrieval |
+| `src/OD.MyLocalAgent.Core/Knowledge*.cs` | Knowledge contracts, tag authorization, extraction, chunking, embedding generation, library management, safe lexical query construction, and hybrid retrieval |
 | `src/OD.MyLocalAgent.Core/SqliteKnowledgeStore.cs` | SQLite persistence for the Knowledge library and its index/revision lifecycle |
 | `src/OD.MyLocalAgent.Core/KnowledgeTool.cs` | Declarative `knowledge.search` tool exposed in the `knowledge` tool group |
 | `src/OD.MyLocalAgent.Core/WorkspacePaths.cs` | Definitions of the private Knowledge library paths in the configured workspace |
 | `src/OD.MyLocalAgent.Core/HostApplicationBuilderExtensions.cs` | Registration of Knowledge services and binding of the `Knowledge` configuration section |
 | `src/OD.MyLocalAgent.UI/Pages/KnowledgePage.xaml` | Knowledge administration page (documents, preview, import, search, and maintenance) |
 | `src/OD.MyLocalAgent.UI/ViewModels/KnowledgeViewModel.cs` | View-model for Knowledge administration operations |
-| `src/OD.MyLocalAgent.UI/ViewModels/SettingsViewModel.cs` | Knowledge embedding settings, validation, and endpoint test |
+| `src/OD.MyLocalAgent.UI/ViewModels/SettingsViewModel.cs` | Knowledge embedding and global hybrid-retrieval settings, validation, and endpoint test |
 | `src/OD.MyLocalAgent.UI/Services/UserSettingsService.cs` | Persistence of the `Knowledge` settings section in the user settings file |
 | `Docs/samples/knowledge-rag-example.json` | Ready-to-copy task example using `knowledge.search` and an agentic `ai.prompt` step |
 

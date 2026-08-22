@@ -2165,6 +2165,12 @@ compilation, freshness-window expansion, document classification, and late prote
 - Release verification completed with zero build warnings or errors, 663 non-integration tests
   passing, one expected environment-dependent Ollama probe skipped, all task examples parsing as
   JSON, and a successful end-to-end migration against an isolated temporary fixture.
+### Stage 27 — Hybrid Knowledge retrieval and context selection — 2026-08-22
+
+- Knowledge schema 4 owns an embedded `chunk_fts` FTS5 table using `unicode61 remove_diacritics 2`. It contains only active chunk headings and text; startup verifies the active-chunk projection and transactionally rebuilds the table if an interrupted migration left it inconsistent.
+- `knowledge.search` keeps its public tag-scoped contract while combining safe literal exact-term candidates and tag-prefiltered cosine candidates through rank-only reciprocal-rank fusion. MMR chooses complementary anchors, and bounded same-heading/page contiguous chunks may supply surrounding context.
+- Candidate-pool, fusion, diversity, lexical-query, and context-neighbor limits are global reloadable Knowledge settings. They are query-time policy and do not require re-embedding or grant document access.
+
 ### Version 1.5.1 — Knowledge administration refinements — 2026-08-21
 
 - Knowledge administration is organized into dedicated Documents, Preview, Import document, Search, and Maintenance tabs. Document metadata editing uses a separately scrollable dialog, while import input remains independent from the selected document details.

@@ -362,7 +362,7 @@
                         <StackPanel Margin="0,10,0,10" Orientation="Horizontal">
                             <Button AutomationProperties.Name="Test Knowledge search"
                                     Command="{Binding TestSearchCommand}"
-                                    Content="Test search" />
+                                    Content="Hybrid search" />
                             <Button Margin="8,0,0,0"
                                     Command="{Binding ClearSearchTagsCommand}"
                                     Content="Clear tags" />
@@ -377,6 +377,15 @@
                             <DataTemplate>
                                 <StackPanel Margin="4">
                                     <TextBlock FontWeight="SemiBold" Text="{Binding Citation}" />
+                                    <TextBlock Foreground="{DynamicResource MutedTextBrush}" Text="{Binding MatchType}" />
+                                    <TextBlock Foreground="{DynamicResource MutedTextBrush}">
+                                        <Run Text="Span: " />
+                                        <Run Text="{Binding ContextStartChunkOrdinal}" />
+                                        <Run Text="–" />
+                                        <Run Text="{Binding ContextEndChunkOrdinal}" />
+                                        <Run Text="   Similarity: " />
+                                        <Run Text="{Binding Similarity}" />
+                                    </TextBlock>
                                     <TextBlock Text="{Binding Text}" TextWrapping="Wrap" />
                                 </StackPanel>
                             </DataTemplate>

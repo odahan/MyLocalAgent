@@ -56,6 +56,13 @@ public sealed partial class SettingsViewModel :
         nameof(KnowledgeDefaultMaximumResultTokens),
         nameof(KnowledgeMaximumResultTokens),
         nameof(KnowledgeMinimumSimilarity),
+        nameof(KnowledgeSemanticCandidatePoolSize),
+        nameof(KnowledgeLexicalCandidatePoolSize),
+        nameof(KnowledgeRrfRankConstant),
+        nameof(KnowledgeMmrLambda),
+        nameof(KnowledgeMaximumContextNeighborsEachSide),
+        nameof(KnowledgeMaximumLexicalQueryTerms),
+        nameof(KnowledgeMaximumLexicalTermCharacters),
         nameof(GenerationTemperatureText),
         nameof(GenerationTopPText),
         nameof(ContextWindowTokensText),
@@ -200,6 +207,13 @@ public sealed partial class SettingsViewModel :
     [ObservableProperty] private int _knowledgeDefaultMaximumResultTokens = 2048;
     [ObservableProperty] private int _knowledgeMaximumResultTokens = 8192;
     [ObservableProperty] private float _knowledgeMinimumSimilarity = 0.25f;
+    [ObservableProperty] private int _knowledgeSemanticCandidatePoolSize = 40;
+    [ObservableProperty] private int _knowledgeLexicalCandidatePoolSize = 40;
+    [ObservableProperty] private int _knowledgeRrfRankConstant = 60;
+    [ObservableProperty] private double _knowledgeMmrLambda = 0.72;
+    [ObservableProperty] private int _knowledgeMaximumContextNeighborsEachSide = 1;
+    [ObservableProperty] private int _knowledgeMaximumLexicalQueryTerms = 24;
+    [ObservableProperty] private int _knowledgeMaximumLexicalTermCharacters = 128;
     [ObservableProperty] private string _knowledgeValidationText = "Knowledge embedding settings are valid.";
     [ObservableProperty] private bool _hasKnowledgeValidationError;
     [ObservableProperty] private string _knowledgeConnectionStatus = "Embedding model has not been tested.";
@@ -611,6 +625,13 @@ public sealed partial class SettingsViewModel :
     partial void OnKnowledgeDefaultMaximumResultTokensChanged(int value) => UpdateKnowledgeValidation();
     partial void OnKnowledgeMaximumResultTokensChanged(int value) => UpdateKnowledgeValidation();
     partial void OnKnowledgeMinimumSimilarityChanged(float value) => UpdateKnowledgeValidation();
+    partial void OnKnowledgeSemanticCandidatePoolSizeChanged(int value) => UpdateKnowledgeValidation();
+    partial void OnKnowledgeLexicalCandidatePoolSizeChanged(int value) => UpdateKnowledgeValidation();
+    partial void OnKnowledgeRrfRankConstantChanged(int value) => UpdateKnowledgeValidation();
+    partial void OnKnowledgeMmrLambdaChanged(double value) => UpdateKnowledgeValidation();
+    partial void OnKnowledgeMaximumContextNeighborsEachSideChanged(int value) => UpdateKnowledgeValidation();
+    partial void OnKnowledgeMaximumLexicalQueryTermsChanged(int value) => UpdateKnowledgeValidation();
+    partial void OnKnowledgeMaximumLexicalTermCharactersChanged(int value) => UpdateKnowledgeValidation();
 
     [RelayCommand]
     private async Task LoadAsync(CancellationToken cancellationToken)
@@ -673,6 +694,13 @@ public sealed partial class SettingsViewModel :
             KnowledgeDefaultMaximumResultTokens = knowledge.DefaultMaximumResultTokens;
             KnowledgeMaximumResultTokens = knowledge.MaximumResultTokens;
             KnowledgeMinimumSimilarity = knowledge.MinimumSimilarity;
+            KnowledgeSemanticCandidatePoolSize = knowledge.SemanticCandidatePoolSize;
+            KnowledgeLexicalCandidatePoolSize = knowledge.LexicalCandidatePoolSize;
+            KnowledgeRrfRankConstant = knowledge.RrfRankConstant;
+            KnowledgeMmrLambda = knowledge.MmrLambda;
+            KnowledgeMaximumContextNeighborsEachSide = knowledge.MaximumContextNeighborsEachSide;
+            KnowledgeMaximumLexicalQueryTerms = knowledge.MaximumLexicalQueryTerms;
+            KnowledgeMaximumLexicalTermCharacters = knowledge.MaximumLexicalTermCharacters;
             UpdateKnowledgeValidation();
             await RefreshKnowledgeIndexStatusAsync(cancellationToken).ConfigureAwait(true);
             await LoadOpenAIModelsAsync(cancellationToken).ConfigureAwait(true);
@@ -1402,6 +1430,13 @@ public sealed partial class SettingsViewModel :
             DefaultMaximumResultTokens = KnowledgeDefaultMaximumResultTokens,
             MaximumResultTokens = KnowledgeMaximumResultTokens,
             MinimumSimilarity = KnowledgeMinimumSimilarity,
+            SemanticCandidatePoolSize = KnowledgeSemanticCandidatePoolSize,
+            LexicalCandidatePoolSize = KnowledgeLexicalCandidatePoolSize,
+            RrfRankConstant = KnowledgeRrfRankConstant,
+            MmrLambda = KnowledgeMmrLambda,
+            MaximumContextNeighborsEachSide = KnowledgeMaximumContextNeighborsEachSide,
+            MaximumLexicalQueryTerms = KnowledgeMaximumLexicalQueryTerms,
+            MaximumLexicalTermCharacters = KnowledgeMaximumLexicalTermCharacters,
         };
 
         if (!KnowledgeEmbeddingProviders.Contains(options.EmbeddingProvider, StringComparer.OrdinalIgnoreCase))

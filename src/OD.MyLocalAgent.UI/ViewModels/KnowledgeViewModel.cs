@@ -372,7 +372,7 @@ public sealed partial class KnowledgeViewModel : ObservableObject, IActivatableP
                 SearchResults.Add(item);
             }
 
-            SearchStatusText = $"Search returned {result.ResultCount} result(s).";
+            SearchStatusText = $"Hybrid search returned {result.ResultCount} result(s).";
         }
         catch (Exception exception)
         {

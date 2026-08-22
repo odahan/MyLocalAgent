@@ -1,14 +1,20 @@
 using System.Globalization;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
 
 namespace OD.MyLocalAgent.Core;
 
 internal sealed class SqliteKnowledgeStore
 {
-    private const int CurrentSchemaVersion = 3;
+    private const int CurrentSchemaVersion = 4;
     private readonly string _databasePath;
+    private readonly ILogger<SqliteKnowledgeStore>? _logger;
 
-    public SqliteKnowledgeStore(WorkspacePaths paths) => _databasePath = paths.KnowledgeDatabasePath;
+    public SqliteKnowledgeStore(WorkspacePaths paths, ILogger<SqliteKnowledgeStore>? logger = null)
+    {
+        _databasePath = paths.KnowledgeDatabasePath;
+        _logger = logger;
+    }
 
     public async Task InitializeAsync(CancellationToken cancellationToken)
     {
@@ -64,7 +70,10 @@ internal sealed class SqliteKnowledgeStore
                 CREATE TABLE pending_file_cleanup(
                     canonical_file_name TEXT PRIMARY KEY,
                     created_utc TEXT NOT NULL);
-                PRAGMA user_version=3;
+                CREATE VIRTUAL TABLE chunk_fts USING fts5(
+                    chunk_id UNINDEXED, revision_id UNINDEXED, document_id UNINDEXED,
+                    heading, text, tokenize='unicode61 remove_diacritics 2');
+                PRAGMA user_version=4;
                 """, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 1)
@@ -76,6 +85,12 @@ internal sealed class SqliteKnowledgeStore
         {
             await MigrateVersionTwoAsync(connection, cancellationToken).ConfigureAwait(false);
         }
+        if (version <= 3)
+        {
+            await MigrateVersionThreeAsync(connection, cancellationToken).ConfigureAwait(false);
+        }
+
+        await EnsureFtsConsistencyAsync(connection, cancellationToken).ConfigureAwait(false);
     }
 
     private static Task MigrateVersionTwoAsync(
@@ -87,6 +102,76 @@ internal sealed class SqliteKnowledgeStore
                 canonical_file_name TEXT PRIMARY KEY,
                 created_utc TEXT NOT NULL);
             PRAGMA user_version=3;
+            COMMIT;
+            """, cancellationToken);
+
+    private static async Task MigrateVersionThreeAsync(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        var hasChunks = await ScalarLongAsync(connection, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='chunks';", cancellationToken).ConfigureAwait(false) == 1;
+        await ExecuteAsync(connection, hasChunks ? """
+            BEGIN IMMEDIATE;
+            CREATE VIRTUAL TABLE IF NOT EXISTS chunk_fts USING fts5(
+                chunk_id UNINDEXED, revision_id UNINDEXED, document_id UNINDEXED,
+                heading, text, tokenize='unicode61 remove_diacritics 2');
+            DELETE FROM chunk_fts;
+            INSERT INTO chunk_fts(chunk_id,revision_id,document_id,heading,text)
+            SELECT c.id,c.revision_id,c.document_id,COALESCE(c.heading,''),c.text
+            FROM chunks c JOIN documents d ON d.id=c.document_id AND d.active_revision_id=c.revision_id;
+            PRAGMA user_version=4;
+            COMMIT;
+            """ : """
+            BEGIN IMMEDIATE;
+            CREATE VIRTUAL TABLE IF NOT EXISTS chunk_fts USING fts5(
+                chunk_id UNINDEXED, revision_id UNINDEXED, document_id UNINDEXED,
+                heading, text, tokenize='unicode61 remove_diacritics 2');
+            PRAGMA user_version=4;
+            COMMIT;
+            """, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Rebuilds the application-owned FTS table only when startup detects an interrupted legacy migration.</summary>
+    private async Task EnsureFtsConsistencyAsync(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        var hasCoreSchema = await ScalarLongAsync(connection, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('documents','chunks');", cancellationToken).ConfigureAwait(false) == 2;
+        if (!hasCoreSchema)
+        {
+            return;
+        }
+
+        var hasFts = await ScalarLongAsync(connection, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='chunk_fts';", cancellationToken).ConfigureAwait(false) == 1;
+        var activeCount = await ScalarLongAsync(connection, "SELECT COUNT(*) FROM chunks c JOIN documents d ON d.id=c.document_id AND d.active_revision_id=c.revision_id;", cancellationToken).ConfigureAwait(false);
+        long indexedCount;
+        long staleCount;
+        try
+        {
+            indexedCount = hasFts ? await ScalarLongAsync(connection, "SELECT COUNT(*) FROM chunk_fts;", cancellationToken).ConfigureAwait(false) : -1;
+            staleCount = hasFts ? await ScalarLongAsync(connection, "SELECT COUNT(*) FROM chunk_fts f LEFT JOIN chunks c ON c.id=f.chunk_id LEFT JOIN documents d ON d.id=f.document_id WHERE c.id IS NULL OR c.revision_id<>d.active_revision_id OR f.revision_id<>d.active_revision_id;", cancellationToken).ConfigureAwait(false) : 1;
+        }
+        catch (SqliteException)
+        {
+            await RebuildFtsAsync(connection, cancellationToken).ConfigureAwait(false);
+            _logger?.LogWarning("Rebuilt the Knowledge FTS index after an unreadable consistency check.");
+            return;
+        }
+        if (hasFts && activeCount == indexedCount && staleCount == 0)
+        {
+            return;
+        }
+
+        await RebuildFtsAsync(connection, cancellationToken).ConfigureAwait(false);
+        _logger?.LogWarning("Rebuilt the Knowledge FTS index after a consistency mismatch: active chunks {ActiveChunkCount}, indexed chunks {IndexedChunkCount}, stale rows {StaleRowCount}.", activeCount, indexedCount, staleCount);
+    }
+
+    private static Task RebuildFtsAsync(SqliteConnection connection, CancellationToken cancellationToken) =>
+        ExecuteAsync(connection, """
+            BEGIN IMMEDIATE;
+            DROP TABLE IF EXISTS chunk_fts;
+            CREATE VIRTUAL TABLE chunk_fts USING fts5(
+                chunk_id UNINDEXED, revision_id UNINDEXED, document_id UNINDEXED,
+                heading, text, tokenize='unicode61 remove_diacritics 2');
+            INSERT INTO chunk_fts(chunk_id,revision_id,document_id,heading,text)
+            SELECT c.id,c.revision_id,c.document_id,COALESCE(c.heading,''),c.text
+            FROM chunks c JOIN documents d ON d.id=c.document_id AND d.active_revision_id=c.revision_id;
             COMMIT;
             """, cancellationToken);
 
@@ -240,6 +325,7 @@ internal sealed class SqliteKnowledgeStore
             await ExecuteNonQueryAsync(connection, transaction,
                 "UPDATE documents SET active_revision_id=$revision WHERE id=$id;",
                 [("$revision", revisionId), ("$id", document.Id)], CancellationToken.None).ConfigureAwait(false);
+            await InsertFtsRowsAsync(connection, transaction, document.Id, revisionId, chunks, CancellationToken.None).ConfigureAwait(false);
 
             await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
         }
@@ -412,6 +498,8 @@ internal sealed class SqliteKnowledgeStore
                 WHERE id=$id;
                 """, DocumentParameters(prepared).Append(("$revision", prepared.RevisionId)), CancellationToken.None).ConfigureAwait(false);
             await InsertTagsAndIndexAsync(connection, transaction, prepared, CancellationToken.None).ConfigureAwait(false);
+            await ExecuteNonQueryAsync(connection, transaction, "DELETE FROM chunk_fts WHERE document_id=$id;", [("$id", prepared.Document.Id)], CancellationToken.None).ConfigureAwait(false);
+            await InsertFtsRowsAsync(connection, transaction, prepared.Document.Id, prepared.RevisionId, prepared.Chunks, CancellationToken.None).ConfigureAwait(false);
             if (!string.Equals(oldCanonical, prepared.CanonicalFileName, StringComparison.OrdinalIgnoreCase))
             {
                 await QueueFileCleanupAsync(connection, transaction, oldCanonical).ConfigureAwait(false);
@@ -462,6 +550,8 @@ internal sealed class SqliteKnowledgeStore
                     [("$characters", prepared.Document.CharacterCount), ("$chunks", prepared.Document.ChunkCount), ("$revision", prepared.RevisionId), ("$updated", prepared.Document.UpdatedUtc.ToString("O", CultureInfo.InvariantCulture)), ("$id", prepared.Document.Id)],
                     CancellationToken.None).ConfigureAwait(false);
                 await InsertIndexAsync(connection, transaction, prepared, CancellationToken.None).ConfigureAwait(false);
+                await ExecuteNonQueryAsync(connection, transaction, "DELETE FROM chunk_fts WHERE document_id=$id;", [("$id", prepared.Document.Id)], CancellationToken.None).ConfigureAwait(false);
+                await InsertFtsRowsAsync(connection, transaction, prepared.Document.Id, prepared.RevisionId, prepared.Chunks, CancellationToken.None).ConfigureAwait(false);
             }
             await ExecuteNonQueryAsync(connection, transaction,
                 "DELETE FROM document_revisions WHERE id NOT IN (SELECT active_revision_id FROM documents WHERE active_revision_id IS NOT NULL);",
@@ -493,6 +583,7 @@ internal sealed class SqliteKnowledgeStore
             }
 
             await QueueFileCleanupAsync(connection, transaction, file).ConfigureAwait(false);
+            await ExecuteNonQueryAsync(connection, transaction, "DELETE FROM chunk_fts WHERE document_id=$id;", [("$id", id)], CancellationToken.None).ConfigureAwait(false);
             var deleted = await ExecuteNonQueryCountAsync(
                 connection,
                 transaction,
@@ -577,9 +668,49 @@ internal sealed class SqliteKnowledgeStore
         var result = new List<KnowledgeCandidate>();
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            result.Add(new KnowledgeCandidate(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetInt32(4), reader.GetString(5), reader.GetInt32(6), reader.GetInt32(7), reader.GetInt32(8), reader.IsDBNull(9) ? null : reader.GetString(9), reader.IsDBNull(10) ? null : reader.GetInt32(10), Decode((byte[])reader[12], reader.GetInt32(11)), SplitTags(reader.GetString(13))));
+            result.Add(ReadCandidate(reader));
         }
         return result;
+    }
+
+    public async Task<IReadOnlyList<KnowledgeCandidate>> SearchLexicalCandidatesAsync(IReadOnlyList<string> tags, KnowledgeLexicalQuery query, int maximumCandidates, CancellationToken cancellationToken)
+    {
+        if (query.IsEmpty) return [];
+        await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = connection.CreateCommand();
+        var parameters = tags.Select((_, index) => $"$tag{index}").ToArray();
+        command.CommandText = $"""
+            SELECT c.id,c.document_id,d.name,d.description,c.ordinal,c.text,c.estimated_tokens,c.start_character,c.end_character,c.heading,c.page_number,v.dimension,v.vector,
+                   (SELECT group_concat(dt.normalized_tag,char(31)) FROM document_tags dt WHERE dt.document_id=d.id)
+            FROM chunk_fts f JOIN chunks c ON c.id=f.chunk_id JOIN documents d ON d.id=c.document_id JOIN vectors v ON v.chunk_id=c.id
+            WHERE chunk_fts MATCH $match AND c.revision_id=d.active_revision_id AND f.revision_id=d.active_revision_id
+              AND EXISTS(SELECT 1 FROM document_tags scope WHERE scope.document_id=d.id AND scope.normalized_tag IN ({string.Join(',', parameters)}))
+            ORDER BY bm25(chunk_fts),c.ordinal,c.id LIMIT $limit;
+            """;
+        command.Parameters.AddWithValue("$match", query.MatchExpression);
+        command.Parameters.AddWithValue("$limit", maximumCandidates);
+        for (var index = 0; index < tags.Count; index++) command.Parameters.AddWithValue(parameters[index], tags[index]);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var result = new List<KnowledgeCandidate>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false)) result.Add(ReadCandidate(reader));
+        return result;
+    }
+
+    public async Task<IReadOnlyList<KnowledgeCandidate>> GetContiguousContextAsync(string anchorChunkId, int eachSide, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """SELECT c.id,c.document_id,d.name,d.description,c.ordinal,c.text,c.estimated_tokens,c.start_character,c.end_character,c.heading,c.page_number,v.dimension,v.vector,(SELECT group_concat(dt.normalized_tag,char(31)) FROM document_tags dt WHERE dt.document_id=d.id) FROM chunks c JOIN documents d ON d.id=c.document_id JOIN vectors v ON v.chunk_id=c.id JOIN chunks a ON a.id=$anchor WHERE c.document_id=a.document_id AND c.revision_id=a.revision_id AND d.active_revision_id=a.revision_id AND c.ordinal BETWEEN a.ordinal-$side AND a.ordinal+$side ORDER BY c.ordinal;""";
+        command.Parameters.AddWithValue("$anchor", anchorChunkId); command.Parameters.AddWithValue("$side", eachSide);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var result = new List<KnowledgeCandidate>(); while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false)) result.Add(ReadCandidate(reader)); return result;
+    }
+
+    private static KnowledgeCandidate ReadCandidate(SqliteDataReader reader) => new(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetInt32(4), reader.GetString(5), reader.GetInt32(6), reader.GetInt32(7), reader.GetInt32(8), reader.IsDBNull(9) ? null : reader.GetString(9), reader.IsDBNull(10) ? null : reader.GetInt32(10), Decode((byte[])reader[12], reader.GetInt32(11)), SplitTags(reader.GetString(13)));
+
+    private static async Task InsertFtsRowsAsync(SqliteConnection connection, SqliteTransaction transaction, string documentId, string revisionId, IReadOnlyList<KnowledgeChunk> chunks, CancellationToken cancellationToken)
+    {
+        foreach (var chunk in chunks) await ExecuteNonQueryAsync(connection, transaction, "INSERT INTO chunk_fts(chunk_id,revision_id,document_id,heading,text) VALUES($id,$revision,$document,$heading,$text);", [("$id",chunk.Id),("$revision",revisionId),("$document",documentId),("$heading",chunk.Heading ?? string.Empty),("$text",chunk.Text)], cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<SqliteConnection> OpenAsync(CancellationToken cancellationToken)

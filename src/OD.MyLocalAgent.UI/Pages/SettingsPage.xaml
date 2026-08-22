@@ -388,6 +388,29 @@
                                          Text="{Binding KnowledgeMinimumSimilarity, UpdateSourceTrigger=PropertyChanged}"
                                          materialDesign:HintAssist.Hint="Minimum similarity" />
                             </Grid>
+                            <TextBlock Margin="0,14,0,6" Style="{StaticResource CaptionTextStyle}" Text="These global hybrid retrieval settings affect the whole Knowledge library. They do not change document access rights." TextWrapping="Wrap" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="12" />
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="12" />
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="12" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox Text="{Binding KnowledgeSemanticCandidatePoolSize, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Semantic candidate pool" />
+                                <TextBox Grid.Column="2" Text="{Binding KnowledgeLexicalCandidatePoolSize, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Exact-term candidate pool" />
+                                <TextBox Grid.Column="4" Text="{Binding KnowledgeRrfRankConstant, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Rank fusion constant" />
+                                <TextBox Grid.Column="6" Text="{Binding KnowledgeMmrLambda, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Diversity balance" />
+                            </Grid>
+                            <Grid Margin="0,12,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="12" />
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="12" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox Text="{Binding KnowledgeMaximumContextNeighborsEachSide, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Adjacent context per side" />
+                                <TextBox Grid.Column="2" Text="{Binding KnowledgeMaximumLexicalQueryTerms, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Maximum exact terms" />
+                                <TextBox Grid.Column="4" Text="{Binding KnowledgeMaximumLexicalTermCharacters, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Maximum exact-term length" />
+                            </Grid>
                         </StackPanel>
                     </Expander>
                     <TextBlock Margin="0,12,0,0"

@@ -3,7 +3,7 @@ namespace OD.MyLocalAgent.Core;
 /// <summary>Describes one authorized Knowledge search result.</summary>
 public sealed record KnowledgeSearchResult(
     int Rank,
-    float Similarity,
+    float? Similarity,
     string DocumentId,
     string DocumentName,
     string Description,
@@ -13,4 +13,7 @@ public sealed record KnowledgeSearchResult(
     string Text,
     string Citation,
     string? Section,
-    int? PageNumber);
+    int? PageNumber,
+    int? ContextStartChunkOrdinal = null,
+    int? ContextEndChunkOrdinal = null,
+    string? MatchType = null);

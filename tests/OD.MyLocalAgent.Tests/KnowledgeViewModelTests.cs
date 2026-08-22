@@ -70,7 +70,7 @@ public sealed class KnowledgeViewModelTests
         viewModel.SearchTag2 = "maui";
         viewModel.TestSearchCommand.Execute(null);
         await (viewModel.TestSearchCommand.ExecutionTask ?? Task.CompletedTask);
-        viewModel.SearchStatusText.Should().Be("Search returned 0 result(s).");
+        viewModel.SearchStatusText.Should().Be("Hybrid search returned 0 result(s).");
         viewModel.ClearSearchTagsCommand.Execute(null);
         viewModel.SearchTag1.Should().BeNull();
         viewModel.SearchTag2.Should().BeNull();

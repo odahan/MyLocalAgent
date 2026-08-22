@@ -41,6 +41,20 @@ public sealed record KnowledgeOptions
     public int MaximumExcerptCharacters { get; init; } = 4000;
     /// <summary>Gets the maximum serialized tool result length.</summary>
     public int MaximumToolResultCharacters { get; init; } = 64000;
+    /// <summary>Gets the bounded semantic candidate pool used before hybrid fusion.</summary>
+    public int SemanticCandidatePoolSize { get; init; } = 40;
+    /// <summary>Gets the bounded lexical candidate pool used before hybrid fusion.</summary>
+    public int LexicalCandidatePoolSize { get; init; } = 40;
+    /// <summary>Gets the reciprocal-rank fusion damping constant.</summary>
+    public int RrfRankConstant { get; init; } = 60;
+    /// <summary>Gets the relevance weight used by maximal marginal relevance.</summary>
+    public double MmrLambda { get; init; } = 0.72;
+    /// <summary>Gets the maximum same-section neighbors included on either side of an anchor.</summary>
+    public int MaximumContextNeighborsEachSide { get; init; } = 1;
+    /// <summary>Gets the maximum number of safe lexical query terms.</summary>
+    public int MaximumLexicalQueryTerms { get; init; } = 24;
+    /// <summary>Gets the maximum length of one safe lexical query term.</summary>
+    public int MaximumLexicalTermCharacters { get; init; } = 128;
 
     /// <summary>Returns whether all configured bounds are internally consistent.</summary>
     public static bool IsValid(KnowledgeOptions options) =>
@@ -59,5 +73,11 @@ public sealed record KnowledgeOptions
         options.MinimumSimilarity is >= -1 and <= 1 &&
         options.MaximumImportBytes > 0 && options.MaximumExtractedCharacters > 0 &&
         options.MaximumChunksPerDocument > 0 && options.MaximumQueryCharacters > 0 &&
-        options.MaximumExcerptCharacters > 0 && options.MaximumToolResultCharacters >= 4096;
+        options.MaximumExcerptCharacters > 0 && options.MaximumToolResultCharacters >= 4096 &&
+        options.SemanticCandidatePoolSize is >= 10 and <= 200 &&
+        options.LexicalCandidatePoolSize is >= 10 and <= 200 &&
+        options.RrfRankConstant is >= 1 and <= 200 && options.MmrLambda is >= 0 and <= 1 &&
+        options.MaximumContextNeighborsEachSide is >= 0 and <= 3 &&
+        options.MaximumLexicalQueryTerms is >= 1 and <= 64 &&
+        options.MaximumLexicalTermCharacters is >= 8 and <= 512;
 }

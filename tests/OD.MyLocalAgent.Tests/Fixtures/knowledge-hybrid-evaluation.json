@@ -1,0 +1,42 @@
+{
+  "documents": [
+    {
+      "id": "fr-guide",
+      "tags": ["public"],
+      "chunks": [
+        { "id": "fr-0", "ordinal": 0, "heading": "Sécurité", "page": 1, "text": "Préparez une sauvegarde avant toute opération.", "vector": [1.0, 0.0] },
+        { "id": "fr-1", "ordinal": 1, "heading": "Sécurité", "page": 1, "text": "Le résumé de sécurité explique comment protéger les secrets.", "vector": [1.0, 0.0] }
+      ]
+    },
+    {
+      "id": "technical-guide",
+      "tags": ["public"],
+      "chunks": [
+        { "id": "tech-1", "ordinal": 0, "heading": "Startup", "page": 1, "text": "IServiceProvider startup error E-42: validate the service registration.", "vector": [0.9, 0.4358899] },
+        { "id": "tech-duplicate", "ordinal": 1, "heading": "Startup", "page": 1, "text": "A similar startup diagnostic repeats the service registration guidance.", "vector": [0.94, 0.3411744] }
+      ]
+    },
+    {
+      "id": "recovery-guide",
+      "tags": ["public"],
+      "chunks": [
+        { "id": "recovery-1", "ordinal": 0, "heading": "Recovery", "page": 1, "text": "Restart the host after correcting the startup configuration.", "vector": [0.0, 1.0] },
+        { "id": "recovery-page-2", "ordinal": 1, "heading": "Recovery", "page": 2, "text": "Page-two operations must not expand into a page-one result.", "vector": [0.0, 1.0] }
+      ]
+    },
+    {
+      "id": "private-guide",
+      "tags": ["private"],
+      "chunks": [
+        { "id": "private-1", "ordinal": 0, "heading": "Secrets", "page": 1, "text": "confidential token: never disclose this synthetic secret marker.", "vector": [1.0, 0.0] }
+      ]
+    }
+  ],
+  "cases": [
+    { "id": "fr-diacritics", "query": "resume securite", "queryVector": [1.0, 0.0], "tags": ["public"], "expectedChunkIds": ["fr-1"] },
+    { "id": "exact-identifier", "query": "IServiceProvider E-42", "queryVector": [0.9, 0.4358899], "tags": ["public"], "expectedChunkIds": ["tech-1"] },
+    { "id": "semantic-paraphrase", "query": "recover service after launch failure", "queryVector": [0.0, 1.0], "tags": ["public"], "expectedChunkIds": ["recovery-1"] },
+    { "id": "diversity", "query": "startup diagnostic", "queryVector": [0.9, 0.4358899], "tags": ["public"], "expectedChunkIds": ["tech-1", "recovery-1"] },
+    { "id": "unauthorized", "query": "confidential token", "queryVector": [-1.0, 0.0], "tags": ["public"], "expectedChunkIds": [] }
+  ]
+}

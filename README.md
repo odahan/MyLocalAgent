@@ -1791,7 +1791,7 @@ grants. **Edit workflow text** is metadata-driven and edits long-form `ai.prompt
 `filesystem.powerShell.script` values atomically without changing step identity or structure.
 # Embedded Knowledge and RAG
 
-The **Knowledge** page imports TXT, Markdown, DOCX, and text-based PDF files into private application storage below `.od-my-local-agent/data/knowledge`. OCR is not provided. Files are extracted, deterministically chunked, embedded, and searched locally through the ordinary `knowledge.search` tool. The SQLite vector baseline uses exact cosine similarity and requires no vector server or native vector extension.
+The **Knowledge** page imports TXT, Markdown, DOCX, and text-based PDF files into private application storage below `.od-my-local-agent/data/knowledge`. OCR is not provided. Files are extracted, deterministically chunked, embedded, and searched locally through the ordinary `knowledge.search` tool. Retrieval combines tag-prefiltered exact-term FTS5 matching with exact cosine similarity, fuses ranks deterministically, and can include bounded adjacent same-section context. It has no vector server, reranker, or automatic context injection.
 
 Knowledge access is deny-by-default. Enabling the task or Direct Chat `knowledge` group does not grant documents until explicit tags are authorized. Task `tools` values are group names, while an `ai.prompt` step's `toolAliases` values are exact catalog aliases. A prompt step may narrow its task tags but cannot broaden them. Retrieval is tool-driven; excerpts are never injected automatically and are always untrusted data.
 

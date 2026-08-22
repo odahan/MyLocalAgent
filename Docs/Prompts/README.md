@@ -36,6 +36,7 @@ Ce dossier contient la version révisée du « Master Prompt » v1, corrigée pu
 | `24-Stage24-PublicationsAndMarkdownReports.md` | **Extension post-v1** — registre local de publications par espace de stockage, saisie et filtrage simples, périodes/tags/types explicites et export Markdown `PublicationReport`, sans conservation du contenu intégral. Requiert l’étape 23. |
 | `25-Stage25-HumanWorkflowTextEditing.md` | **Extension post-v1** — édition de workflow par texte humain déterministe, éditeurs multiligne typés et mode JSON avancé conservé. JSON reste le format persistant ; AI Helper et AI Explain restent complémentaires. |
 | `26-Stage26-EmbeddedKnowledgeAndDeclarativePromptTools.md` | **Extension post-v1** — supprime l'invariant historique « `ai.prompt` sans tools », autorise tout tool agentique par alias déclaratif sous les droits existants, et ajoute une bibliothèque Knowledge/RAG SQLite embarquée avec filtrage par tags pour les tâches, les steps `ai.prompt` et Direct Chat. |
+| `27-Stage27-HybridKnowledgeRetrievalAndContextSelection.md` | **Extension post-v1** — suite de l'étape 26 : recherche Knowledge hybride SQLite FTS5 + vecteurs avec fusion RRF, sélection MMR et contexte small-to-big borné. Aucun reranker, modèle, service externe ou changement d'autorisation. |
 
 ## Mode d'emploi
 

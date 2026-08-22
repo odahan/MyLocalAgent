@@ -32,6 +32,102 @@ public sealed class KnowledgeStage26Tests : IDisposable
         ((Action)(() => KnowledgeTagPolicy.Normalize("*"))).Should().Throw<ArgumentException>();
     }
 
+    /// <summary>Verifies caller text is converted to bounded literal FTS terms instead of FTS syntax.</summary>
+    [Fact]
+    public void LexicalQueryNeutralizesFtsOperatorsAndPunctuation()
+    {
+        var query = KnowledgeLexicalQuery.Create("foo* AND (bar) \"NEAR\"", new KnowledgeOptions());
+        query.IsEmpty.Should().BeFalse();
+        query.MatchExpression.Should().Be("\"foo\" OR \"AND\" OR \"bar\" OR \"NEAR\"");
+        KnowledgeLexicalQuery.Create("*** () \0", new KnowledgeOptions()).IsEmpty.Should().BeTrue();
+    }
+
+    /// <summary>Verifies the committed hybrid-evaluation fixture remains complete and machine-readable.</summary>
+    [Fact]
+    public void HybridEvaluationFixtureIsWellFormed()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "Fixtures", "knowledge-hybrid-evaluation.json");
+        using var document = JsonDocument.Parse(File.ReadAllText(path));
+        var documents = document.RootElement.GetProperty("documents").EnumerateArray().ToArray();
+        var cases = document.RootElement.GetProperty("cases").EnumerateArray().ToArray();
+        var chunkIds = documents.SelectMany(item => item.GetProperty("chunks").EnumerateArray()).Select(item => item.GetProperty("id").GetString()).ToHashSet(StringComparer.Ordinal);
+        documents.Should().HaveCount(4);
+        cases.Should().HaveCount(5);
+        cases.Select(item => item.GetProperty("id").GetString()).Should().Contain(["fr-diacritics", "exact-identifier", "semantic-paraphrase", "diversity", "unauthorized"]);
+        cases.Should().OnlyContain(item =>
+            item.EnumerateObject().Any(property => property.NameEquals("query")) &&
+            item.EnumerateObject().Any(property => property.NameEquals("tags")) &&
+            item.EnumerateObject().Any(property => property.NameEquals("expectedChunkIds")));
+        var expectedChunkIds = cases.SelectMany(item => item.GetProperty("expectedChunkIds").EnumerateArray()).Select(item => item.GetString()!).ToArray();
+        expectedChunkIds.Should().OnlyContain(id => chunkIds.Contains(id));
+    }
+
+    /// <summary>Evaluates the committed synthetic corpus and enforces its hybrid quality gate.</summary>
+    [Fact]
+    public async Task HybridEvaluationFixtureMeetsQualityGate()
+    {
+        var fixturePath = Path.Combine(AppContext.BaseDirectory, "Fixtures", "knowledge-hybrid-evaluation.json");
+        var fixture = JsonSerializer.Deserialize<KnowledgeEvaluationFixture>(
+            await File.ReadAllTextAsync(fixturePath),
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+        var paths = new WorkspacePaths(_directory); paths.EnsureDirectories();
+        var store = new SqliteKnowledgeStore(paths); await store.InitializeAsync(CancellationToken.None);
+        var now = DateTimeOffset.Parse("2026-08-22T10:00:00Z");
+        foreach (var document in fixture.Documents)
+        {
+            var chunks = document.Chunks.Select(chunk => new KnowledgeChunk(chunk.Id, chunk.Ordinal, chunk.Text, 8, 0, chunk.Text.Length, chunk.Heading, chunk.Page)).ToArray();
+            await store.CommitAsync(new KnowledgeDocument(document.Id, document.Id, string.Empty, document.Tags, $"{document.Id}.txt", "text/plain", 1, chunks.Sum(chunk => chunk.Text.Length), chunks.Length, now), $"{document.Id}.txt", chunks, document.Chunks.Select(chunk => chunk.Vector).ToArray(), "Ollama", "evaluation", CancellationToken.None);
+        }
+
+        var vectors = fixture.Cases.ToDictionary(item => item.Query, item => item.QueryVector, StringComparer.Ordinal);
+        var settings = new KnowledgeOptions { EmbeddingProvider = "Ollama", EmbeddingModel = "evaluation", MinimumSimilarity = 0.25f, MaximumContextNeighborsEachSide = 0 };
+        var service = new KnowledgeSearchService(store, new MappingEmbeddings(vectors), Mock.Of<ITokenEstimator>(item => item.EstimateText(It.IsAny<string>()) == 8), Mock.Of<IOptionsMonitor<KnowledgeOptions>>(item => item.CurrentValue == settings));
+        var privateChunkIds = fixture.Documents.Where(document => document.Tags.Contains("private", StringComparer.Ordinal)).SelectMany(document => document.Chunks).Select(chunk => chunk.Id).ToHashSet(StringComparer.Ordinal);
+        var expectedCount = 0; var retrievedExpectedCount = 0; var reciprocalRanks = new List<double>(); var unauthorizedLeaks = 0;
+        var duplicateResultCount = 0; var returnedTokenEstimate = 0; var returnedResultCount = 0;
+        var semanticBaselineRetrievedCount = 0; var exactHybridRetrievedCount = 0; var exactBaselineRetrievedCount = 0;
+        foreach (var item in fixture.Cases)
+        {
+            var response = await service.SearchAsync(item.Query, item.Tags, null, 5, CancellationToken.None);
+            var resultIds = response.Results.Select(result => result.ChunkId).ToArray();
+            unauthorizedLeaks += resultIds.Count(privateChunkIds.Contains);
+            duplicateResultCount += resultIds.Length - resultIds.Distinct(StringComparer.Ordinal).Count();
+            returnedTokenEstimate += response.Results.Count * 8;
+            returnedResultCount += response.Results.Count;
+            expectedCount += item.ExpectedChunkIds.Length;
+            retrievedExpectedCount += item.ExpectedChunkIds.Count(resultIds.Contains);
+            var semanticBaselineIds = fixture.Documents
+                .Where(document => document.Tags.Intersect(item.Tags, StringComparer.Ordinal).Any())
+                .SelectMany(document => document.Chunks)
+                .Select(chunk => new { chunk.Id, Similarity = Dot(item.QueryVector, chunk.Vector) })
+                .Where(candidate => candidate.Similarity >= settings.MinimumSimilarity)
+                .OrderByDescending(candidate => candidate.Similarity)
+                .ThenBy(candidate => candidate.Id, StringComparer.Ordinal)
+                .Take(5)
+                .Select(candidate => candidate.Id)
+                .ToArray();
+            semanticBaselineRetrievedCount += item.ExpectedChunkIds.Count(semanticBaselineIds.Contains);
+            if (item.Id is "fr-diacritics" or "exact-identifier")
+            {
+                exactHybridRetrievedCount += item.ExpectedChunkIds.Count(resultIds.Contains);
+                exactBaselineRetrievedCount += item.ExpectedChunkIds.Count(semanticBaselineIds.Contains);
+            }
+            var firstExpectedRank = Array.FindIndex(resultIds, id => item.ExpectedChunkIds.Contains(id));
+            if (firstExpectedRank >= 0) reciprocalRanks.Add(1d / (firstExpectedRank + 1));
+        }
+
+        var recallAtFive = (double)retrievedExpectedCount / expectedCount;
+        var semanticBaselineRecallAtFive = (double)semanticBaselineRetrievedCount / expectedCount;
+        var averageReturnedTokens = (double)returnedTokenEstimate / returnedResultCount;
+        recallAtFive.Should().BeGreaterThanOrEqualTo(1d);
+        recallAtFive.Should().BeGreaterThanOrEqualTo(semanticBaselineRecallAtFive);
+        exactHybridRetrievedCount.Should().BeGreaterThanOrEqualTo(exactBaselineRetrievedCount);
+        reciprocalRanks.Average().Should().BeGreaterThanOrEqualTo(0.8d);
+        duplicateResultCount.Should().Be(0);
+        averageReturnedTokens.Should().Be(8d);
+        unauthorizedLeaks.Should().Be(0);
+    }
+
     /// <summary>Verifies strict prompt-step policy round trips while legacy string form remains unchanged.</summary>
     [Fact]
     public void PromptToolPolicyRoundTripsAndLegacyFormIsStable()
@@ -60,12 +156,230 @@ public sealed class KnowledgeStage26Tests : IDisposable
         await store.CommitAsync(new KnowledgeDocument("a", "Allowed", "", ["public"], "a.txt", "text/plain", 1, 5, 1, now), "a.txt", [new KnowledgeChunk("a:0", 0, "allowed text", 3, 0, 12, null, null)], [[1f, 0f]], "Ollama", "test", CancellationToken.None);
         await store.CommitAsync(new KnowledgeDocument("b", "Denied", "", ["private"], "b.txt", "text/plain", 1, 5, 1, now), "b.txt", [new KnowledgeChunk("b:0", 0, "denied text", 3, 0, 11, null, null)], [[1f, 0f]], "Ollama", "test", CancellationToken.None);
         var embeddings = new RecordingEmbeddings([1f, 0f]); var options = Options(["public"]);
-        var service = new KnowledgeSearchService(store, embeddings, options);
+        var service = new KnowledgeSearchService(store, embeddings, Mock.Of<ITokenEstimator>(item => item.EstimateText(It.IsAny<string>()) == 3), options);
         var response = await service.SearchAsync("query", ["public"], null, 5, CancellationToken.None);
         response.Results.Should().ContainSingle().Which.DocumentId.Should().Be("a");
         var denied = async () => await service.SearchAsync("query", [], null, 5, CancellationToken.None);
         await denied.Should().ThrowAsync<KnowledgeAuthorizationException>();
         embeddings.CallCount.Should().Be(1);
+    }
+
+    /// <summary>Verifies FTS5 is built from active chunks and applies tag scope before its result limit.</summary>
+    [Fact]
+    public async Task HybridLexicalSearchUsesActiveAuthorizedChunks()
+    {
+        var paths = new WorkspacePaths(_directory); paths.EnsureDirectories();
+        var store = new SqliteKnowledgeStore(paths); await store.InitializeAsync(CancellationToken.None);
+        var now = DateTimeOffset.Parse("2026-08-22T10:00:00Z");
+        await store.CommitAsync(new KnowledgeDocument("allowed", "Guide", "", ["public"], "a.txt", "text/plain", 1, 1, 1, now), "a.txt", [new KnowledgeChunk("allowed:0", 0, "Résumé IServiceProvider startup error", 5, 0, 36, "Setup", null)], [[1f, 0f]], "Ollama", "test", CancellationToken.None);
+        await store.CommitAsync(new KnowledgeDocument("denied", "Secret", "", ["private"], "b.txt", "text/plain", 1, 1, 1, now), "b.txt", [new KnowledgeChunk("denied:0", 0, "IServiceProvider startup error secret", 5, 0, 37, "Setup", null)], [[1f, 0f]], "Ollama", "test", CancellationToken.None);
+
+        var query = KnowledgeLexicalQuery.Create("resume IServiceProvider AND \"startup\"", new KnowledgeOptions());
+        var results = await store.SearchLexicalCandidatesAsync(["public"], query, 20, CancellationToken.None);
+
+        results.Should().ContainSingle().Which.ChunkId.Should().Be("allowed:0");
+    }
+
+    /// <summary>Verifies hybrid fusion retains a lexical hit and MMR prefers a complementary second anchor.</summary>
+    [Fact]
+    public async Task HybridSearchFusesExactTermsAndDiversifiesAnchors()
+    {
+        var paths = new WorkspacePaths(_directory); paths.EnsureDirectories();
+        var store = new SqliteKnowledgeStore(paths); await store.InitializeAsync(CancellationToken.None);
+        var now = DateTimeOffset.Parse("2026-08-22T10:00:00Z");
+        await store.CommitAsync(new KnowledgeDocument("a", "Startup", "", ["public"], "a.txt", "text/plain", 1, 1, 1, now), "a.txt", [new KnowledgeChunk("a:0", 0, "IServiceProvider error code E-42", 5, 0, 31, null, null)], [[1f, 0f]], "Ollama", "test", CancellationToken.None);
+        await store.CommitAsync(new KnowledgeDocument("b", "Duplicate", "", ["public"], "b.txt", "text/plain", 1, 1, 1, now), "b.txt", [new KnowledgeChunk("b:0", 0, "A very similar startup diagnostic", 5, 0, 31, null, null)], [[0.9949874f, 0.1f]], "Ollama", "test", CancellationToken.None);
+        await store.CommitAsync(new KnowledgeDocument("c", "Recovery", "", ["public"], "c.txt", "text/plain", 1, 1, 1, now), "c.txt", [new KnowledgeChunk("c:0", 0, "Recover the service by restarting the host", 6, 0, 42, null, null)], [[0f, 1f]], "Ollama", "test", CancellationToken.None);
+        var retrieval = new KnowledgeOptions { EmbeddingProvider = "Ollama", EmbeddingModel = "test", MinimumSimilarity = 0, DefaultMaximumResultTokens = 100, MaximumResultTokens = 100 };
+        var monitor = Mock.Of<IOptionsMonitor<KnowledgeOptions>>(item => item.CurrentValue == retrieval);
+        var service = new KnowledgeSearchService(store, new RecordingEmbeddings([1f, 0f]), Mock.Of<ITokenEstimator>(item => item.EstimateText(It.IsAny<string>()) == 5), monitor);
+
+        var response = await service.SearchAsync("IServiceProvider", ["public"], null, 2, CancellationToken.None);
+
+        response.Results.Select(x => x.ChunkId).Should().Equal("a:0", "c:0");
+        response.Results[0].MatchType.Should().Be("Matched by both");
+    }
+
+    /// <summary>Verifies small-to-big expansion includes only contiguous same-section, same-page neighbors.</summary>
+    [Fact]
+    public async Task HybridSearchExpandsOnlyPermittedAdjacentContext()
+    {
+        var paths = new WorkspacePaths(_directory); paths.EnsureDirectories();
+        var store = new SqliteKnowledgeStore(paths); await store.InitializeAsync(CancellationToken.None);
+        var now = DateTimeOffset.Parse("2026-08-22T10:00:00Z");
+        var document = new KnowledgeDocument("guide", "Guide", "", ["public"], "guide.txt", "text/plain", 1, 1, 4, now);
+        var chunks = new[]
+        {
+            new KnowledgeChunk("guide:0", 0, "Step before", 2, 0, 11, "Setup", 1),
+            new KnowledgeChunk("guide:1", 1, "marker anchor", 2, 12, 25, "Setup", 1),
+            new KnowledgeChunk("guide:2", 2, "Step after", 2, 26, 36, "Setup", 1),
+            new KnowledgeChunk("guide:3", 3, "Different section", 2, 37, 54, "Other", 1),
+        };
+        await store.CommitAsync(document, "guide.txt", chunks, [[0f, 1f], [1f, 0f], [0f, 1f], [0f, 1f]], "Ollama", "test", CancellationToken.None);
+        var retrieval = new KnowledgeOptions { EmbeddingProvider = "Ollama", EmbeddingModel = "test", MaximumContextNeighborsEachSide = 2, DefaultMaximumResultTokens = 100, MaximumResultTokens = 100 };
+        var service = new KnowledgeSearchService(store, new RecordingEmbeddings([1f, 0f]), Mock.Of<ITokenEstimator>(item => item.EstimateText(It.IsAny<string>()) == 5), Mock.Of<IOptionsMonitor<KnowledgeOptions>>(item => item.CurrentValue == retrieval));
+
+        var response = await service.SearchAsync("marker", ["public"], null, 1, CancellationToken.None);
+
+        var result = response.Results.Should().ContainSingle().Which;
+        result.ContextStartChunkOrdinal.Should().Be(0);
+        result.ContextEndChunkOrdinal.Should().Be(2);
+        result.Text.Should().Contain("Step before").And.Contain("Step after").And.NotContain("Different section");
+    }
+
+    /// <summary>Verifies context expansion stops at a page boundary even when the heading is unchanged.</summary>
+    [Fact]
+    public async Task HybridSearchDoesNotExpandAcrossPageBoundary()
+    {
+        var paths = new WorkspacePaths(_directory); paths.EnsureDirectories();
+        var store = new SqliteKnowledgeStore(paths); await store.InitializeAsync(CancellationToken.None);
+        var now = DateTimeOffset.Parse("2026-08-22T10:00:00Z");
+        var chunks = new[]
+        {
+            new KnowledgeChunk("page:0", 0, "marker on page one", 3, 0, 18, "Procedure", 1),
+            new KnowledgeChunk("page:1", 1, "must remain on page two", 4, 19, 43, "Procedure", 2),
+        };
+        await store.CommitAsync(new KnowledgeDocument("page", "Pages", "", ["public"], "page.txt", "text/plain", 1, 1, 2, now), "page.txt", chunks, [[1f, 0f], [0f, 1f]], "Ollama", "test", CancellationToken.None);
+        var settings = new KnowledgeOptions { EmbeddingProvider = "Ollama", EmbeddingModel = "test", MaximumContextNeighborsEachSide = 1, DefaultMaximumResultTokens = 100, MaximumResultTokens = 100 };
+        var service = new KnowledgeSearchService(store, new RecordingEmbeddings([1f, 0f]), Mock.Of<ITokenEstimator>(item => item.EstimateText(It.IsAny<string>()) == 5), Mock.Of<IOptionsMonitor<KnowledgeOptions>>(item => item.CurrentValue == settings));
+
+        var result = (await service.SearchAsync("marker", ["public"], null, 1, CancellationToken.None)).Results.Should().ContainSingle().Which;
+
+        result.ContextStartChunkOrdinal.Should().Be(0);
+        result.ContextEndChunkOrdinal.Should().Be(0);
+        result.Text.Should().NotContain("page two");
+    }
+
+    /// <summary>Verifies an oversized neighbor is omitted while its complete anchor remains available.</summary>
+    [Fact]
+    public async Task HybridSearchPreservesAnchorWhenNeighborExceedsDisplayBudget()
+    {
+        var paths = new WorkspacePaths(_directory); paths.EnsureDirectories();
+        var store = new SqliteKnowledgeStore(paths); await store.InitializeAsync(CancellationToken.None);
+        var now = DateTimeOffset.Parse("2026-08-22T10:00:00Z");
+        var chunks = new[]
+        {
+            new KnowledgeChunk("budget:0", 0, "marker anchor", 2, 0, 13, "Procedure", 1),
+            new KnowledgeChunk("budget:1", 1, "this neighbor would exceed the display budget", 8, 14, 58, "Procedure", 1),
+        };
+        await store.CommitAsync(new KnowledgeDocument("budget", "Budget", "", ["public"], "budget.txt", "text/plain", 1, 1, 2, now), "budget.txt", chunks, [[1f, 0f], [0f, 1f]], "Ollama", "test", CancellationToken.None);
+        var settings = new KnowledgeOptions { EmbeddingProvider = "Ollama", EmbeddingModel = "test", MaximumContextNeighborsEachSide = 1, MaximumExcerptCharacters = 20, DefaultMaximumResultTokens = 100, MaximumResultTokens = 100 };
+        var service = new KnowledgeSearchService(store, new RecordingEmbeddings([1f, 0f]), Mock.Of<ITokenEstimator>(item => item.EstimateText(It.IsAny<string>()) == 5), Mock.Of<IOptionsMonitor<KnowledgeOptions>>(item => item.CurrentValue == settings));
+
+        var result = (await service.SearchAsync("marker", ["public"], null, 1, CancellationToken.None)).Results.Should().ContainSingle().Which;
+
+        result.Text.Should().Be("marker anchor");
+        result.ContextStartChunkOrdinal.Should().Be(0);
+        result.ContextEndChunkOrdinal.Should().Be(0);
+    }
+
+    /// <summary>Verifies response serialization stays below the configured tool-result character cap.</summary>
+    [Fact]
+    public async Task HybridSearchHonorsFinalSerializedCharacterCap()
+    {
+        var paths = new WorkspacePaths(_directory); paths.EnsureDirectories();
+        var store = new SqliteKnowledgeStore(paths); await store.InitializeAsync(CancellationToken.None);
+        var now = DateTimeOffset.Parse("2026-08-22T10:00:00Z");
+        var text = "marker " + new string('x', 10_000);
+        await store.CommitAsync(new KnowledgeDocument("cap", "Character cap", "", ["public"], "cap.txt", "text/plain", 1, text.Length, 1, now), "cap.txt", [new KnowledgeChunk("cap:0", 0, text, 20, 0, text.Length, null, null)], [[1f, 0f]], "Ollama", "test", CancellationToken.None);
+        var settings = new KnowledgeOptions { EmbeddingProvider = "Ollama", EmbeddingModel = "test", MaximumExcerptCharacters = 3_000, MaximumToolResultCharacters = 4_096 };
+        var service = new KnowledgeSearchService(store, new RecordingEmbeddings([1f, 0f]), Mock.Of<ITokenEstimator>(item => item.EstimateText(It.IsAny<string>()) == 20), Mock.Of<IOptionsMonitor<KnowledgeOptions>>(item => item.CurrentValue == settings));
+
+        var response = await service.SearchAsync("marker", ["public"], null, 1, CancellationToken.None);
+
+        response.Results.Should().ContainSingle();
+        ToolJson.Serialize(response).Length.Should().BeLessThanOrEqualTo(settings.MaximumToolResultCharacters);
+    }
+
+    /// <summary>Verifies startup repairs a missing FTS table from active chunk rows without re-embedding.</summary>
+    [Fact]
+    public async Task StartupRebuildsMissingFtsTable()
+    {
+        var paths = new WorkspacePaths(_directory); paths.EnsureDirectories();
+        var store = new SqliteKnowledgeStore(paths); await store.InitializeAsync(CancellationToken.None);
+        var now = DateTimeOffset.Parse("2026-08-22T10:00:00Z");
+        await store.CommitAsync(new KnowledgeDocument("a", "Guide", "", ["public"], "a.txt", "text/plain", 1, 1, 1, now), "a.txt", [new KnowledgeChunk("a:0", 0, "recovery marker", 2, 0, 15, null, null)], [[1f, 0f]], "Ollama", "test", CancellationToken.None);
+        await using (var connection = new SqliteConnection($"Data Source={paths.KnowledgeDatabasePath};Pooling=False"))
+        {
+            await connection.OpenAsync(); await using var command = connection.CreateCommand(); command.CommandText = "DROP TABLE chunk_fts;"; await command.ExecuteNonQueryAsync();
+        }
+
+        await store.InitializeAsync(CancellationToken.None);
+        var results = await store.SearchLexicalCandidatesAsync(["public"], KnowledgeLexicalQuery.Create("marker", new KnowledgeOptions()), 20, CancellationToken.None);
+        results.Should().ContainSingle().Which.ChunkId.Should().Be("a:0");
+    }
+
+    /// <summary>Verifies a schema-3 library upgrades active chunks to FTS without re-embedding.</summary>
+    [Fact]
+    public async Task VersionThreeKnowledgeSchemaMigratesActiveChunksToFts()
+    {
+        var paths = new WorkspacePaths(_directory); paths.EnsureDirectories();
+        var store = new SqliteKnowledgeStore(paths); await store.InitializeAsync(CancellationToken.None);
+        var now = DateTimeOffset.Parse("2026-08-22T10:00:00Z");
+        await store.CommitAsync(new KnowledgeDocument("legacy3", "Legacy", "", ["public"], "legacy.txt", "text/plain", 1, 1, 1, now), "legacy.txt", [new KnowledgeChunk("legacy3:0", 0, "schema three marker", 3, 0, 19, null, null)], [[1f, 0f]], "Ollama", "test", CancellationToken.None);
+        await using (var connection = new SqliteConnection($"Data Source={paths.KnowledgeDatabasePath};Pooling=False"))
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = "DROP TABLE chunk_fts; PRAGMA user_version=3;";
+            await command.ExecuteNonQueryAsync();
+        }
+
+        await store.InitializeAsync(CancellationToken.None);
+
+        (await store.SearchLexicalCandidatesAsync(["public"], KnowledgeLexicalQuery.Create("marker", new KnowledgeOptions()), 20, CancellationToken.None)).Should().ContainSingle().Which.ChunkId.Should().Be("legacy3:0");
+        await using var check = new SqliteConnection($"Data Source={paths.KnowledgeDatabasePath};Pooling=False");
+        await check.OpenAsync();
+        await using var version = check.CreateCommand(); version.CommandText = "PRAGMA user_version;";
+        (await version.ExecuteScalarAsync()).Should().Be(4L);
+    }
+
+    /// <summary>Verifies startup replaces a structurally corrupt FTS table from active chunks.</summary>
+    [Fact]
+    public async Task StartupRebuildsCorruptFtsTable()
+    {
+        var paths = new WorkspacePaths(_directory); paths.EnsureDirectories();
+        var store = new SqliteKnowledgeStore(paths); await store.InitializeAsync(CancellationToken.None);
+        var now = DateTimeOffset.Parse("2026-08-22T10:00:00Z");
+        await store.CommitAsync(new KnowledgeDocument("corrupt", "Corrupt", "", ["public"], "corrupt.txt", "text/plain", 1, 1, 1, now), "corrupt.txt", [new KnowledgeChunk("corrupt:0", 0, "corrupt marker", 2, 0, 14, null, null)], [[1f, 0f]], "Ollama", "test", CancellationToken.None);
+        await using (var connection = new SqliteConnection($"Data Source={paths.KnowledgeDatabasePath};Pooling=False"))
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = "DROP TABLE chunk_fts; CREATE TABLE chunk_fts(invalid_column TEXT);";
+            await command.ExecuteNonQueryAsync();
+        }
+
+        await store.InitializeAsync(CancellationToken.None);
+
+        (await store.SearchLexicalCandidatesAsync(["public"], KnowledgeLexicalQuery.Create("marker", new KnowledgeOptions()), 20, CancellationToken.None)).Should().ContainSingle().Which.ChunkId.Should().Be("corrupt:0");
+    }
+
+    /// <summary>Verifies a failed schema-3 FTS migration leaves the previous schema version and chunks intact.</summary>
+    [Fact]
+    public async Task FailedFtsMigrationDoesNotAdvanceSchemaOrDiscardChunks()
+    {
+        var paths = new WorkspacePaths(_directory); paths.EnsureDirectories();
+        var store = new SqliteKnowledgeStore(paths); await store.InitializeAsync(CancellationToken.None);
+        var now = DateTimeOffset.Parse("2026-08-22T10:00:00Z");
+        await store.CommitAsync(new KnowledgeDocument("migration", "Migration", "", ["public"], "migration.txt", "text/plain", 1, 1, 1, now), "migration.txt", [new KnowledgeChunk("migration:0", 0, "migration marker", 2, 0, 16, null, null)], [[1f, 0f]], "Ollama", "test", CancellationToken.None);
+        await using (var connection = new SqliteConnection($"Data Source={paths.KnowledgeDatabasePath};Pooling=False"))
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = "DROP TABLE chunk_fts; CREATE TABLE chunk_fts(invalid_column TEXT); PRAGMA user_version=3;";
+            await command.ExecuteNonQueryAsync();
+        }
+
+        var action = async () => await store.InitializeAsync(CancellationToken.None);
+        await action.Should().ThrowAsync<SqliteException>();
+
+        await using var check = new SqliteConnection($"Data Source={paths.KnowledgeDatabasePath};Pooling=False");
+        await check.OpenAsync();
+        await using var version = check.CreateCommand(); version.CommandText = "PRAGMA user_version;";
+        (await version.ExecuteScalarAsync()).Should().Be(3L);
+        await using var chunks = check.CreateCommand(); chunks.CommandText = "SELECT COUNT(*) FROM chunks;";
+        (await chunks.ExecuteScalarAsync()).Should().Be(1L);
     }
 
     /// <summary>Verifies deterministic bounded chunk generation.</summary>
@@ -140,7 +454,7 @@ public sealed class KnowledgeStage26Tests : IDisposable
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
         command.CommandText = "PRAGMA user_version;";
-        (await command.ExecuteScalarAsync()).Should().Be(3L);
+        (await command.ExecuteScalarAsync()).Should().Be(4L);
     }
 
     /// <summary>Verifies startup removes abandoned staging and unreferenced canonical files only.</summary>
@@ -327,8 +641,78 @@ public sealed class KnowledgeStage26Tests : IDisposable
         var candidates = await store.GetCandidatesAsync(["public"], CancellationToken.None);
         candidates.Should().ContainSingle().Which.Text.Should().Be("new text");
         candidates[0].ChunkId.Should().Be("new-revision:0");
+        (await store.SearchLexicalCandidatesAsync(["public"], KnowledgeLexicalQuery.Create("new", options), 10, CancellationToken.None)).Should().ContainSingle().Which.ChunkId.Should().Be("new-revision:0");
+        (await store.SearchLexicalCandidatesAsync(["public"], KnowledgeLexicalQuery.Create("old", options), 10, CancellationToken.None)).Should().BeEmpty();
         (await store.FindActiveBySourceHashAsync(new string('a', 64), CancellationToken.None))!.Id.Should().Be("a");
         (await store.GetChunkPreviewAsync("a", 10, 1000, CancellationToken.None)).Should().ContainSingle().Which.Text.Should().Be("new text");
+    }
+
+    /// <summary>Verifies deleting a document removes its active FTS rows in the same transaction.</summary>
+    [Fact]
+    public async Task DeletionRemovesLexicalCandidates()
+    {
+        var paths = new WorkspacePaths(_directory); paths.EnsureDirectories();
+        var store = new SqliteKnowledgeStore(paths); await store.InitializeAsync(CancellationToken.None);
+        var now = DateTimeOffset.Parse("2026-08-22T10:00:00Z");
+        var options = new KnowledgeOptions { EmbeddingProvider = "Ollama", EmbeddingModel = "test" };
+        await store.CommitAsync(new KnowledgeDocument("delete", "Delete", "", ["public"], "delete.txt", "text/plain", 1, 1, 1, now), "delete.txt", [new KnowledgeChunk("delete:0", 0, "delete lexical marker", 3, 0, 21, null, null)], [[1f, 0f]], options, CancellationToken.None);
+
+        (await store.DeleteAsync("delete", CancellationToken.None)).Deleted.Should().BeTrue();
+
+        (await store.SearchLexicalCandidatesAsync(["public"], KnowledgeLexicalQuery.Create("marker", options), 10, CancellationToken.None)).Should().BeEmpty();
+    }
+
+    /// <summary>Verifies a full-library reindex replaces the lexical corpus atomically.</summary>
+    [Fact]
+    public async Task FullLibraryReindexReplacesLexicalCorpus()
+    {
+        var paths = new WorkspacePaths(_directory); paths.EnsureDirectories();
+        var store = new SqliteKnowledgeStore(paths); await store.InitializeAsync(CancellationToken.None);
+        var now = DateTimeOffset.Parse("2026-08-22T10:00:00Z");
+        var options = new KnowledgeOptions { EmbeddingProvider = "Ollama", EmbeddingModel = "test" };
+        var alpha = new KnowledgeDocument("alpha", "Alpha", "", ["public"], "alpha.txt", "text/plain", 1, 1, 1, now);
+        var beta = new KnowledgeDocument("beta", "Beta", "", ["public"], "beta.txt", "text/plain", 1, 1, 1, now);
+        await store.CommitAsync(alpha, "alpha.txt", [new KnowledgeChunk("alpha:old", 0, "old alpha", 2, 0, 9, null, null)], [[1f, 0f]], options, CancellationToken.None);
+        await store.CommitAsync(beta, "beta.txt", [new KnowledgeChunk("beta:old", 0, "old beta", 2, 0, 8, null, null)], [[0f, 1f]], options, CancellationToken.None);
+        var replacements = new[]
+        {
+            new KnowledgePreparedIndex(alpha with { UpdatedUtc = now.AddMinutes(1) }, "alpha.txt", [new KnowledgeChunk("alpha:new", 0, "fresh alpha", 2, 0, 11, null, null)], [[1f, 0f]], "alpha:v2", new string('a', 64), new string('b', 64)),
+            new KnowledgePreparedIndex(beta with { UpdatedUtc = now.AddMinutes(1) }, "beta.txt", [new KnowledgeChunk("beta:new", 0, "fresh beta", 2, 0, 10, null, null)], [[0f, 1f]], "beta:v2", new string('c', 64), new string('d', 64)),
+        };
+
+        await store.ReplaceAllIndexesAsync(replacements, options, CancellationToken.None);
+
+        (await store.SearchLexicalCandidatesAsync(["public"], KnowledgeLexicalQuery.Create("old", options), 10, CancellationToken.None)).Should().BeEmpty();
+        (await store.SearchLexicalCandidatesAsync(["public"], KnowledgeLexicalQuery.Create("fresh", options), 10, CancellationToken.None)).Select(candidate => candidate.ChunkId).Should().Equal("alpha:new", "beta:new");
+    }
+
+    /// <summary>Verifies concurrent readers see one complete active revision and matching FTS row during replacement.</summary>
+    [Fact]
+    public async Task ConcurrentReadersSeeAtomicFtsRevisionVisibility()
+    {
+        var paths = new WorkspacePaths(_directory); paths.EnsureDirectories();
+        var store = new SqliteKnowledgeStore(paths); await store.InitializeAsync(CancellationToken.None);
+        var now = DateTimeOffset.Parse("2026-08-22T10:00:00Z");
+        var options = new KnowledgeOptions { EmbeddingProvider = "Ollama", EmbeddingModel = "test" };
+        var original = new KnowledgeDocument("atomic", "Atomic", "", ["public"], "atomic.txt", "text/plain", 1, 1, 1, now);
+        await store.CommitAsync(original, "atomic.txt", [new KnowledgeChunk("atomic:old", 0, "old marker", 2, 0, 10, null, null)], [[1f, 0f]], options, CancellationToken.None);
+        var replacement = new KnowledgePreparedIndex(original with { UpdatedUtc = now.AddMinutes(1) }, "atomic.txt", [new KnowledgeChunk("atomic:new", 0, "new marker", 2, 0, 10, null, null)], [[0f, 1f]], "atomic:v2", new string('a', 64), new string('b', 64));
+        var readers = Enumerable.Range(0, 3).Select(async _ =>
+        {
+            for (var index = 0; index < 20; index++)
+            {
+                await using var connection = new SqliteConnection($"Data Source={paths.KnowledgeDatabasePath};Pooling=False");
+                await connection.OpenAsync();
+                await using var command = connection.CreateCommand();
+                command.CommandText = "SELECT c.id,f.chunk_id FROM chunks c JOIN documents d ON d.id=c.document_id AND d.active_revision_id=c.revision_id JOIN chunk_fts f ON f.chunk_id=c.id AND f.revision_id=c.revision_id WHERE d.id='atomic';";
+                await using var reader = await command.ExecuteReaderAsync();
+                (await reader.ReadAsync()).Should().BeTrue();
+                reader.GetString(0).Should().Be(reader.GetString(1));
+                (await reader.ReadAsync()).Should().BeFalse();
+            }
+        });
+
+        await Task.WhenAll(readers.Append(store.ReplaceAsync(replacement, options, CancellationToken.None)));
     }
 
     /// <summary>Verifies the prompt editor derives exact choices from the catalog and enabled task groups.</summary>
@@ -411,6 +795,18 @@ public sealed class KnowledgeStage26Tests : IDisposable
         public int CallCount { get; private set; }
         public Task<IReadOnlyList<float[]>> GenerateAsync(IReadOnlyList<string> inputs, CancellationToken cancellationToken) { CallCount++; return Task.FromResult<IReadOnlyList<float[]>>(inputs.Select(_ => vector).ToArray()); }
     }
+
+    private sealed class MappingEmbeddings(IReadOnlyDictionary<string, float[]> vectors) : IKnowledgeEmbeddingService
+    {
+        public Task<IReadOnlyList<float[]>> GenerateAsync(IReadOnlyList<string> inputs, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<float[]>>(inputs.Select(input => vectors[input]).ToArray());
+    }
+
+    private sealed record KnowledgeEvaluationFixture(KnowledgeEvaluationDocument[] Documents, KnowledgeEvaluationCase[] Cases);
+    private sealed record KnowledgeEvaluationDocument(string Id, string[] Tags, KnowledgeEvaluationChunk[] Chunks);
+    private sealed record KnowledgeEvaluationChunk(string Id, int Ordinal, string Heading, int Page, string Text, float[] Vector);
+    private sealed record KnowledgeEvaluationCase(string Id, string Query, float[] QueryVector, string[] Tags, string[] ExpectedChunkIds);
+    private static float Dot(float[] left, float[] right) => left.Zip(right).Sum(pair => pair.First * pair.Second);
 
     private sealed class RecordingEmbeddingGenerator : IEmbeddingGenerator<string, Embedding<float>>
     {

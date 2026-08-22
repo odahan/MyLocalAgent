@@ -2,176 +2,110 @@ using Microsoft.Extensions.Options;
 
 namespace OD.MyLocalAgent.Core;
 
-/// <summary>Performs tag-prefiltered portable exact-cosine retrieval.</summary>
-internal sealed class KnowledgeSearchService : IKnowledgeSearchService
+/// <summary>Performs tag-prefiltered hybrid lexical and exact-cosine Knowledge retrieval.</summary>
+internal sealed class KnowledgeSearchService(SqliteKnowledgeStore store, IKnowledgeEmbeddingService embeddings, ITokenEstimator tokenEstimator, IOptionsMonitor<KnowledgeOptions> options) : IKnowledgeSearchService
 {
-    private readonly SqliteKnowledgeStore _store;
-    private readonly IKnowledgeEmbeddingService _embeddings;
-    private readonly IOptionsMonitor<KnowledgeOptions> _options;
-
-    /// <summary>Initializes the authorized search service.</summary>
-    public KnowledgeSearchService(
-        SqliteKnowledgeStore store,
-        IKnowledgeEmbeddingService embeddings,
-        IOptionsMonitor<KnowledgeOptions> options)
-    {
-        _store = store;
-        _embeddings = embeddings;
-        _options = options;
-    }
-
-    /// <inheritdoc />
     public async Task<KnowledgeSearchResponse> SearchAsync(string query, IReadOnlyList<string> owningTags, IReadOnlyList<string>? requestedTags, int? maximumResults, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(query);
-        ArgumentNullException.ThrowIfNull(owningTags);
-        var options = _options.CurrentValue;
-        if (query.Length > options.MaximumQueryCharacters)
+        var settings = options.CurrentValue;
+        if (query.Length > settings.MaximumQueryCharacters) throw new ArgumentException("The Knowledge query exceeds the configured limit.", nameof(query));
+        var tags = KnowledgeTagPolicy.Narrow(owningTags, requestedTags, KnowledgeTagPolicy.MaximumCallTags);
+        if (tags.Count == 0) throw new KnowledgeAuthorizationException("Knowledge access requires at least one authorized tag.");
+        var limit = Math.Min(maximumResults ?? settings.DefaultMaxResults, settings.MaximumResults);
+        if (limit is < 1 or > 20) throw new ArgumentOutOfRangeException(nameof(maximumResults));
+        await store.InitializeAsync(cancellationToken); await store.EnsureConfiguredContractAsync(settings, cancellationToken);
+        var lexicalTask = store.SearchLexicalCandidatesAsync(tags, KnowledgeLexicalQuery.Create(query, settings), settings.LexicalCandidatePoolSize, cancellationToken);
+        var vector = (await embeddings.GenerateAsync([query], cancellationToken))[0];
+        var semantic = SelectSemantic(await store.GetCandidatesAsync(tags, cancellationToken), vector, settings.MinimumSimilarity, settings.SemanticCandidatePoolSize);
+        var fused = Fuse(semantic, await lexicalTask, settings.RrfRankConstant);
+        var anchors = Mmr(fused, limit, settings.MmrLambda);
+        var output = new List<KnowledgeSearchResult>(); var usedTokens = 0;
+        foreach (var anchor in anchors)
         {
-            throw new ArgumentException("The Knowledge query exceeds the configured limit.", nameof(query));
+            var span = await ExpandAsync(anchor.Value, output, usedTokens, settings, cancellationToken);
+            var text = string.Join("\n\n---\n\n", span.OrderBy(x => x.Ordinal).Select(x => x.Text));
+            var tokens = tokenEstimator.EstimateText(text); if (usedTokens + tokens > settings.DefaultMaximumResultTokens) continue;
+            var citation = string.Join(" — ", new[] { anchor.Value.DocumentName, anchor.Value.Heading, anchor.Value.PageNumber is null ? null : $"page {anchor.Value.PageNumber}" }.Where(x => !string.IsNullOrWhiteSpace(x)));
+            var returnedText = span.Count == 1 ? Excerpt(text, settings.MaximumExcerptCharacters) : text;
+            output.Add(new KnowledgeSearchResult(output.Count + 1, anchor.Similarity, anchor.Value.DocumentId, anchor.Value.DocumentName, anchor.Value.Description, anchor.Value.Tags, anchor.Value.ChunkId, anchor.Value.Ordinal, returnedText, citation, anchor.Value.Heading, anchor.Value.PageNumber, span.Min(x => x.Ordinal), span.Max(x => x.Ordinal), anchor.MatchType)); usedTokens += tokens;
         }
-
-        var effective = KnowledgeTagPolicy.Narrow(owningTags, requestedTags, KnowledgeTagPolicy.MaximumCallTags);
-        if (effective.Count == 0)
-        {
-            throw new KnowledgeAuthorizationException("Knowledge access requires at least one authorized tag.");
-        }
-
-        var limit = maximumResults ?? options.DefaultMaxResults;
-        if (limit is < 1 or > 20)
-        {
-            throw new ArgumentOutOfRangeException(nameof(maximumResults));
-        }
-
-        limit = Math.Min(limit, options.MaximumResults);
-        await _store.InitializeAsync(cancellationToken).ConfigureAwait(false);
-        await _store.EnsureConfiguredContractAsync(options, cancellationToken).ConfigureAwait(false);
-        var queryVector = (await _embeddings.GenerateAsync([query], cancellationToken).ConfigureAwait(false))[0];
-        var candidates = await _store.GetCandidatesAsync(effective, cancellationToken).ConfigureAwait(false);
-        var ranked = SelectTopCandidates(
-            candidates,
-            queryVector,
-            options.MinimumSimilarity,
-            checked(options.MaximumResults * 4));
-        var selected = new List<KnowledgeSearchResult>();
-        var tokens = 0;
-        foreach (var item in ranked)
-        {
-            if (selected.Count >= limit)
-            {
-                break;
-            }
-
-            var candidate = item.Candidate;
-            if (tokens + candidate.EstimatedTokens > options.DefaultMaximumResultTokens)
-            {
-                continue;
-            }
-
-            if (selected.Any(existing => existing.DocumentId == candidate.DocumentId && Math.Abs(existing.ChunkOrdinal - candidate.Ordinal) == 1 && Overlaps(existing.Text, candidate.Text)))
-            {
-                continue;
-            }
-
-            var text = CreateExcerpt(candidate.Text, options.MaximumExcerptCharacters);
-            var citation = string.Join(" — ", new[] { candidate.DocumentName, candidate.Heading, candidate.PageNumber is null ? null : $"page {candidate.PageNumber}" }.Where(value => !string.IsNullOrWhiteSpace(value)));
-            selected.Add(new KnowledgeSearchResult(selected.Count + 1, item.Similarity, candidate.DocumentId, candidate.DocumentName, candidate.Description, candidate.Tags, candidate.ChunkId, candidate.Ordinal, text, citation, candidate.Heading, candidate.PageNumber));
-            tokens += candidate.EstimatedTokens;
-        }
-
-        var response = new KnowledgeSearchResponse("ok", effective, selected);
-        while (selected.Count > 0 && ToolJson.Serialize(response).Length > options.MaximumToolResultCharacters)
-        {
-            selected.RemoveAt(selected.Count - 1);
-            response = new KnowledgeSearchResponse("ok", effective, selected);
-        }
+        var response = new KnowledgeSearchResponse("ok", tags, output);
+        while (output.Count > 0 && ToolJson.Serialize(response).Length > settings.MaximumToolResultCharacters) { output.RemoveAt(output.Count - 1); response = new KnowledgeSearchResponse("ok", tags, output); }
         return response;
     }
 
-    private static IReadOnlyList<RankedCandidate> SelectTopCandidates(
-        IReadOnlyList<KnowledgeCandidate> candidates,
-        float[] queryVector,
-        float minimumSimilarity,
-        int capacity)
+    private async Task<IReadOnlyList<KnowledgeCandidate>> ExpandAsync(KnowledgeCandidate anchor, IReadOnlyList<KnowledgeSearchResult> output, int used, KnowledgeOptions settings, CancellationToken token)
     {
-        var queue = new PriorityQueue<RankedCandidate, RankPriority>(RankPriorityComparer.Instance);
-        foreach (var candidate in candidates)
+        var result = new List<KnowledgeCandidate> { anchor };
+        var context = await store.GetContiguousContextAsync(anchor.ChunkId, settings.MaximumContextNeighborsEachSide, token);
+        var previousAllowed = true;
+        var nextAllowed = true;
+        for (var distance = 1; distance <= settings.MaximumContextNeighborsEachSide; distance++)
         {
-            var similarity = Cosine(queryVector, candidate.Vector);
-            if (similarity < minimumSimilarity)
+            if (previousAllowed)
             {
-                continue;
+                var previous = context.FirstOrDefault(x => x.Ordinal == anchor.Ordinal - distance);
+                previousAllowed = TryAddContextChunk(previous, anchor, result, output, used, settings);
             }
 
-            var ranked = new RankedCandidate(candidate, similarity);
-            queue.Enqueue(ranked, new RankPriority(similarity, candidate.ChunkId));
-            if (queue.Count > capacity)
+            if (nextAllowed)
             {
-                queue.Dequeue();
+                var next = context.FirstOrDefault(x => x.Ordinal == anchor.Ordinal + distance);
+                nextAllowed = TryAddContextChunk(next, anchor, result, output, used, settings);
             }
         }
-
-        var result = new List<RankedCandidate>(queue.Count);
-        while (queue.TryDequeue(out var candidate, out _))
-        {
-            result.Add(candidate);
-        }
-
-        result.Sort(static (left, right) =>
-        {
-            var similarity = right.Similarity.CompareTo(left.Similarity);
-            return similarity != 0
-                ? similarity
-                : StringComparer.Ordinal.Compare(left.Candidate.ChunkId, right.Candidate.ChunkId);
-        });
         return result;
     }
 
-    private static float Cosine(float[] left, float[] right)
+    private bool TryAddContextChunk(KnowledgeCandidate? candidate, KnowledgeCandidate anchor, ICollection<KnowledgeCandidate> accepted, IReadOnlyList<KnowledgeSearchResult> output, int used, KnowledgeOptions settings)
     {
-        if (left.Length != right.Length)
-        {
-            throw new InvalidOperationException("The Knowledge index vector dimension does not match the query.");
-        }
-
-        double sum = 0;
-        for (var index = 0; index < left.Length; index++)
-        {
-            if (!float.IsFinite(right[index]))
-            {
-                throw new InvalidOperationException("The Knowledge index contains a non-finite vector.");
-            }
-
-            sum += (double)left[index] * right[index];
-        }
-
-        return (float)sum;
+        if (candidate is null || !string.Equals(candidate.Heading ?? string.Empty, anchor.Heading ?? string.Empty, StringComparison.Ordinal) || (candidate.PageNumber is not null && anchor.PageNumber is not null && candidate.PageNumber != anchor.PageNumber) || output.Any(x => Overlaps(x.Text, candidate.Text))) return false;
+        var proposedText = string.Join("\n\n---\n\n", accepted.Append(candidate).OrderBy(x => x.Ordinal).Select(x => x.Text));
+        if (proposedText.Length > settings.MaximumExcerptCharacters) return false;
+        if (used + tokenEstimator.EstimateText(proposedText) > settings.DefaultMaximumResultTokens) return false;
+        accepted.Add(candidate);
+        return true;
     }
+
+    private static IReadOnlyList<Candidate> Fuse(IReadOnlyList<Candidate> semantic, IReadOnlyList<KnowledgeCandidate> lexical, int constant)
+    {
+        var values = new Dictionary<string, Candidate>(StringComparer.Ordinal);
+        for (var i = 0; i < semantic.Count; i++) values[semantic[i].Value.ChunkId] = semantic[i] with { RankScore = 1d / (constant + i + 1) };
+        for (var i = 0; i < lexical.Count; i++) values[lexical[i].ChunkId] = values.TryGetValue(lexical[i].ChunkId, out var current) ? current with { RankScore = current.RankScore + 1d / (constant + i + 1), MatchType = "Matched by both" } : new Candidate(lexical[i], null, 1d / (constant + i + 1), "Matched by exact terms");
+        return values.Values.OrderByDescending(x => x.RankScore).ThenByDescending(x => x.Similarity ?? float.MinValue).ThenBy(x => x.Value.ChunkId, StringComparer.Ordinal).ToArray();
+    }
+    private static IReadOnlyList<Candidate> SelectSemantic(IReadOnlyList<KnowledgeCandidate> candidates, float[] query, float minimumSimilarity, int capacity)
+    {
+        var ranked = new PriorityQueue<Candidate, SemanticPriority>(SemanticPriorityComparer.Instance);
+        foreach (var value in candidates)
+        {
+            var similarity = Cosine(query, value.Vector);
+            if (similarity < minimumSimilarity) continue;
+            ranked.Enqueue(
+                new Candidate(value, similarity, 0, "Matched semantically"),
+                new SemanticPriority(similarity, value.ChunkId));
+            if (ranked.Count > capacity) ranked.Dequeue();
+        }
+        return ranked.UnorderedItems.Select(item => item.Element).OrderByDescending(x => x.Similarity).ThenBy(x => x.Value.ChunkId, StringComparer.Ordinal).ToArray();
+    }
+    private static IReadOnlyList<Candidate> Mmr(IReadOnlyList<Candidate> pool, int limit, double lambda)
+    {
+        var pending = pool.ToList(); var selected = new List<Candidate>(); var min = pool.Count == 0 ? 0 : pool.Min(x => x.RankScore); var max = pool.Count == 0 ? 0 : pool.Max(x => x.RankScore);
+        while (pending.Count > 0 && selected.Count < limit) { var next = selected.Count == 0 ? pending[0] : pending.OrderByDescending(x => lambda * (max == min ? 1 : (x.RankScore - min) / (max - min)) - (1 - lambda) * selected.Max(y => Cosine(x.Value.Vector, y.Value.Vector))).ThenBy(x => x.Value.ChunkId, StringComparer.Ordinal).First(); if (!selected.Any(x => Overlaps(x.Value.Text, next.Value.Text))) selected.Add(next); pending.Remove(next); }
+        return selected;
+    }
+    private static float Cosine(float[] left, float[] right) { if (left.Length != right.Length || right.Any(x => !float.IsFinite(x))) throw new InvalidOperationException("The Knowledge index vector dimension does not match the query."); double total = 0; for (var i = 0; i < left.Length; i++) total += (double)left[i] * right[i]; return (float)total; }
     private static bool Overlaps(string left, string right) { var length = Math.Min(120, Math.Min(left.Length, right.Length)); return length > 24 && (left.Contains(right[..length], StringComparison.Ordinal) || right.Contains(left[^length..], StringComparison.Ordinal)); }
-    private static string CreateExcerpt(string text, int maximumCharacters)
+    private static string Excerpt(string text, int maximum) => text.Length <= maximum ? text : text[..maximum].TrimEnd() + "…";
+    private sealed record Candidate(KnowledgeCandidate Value, float? Similarity, double RankScore, string MatchType);
+    private readonly record struct SemanticPriority(float Similarity, string ChunkId);
+
+    private sealed class SemanticPriorityComparer : IComparer<SemanticPriority>
     {
-        if (text.Length <= maximumCharacters) return text;
-        var minimum = maximumCharacters / 2;
-        for (var index = maximumCharacters - 1; index >= minimum; index--)
-        {
-            if (text[index] is '.' or '!' or '?') return text[..(index + 1)].TrimEnd();
-        }
-        for (var index = maximumCharacters - 1; index >= minimum; index--)
-        {
-            if (char.IsWhiteSpace(text[index])) return text[..index].TrimEnd() + "…";
-        }
-        return text[..maximumCharacters].TrimEnd() + "…";
-    }
+        public static SemanticPriorityComparer Instance { get; } = new();
 
-    private sealed record RankedCandidate(KnowledgeCandidate Candidate, float Similarity);
-
-    private readonly record struct RankPriority(float Similarity, string ChunkId);
-
-    private sealed class RankPriorityComparer : IComparer<RankPriority>
-    {
-        public static RankPriorityComparer Instance { get; } = new();
-
-        public int Compare(RankPriority left, RankPriority right)
+        public int Compare(SemanticPriority left, SemanticPriority right)
         {
             var similarity = left.Similarity.CompareTo(right.Similarity);
             return similarity != 0
