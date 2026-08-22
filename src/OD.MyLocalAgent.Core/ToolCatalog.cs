@@ -557,6 +557,15 @@ public sealed class ToolCatalog : IToolCatalog
                     Example = "20",
                     SupportsPlaceholders = false,
                 },
+                new ToolArgumentDefinition(
+                    "thinking",
+                    WorkflowArgumentKind.Boolean,
+                    IsRequired: false,
+                    "Optional per-step reasoning control; omitted uses the task or global generation setting.")
+                {
+                    Example = "false",
+                    SupportsPlaceholders = false,
+                },
             ]);
     }
 

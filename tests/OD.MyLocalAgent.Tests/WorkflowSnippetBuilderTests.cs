@@ -138,12 +138,13 @@ public sealed class WorkflowSnippetBuilderTests
 
         ArgumentNames(step).Should().Equal(
             includeOptional
-                ? ["prompt", "includeContext", "timeout"]
+                ? ["prompt", "includeContext", "timeout", "thinking"]
                 : ["prompt", "includeContext"]);
         step.Args.GetProperty("includeContext").GetBoolean().Should().Be(includeContext);
         if (includeOptional)
         {
             step.Args.GetProperty("timeout").GetInt32().Should().Be(0);
+            step.Args.GetProperty("thinking").GetBoolean().Should().BeFalse();
         }
     }
 

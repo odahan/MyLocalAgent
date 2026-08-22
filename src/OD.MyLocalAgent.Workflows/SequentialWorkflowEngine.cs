@@ -303,6 +303,7 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                 }
                 var prompt = ReadRequiredString(resolvedArguments, "prompt", step.Alias);
                 var timeoutMinutes = ReadOptionalInteger(resolvedArguments, "timeout");
+                var thinking = ReadOptionalBoolean(resolvedArguments, "thinking");
                 if (timeoutMinutes is < 1 or > 999)
                 {
                     throw new ArgumentOutOfRangeException(
@@ -321,10 +322,13 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                         context.ToJson());
                 }
 
+                var promptGenerationPolicy = thinking is null
+                    ? generationPolicy
+                    : generationPolicy with { ReasoningEnabled = thinking.Value };
                 using var modelScope = ModelExecutionScope.Push(step.Model ?? task.Model);
                 using var timeoutScope = TimeoutExecutionScope.Push(
                     timeoutMinutes is null ? null : checked(timeoutMinutes.Value * 60));
-                await WarmUpSelectedModelAsync(generationPolicy, cancellationToken).ConfigureAwait(false);
+                await WarmUpSelectedModelAsync(promptGenerationPolicy, cancellationToken).ConfigureAwait(false);
                 var executionContext = ToolExecutionContext.FromTask(task);
                 if (step.KnowledgeAccess is not null)
                 {
@@ -335,8 +339,8 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                 if (step.ToolAliases.Count == 0)
                 {
                     agentResult = task.UseGlobalSystemPrompt
-                        ? await _agentService.RunPromptWithoutToolsAsync(prompt,generationPolicy,step.Id,cancellationToken).ConfigureAwait(false)
-                        : await _agentService.RunPromptWithoutToolsAsync(prompt,generationPolicy,step.Id,false,cancellationToken).ConfigureAwait(false);
+                        ? await _agentService.RunPromptWithoutToolsAsync(prompt,promptGenerationPolicy,step.Id,cancellationToken).ConfigureAwait(false)
+                        : await _agentService.RunPromptWithoutToolsAsync(prompt,promptGenerationPolicy,step.Id,false,cancellationToken).ConfigureAwait(false);
                 }
                 else
                 {
@@ -345,7 +349,7 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                         step.ToolAliases,
                         task.Tools,
                         executionContext,
-                        generationPolicy,
+                        promptGenerationPolicy,
                         step.Id,
                         task.UseGlobalSystemPrompt,
                         cancellationToken).ConfigureAwait(false);

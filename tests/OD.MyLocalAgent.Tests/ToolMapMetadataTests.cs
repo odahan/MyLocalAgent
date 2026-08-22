@@ -159,13 +159,15 @@ public sealed class ToolMapMetadataTests
 
         var prompt = ToolMap.Find(ToolMap.PromptAlias);
         prompt.Should().NotBeNull();
-        prompt!.Arguments.Should().Equal("prompt", "includeContext", "timeout");
-        prompt.OptionalArguments.Should().Equal("includeContext", "timeout");
+        prompt!.Arguments.Should().Equal("prompt", "includeContext", "timeout", "thinking");
+        prompt.OptionalArguments.Should().Equal("includeContext", "timeout", "thinking");
         prompt.ArgumentDefinitions[0].Kind.Should().Be(WorkflowArgumentKind.String);
         prompt.ArgumentDefinitions[1].Kind.Should().Be(WorkflowArgumentKind.Boolean);
         prompt.ArgumentDefinitions[1].SupportsPlaceholders.Should().BeFalse();
         prompt.ArgumentDefinitions[2].Kind.Should().Be(WorkflowArgumentKind.Integer);
         prompt.ArgumentDefinitions[2].SupportsPlaceholders.Should().BeFalse();
+        prompt.ArgumentDefinitions[3].Kind.Should().Be(WorkflowArgumentKind.Boolean);
+        prompt.ArgumentDefinitions[3].SupportsPlaceholders.Should().BeFalse();
     }
 
     /// <summary>

@@ -538,20 +538,25 @@ public sealed class WorkflowEngineTests
     {
         var agent = new Mock<IMyLocalAgentService>(MockBehavior.Strict);
         int? observedTimeout = null;
+        bool? observedReasoning = null;
         agent.Setup(service => service.RunPromptWithoutToolsAsync(
                 It.IsAny<string>(),
                 It.IsAny<EffectiveGenerationPolicy>(),
                 It.IsAny<string>(),
                 It.IsAny<CancellationToken>()))
             .Callback<string, EffectiveGenerationPolicy, string, CancellationToken>(
-                (_, _, _, _) => observedTimeout = TimeoutExecutionScope.TimeoutSeconds)
+                (_, policy, _, _) =>
+                {
+                    observedTimeout = TimeoutExecutionScope.TimeoutSeconds;
+                    observedReasoning = policy.ReasoningEnabled;
+                })
             .ReturnsAsync(new AgentRunResult("Done", "Test"));
         var task = CreateTask(
             [
                 Step(
                     "ai.prompt",
                     "long-running",
-                    """{ "prompt": "Create the report.", "timeout": 20 }"""),
+                    """{ "prompt": "Create the report.", "timeout": 20, "thinking": false }"""),
             ]);
 
         var result = await CreateEngine(
@@ -561,6 +566,7 @@ public sealed class WorkflowEngineTests
 
         result.Success.Should().BeTrue();
         observedTimeout.Should().Be(1_200);
+        observedReasoning.Should().BeFalse();
         TimeoutExecutionScope.TimeoutSeconds.Should().BeNull();
         agent.VerifyAll();
     }
@@ -660,6 +666,27 @@ public sealed class WorkflowEngineTests
         action.Should()
             .Throw<WorkflowValidationException>()
             .WithMessage("*timeout*1 to 999*minutes*");
+    }
+
+    /// <summary>
+    /// Verifies the prompt thinking override must be a JSON boolean.
+    /// </summary>
+    [Fact]
+    public void PromptThinkingMustBeBoolean()
+    {
+        var task = CreateTask(
+            [
+                Step(
+                    "ai.prompt",
+                    "prompt",
+                    """{ "prompt": "Translate.", "thinking": "false" }"""),
+            ]);
+
+        var action = () => ScheduledTaskValidator.Validate(task);
+
+        action.Should()
+            .Throw<WorkflowValidationException>()
+            .WithMessage("*thinking*boolean*");
     }
 
     /// <summary>

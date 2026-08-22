@@ -2568,7 +2568,7 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
 <tr><td><code>ai.summarize</code></td><td><code>text</code> facultatif</td><td>Sans text, reçoit la sortie précédente.</td></tr>
 <tr><td><code>ai.extractActionItems</code></td><td><code>text</code> facultatif</td><td>Checklist Markdown des actions explicites avec responsable, échéance et source. Une information absente vaut <code>Not stated</code> et n’est jamais inventée.</td></tr>
 <tr><td><code>ai.classifyEmail</code></td><td><code>text</code> facultatif</td><td>Classe chaque message identifiable en <code>Urgent</code>, <code>ReplySoon</code>, <code>Waiting</code> ou <code>FYI</code>, puis retourne un tableau Markdown.</td></tr>
-<tr><td><code>ai.prompt</code></td><td><code>prompt</code>, booléen <code>includeContext</code> facultatif</td><td>Appel direct au modèle, sans outils ni skills. Les placeholders et le contexte facultatif restent disponibles.</td></tr>
+<tr><td><code>ai.prompt</code></td><td><code>prompt</code> ; booléen <code>includeContext</code> facultatif ; entier <code>timeout</code> facultatif (1–999 minutes) ; booléen <code>thinking</code> facultatif</td><td>Appel direct au modèle, sans outils ni skills. Omettre <code>timeout</code> utilise le délai du fournisseur. Omettre <code>thinking</code> utilise le choix de génération de la tâche ou des Settings ; définissez-le à <code>false</code> pour un prompt structuré qui ne doit pas utiliser le raisonnement du modèle. Les placeholders et le contexte facultatif restent disponibles.</td></tr>
 </tbody>
 </table>
 </div>

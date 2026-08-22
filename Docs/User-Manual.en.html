@@ -2460,7 +2460,7 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
 <tr><td><code>ai.summarize</code></td><td>Optional <code>text</code></td><td>Without text, receives previous output.</td></tr>
 <tr><td><code>ai.extractActionItems</code></td><td>Optional <code>text</code></td><td>Markdown checklist of explicit actions with owner, due date, and source. Missing metadata is <code>Not stated</code>; details are never invented.</td></tr>
 <tr><td><code>ai.classifyEmail</code></td><td>Optional <code>text</code></td><td>Classifies every identifiable input email as <code>Urgent</code>, <code>ReplySoon</code>, <code>Waiting</code>, or <code>FYI</code> and returns a Markdown table.</td></tr>
-<tr><td><code>ai.prompt</code></td><td><code>prompt</code>, optional boolean <code>includeContext</code></td><td>Direct model call without tools or skills. Placeholders and optional context remain available.</td></tr>
+<tr><td><code>ai.prompt</code></td><td><code>prompt</code>; optional boolean <code>includeContext</code>; optional integer <code>timeout</code> (1–999 minutes); optional boolean <code>thinking</code></td><td>Direct model call without tools or skills. Omit <code>timeout</code> to use the provider default. Omit <code>thinking</code> to use the task or Settings generation choice; set it to <code>false</code> for a structured prompt that should not use model reasoning. Placeholders and optional context remain available.</td></tr>
 </tbody>
 </table>
 </div>
