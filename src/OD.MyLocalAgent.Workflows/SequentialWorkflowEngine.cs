@@ -302,6 +302,14 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                         $"AI step '{step.Alias}' has no resolved generation policy.");
                 }
                 var prompt = ReadRequiredString(resolvedArguments, "prompt", step.Alias);
+                var timeoutMinutes = ReadOptionalInteger(resolvedArguments, "timeout");
+                if (timeoutMinutes is < 1 or > 999)
+                {
+                    throw new ArgumentOutOfRangeException(
+                        "timeout",
+                        "Workflow argument 'timeout' must be an integer from 1 to 999 minutes.");
+                }
+
                 if (ReadOptionalBoolean(resolvedArguments, "includeContext") == true)
                 {
                     prompt = string.Concat(
@@ -314,6 +322,8 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                 }
 
                 using var modelScope = ModelExecutionScope.Push(step.Model ?? task.Model);
+                using var timeoutScope = TimeoutExecutionScope.Push(
+                    timeoutMinutes is null ? null : checked(timeoutMinutes.Value * 60));
                 await WarmUpSelectedModelAsync(generationPolicy, cancellationToken).ConfigureAwait(false);
                 var executionContext = ToolExecutionContext.FromTask(task);
                 if (step.KnowledgeAccess is not null)
@@ -395,6 +405,21 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
             ? element.GetBoolean()
             : throw new ArgumentException(
                 $"Workflow argument '{propertyName}' must be a boolean.");
+    }
+
+    private static int? ReadOptionalInteger(
+        JsonElement arguments,
+        string propertyName)
+    {
+        if (!arguments.TryGetProperty(propertyName, out var element))
+        {
+            return null;
+        }
+
+        return element.ValueKind == JsonValueKind.Number && element.TryGetInt32(out var value)
+            ? value
+            : throw new ArgumentException(
+                $"Workflow argument '{propertyName}' must be an integer.");
     }
 
     private static bool ContainsModelPlaceholder(JsonElement element)

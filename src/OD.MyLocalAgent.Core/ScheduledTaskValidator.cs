@@ -337,6 +337,16 @@ public static partial class ScheduledTaskValidator
                     "Workflow argument 'includeContext' must be a boolean.");
             }
 
+            if (string.Equals(step.Step, ToolMap.PromptAlias, StringComparison.OrdinalIgnoreCase) &&
+                step.Args.TryGetProperty("timeout", out var timeout) &&
+                (timeout.ValueKind != JsonValueKind.Number ||
+                 !timeout.TryGetInt32(out var timeoutMinutes) ||
+                 timeoutMinutes is < 1 or > 999))
+            {
+                throw new WorkflowValidationException(
+                    "Workflow argument 'timeout' must be an integer from 1 to 999 minutes.");
+            }
+
             ValidateArguments(step, definition);
             ValidatePlaceholders(step, identifiers);
             identifiers.Add(step.EffectiveId);
@@ -523,11 +533,13 @@ public static partial class ScheduledTaskValidator
     {
         if (definition.IsAiStep)
         {
-            return string.Equals(
-                argumentName,
-                "includeContext",
-                StringComparison.OrdinalIgnoreCase)
-                ? typeof(bool)
+            if (string.Equals(argumentName, "includeContext", StringComparison.OrdinalIgnoreCase))
+            {
+                return typeof(bool);
+            }
+
+            return string.Equals(argumentName, "timeout", StringComparison.OrdinalIgnoreCase)
+                ? typeof(int)
                 : typeof(string);
         }
 

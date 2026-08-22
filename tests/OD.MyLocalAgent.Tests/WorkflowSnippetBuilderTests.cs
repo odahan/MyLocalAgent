@@ -136,8 +136,15 @@ public sealed class WorkflowSnippetBuilderTests
                 IncludeAccumulatedContext = includeContext,
             });
 
-        ArgumentNames(step).Should().Equal("prompt", "includeContext");
+        ArgumentNames(step).Should().Equal(
+            includeOptional
+                ? ["prompt", "includeContext", "timeout"]
+                : ["prompt", "includeContext"]);
         step.Args.GetProperty("includeContext").GetBoolean().Should().Be(includeContext);
+        if (includeOptional)
+        {
+            step.Args.GetProperty("timeout").GetInt32().Should().Be(0);
+        }
     }
 
     /// <summary>

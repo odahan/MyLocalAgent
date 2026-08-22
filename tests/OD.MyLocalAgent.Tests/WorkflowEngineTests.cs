@@ -531,6 +531,41 @@ public sealed class WorkflowEngineTests
     }
 
     /// <summary>
+    /// Verifies an ai.prompt timeout overrides the provider default only for that prompt step.
+    /// </summary>
+    [Fact]
+    public async Task PromptStepTimeoutCreatesScopedMinuteOverride()
+    {
+        var agent = new Mock<IMyLocalAgentService>(MockBehavior.Strict);
+        int? observedTimeout = null;
+        agent.Setup(service => service.RunPromptWithoutToolsAsync(
+                It.IsAny<string>(),
+                It.IsAny<EffectiveGenerationPolicy>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<string, EffectiveGenerationPolicy, string, CancellationToken>(
+                (_, _, _, _) => observedTimeout = TimeoutExecutionScope.TimeoutSeconds)
+            .ReturnsAsync(new AgentRunResult("Done", "Test"));
+        var task = CreateTask(
+            [
+                Step(
+                    "ai.prompt",
+                    "long-running",
+                    """{ "prompt": "Create the report.", "timeout": 20 }"""),
+            ]);
+
+        var result = await CreateEngine(
+                new RecordingToolRegistry((_, _, _) => Task.FromResult("unused")),
+                agentService: agent.Object)
+            .ExecuteAsync(task, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        observedTimeout.Should().Be(1_200);
+        TimeoutExecutionScope.TimeoutSeconds.Should().BeNull();
+        agent.VerifyAll();
+    }
+
+    /// <summary>
     /// Verifies invalid structured selectors fail before the following tool is invoked.
     /// </summary>
     [Fact]
@@ -601,6 +636,30 @@ public sealed class WorkflowEngineTests
         action.Should()
             .Throw<WorkflowValidationException>()
             .WithMessage("*includeContext*boolean*");
+    }
+
+    /// <summary>
+    /// Verifies a prompt timeout must be an integer between one and 999 minutes.
+    /// </summary>
+    [Theory]
+    [InlineData("0")]
+    [InlineData("1000")]
+    [InlineData("\"20\"")]
+    public void PromptTimeoutMustBeWithinSupportedRange(string timeout)
+    {
+        var task = CreateTask(
+            [
+                Step(
+                    "ai.prompt",
+                    "prompt",
+                    $$"""{ "prompt": "Translate.", "timeout": {{timeout}} }"""),
+            ]);
+
+        var action = () => ScheduledTaskValidator.Validate(task);
+
+        action.Should()
+            .Throw<WorkflowValidationException>()
+            .WithMessage("*timeout*1 to 999*minutes*");
     }
 
     /// <summary>

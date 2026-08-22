@@ -32,7 +32,8 @@ internal sealed class DynamicOllamaChatClient : IChatClient
         ArgumentNullException.ThrowIfNull(messages);
         var current = _options.CurrentValue;
         var model = options?.ModelId ?? current.Model;
-        using var timeoutSource = CreateTimeoutSource(current.TimeoutSeconds, cancellationToken);
+        var timeoutSeconds = TimeoutExecutionScope.TimeoutSeconds ?? current.TimeoutSeconds;
+        using var timeoutSource = CreateTimeoutSource(timeoutSeconds, cancellationToken);
 
         try
         {
@@ -45,7 +46,7 @@ internal sealed class DynamicOllamaChatClient : IChatClient
         catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
         {
             throw new OllamaUnavailableException(
-                $"The configured model '{model}' did not respond within {current.TimeoutSeconds} seconds.",
+                $"The configured model '{model}' did not respond within {timeoutSeconds} seconds.",
                 exception);
         }
         catch (HttpRequestException exception)
@@ -64,7 +65,8 @@ internal sealed class DynamicOllamaChatClient : IChatClient
         ArgumentNullException.ThrowIfNull(messages);
         var current = _options.CurrentValue;
         var model = options?.ModelId ?? current.Model;
-        using var timeoutSource = CreateTimeoutSource(current.TimeoutSeconds, cancellationToken);
+        var timeoutSeconds = TimeoutExecutionScope.TimeoutSeconds ?? current.TimeoutSeconds;
+        using var timeoutSource = CreateTimeoutSource(timeoutSeconds, cancellationToken);
 
         IChatClient? client = null;
         IAsyncEnumerator<ChatResponseUpdate>? enumerator = null;
@@ -77,7 +79,7 @@ internal sealed class DynamicOllamaChatClient : IChatClient
             catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
             {
                 throw new OllamaUnavailableException(
-                    $"The configured model '{model}' did not respond within {current.TimeoutSeconds} seconds.",
+                    $"The configured model '{model}' did not respond within {timeoutSeconds} seconds.",
                     exception);
             }
             catch (HttpRequestException exception)
@@ -104,7 +106,7 @@ internal sealed class DynamicOllamaChatClient : IChatClient
                 catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
                 {
                     throw new OllamaUnavailableException(
-                        $"The configured model '{model}' did not respond within {current.TimeoutSeconds} seconds.",
+                        $"The configured model '{model}' did not respond within {timeoutSeconds} seconds.",
                         exception);
                 }
                 catch (HttpRequestException exception)

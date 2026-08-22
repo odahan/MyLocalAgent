@@ -30,11 +30,12 @@ internal sealed class DynamicOpenAIChatClient : IChatClient
     {
         ArgumentNullException.ThrowIfNull(messages);
         var current = GetValidatedOptions();
-        using var timeoutSource = CreateTimeoutSource(current.TimeoutSeconds, cancellationToken);
+        var timeoutSeconds = TimeoutExecutionScope.TimeoutSeconds ?? current.TimeoutSeconds;
+        using var timeoutSource = CreateTimeoutSource(timeoutSeconds, cancellationToken);
         var effectiveOptions = options?.Clone() ?? new ChatOptions();
         var model = options?.ModelId ?? current.Model;
         effectiveOptions.ModelId = model;
-        using var client = CreateClient(current, model);
+        using var client = CreateClient(current, model, timeoutSeconds);
         return await client.GetResponseAsync(messages, effectiveOptions, timeoutSource.Token).ConfigureAwait(false);
     }
 
@@ -45,11 +46,12 @@ internal sealed class DynamicOpenAIChatClient : IChatClient
     {
         ArgumentNullException.ThrowIfNull(messages);
         var current = GetValidatedOptions();
-        using var timeoutSource = CreateTimeoutSource(current.TimeoutSeconds, cancellationToken);
+        var timeoutSeconds = TimeoutExecutionScope.TimeoutSeconds ?? current.TimeoutSeconds;
+        using var timeoutSource = CreateTimeoutSource(timeoutSeconds, cancellationToken);
         var effectiveOptions = options?.Clone() ?? new ChatOptions();
         var model = options?.ModelId ?? current.Model;
         effectiveOptions.ModelId = model;
-        using var client = CreateClient(current, model);
+        using var client = CreateClient(current, model, timeoutSeconds);
 
         ChatFinishReason? finishReason = null;
         var updateCount = 0;
@@ -80,7 +82,10 @@ internal sealed class DynamicOpenAIChatClient : IChatClient
     {
     }
 
-    private IChatClient CreateClient(OpenAIOptions options, string model)
+    private IChatClient CreateClient(
+        OpenAIOptions options,
+        string model,
+        int timeoutSeconds)
     {
         var httpClient = _httpClientFactory.CreateClient(LlmHttpClientNames.OpenAI);
         httpClient.Timeout = Timeout.InfiniteTimeSpan;
@@ -89,7 +94,7 @@ internal sealed class DynamicOpenAIChatClient : IChatClient
             Endpoint = LlmOptionsValidation.ParseEndpoint(
                 options.Endpoint,
                 OpenAIOptions.SectionName),
-            NetworkTimeout = TimeSpan.FromSeconds(options.TimeoutSeconds),
+            NetworkTimeout = TimeSpan.FromSeconds(timeoutSeconds),
             Transport = new HttpClientPipelineTransport(httpClient),
         };
         var openAIClient = new OpenAIClient(

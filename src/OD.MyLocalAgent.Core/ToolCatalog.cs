@@ -548,6 +548,15 @@ public sealed class ToolCatalog : IToolCatalog
                     Example = "true",
                     SupportsPlaceholders = false,
                 },
+                new ToolArgumentDefinition(
+                    "timeout",
+                    WorkflowArgumentKind.Integer,
+                    IsRequired: false,
+                    "Optional per-step timeout in minutes from 1 to 999; omitted uses the provider default.")
+                {
+                    Example = "20",
+                    SupportsPlaceholders = false,
+                },
             ]);
     }
 
