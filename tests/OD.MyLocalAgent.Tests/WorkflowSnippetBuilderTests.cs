@@ -46,9 +46,10 @@ public sealed class WorkflowSnippetBuilderTests
             "gmail.readRecent",
             new WorkflowSnippetOptions { IncludeOptionalArguments = true });
 
-        ArgumentNames(step).Should().Equal("daysBack", "maxMessages");
+        ArgumentNames(step).Should().Equal("daysBack", "maxMessages", "adaptiveReportOutput");
         step.Args.GetProperty("daysBack").GetInt32().Should().Be(0);
         step.Args.GetProperty("maxMessages").GetInt32().Should().Be(0);
+        step.Args.GetProperty("adaptiveReportOutput").GetBoolean().Should().BeFalse();
     }
 
     /// <summary>

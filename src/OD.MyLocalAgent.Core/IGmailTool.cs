@@ -10,6 +10,7 @@ public interface IGmailTool
     /// </summary>
     Task<string> ReadTodayAsync(
         int? maxMessages = null,
+        bool adaptiveReportOutput = false,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -17,6 +18,7 @@ public interface IGmailTool
     /// </summary>
     Task<string> ReadUnreadAsync(
         int? maxMessages = null,
+        bool adaptiveReportOutput = false,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -25,6 +27,7 @@ public interface IGmailTool
     Task<string> ReadRecentAsync(
         int daysBack,
         int? maxMessages = null,
+        bool adaptiveReportOutput = false,
         CancellationToken cancellationToken = default);
 
     /// <summary>

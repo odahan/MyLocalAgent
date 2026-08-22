@@ -194,9 +194,9 @@ public sealed class ToolMapMetadataTests
         var expected = new Dictionary<string, (string[] Arguments, string[] Optional)>(
             StringComparer.Ordinal)
         {
-            ["gmail.readToday"] = (["maxMessages"], ["maxMessages"]),
-            ["gmail.readUnread"] = (["maxMessages"], ["maxMessages"]),
-            ["gmail.readRecent"] = (["daysBack", "maxMessages"], ["maxMessages"]),
+            ["gmail.readToday"] = (["maxMessages", "adaptiveReportOutput"], ["maxMessages", "adaptiveReportOutput"]),
+            ["gmail.readUnread"] = (["maxMessages", "adaptiveReportOutput"], ["maxMessages", "adaptiveReportOutput"]),
+            ["gmail.readRecent"] = (["daysBack", "maxMessages", "adaptiveReportOutput"], ["maxMessages", "adaptiveReportOutput"]),
             ["gmail.send"] = (["to", "subject", "body"], []),
             ["calendar.today"] = ([], []),
             ["calendar.read"] = (["period"], []),

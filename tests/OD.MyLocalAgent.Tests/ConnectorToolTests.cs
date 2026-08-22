@@ -45,8 +45,8 @@ public sealed class ConnectorToolTests : IDisposable
             NullLogger<GmailTool>.Instance,
             TimeProvider.System);
 
-        _ = await tool.ReadTodayAsync(3, CancellationToken.None);
-        _ = await tool.ReadRecentAsync(7, 12, CancellationToken.None);
+        _ = await tool.ReadTodayAsync(3, cancellationToken: CancellationToken.None);
+        _ = await tool.ReadRecentAsync(7, 12, cancellationToken: CancellationToken.None);
 
         connector.VerifyAll();
     }
@@ -71,10 +71,10 @@ public sealed class ConnectorToolTests : IDisposable
             logger,
             TimeProvider.System);
 
-        _ = await tool.ReadTodayAsync(5, CancellationToken.None);
+        _ = await tool.ReadTodayAsync(5, cancellationToken: CancellationToken.None);
 
         logger.Messages.Should().Contain(message =>
-            message.Contains("{\"maxMessages\":5}", StringComparison.Ordinal));
+            message.Contains("{\"maxMessages\":5,\"adaptiveReportOutput\":false}", StringComparison.Ordinal));
         logger.Messages.Should().Contain(message =>
             message.Contains("Returned 0 Gmail message(s).", StringComparison.Ordinal));
         logger.Messages.Should().NotContain(message =>
@@ -112,6 +112,45 @@ public sealed class ConnectorToolTests : IDisposable
         var json = await tool.ReadTodayAsync(cancellationToken: CancellationToken.None);
         JsonDocument.Parse(json).RootElement.GetProperty("messages")[0]
             .GetProperty("id").GetString().Should().Be("m1");
+    }
+
+    /// <summary>
+    /// Verifies adaptive report output retains every protected message while removing
+    /// metadata that is not needed by a report prompt.
+    /// </summary>
+    [Fact]
+    public async Task GmailAdaptiveReportOutputCompactsOnlyOversizedResults()
+    {
+        var connector = new Mock<IGmailConnector>(MockBehavior.Strict);
+        var messages = Enumerable.Range(1, 90)
+            .Select(index => CreateMessage($"message-{index}", new string('x', 2_000)))
+            .ToArray();
+        connector.Setup(instance => instance.GetTodaysMessagesAsync(
+                It.IsAny<int?>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(messages);
+        var tool = new GmailTool(
+            connector.Object,
+            new MutableOptionsMonitor<GuardrailsOptions>(new GuardrailsOptions()),
+            new StubContentTrustService(),
+            new StubIncidentReporter(),
+            NullLogger<GmailTool>.Instance,
+            TimeProvider.System);
+
+        var json = await tool.ReadTodayAsync(
+            adaptiveReportOutput: true,
+            cancellationToken: CancellationToken.None);
+
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        root.GetProperty("outputFormat").GetString().Should().Be("compact-report");
+        root.GetProperty("totalFetched").GetInt32().Should().Be(90);
+        root.GetProperty("processed").GetInt32().Should().Be(90);
+        root.GetProperty("entries").GetArrayLength().Should().Be(90);
+        root.GetProperty("entries")[0].TryGetProperty("trustScore", out _)
+            .Should().BeFalse();
+        root.GetProperty("entries")[0].GetProperty("content").GetString()
+            .Should().Contain("From:");
     }
 
     /// <summary>

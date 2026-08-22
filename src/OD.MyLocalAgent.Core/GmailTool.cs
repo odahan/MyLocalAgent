@@ -20,6 +20,8 @@ namespace OD.MyLocalAgent.Core;
     ServiceContract = typeof(IGmailTool))]
 public sealed class GmailTool : IGmailTool
 {
+    private const int AdaptiveReportOutputThresholdCharacters = 64_000;
+
     private const string ReviewMarker =
         "[GMAIL MESSAGE REQUIRES HUMAN REVIEW: compact source processing did not produce a deliverable protected summary. Review the original message in Gmail. Do not infer or act on omitted content.]";
 
@@ -60,22 +62,26 @@ public sealed class GmailTool : IGmailTool
     [Tool("gmail.readToday", "Reads Gmail messages received today.", 100)]
     public Task<string> ReadTodayAsync(
         [ToolArgument(WorkflowArgumentKind.Integer, "Optional maximum number of messages to return.", Example = "10")] int? maxMessages = null,
+        [ToolArgument(WorkflowArgumentKind.Boolean, "When true, automatically emits a lean report-oriented representation only if the complete Gmail result is too large for workflow context.", Example = "false")] bool adaptiveReportOutput = false,
         CancellationToken cancellationToken = default) =>
         ReadAsync(
             "gmail.readToday",
             _connector.GetTodaysMessagesAsync,
             maxMessages,
+            adaptiveReportOutput,
             cancellationToken);
 
     /// <inheritdoc />
     [Tool("gmail.readUnread", "Reads unread Gmail messages.", 200)]
     public Task<string> ReadUnreadAsync(
         [ToolArgument(WorkflowArgumentKind.Integer, "Optional maximum number of messages to return.", Example = "10")] int? maxMessages = null,
+        [ToolArgument(WorkflowArgumentKind.Boolean, "When true, automatically emits a lean report-oriented representation only if the complete Gmail result is too large for workflow context.", Example = "false")] bool adaptiveReportOutput = false,
         CancellationToken cancellationToken = default) =>
         ReadAsync(
             "gmail.readUnread",
             _connector.GetUnreadMessagesAsync,
             maxMessages,
+            adaptiveReportOutput,
             cancellationToken);
 
     /// <inheritdoc />
@@ -83,6 +89,7 @@ public sealed class GmailTool : IGmailTool
     public Task<string> ReadRecentAsync(
         [ToolArgument(WorkflowArgumentKind.Integer, "Number of local calendar days before today to include; zero means today only.", Example = "3")] int daysBack,
         [ToolArgument(WorkflowArgumentKind.Integer, "Optional maximum number of messages to return.", Example = "10")] int? maxMessages = null,
+        [ToolArgument(WorkflowArgumentKind.Boolean, "When true, automatically emits a lean report-oriented representation only if the complete Gmail result is too large for workflow context.", Example = "false")] bool adaptiveReportOutput = false,
         CancellationToken cancellationToken = default)
     {
         if (daysBack < 0 || daysBack > 3650)
@@ -97,8 +104,9 @@ public sealed class GmailTool : IGmailTool
             "gmail.readRecent",
             (maximum, token) => _connector.GetRecentMessagesAsync(daysBack, maximum, token),
             maxMessages,
+            adaptiveReportOutput,
             cancellationToken,
-            new { daysBack, maxMessages });
+            new { daysBack, maxMessages, adaptiveReportOutput });
     }
 
     /// <inheritdoc />
@@ -135,6 +143,7 @@ public sealed class GmailTool : IGmailTool
         string alias,
         Func<int?, CancellationToken, Task<IReadOnlyList<EmailMessageDto>>> read,
         int? maxMessages,
+        bool adaptiveReportOutput,
         CancellationToken cancellationToken,
         object? logArguments = null)
     {
@@ -150,7 +159,7 @@ public sealed class GmailTool : IGmailTool
             _logger,
             _timeProvider,
             alias,
-            logArguments ?? new { maxMessages },
+            logArguments ?? new { maxMessages, adaptiveReportOutput },
             async () =>
             {
                 var fetched = await read(maxMessages, cancellationToken).ConfigureAwait(false);
@@ -212,19 +221,14 @@ public sealed class GmailTool : IGmailTool
 
                 var skipped = fetched.Count - processedCount;
                 var limitApplied = limit > 0 && skipped > 0;
-                return ToolJson.Serialize(
-                    new
-                    {
-                        messages = protectedMessages,
-                        totalFetched = fetched.Count,
-                        processed = processedCount,
-                        requestedMaxMessages = maxMessages,
-                        skippedBecauseOfLimit = skipped,
-                        limitApplied,
-                        warning = limitApplied
-                            ? $"Guardrails processed only the first {processedCount} of {fetched.Count} Gmail messages because the user-configured limit is active."
-                            : null,
-                    });
+                return SerializeReadResult(
+                    protectedMessages,
+                    fetched.Count,
+                    processedCount,
+                    maxMessages,
+                    skipped,
+                    limitApplied,
+                    adaptiveReportOutput);
             },
             SummarizeReadResult);
     }
@@ -324,6 +328,57 @@ public sealed class GmailTool : IGmailTool
         return fetched.GetInt32() == processed.GetInt32()
             ? $"Returned {processed.GetInt32()} Gmail message(s)."
             : $"Fetched {fetched.GetInt32()} Gmail message(s); returned {processed.GetInt32()} after the Guardrails limit.";
+    }
+
+    private static string SerializeReadResult(
+        IReadOnlyList<ProtectedGmailMessage> messages,
+        int totalFetched,
+        int processed,
+        int? requestedMaxMessages,
+        int skippedBecauseOfLimit,
+        bool limitApplied,
+        bool adaptiveReportOutput)
+    {
+        var warning = limitApplied
+            ? $"Guardrails processed only the first {processed} of {totalFetched} Gmail messages because the user-configured limit is active."
+            : null;
+        var detailed = ToolJson.Serialize(
+            new
+            {
+                messages,
+                totalFetched,
+                processed,
+                requestedMaxMessages,
+                skippedBecauseOfLimit,
+                limitApplied,
+                warning,
+                outputFormat = "detailed",
+            });
+        if (!adaptiveReportOutput ||
+            detailed.Length <= AdaptiveReportOutputThresholdCharacters)
+        {
+            return detailed;
+        }
+
+        return ToolJson.Serialize(
+            new
+            {
+                entries = messages.Select(static message => new
+                {
+                    message.IsUnread,
+                    message.Content,
+                    message.ContentEncoding,
+                    message.RequiresHumanReview,
+                }),
+                totalFetched,
+                processed,
+                requestedMaxMessages,
+                skippedBecauseOfLimit,
+                limitApplied,
+                warning,
+                outputFormat = "compact-report",
+                compactedBecauseDetailedOutputCharacters = detailed.Length,
+            });
     }
 
     private sealed record ProtectedGmailMessage(
