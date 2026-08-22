@@ -5,6 +5,9 @@ using System.Runtime.CompilerServices;
 
 namespace OD.MyLocalAgent.Ollama;
 
+/// <summary>
+/// Creates short-lived Ollama clients from the current options and verifies the selected model before use.
+/// </summary>
 internal sealed class DynamicOllamaChatClient : IChatClient
 {
     private readonly IHttpClientFactory _httpClientFactory;

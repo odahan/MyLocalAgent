@@ -10,6 +10,9 @@ using System.Windows.Media.Imaging;
 
 namespace OD.MyLocalAgent.UI.Services;
 
+/// <summary>
+/// Encapsulates desktop-only dialogs, file pickers, and media interactions for view models.
+/// </summary>
 internal sealed class DesktopInteractionService : IDesktopInteractionService
 {
     private SoundPlayer? _soundPlayer;

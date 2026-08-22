@@ -6,6 +6,9 @@ using Serilog.Events;
 
 namespace OD.MyLocalAgent.UI.Services;
 
+/// <summary>
+/// Exports, reads, and clears application diagnostics for the desktop interface.
+/// </summary>
 internal sealed class LogManagementService : ILogManagementService
 {
     private readonly IInMemoryLogSink _logSink;

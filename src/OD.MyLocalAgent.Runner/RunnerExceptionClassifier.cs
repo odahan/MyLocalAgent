@@ -5,6 +5,9 @@ using OD.MyLocalAgent.Ollama;
 
 namespace OD.MyLocalAgent.Runner;
 
+/// <summary>
+/// Maps nested runtime exceptions to the runner's externally visible exit codes.
+/// </summary>
 internal static class RunnerExceptionClassifier
 {
     public static int GetExitCode(Exception exception) =>

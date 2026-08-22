@@ -4,6 +4,9 @@ using OD.MyLocalAgent.UI.Messages;
 
 namespace OD.MyLocalAgent.UI.Services;
 
+/// <summary>
+/// Bridges core incident events to UI messages without coupling core services to WPF.
+/// </summary>
 internal sealed class IncidentMessengerBridge
 {
     private readonly IIncidentReporter _incidentReporter;

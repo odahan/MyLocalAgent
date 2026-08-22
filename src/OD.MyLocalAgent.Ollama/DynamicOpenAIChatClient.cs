@@ -7,6 +7,9 @@ using System.ClientModel.Primitives;
 
 namespace OD.MyLocalAgent.Ollama;
 
+/// <summary>
+/// Creates short-lived OpenAI clients from the current options so settings changes take effect without restart.
+/// </summary>
 internal sealed class DynamicOpenAIChatClient : IChatClient
 {
     private readonly IHttpClientFactory _httpClientFactory;

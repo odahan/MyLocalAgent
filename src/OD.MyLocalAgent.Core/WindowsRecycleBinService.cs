@@ -3,6 +3,9 @@ using System.Runtime.InteropServices;
 
 namespace OD.MyLocalAgent.Core;
 
+/// <summary>
+/// Moves files to the Windows Recycle Bin through the native shell operation API.
+/// </summary>
 internal sealed class WindowsRecycleBinService : IRecycleBinService
 {
     private const uint DeleteOperation = 3;
@@ -30,6 +33,7 @@ internal sealed class WindowsRecycleBinService : IRecycleBinService
         var operation = new ShellFileOperation
         {
             Operation = DeleteOperation,
+            // SHFileOperation expects a double-null-terminated path list.
             From = absolutePath + '\0' + '\0',
             Flags = Silent | NoConfirmation | AllowUndo | NoErrorUi,
         };

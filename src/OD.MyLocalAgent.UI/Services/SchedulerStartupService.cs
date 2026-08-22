@@ -6,6 +6,9 @@ using OD.MyLocalAgent.UI.Messages;
 
 namespace OD.MyLocalAgent.UI.Services;
 
+/// <summary>
+/// Reconciles persisted schedules with Windows Task Scheduler when the desktop app starts.
+/// </summary>
 internal sealed class SchedulerStartupService : BackgroundService
 {
     private readonly ITaskSchedulerService _scheduler;

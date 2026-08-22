@@ -3,6 +3,9 @@ using System.Text.Json.Serialization.Metadata;
 
 namespace OD.MyLocalAgent.Core;
 
+/// <summary>
+/// Holds the common JSON settings used for tool inputs, outputs, and diagnostics.
+/// </summary>
 internal static class ToolJson
 {
     public static readonly JsonSerializerOptions Options =

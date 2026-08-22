@@ -5,6 +5,9 @@ using HtmlAgilityPack;
 
 namespace OD.MyLocalAgent.Core;
 
+/// <summary>
+/// Extracts readable plain text or Markdown from HTML before it is passed to local workflows.
+/// </summary>
 internal static partial class HtmlDocumentConverter
 {
     public static string Convert(string html, HtmlTextFormat format)
@@ -12,6 +15,7 @@ internal static partial class HtmlDocumentConverter
         ArgumentNullException.ThrowIfNull(html);
         var document = new HtmlDocument();
         document.LoadHtml(html);
+        // Drop executable and layout-only nodes before choosing the most meaningful content container.
         foreach (var node in document.DocumentNode.SelectNodes(
                      "//script|//style|//noscript|//svg|//canvas|//form|//template|//iframe")
                  ?? Enumerable.Empty<HtmlNode>())

@@ -10,6 +10,9 @@ using Serilog.Events;
 
 namespace OD.MyLocalAgent.UI.Services;
 
+/// <summary>
+/// Persists editable application settings while keeping sensitive values in the protected secret store.
+/// </summary>
 internal sealed class UserSettingsService : IUserSettingsService
 {
     private static readonly JsonSerializerOptions SerializerOptions =

@@ -5,6 +5,9 @@ using OD.MyLocalAgent.Core;
 
 namespace OD.MyLocalAgent.Workflows;
 
+/// <summary>
+/// Resolves workflow placeholders while preserving the shape and JSON types of step arguments.
+/// </summary>
 internal static class WorkflowPlaceholderResolver
 {
     public static JsonElement ResolveArguments(
@@ -22,6 +25,7 @@ internal static class WorkflowPlaceholderResolver
 
         var buffer = new ArrayBufferWriter<byte>();
         var localNow = timeProvider.GetLocalNow();
+        // Rewriting the JSON tree prevents substitutions from coercing values such as numbers or arrays to text.
         using (var writer = new Utf8JsonWriter(buffer))
         {
             WriteResolvedElement(

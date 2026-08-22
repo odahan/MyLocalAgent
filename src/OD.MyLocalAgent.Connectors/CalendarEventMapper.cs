@@ -3,6 +3,9 @@ using System.Globalization;
 
 namespace OD.MyLocalAgent.Connectors;
 
+/// <summary>
+/// Maps Google Calendar API models to connector-owned data transfer objects.
+/// </summary>
 internal static class CalendarEventMapper
 {
     public static CalendarEventDto Map(Event calendarEvent)
@@ -24,6 +27,7 @@ internal static class CalendarEventMapper
             return dateTime;
         }
 
+        // Google represents all-day events as dates without an offset; interpret them in the local calendar zone.
         if (eventDateTime?.Date is not null &&
             DateTime.TryParseExact(
                 eventDateTime.Date,

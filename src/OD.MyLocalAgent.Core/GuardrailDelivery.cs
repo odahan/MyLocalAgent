@@ -2,6 +2,9 @@ using OD.MyLocalAgent.Guardrails;
 
 namespace OD.MyLocalAgent.Core;
 
+/// <summary>
+/// Converts content-trust decisions into the protected payload delivered to the model.
+/// </summary>
 internal static class GuardrailDelivery
 {
     public static ProtectedContent Apply(
@@ -11,6 +14,7 @@ internal static class GuardrailDelivery
         bool forceBase64 = false)
     {
         var disposition = ContentTrustPolicy.Decide(result, options);
+        // Some consumers require an explicit boundary even for content that otherwise passes screening.
         if (forceBase64 && disposition == TrustDisposition.PassThrough)
         {
             disposition = TrustDisposition.EncodeBase64;

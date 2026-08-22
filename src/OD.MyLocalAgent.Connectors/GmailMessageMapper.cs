@@ -3,6 +3,9 @@ using System.Text;
 
 namespace OD.MyLocalAgent.Connectors;
 
+/// <summary>
+/// Maps Gmail API messages to the connector's stable email data transfer object.
+/// </summary>
 internal static class GmailMessageMapper
 {
     public static EmailMessageDto Map(Message message)

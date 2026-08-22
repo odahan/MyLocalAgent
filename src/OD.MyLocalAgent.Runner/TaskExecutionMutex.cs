@@ -1,5 +1,8 @@
 namespace OD.MyLocalAgent.Runner;
 
+/// <summary>
+/// Coordinates a scheduled task across processes so the same task cannot run concurrently.
+/// </summary>
 internal sealed class TaskExecutionMutex : IDisposable
 {
     private readonly Semaphore _semaphore;
@@ -11,6 +14,7 @@ internal sealed class TaskExecutionMutex : IDisposable
         _semaphore = new Semaphore(
             initialCount: 1,
             maximumCount: 1,
+            // A global name also covers runner processes started in other Windows sessions.
             $"Global\\OD.MyLocalAgent.{taskId}");
     }
 

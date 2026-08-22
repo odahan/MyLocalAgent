@@ -1,5 +1,8 @@
 namespace OD.MyLocalAgent.Connectors;
 
+/// <summary>
+/// Centralizes validation rules for external connector configuration.
+/// </summary>
 internal static class ConnectorOptionsValidation
 {
     public static string? ValidateGoogle(GoogleOptions options)

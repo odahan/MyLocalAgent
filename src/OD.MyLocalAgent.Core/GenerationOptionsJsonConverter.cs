@@ -4,6 +4,9 @@ using OD.MyLocalAgent.Ollama;
 
 namespace OD.MyLocalAgent.Core;
 
+/// <summary>
+/// Reads and writes the deliberately small, validated set of per-step generation overrides.
+/// </summary>
 internal sealed class GenerationOptionsJsonConverter :
     JsonConverter<GenerationOptions>
 {

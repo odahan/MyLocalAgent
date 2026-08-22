@@ -4,6 +4,9 @@ using OD.MyLocalAgent.Ollama;
 
 namespace OD.MyLocalAgent.Core;
 
+/// <summary>
+/// Supports both the concise string syntax and the extended object syntax for workflow steps.
+/// </summary>
 internal sealed class WorkflowStepDefinitionJsonConverter : JsonConverter<WorkflowStepDefinition>
 {
     public override WorkflowStepDefinition Read(

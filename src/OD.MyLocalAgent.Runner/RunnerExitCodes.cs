@@ -1,5 +1,8 @@
 namespace OD.MyLocalAgent.Runner;
 
+/// <summary>
+/// Defines stable process exit codes for callers such as Windows Task Scheduler.
+/// </summary>
 internal static class RunnerExitCodes
 {
     public const int Success = 0;

@@ -2,6 +2,9 @@ using Microsoft.Extensions.Options;
 
 namespace OD.MyLocalAgent.Connectors;
 
+/// <summary>
+/// Selects the configured web-search provider and exposes a provider-neutral search operation.
+/// </summary>
 internal sealed class WebSearchConnector : IWebSearchConnector
 {
     private readonly IReadOnlyDictionary<string, IWebSearchProvider> _providers;

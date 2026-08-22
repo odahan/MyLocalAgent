@@ -4,6 +4,9 @@ using Microsoft.Extensions.Configuration;
 
 namespace OD.MyLocalAgent.UI.Services;
 
+/// <summary>
+/// Applies the selected application palette and synchronizes it with Material Design controls.
+/// </summary>
 internal sealed class ThemeService : IThemeService
 {
     private const string ThemeConfigurationKey = "Appearance:Theme";
@@ -30,6 +33,7 @@ internal sealed class ThemeService : IThemeService
         var application = Application.Current ??
             throw new InvalidOperationException(
                 "The application theme cannot be changed before WPF startup.");
+        // Resource dictionaries belong to the WPF UI thread, including when a setting changes from a background task.
         if (!application.Dispatcher.CheckAccess())
         {
             application.Dispatcher.Invoke(() => ApplyTheme(theme));

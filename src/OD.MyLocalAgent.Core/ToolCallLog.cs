@@ -4,6 +4,9 @@ using OD.MyLocalAgent.Ollama;
 
 namespace OD.MyLocalAgent.Core;
 
+/// <summary>
+/// Wraps tool execution with consistently sanitized logging and timing collection.
+/// </summary>
 internal static class ToolCallLog
 {
     public static async Task<string> ExecuteAsync(

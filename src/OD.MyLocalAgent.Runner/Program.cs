@@ -1,5 +1,8 @@
 namespace OD.MyLocalAgent.Runner;
 
+/// <summary>
+/// Provides the console application's process entry point.
+/// </summary>
 internal static class Program
 {
     private static Task<int> Main(string[] args)

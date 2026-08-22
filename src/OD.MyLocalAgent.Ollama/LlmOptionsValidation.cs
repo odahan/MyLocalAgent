@@ -1,5 +1,8 @@
 namespace OD.MyLocalAgent.Ollama;
 
+/// <summary>
+/// Centralizes configuration validation shared by the supported LLM providers.
+/// </summary>
 internal static class LlmOptionsValidation
 {
     public static string? ValidateAI(AIOptions options)

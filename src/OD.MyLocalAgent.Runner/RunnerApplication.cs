@@ -9,6 +9,9 @@ using Serilog;
 
 namespace OD.MyLocalAgent.Runner;
 
+/// <summary>
+/// Builds and executes the headless application host used by scheduled task runs.
+/// </summary>
 internal static class RunnerApplication
 {
     public static async Task<int> RunAsync(

@@ -9,6 +9,9 @@ using OD.MyLocalAgent.Workflows;
 
 namespace OD.MyLocalAgent.Runner;
 
+/// <summary>
+/// Implements the command-line runner commands and owns their run-log lifecycle.
+/// </summary>
 internal static class RunnerCommandHandlers
 {
     private static readonly JsonSerializerOptions IndentedJsonOptions =
