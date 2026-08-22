@@ -2165,19 +2165,6 @@ compilation, freshness-window expansion, document classification, and late prote
 - Release verification completed with zero build warnings or errors, 663 non-integration tests
   passing, one expected environment-dependent Ollama probe skipped, all task examples parsing as
   JSON, and a successful end-to-end migration against an isolated temporary fixture.
-### Stage 27 — Hybrid Knowledge retrieval and context selection — 2026-08-22
-
-- Knowledge schema 4 owns an embedded `chunk_fts` FTS5 table using `unicode61 remove_diacritics 2`. It contains only active chunk headings and text; startup verifies the active-chunk projection and transactionally rebuilds the table if an interrupted migration left it inconsistent.
-- `knowledge.search` keeps its public tag-scoped contract while combining safe literal exact-term candidates and tag-prefiltered cosine candidates through rank-only reciprocal-rank fusion. MMR chooses complementary anchors, and bounded same-heading/page contiguous chunks may supply surrounding context.
-- Candidate-pool, fusion, diversity, lexical-query, and context-neighbor limits are global reloadable Knowledge settings. They are query-time policy and do not require re-embedding or grant document access.
-
-### Version 1.5.1 — Knowledge administration refinements — 2026-08-21
-
-- Knowledge administration is organized into dedicated Documents, Preview, Import document, Search, and Maintenance tabs. Document metadata editing uses a separately scrollable dialog, while import input remains independent from the selected document details.
-- Existing authorization tags are normalized, case-insensitively deduplicated, and sorted for guided reuse during import, search, and document-list filtering. Diagnostic search provides four tag selectors with OR semantics and prevents duplicate effective selections.
-- Search state is cleared when a document is deleted, and operation feedback is scoped to its owning tab so stale search or reindex messages do not appear elsewhere. Valid Knowledge embedding settings use the success color; invalid settings remain errors.
-
-### Version 1.5.0 — Embedded Knowledge and RAG — 2026-08-20
 
 # Stage 26 — Embedded Knowledge and declarative prompt tools (2026-08-20)
 
@@ -2190,6 +2177,21 @@ compilation, freshness-window expansion, document classification, and late prote
 - Direct Chat schema advances from 5 to 6 with nullable `knowledge_access_json`. Legacy conversations receive an empty scope.
 - Public services added: `IKnowledgeLibraryService`, `IKnowledgeSearchService`, `IKnowledgeEmbeddingService`, `IKnowledgeDocumentExtractor`, and `IKnowledgeEmbeddingGeneratorFactory`; persisted contracts add `KnowledgeAccessDefinition`, prompt `ToolAliases`, and task/conversation Knowledge scopes. DOCX/PDF parsing primitives are shared with `DocumentTool` and `PdfTool`, and PDF chunks retain one-based page metadata.
 - Stage verification completed with a warning-free Release build, 685 passing non-integration tests (one expected local Ollama probe skipped), clean self-contained single-file `win-x64` UI and Runner publications, a successful Runner host check, and a three-second UI startup smoke check. Six explicitly requested Integration tests also pass, including a real local `embeddinggemma:300m` request proving stable, finite, unit-normalized vectors for French and English inputs. Network-backed tests remain outside the normal stage gate.
+
+### Version 1.5.0 — Embedded Knowledge and RAG — 2026-08-20
+
+### Version 1.5.1 — Knowledge administration refinements — 2026-08-21
+
+- Knowledge administration is organized into dedicated Documents, Preview, Import document, Search, and Maintenance tabs. Document metadata editing uses a separately scrollable dialog, while import input remains independent from the selected document details.
+- Existing authorization tags are normalized, case-insensitively deduplicated, and sorted for guided reuse during import, search, and document-list filtering. Diagnostic search provides four tag selectors with OR semantics and prevents duplicate effective selections.
+- Search state is cleared when a document is deleted, and operation feedback is scoped to its owning tab so stale search or reindex messages do not appear elsewhere. Valid Knowledge embedding settings use the success color; invalid settings remain errors.
+
+# Stage 27 — Hybrid Knowledge retrieval and context selection — 2026-08-22
+
+- Knowledge schema 4 owns an embedded `chunk_fts` FTS5 table using `unicode61 remove_diacritics 2`. It contains only active chunk headings and text; startup verifies the active-chunk projection and transactionally rebuilds the table if an interrupted migration left it inconsistent.
+- `knowledge.search` keeps its public tag-scoped contract while combining safe literal exact-term candidates and tag-prefiltered cosine candidates through rank-only reciprocal-rank fusion. MMR chooses complementary anchors, and bounded same-heading/page contiguous chunks may supply surrounding context.
+- Candidate-pool, fusion, diversity, lexical-query, and context-neighbor limits are global reloadable Knowledge settings. They are query-time policy and do not require re-embedding or grant document access.
+
 
 ### Version 1.5.3 — Per-prompt execution controls — 2026-08-22
 
