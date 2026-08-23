@@ -48,4 +48,10 @@ public sealed class ToolArgumentAttribute : DescriptionAttribute
     /// Gets or sets whether authoring surfaces should provide a long-form text editor.
     /// </summary>
     public bool IsLongText { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether this short or format-constrained string is omitted from the workflow
+    /// text editor even when it is present in workflow JSON.
+    /// </summary>
+    public bool IsExcludedFromWorkflowTextEditor { get; set; }
 }

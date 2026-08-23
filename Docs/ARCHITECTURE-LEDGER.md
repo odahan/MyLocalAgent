@@ -2199,3 +2199,9 @@ compilation, freshness-window expansion, document classification, and late prote
 - Added optional `ai.prompt.args.thinking`. When omitted, the resolved task/Settings reasoning policy is preserved; when supplied, it overrides reasoning only for the prompt step. This permits structured long-context report steps to disable provider reasoning without changing the task-wide default.
 - `DynamicOllamaChatClient` and `DynamicOpenAIChatClient` both consume the scoped timeout, including OpenAI-compatible transport `NetworkTimeout`, so provider choice does not change the contract. Prompt-step validation rejects non-boolean `thinking` values and timeout values outside the declared range.
 - The task catalog, technical manual, and English/French user manuals document the controls. Deterministic coverage verifies validation, generated workflow snippets, scoped timeout restoration, and prompt-level reasoning-policy override.
+
+### Version 1.5.4 — Workflow text editor scope — 2026-08-23
+
+- Restored **Edit workflow text** to its focused role: it edits only eligible string arguments already present in the workflow JSON and preserves every other step setting, including models, exact tool aliases, Knowledge scope, and `includeContext`.
+- All ordinary string arguments are eligible, including paths, URLs, content, queries, and SQL. Short or technically constrained values are explicitly excluded in Tool Map metadata; absent optional arguments are not offered and are never created by the editor.
+- The dialog no longer exposes prompt-step model, tool, Knowledge, or context configuration. Those values belong to the workflow step editor; a future dedicated step editor may provide typed editing and before/after insertion.

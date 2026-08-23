@@ -178,7 +178,7 @@ public sealed partial class WorkflowPromptEditorItem : ObservableObject
     /// <summary>
     /// Gets a value indicating whether the entry carries any effective change.
     /// </summary>
-    public bool IsModified => IsPromptModified || IsContextModified || IsModelModified || IsToolPolicyModified;
+    public bool IsModified => IsPromptModified;
 
     /// <summary>
     /// Restores the entry to its extracted state.

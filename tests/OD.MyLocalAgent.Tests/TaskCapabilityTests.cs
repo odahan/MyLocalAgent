@@ -64,7 +64,7 @@ public sealed class TaskCapabilityTests
         var updated = WorkflowDefinitionSerializer.Deserialize(updatedText);
 
         updated[0].Args.GetProperty("prompt").GetString().Should().Be("new prompt");
-        updated[0].Args.GetProperty("includeContext").GetBoolean().Should().BeFalse();
+        updated[0].Args.GetProperty("includeContext").GetBoolean().Should().BeTrue();
         updated[0].RetryCount.Should().Be(2);
         updated[1].Args.GetProperty("script").GetString().Should().Be("Get-ChildItem");
         updated[1].Args.GetProperty("waitForExit").GetBoolean().Should().BeFalse();

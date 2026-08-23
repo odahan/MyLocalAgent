@@ -372,8 +372,7 @@ precedence over the task value. The setting never rewrites Settings or affects a
 The previous/default model is restored automatically after the scoped call, including when it
 fails or is cancelled.
 
-The task editor exposes this as **Use model from Settings** and **Task model override**. In
-**Edit workflow text**, an `ai.prompt` entry has **Model override (empty = task or Settings)**.
+The task editor exposes this as **Use model from Settings** and **Task model override**.
 These are model identifiers, not a provider switch: the active provider remains the one selected
 in Settings for the entire task. Leave both fields blank to inherit the configured model. The
 effective order is:
@@ -939,10 +938,10 @@ and a placeholders tab. Selecting an entry previews the exact snippet that will 
   is never whitelistable and never appears in an accepted-group result. Safety flags are shown
   read-only and are never modified.
 
-**Workflow prompt editor** lists every `ai.prompt` step in declaration order and edits only its
-`prompt` text and its `includeContext` option. It never adds, deletes, reorders, renames, or
-re-types a step, and never touches ids, error policies, retries, generation options, or any
-other argument.
+**Workflow prompt editor** lists each eligible text argument already present in the workflow, in
+declaration order. Short or format-constrained strings are excluded. It never adds, deletes,
+reorders, renames, or re-types a step, and never touches ids, error policies, retries,
+generation options, models, tool permissions, or other arguments.
 
 - Steps are keyed by declaration position, so duplicate ids stay unambiguous. Each row shows a
   single-line preview in which line feeds and tabs become visible markers.
@@ -951,11 +950,7 @@ other argument.
   `System.Text.Json` writes line breaks as `\n` escapes, each prompt still occupies one
   physical JSON line, and extract → apply → extract without an edit is lossless.
 - `includeContext` is an independent option, defaulted to `true` on a newly built `ai.prompt`
-  step. It is never driven by the generic optional-arguments toggle. You can deliberately set
-  it to false and reference a single prior output placeholder to send only selected data.
-- If a prompt already references prior output or accumulated context while `includeContext` is
-  true, a **duplication warning** appears. It is informational: neither value is changed
-  automatically, and Apply is not blocked.
+  step. Configure it in the workflow itself; the workflow text editor preserves it unchanged.
 - Several prompts may be edited in one session. **Apply** validates everything, writes every
   change at once, and closes; it is enabled only when an effective change exists and no prompt
   is blank. **Revert step** restores one entry, **Cancel** discards the session. There is no
@@ -1787,8 +1782,8 @@ inspected to grant rights automatically. Tool Tester and AI Playground have no s
 unless Tool Tester is explicitly bound to a saved task context.
 
 The task editor shows only permissions relevant to selected tool groups while preserving saved
-grants. **Edit workflow text** is metadata-driven and edits long-form `ai.prompt.prompt` and
-`filesystem.powerShell.script` values atomically without changing step identity or structure.
+grants. **Edit workflow text** is metadata-driven and edits long-form arguments atomically
+without changing step identity, structure, models, or permissions.
 # Embedded Knowledge and RAG
 
 The **Knowledge** page imports TXT, Markdown, DOCX, and text-based PDF files into private application storage below `.od-my-local-agent/data/knowledge`. OCR is not provided. Files are extracted, deterministically chunked, embedded, and searched locally through the ordinary `knowledge.search` tool. Retrieval combines tag-prefiltered exact-term FTS5 matching with exact cosine similarity, fuses ranks deterministically, and can include bounded adjacent same-section context. It has no vector server, reranker, or automatic context injection.

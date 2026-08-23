@@ -367,10 +367,9 @@ entirely deterministic: they call no model, tool, file, or network.
   and keeps the window open so several steps can be accumulated. **Cancel**
   discards the whole session. If the JSON cannot be parsed, the snippet is
   inserted verbatim with a manual-repair warning.
-- **Edit workflow text**: the metadata-driven editor lists long-text arguments in order. It
-  edits `ai.prompt.prompt` with `includeContext` and `filesystem.powerShell.script` with a local
-  execution warning, as well as `research.discover.themes` and
-  `research.discover.preferredDomains`. **Apply** writes every change atomically.
+- **Edit workflow text**: the metadata-driven editor lists and edits eligible text arguments
+  already present in declaration order, including `ai.prompt.prompt`,
+  `filesystem.write.content`, and `filesystem.powerShell.script`. **Apply** writes every change atomically.
 - **AI Helper**: model-assisted generation, best reserved for cases where an
   English description is faster than writing the workflow directly.
 

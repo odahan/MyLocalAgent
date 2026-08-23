@@ -74,8 +74,8 @@ public sealed class CalendarTool : ICalendarTool
     [Tool("calendar.create", "Creates a Google Calendar event.", 300)]
     public Task<string> CreateAsync(
         [ToolArgument(WorkflowArgumentKind.String, "Event summary.", Example = "Team sync")] string summary,
-        [ToolArgument(WorkflowArgumentKind.String, "Event start time with offset.", Example = "2026-01-15T09:00:00+01:00")] DateTimeOffset start,
-        [ToolArgument(WorkflowArgumentKind.String, "Event end time with offset.", Example = "2026-01-15T10:00:00+01:00")] DateTimeOffset end,
+        [ToolArgument(WorkflowArgumentKind.String, "Event start time with offset.", Example = "2026-01-15T09:00:00+01:00", IsExcludedFromWorkflowTextEditor = true)] DateTimeOffset start,
+        [ToolArgument(WorkflowArgumentKind.String, "Event end time with offset.", Example = "2026-01-15T10:00:00+01:00", IsExcludedFromWorkflowTextEditor = true)] DateTimeOffset end,
         [ToolArgument(WorkflowArgumentKind.String, "Event description.", Example = "Weekly team synchronisation.")] string description,
         CancellationToken cancellationToken)
     {

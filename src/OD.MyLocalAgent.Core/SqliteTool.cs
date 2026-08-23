@@ -215,7 +215,7 @@ public sealed class SqliteTool : ISqliteTool
         [ToolArgument(WorkflowArgumentKind.String, "One read-only SQLite statement.", Example = "SELECT id, name FROM items")] string sql,
         [ToolArgument(WorkflowArgumentKind.Object, "Optional named scalar SQLite parameters.", Example = "{}")] JsonElement parameters = default,
         [ToolArgument(WorkflowArgumentKind.Integer, "Optional bounded row count.", Example = "100")] int? maxRows = null,
-        [ToolArgument(WorkflowArgumentKind.String, "Reserved managed storage target identifier.", Example = "research")] string? storageSpaceId = null,
+        [ToolArgument(WorkflowArgumentKind.String, "Reserved managed storage target identifier.", Example = "research", IsExcludedFromWorkflowTextEditor = true)] string? storageSpaceId = null,
         CancellationToken cancellationToken = default) => ExecuteSanitizedAsync("sqlite.query", "read", maxRows, Task.Run(async () =>
     {
         if (string.IsNullOrWhiteSpace(databasePath) || !string.IsNullOrWhiteSpace(storageSpaceId)) throw new InvalidOperationException("Exactly one database path target is required.");

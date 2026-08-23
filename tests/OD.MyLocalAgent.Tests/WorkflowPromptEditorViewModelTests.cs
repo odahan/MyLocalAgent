@@ -48,19 +48,16 @@ public sealed class WorkflowPromptEditorViewModelTests
     }
 
     /// <summary>
-    /// Verifies editing a model override makes the prompt editor applicable.
+    /// Verifies changing non-text prompt-step data does not make the editor applicable.
     /// </summary>
     [Fact]
-    public void ModelOverrideIsAnEffectivePromptStepChange()
+    public void OnlyLongTextChangesAreApplicable()
     {
         var viewModel = Create();
 
         viewModel.Items[0].ModelOverride = "fast-model";
 
-        viewModel.CanApply().Should().BeTrue();
-        viewModel.ApplyCommand.Execute(null);
-        var workflow = WorkflowDefinitionSerializer.Deserialize(viewModel.Result!.WorkflowText);
-        workflow[0].Model.Should().Be("fast-model");
+        viewModel.CanApply().Should().BeFalse();
     }
 
     /// <summary>
@@ -86,14 +83,14 @@ public sealed class WorkflowPromptEditorViewModelTests
     {
         var viewModel = Create();
         viewModel.Items[0].PromptText = "Summarize the message.";
-        viewModel.Items[1].IncludeContext = false;
+        viewModel.Items[1].PromptText = "Translate the message.";
 
         viewModel.ApplyCommand.Execute(null);
 
         var result = viewModel.Result.Should().NotBeNull().And
             .Subject.As<WorkflowPromptEditorResult>();
-        result.ModifiedPromptCount.Should().Be(1);
-        result.ModifiedContextCount.Should().Be(1);
+        result.ModifiedPromptCount.Should().Be(2);
+        result.ModifiedContextCount.Should().Be(0);
         result.ModifiedSteps.Select(step => step.Position).Should().Equal(0, 2);
 
         var workflow = WorkflowDefinitionSerializer.Deserialize(result.WorkflowText);

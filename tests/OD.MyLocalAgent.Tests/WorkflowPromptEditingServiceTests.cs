@@ -26,16 +26,18 @@ public sealed class WorkflowPromptEditingServiceTests
             ]
             """);
 
-        entries.Should().HaveCount(2);
-        entries[0].Position.Should().Be(1);
-        entries[0].DisplayPosition.Should().Be(2);
-        entries[0].PromptText.Should().Be("first");
-        entries[0].IncludeContext.Should().BeFalse("omission means false at runtime");
-        entries[0].PriorStepIds.Should().Equal("source");
-        entries[1].Position.Should().Be(3);
-        entries[1].PromptText.Should().Be("second");
-        entries[1].IncludeContext.Should().BeTrue();
-        entries[1].PriorStepIds.Should().Equal("source", "review", "ai.summarize");
+        entries.Should().HaveCount(3);
+        entries[0].ArgumentName.Should().Be("path");
+        entries[0].PromptText.Should().Be("a.txt");
+        entries[1].Position.Should().Be(1);
+        entries[1].DisplayPosition.Should().Be(2);
+        entries[1].PromptText.Should().Be("first");
+        entries[1].IncludeContext.Should().BeFalse("omission means false at runtime");
+        entries[1].PriorStepIds.Should().Equal("source");
+        entries[2].Position.Should().Be(3);
+        entries[2].PromptText.Should().Be("second");
+        entries[2].IncludeContext.Should().BeTrue();
+        entries[2].PriorStepIds.Should().Equal("source", "review", "ai.summarize");
     }
 
     /// <summary>
@@ -52,12 +54,10 @@ public sealed class WorkflowPromptEditingServiceTests
     }
 
     /// <summary>
-    /// Verifies repair extraction for string form and for a missing prompt argument.
+    /// Verifies repair extraction for present text arguments with unusable values.
     /// </summary>
     /// <param name="json">The workflow JSON to extract.</param>
     [Theory]
-    [InlineData("""[ "ai.prompt" ]""")]
-    [InlineData("""[ { "step": "ai.prompt" } ]""")]
     [InlineData("""[ { "step": "ai.prompt", "args": { "prompt": null } } ]""")]
     [InlineData("""[ { "step": "ai.prompt", "args": { "prompt": 42 } } ]""")]
     public void RepairCasesExtractWithEmptyWorkingText(string json)
@@ -67,6 +67,14 @@ public sealed class WorkflowPromptEditingServiceTests
         entry.IsRepairCase.Should().BeTrue();
         entry.PromptText.Should().BeEmpty();
         entry.IncludeContext.Should().BeFalse();
+    }
+
+    /// <summary>Verifies omitted text arguments do not create an editor entry.</summary>
+    [Fact]
+    public void OmittedTextArgumentsAreNotExtracted()
+    {
+        Extract("""[ { "step": "ai.summarize" }, { "step": "ai.prompt" } ]""")
+            .Should().BeEmpty();
     }
 
     /// <summary>
@@ -95,21 +103,18 @@ public sealed class WorkflowPromptEditingServiceTests
     }
 
     /// <summary>
-    /// Verifies that a string-form step is promoted to object form on apply.
+    /// Verifies a text edit cannot add a property that is absent from the workflow.
     /// </summary>
     [Fact]
-    public void StringFormIsPromotedToObjectForm()
+    public void ApplyRequiresAnExistingTextProperty()
     {
         var workflow = WorkflowDefinitionSerializer.Deserialize("""[ "ai.prompt" ]""");
 
-        var applied = WorkflowPromptEditingService.Apply(
+        var act = () => WorkflowPromptEditingService.Apply(
             workflow,
             [new WorkflowPromptEdit(0, "Repaired.", IncludeContext: true)]);
 
-        var step = WorkflowDefinitionSerializer.Deserialize(applied).Single();
-        step.Step.Should().Be("ai.prompt");
-        step.Args.GetProperty("prompt").GetString().Should().Be("Repaired.");
-        step.Args.GetProperty("includeContext").GetBoolean().Should().BeTrue();
+        act.Should().Throw<WorkflowValidationException>();
     }
 
     /// <summary>
@@ -145,11 +150,11 @@ public sealed class WorkflowPromptEditingServiceTests
         step.GenerationOptions!.Temperature.Should().Be(0.4);
         step.GenerationOptions.TopP.Should().Be(0.95);
         step.Args.EnumerateObject().Select(static property => property.Name)
-            .Should().Equal("before", "prompt", "after", "includeContext");
+            .Should().Equal("before", "prompt", "after");
         step.Args.GetProperty("before").GetInt32().Should().Be(1);
         step.Args.GetProperty("after")[0].GetString().Should().Be("x");
         step.Args.GetProperty("prompt").GetString().Should().Be("new");
-        step.Args.GetProperty("includeContext").GetBoolean().Should().BeFalse();
+        step.Args.TryGetProperty("includeContext", out _).Should().BeFalse();
     }
 
     /// <summary>
@@ -175,22 +180,22 @@ public sealed class WorkflowPromptEditingServiceTests
 
         var steps = WorkflowDefinitionSerializer.Deserialize(applied);
         steps[0].Args.GetProperty("prompt").GetString().Should().Be("first");
-        steps[0].Args.GetProperty("includeContext").GetBoolean().Should().BeFalse();
+        steps[0].Args.TryGetProperty("includeContext", out _).Should().BeFalse();
         steps[1].Args.GetProperty("prompt").GetString().Should().Be("second");
-        steps[1].Args.GetProperty("includeContext").GetBoolean().Should().BeTrue();
+        steps[1].Args.TryGetProperty("includeContext", out _).Should().BeFalse();
     }
 
     /// <summary>
-    /// Verifies that applying to a non-prompt position is rejected.
+    /// Verifies that applying to a non-editable argument is rejected.
     /// </summary>
     [Fact]
-    public void ApplyRejectsNonPromptPositions()
+    public void ApplyRejectsNonEditableArguments()
     {
         var workflow = WorkflowDefinitionSerializer.Deserialize("""[ "ai.summarize" ]""");
 
         var act = () => WorkflowPromptEditingService.Apply(
             workflow,
-            [new WorkflowPromptEdit(0, "x", IncludeContext: true)]);
+            [new WorkflowPromptEdit(0, "x", IncludeContext: true) { ArgumentName = "missing" }]);
 
         act.Should().Throw<WorkflowValidationException>();
     }
@@ -226,22 +231,26 @@ public sealed class WorkflowPromptEditingServiceTests
     }
 
     /// <summary>
-    /// Verifies a prompt editor model override is persisted only on its ai.prompt step.
+    /// Verifies a long-text edit leaves a prompt-step model override unchanged.
     /// </summary>
     [Fact]
-    public void ApplyPersistsPromptStepModelOverride()
+    public void ApplyPreservesPromptStepModelOverride()
     {
         var workflow = WorkflowDefinitionSerializer.Deserialize(
-            """[ { "step": "ai.prompt", "args": { "prompt": "Summarize." } } ]""");
+            """[ { "step": "ai.prompt", "model": "existing-model", "toolAliases": [ "gmail.readToday" ], "args": { "prompt": "Summarize.", "includeContext": true } } ]""");
 
         var applied = WorkflowPromptEditingService.Apply(
             workflow,
-            [new WorkflowPromptEdit(0, "Summarize.", IncludeContext: false)
+            [new WorkflowPromptEdit(0, "Updated.", IncludeContext: false)
             {
                 Model = "fast-model",
+                ToolAliases = ["filesystem.write"],
             }]);
 
-        WorkflowDefinitionSerializer.Deserialize(applied).Single().Model.Should().Be("fast-model");
+        var step = WorkflowDefinitionSerializer.Deserialize(applied).Single();
+        step.Model.Should().Be("existing-model");
+        step.ToolAliases.Should().Equal("gmail.readToday");
+        step.Args.GetProperty("includeContext").GetBoolean().Should().BeTrue();
     }
 
     /// <summary>
@@ -250,7 +259,8 @@ public sealed class WorkflowPromptEditingServiceTests
     [Fact]
     public void MultilinePromptStaysOnOnePhysicalLine()
     {
-        var workflow = WorkflowDefinitionSerializer.Deserialize("""[ "ai.prompt" ]""");
+        var workflow = WorkflowDefinitionSerializer.Deserialize(
+            """[ { "step": "ai.prompt", "args": { "prompt": "initial" } } ]""");
 
         var applied = WorkflowPromptEditingService.Apply(
             workflow,
@@ -266,7 +276,7 @@ public sealed class WorkflowPromptEditingServiceTests
     }
 
     /// <summary>
-    /// Verifies discovery JSON-string arguments use the generic long-text editor contract.
+    /// Verifies discovery JSON-string arguments use the generic workflow text editor contract.
     /// </summary>
     [Fact]
     public void DiscoverThemesAndPreferredDomainsRoundTripAsLongText()
@@ -314,7 +324,7 @@ public sealed class WorkflowPromptEditingServiceTests
     }
 
     /// <summary>
-    /// Verifies an omitted optional long-text argument does not create a blocking repair entry.
+    /// Verifies an omitted optional text argument does not create a blocking repair entry.
     /// </summary>
     [Fact]
     public void OmittedOptionalDiscoveryLongTextIsNotExtracted()
@@ -331,6 +341,27 @@ public sealed class WorkflowPromptEditingServiceTests
 
         entries.Should().ContainSingle();
         entries[0].ArgumentName.Should().Be("themes");
+    }
+
+    /// <summary>Verifies present editable strings are included while short constrained values are excluded.</summary>
+    [Fact]
+    public void PresentEditableTextArgumentsAreExtracted()
+    {
+        var entries = Extract(
+            """
+            [
+              { "step": "filesystem.write", "args": { "path": "reports/weekly.txt", "content": "Weekly report" } },
+              { "step": "gmail.send", "args": { "to": "team@example.com", "subject": "Weekly report", "body": "Details" } },
+              { "step": "research.discover", "args": { "themes": "[]", "sourceLanguage": "en", "language": "fr" } }
+            ]
+            """);
+
+        entries.Select(static item => (item.Alias, item.ArgumentName)).Should().Equal(
+            ("filesystem.write", "path"),
+            ("filesystem.write", "content"),
+            ("gmail.send", "subject"),
+            ("gmail.send", "body"),
+            ("research.discover", "themes"));
     }
 
     /// <summary>
@@ -411,7 +442,7 @@ public sealed class WorkflowPromptEditingServiceTests
             [new WorkflowPromptEdit(1, "Review only this result:\n\n{{source.output}}", false)]);
 
         var step = WorkflowDefinitionSerializer.Deserialize(applied)[1];
-        step.Args.GetProperty("includeContext").GetBoolean().Should().BeFalse();
+        step.Args.GetProperty("includeContext").GetBoolean().Should().BeTrue();
         step.Args.GetProperty("prompt").GetString()
             .Should().Be("Review only this result:\n\n{{source.output}}");
     }

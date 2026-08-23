@@ -715,17 +715,15 @@ public sealed class KnowledgeStage26Tests : IDisposable
         await Task.WhenAll(readers.Append(store.ReplaceAsync(replacement, options, CancellationToken.None)));
     }
 
-    /// <summary>Verifies the prompt editor derives exact choices from the catalog and enabled task groups.</summary>
+    /// <summary>Verifies the prompt editor preserves exact aliases configured on a prompt step.</summary>
     [Fact]
-    public void PromptEditorUsesCatalogDrivenExactAliasSelection()
+    public void PromptEditorPreservesExactAliasSelection()
     {
-        var viewModel = new WorkflowPromptEditorViewModel(ToolCatalog.Default);
+        var viewModel = new WorkflowPromptEditorViewModel();
         viewModel.Initialize(new WorkflowPromptEditorRequest(
-            """[{"step":"ai.prompt","args":{"prompt":"Search when useful."}}]""",
-            [ToolGroups.Knowledge], ["public"]));
+            """[{"step":"ai.prompt","toolAliases":["knowledge.search"],"args":{"prompt":"Search when useful."}}]"""));
         var item = viewModel.Items.Should().ContainSingle().Which;
-        item.ToolSelections.Should().ContainSingle().Which.Alias.Should().Be("knowledge.search");
-        item.ToolSelections[0].IsSelected = true;
+        item.PromptText = "Search the authorized knowledge when useful.";
         viewModel.ApplyCommand.Execute(null);
         var workflow = WorkflowDefinitionSerializer.Deserialize(viewModel.Result!.WorkflowText);
         workflow.Should().ContainSingle().Which.ToolAliases.Should().Equal("knowledge.search");

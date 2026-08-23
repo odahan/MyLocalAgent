@@ -75,8 +75,8 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
     public Task<string> DiscoverAsync(
         [ToolArgument(WorkflowArgumentKind.String, "JSON array of search themes.", Example = "[{\"terms\":[\".NET\",\"C#\"],\"includeTerms\":[\"release\"]}]", IsLongText = true)] string themes,
         [ToolArgument(WorkflowArgumentKind.Enumeration, "Freshness window mode: 'sliding' for 2→4→7 day expansion, 'none' for no date filter.", AllowedValues = ["sliding", "none"], Example = "sliding")] string freshnessWindow = "sliding",
-        [ToolArgument(WorkflowArgumentKind.String, "BCP-47 source language tag for search filtering.", Example = "en")] string sourceLanguage = "en",
-        [ToolArgument(WorkflowArgumentKind.String, "BCP-47 target language for translation, or empty for original language.", Example = "fr")] string language = "",
+        [ToolArgument(WorkflowArgumentKind.String, "BCP-47 source language tag for search filtering.", Example = "en", IsExcludedFromWorkflowTextEditor = true)] string sourceLanguage = "en",
+        [ToolArgument(WorkflowArgumentKind.String, "BCP-47 target language for translation, or empty for original language.", Example = "fr", IsExcludedFromWorkflowTextEditor = true)] string language = "",
         [ToolArgument(WorkflowArgumentKind.String, "JSON array of preferred domains for ranking.", Example = "[\"learn.microsoft.com\"]", IsLongText = true)] string preferredDomains = "[]",
         [ToolArgument(WorkflowArgumentKind.Integer, "Minimum unique dated documents target (1-100), ignored in 'none' mode.", Example = "8")] int minimumDocuments = 8,
         [ToolArgument(WorkflowArgumentKind.Integer, "Advanced compatibility setting: maximum search hits returned per request (1-10).", Example = "10")] int maxResultsPerQuery = 10,

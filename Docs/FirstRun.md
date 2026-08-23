@@ -376,10 +376,9 @@ outil, aucun fichier et aucun réseau.
   position du curseur en gardant la fenêtre ouverte pour accumuler plusieurs
   étapes. **Cancel** abandonne toute la session. Si le JSON n’est pas analysable,
   le snippet est inséré tel quel avec un avertissement de correction manuelle.
-- **Edit workflow text** : l’éditeur piloté par les métadonnées liste les textes longs dans
-  l’ordre. Il modifie `ai.prompt.prompt` avec `includeContext` et
-  `filesystem.powerShell.script` avec un avertissement d’exécution locale, ainsi que
-  `research.discover.themes` et `research.discover.preferredDomains`. **Apply** écrit toutes les
+- **Edit workflow text** : l’éditeur piloté par les métadonnées liste et modifie les arguments
+  texte éligibles déjà présents, dans l’ordre, notamment `ai.prompt.prompt`,
+  `filesystem.write.content` et `filesystem.powerShell.script`. **Apply** écrit toutes les
   modifications atomiquement.
 - **AI Helper** : génération assistée par le modèle, à réserver aux cas où une
   description en anglais est plus rapide qu’une écriture directe.

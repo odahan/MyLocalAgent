@@ -140,8 +140,8 @@ public sealed class ArchiveTool : IArchiveTool
         [ToolArgument(WorkflowArgumentKind.String, "Authorized source file or directory path.", Example = "input/readme.txt")] string sourcePath,
         [ToolArgument(WorkflowArgumentKind.String, "Optional canonical ZIP entry path.", Example = "readme.txt")] string? entryPath = null,
         [ToolArgument(WorkflowArgumentKind.Boolean, "Whether an existing ZIP may be replaced.", Example = "false")] bool overwriteArchive = false,
-        [ToolArgument(WorkflowArgumentKind.String, "Optional compression method.", Example = "deflate", AllowedValues = ["deflate", "store"])] string? compressionMethod = null,
-        [ToolArgument(WorkflowArgumentKind.String, "Optional Deflate compression level.", Example = "balanced", AllowedValues = ["fast", "balanced", "smallest"])] string? compressionLevel = null,
+        [ToolArgument(WorkflowArgumentKind.String, "Optional compression method.", Example = "deflate", AllowedValues = ["deflate", "store"], IsExcludedFromWorkflowTextEditor = true)] string? compressionMethod = null,
+        [ToolArgument(WorkflowArgumentKind.String, "Optional Deflate compression level.", Example = "balanced", AllowedValues = ["fast", "balanced", "smallest"], IsExcludedFromWorkflowTextEditor = true)] string? compressionLevel = null,
         CancellationToken cancellationToken = default) => CreateAsync(archivePath, sourcePath, entryPath, overwriteArchive, compressionMethod, compressionLevel, cancellationToken);
 
     /// <inheritdoc/>
@@ -153,8 +153,8 @@ public sealed class ArchiveTool : IArchiveTool
         [ToolArgument(WorkflowArgumentKind.String, "Authorized source file or directory path.", Example = "input/readme.txt")] string sourcePath,
         [ToolArgument(WorkflowArgumentKind.String, "Optional canonical ZIP entry path.", Example = "readme.txt")] string? entryPath = null,
         [ToolArgument(WorkflowArgumentKind.Boolean, "Whether existing regular entries may be replaced.", Example = "false")] bool overwriteEntry = false,
-        [ToolArgument(WorkflowArgumentKind.String, "Optional compression method.", Example = "deflate", AllowedValues = ["deflate", "store"])] string? compressionMethod = null,
-        [ToolArgument(WorkflowArgumentKind.String, "Optional Deflate compression level.", Example = "balanced", AllowedValues = ["fast", "balanced", "smallest"])] string? compressionLevel = null,
+        [ToolArgument(WorkflowArgumentKind.String, "Optional compression method.", Example = "deflate", AllowedValues = ["deflate", "store"], IsExcludedFromWorkflowTextEditor = true)] string? compressionMethod = null,
+        [ToolArgument(WorkflowArgumentKind.String, "Optional Deflate compression level.", Example = "balanced", AllowedValues = ["fast", "balanced", "smallest"], IsExcludedFromWorkflowTextEditor = true)] string? compressionLevel = null,
         CancellationToken cancellationToken = default) => AddAsync(archivePath, sourcePath, entryPath, overwriteEntry, compressionMethod, compressionLevel, cancellationToken);
 
     private string List(string archivePath, int? maxEntries, CancellationToken cancellationToken)

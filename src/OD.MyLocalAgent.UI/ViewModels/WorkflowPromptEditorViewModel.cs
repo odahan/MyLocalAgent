@@ -84,7 +84,7 @@ public sealed partial class WorkflowPromptEditorViewModel : ObservableObject
 
         SelectedItem = Items.FirstOrDefault();
         StatusText = IsEmpty
-            ? "This workflow declares no long-text arguments."
+            ? "This workflow declares no editable text arguments."
             : "Edit workflow text arguments. Apply writes every change atomically.";
 
         OnPropertyChanged(nameof(IsEmpty));
@@ -102,12 +102,9 @@ public sealed partial class WorkflowPromptEditorViewModel : ObservableObject
     {
         var edits = Items
             .Where(item => item.IsModified)
-            .Select(item => new WorkflowPromptEdit(item.Position, item.PromptText, item.IncludeContext)
+            .Select(item => new WorkflowPromptEdit(item.Position, item.PromptText, IncludeContext: false)
             {
                 ArgumentName = item.ArgumentName,
-                Model = item.SupportsModelOverride ? item.ModelOverride : null,
-                ToolAliases = item.ToolAliases,
-                KnowledgeAccess = item.KnowledgeAccess,
             })
             .ToList();
 
@@ -115,20 +112,14 @@ public sealed partial class WorkflowPromptEditorViewModel : ObservableObject
         {
             WorkflowText = WorkflowPromptEditingService.Apply(_workflow, edits),
             ModifiedPromptCount = Items.Count(item => item.IsPromptModified),
-            ModifiedContextCount = Items.Count(item => item.IsContextModified),
+            ModifiedContextCount = 0,
             ModifiedSteps =
             [
                 .. Items
                     .Where(item => item.IsModified)
                     .Select(item => new WorkflowPromptEditorChange(item.Position, item.EffectiveId)),
             ],
-            Warnings =
-            [
-                .. Items
-                    .Where(item => item.HasContextDuplication)
-                    .Select(item =>
-                        $"Prompt {item.DisplayPosition} already references prior output or accumulated context."),
-            ],
+            Warnings = [],
         };
 
         CloseRequested?.Invoke(this, EventArgs.Empty);

@@ -112,7 +112,7 @@ public sealed class GmailTool : IGmailTool
     /// <inheritdoc />
     [Tool("gmail.send", "Sends a plain-text Gmail message when the task has Gmail send permission.", 400, RequiredCapability = TaskCapability.GmailSend)]
     public Task<string> SendAsync(
-        [ToolArgument(WorkflowArgumentKind.String, "Recipient email address.", Example = "someone@example.com")] string to,
+        [ToolArgument(WorkflowArgumentKind.String, "Recipient email address.", Example = "someone@example.com", IsExcludedFromWorkflowTextEditor = true)] string to,
         [ToolArgument(WorkflowArgumentKind.String, "Message subject.", Example = "Daily report")] string subject,
         [ToolArgument(WorkflowArgumentKind.String, "Plain-text message body.", Example = "Here is today's summary.")] string body,
         CancellationToken cancellationToken)

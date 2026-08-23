@@ -120,7 +120,7 @@ public sealed class HttpTool : IHttpTool
     public Task<string> PostAsync(
         [ToolArgument(WorkflowArgumentKind.String, "Absolute HTTP or HTTPS URL.", Example = "https://httpbin.org/post")] string url,
         [ToolArgument(WorkflowArgumentKind.String, "Request body.", Example = "{ \"key\": \"value\" }")] string body,
-        [ToolArgument(WorkflowArgumentKind.String, "Request media type, such as application/json.", Example = "application/json")] string contentType,
+        [ToolArgument(WorkflowArgumentKind.String, "Request media type, such as application/json.", Example = "application/json", IsExcludedFromWorkflowTextEditor = true)] string contentType,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(body);

@@ -372,6 +372,7 @@ public sealed class ToolCatalog : IToolCatalog
                         AllowedValues = allowedValues,
                         SupportsPlaceholders = supportsPlaceholders,
                         IsLongText = argAttr.IsLongText,
+                        IsExcludedFromWorkflowTextEditor = argAttr.IsExcludedFromWorkflowTextEditor,
                     });
                 }
 

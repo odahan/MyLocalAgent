@@ -30,7 +30,7 @@
                        Text="Edit workflow text" />
             <TextBlock Margin="0,5,0,0"
                        Style="{StaticResource CaptionTextStyle}"
-                       Text="Only Tool Map arguments marked as long text and their explicitly associated options are edited. Every step and all other workflow data are preserved."
+                       Text="Only text arguments already present in the workflow are edited. Short or format-constrained values are excluded. Every step and all other workflow data are preserved."
                        TextWrapping="Wrap" />
         </StackPanel>
 
@@ -81,48 +81,7 @@
                 </Grid.RowDefinitions>
 
                 <StackPanel>
-                    <CheckBox Content="Include accumulated context"
-                              IsChecked="{Binding IncludeContext, Mode=TwoWay}"
-                              Visibility="{Binding SupportsIncludeContext, Converter={StaticResource PromptBooleanToVisibility}}" />
-                    <TextBox Margin="0,10,0,0"
-                             Text="{Binding ModelOverride, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
-                             Visibility="{Binding SupportsModelOverride, Converter={StaticResource PromptBooleanToVisibility}}"
-                             materialDesign:HintAssist.Hint="Model override (empty = task or Settings)" />
-                    <StackPanel Margin="0,10,0,0" Visibility="{Binding SupportsModelOverride,Converter={StaticResource PromptBooleanToVisibility}}">
-                        <TextBlock FontWeight="SemiBold" Text="Exact prompt-step tools" />
-                        <TextBlock Margin="0,3,0,6" Foreground="{DynamicResource MutedTextBrush}"
-                                   Text="Only tools from groups enabled on the task are available. No selection keeps this prompt step tool-free."
-                                   TextWrapping="Wrap" />
-                        <ItemsControl ItemsSource="{Binding ToolSelections}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <CheckBox Margin="0,2,0,2" IsChecked="{Binding IsSelected}" Content="{Binding Alias}">
-                                        <CheckBox.ToolTip>
-                                            <StackPanel MaxWidth="460">
-                                                <TextBlock FontWeight="SemiBold" Text="{Binding Alias}" />
-                                                <TextBlock Text="{Binding Description}" TextWrapping="Wrap" />
-                                                <TextBlock Text="{Binding Group,StringFormat=Group: {0}}" />
-                                                <TextBlock Text="{Binding Arguments,StringFormat=Arguments: {0}}" />
-                                                <TextBlock Text="{Binding Capability,StringFormat=Capability: {0}}" />
-                                            </StackPanel>
-                                        </CheckBox.ToolTip>
-                                    </CheckBox>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                    <StackPanel Margin="0,10,0,0" Visibility="{Binding SelectsKnowledge,Converter={StaticResource PromptBooleanToVisibility}}">
-                        <TextBlock Foreground="{DynamicResource MutedTextBrush}"
-                                   Text="Optional Knowledge narrowing. Leave empty to inherit the task tags; a step can never broaden them."
-                                   TextWrapping="Wrap" />
-                        <TextBox Margin="0,6,0,0" Text="{Binding KnowledgeTagsText,UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Knowledge tags from the task scope" />
-                    </StackPanel>
-                    <TextBlock Margin="0,8,0,0"
-                               Foreground="{DynamicResource WarningBrush}"
-                               Text="This PowerShell script will execute locally when the task has the PowerShellExecution capability."
-                               TextWrapping="Wrap"
-                               Visibility="{Binding IsPowerShell, Converter={StaticResource PromptBooleanToVisibility}}" />
-                    <TextBlock Margin="0,8,0,0"
+                    <TextBlock Margin="0,0,0,0"
                                Style="{StaticResource CaptionTextStyle}"
                                Text="This step had no usable prompt argument and starts empty."
                                TextWrapping="Wrap"

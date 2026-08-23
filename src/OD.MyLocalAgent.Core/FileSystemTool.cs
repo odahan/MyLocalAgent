@@ -350,7 +350,7 @@ public sealed class FileSystemTool : IFileSystemTool
     [Tool("filesystem.setExtension", "Changes the extension of an authorized local file.", 700)]
     public Task<string> SetExtensionAsync(
         [ToolArgument(WorkflowArgumentKind.String, "Relative global-root or task-authorized absolute source file path.", Example = "inbox/source.txt")] string path,
-        [ToolArgument(WorkflowArgumentKind.String, "New extension with or without a leading period, for example '.md' or 'md'.", Example = ".md")] string extension,
+        [ToolArgument(WorkflowArgumentKind.String, "New extension with or without a leading period, for example '.md' or 'md'.", Example = ".md", IsExcludedFromWorkflowTextEditor = true)] string extension,
         CancellationToken cancellationToken) =>
         ToolCallLog.ExecuteAsync(
             _logger,

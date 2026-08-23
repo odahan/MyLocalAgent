@@ -29,6 +29,9 @@ public sealed record ToolArgumentDefinition(
     /// </summary>
     public bool SupportsPlaceholders { get; init; } = true;
 
-    /// <summary>Gets whether this argument is edited as long-form workflow text.</summary>
+    /// <summary>Gets whether authoring surfaces should prioritize this argument as long-form text.</summary>
     public bool IsLongText { get; init; }
+
+    /// <summary>Gets whether this short or constrained string is excluded from the workflow text editor.</summary>
+    public bool IsExcludedFromWorkflowTextEditor { get; init; }
 }
