@@ -13,15 +13,18 @@ internal sealed class DynamicOllamaChatClient : IChatClient
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IOptionsMonitor<OllamaOptions> _options;
     private readonly Func<string, CancellationToken, Task> _ensureModelAvailableAsync;
+    private readonly GlobalLlmExecutionGate _executionGate;
 
     public DynamicOllamaChatClient(
         IHttpClientFactory httpClientFactory,
         IOptionsMonitor<OllamaOptions> options,
-        Func<string, CancellationToken, Task> ensureModelAvailableAsync)
+        Func<string, CancellationToken, Task> ensureModelAvailableAsync,
+        GlobalLlmExecutionGate executionGate)
     {
         _httpClientFactory = httpClientFactory;
         _options = options;
         _ensureModelAvailableAsync = ensureModelAvailableAsync;
+        _executionGate = executionGate;
     }
 
     public async Task<ChatResponse> GetResponseAsync(
@@ -33,6 +36,7 @@ internal sealed class DynamicOllamaChatClient : IChatClient
         var current = _options.CurrentValue;
         var model = options?.ModelId ?? current.Model;
         var timeoutSeconds = TimeoutExecutionScope.TimeoutSeconds ?? current.TimeoutSeconds;
+        using var lease = await _executionGate.EnterAsync(cancellationToken).ConfigureAwait(false);
         using var timeoutSource = CreateTimeoutSource(timeoutSeconds, cancellationToken);
 
         try
@@ -66,6 +70,7 @@ internal sealed class DynamicOllamaChatClient : IChatClient
         var current = _options.CurrentValue;
         var model = options?.ModelId ?? current.Model;
         var timeoutSeconds = TimeoutExecutionScope.TimeoutSeconds ?? current.TimeoutSeconds;
+        using var lease = await _executionGate.EnterAsync(cancellationToken).ConfigureAwait(false);
         using var timeoutSource = CreateTimeoutSource(timeoutSeconds, cancellationToken);
 
         IChatClient? client = null;

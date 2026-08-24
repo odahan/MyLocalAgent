@@ -14,13 +14,16 @@ internal sealed class DynamicOpenAIChatClient : IChatClient
 {
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IOptionsMonitor<OpenAIOptions> _options;
+    private readonly GlobalLlmExecutionGate _executionGate;
 
     public DynamicOpenAIChatClient(
         IHttpClientFactory httpClientFactory,
-        IOptionsMonitor<OpenAIOptions> options)
+        IOptionsMonitor<OpenAIOptions> options,
+        GlobalLlmExecutionGate executionGate)
     {
         _httpClientFactory = httpClientFactory;
         _options = options;
+        _executionGate = executionGate;
     }
 
     public async Task<ChatResponse> GetResponseAsync(
@@ -31,6 +34,7 @@ internal sealed class DynamicOpenAIChatClient : IChatClient
         ArgumentNullException.ThrowIfNull(messages);
         var current = GetValidatedOptions();
         var timeoutSeconds = TimeoutExecutionScope.TimeoutSeconds ?? current.TimeoutSeconds;
+        using var lease = await _executionGate.EnterAsync(cancellationToken).ConfigureAwait(false);
         using var timeoutSource = CreateTimeoutSource(timeoutSeconds, cancellationToken);
         var effectiveOptions = options?.Clone() ?? new ChatOptions();
         var model = options?.ModelId ?? current.Model;
@@ -47,6 +51,7 @@ internal sealed class DynamicOpenAIChatClient : IChatClient
         ArgumentNullException.ThrowIfNull(messages);
         var current = GetValidatedOptions();
         var timeoutSeconds = TimeoutExecutionScope.TimeoutSeconds ?? current.TimeoutSeconds;
+        using var lease = await _executionGate.EnterAsync(cancellationToken).ConfigureAwait(false);
         using var timeoutSource = CreateTimeoutSource(timeoutSeconds, cancellationToken);
         var effectiveOptions = options?.Clone() ?? new ChatOptions();
         var model = options?.ModelId ?? current.Model;

@@ -40,6 +40,12 @@ public static class ServiceCollectionExtensions
             .Validate(
                 static options => LlmOptionsValidation.ValidateOpenAI(options, requireApiKey: false) is null,
                 "OpenAI configuration is invalid.");
+        services
+            .AddOptions<LlmExecutionOptions>()
+            .Bind(configuration.GetSection(LlmExecutionOptions.SectionName))
+            .Validate(
+                static options => LlmOptionsValidation.ValidateExecution(options) is null,
+                "LLM execution concurrency configuration is invalid.");
 
         services.AddLogging();
         services.AddHttpClient(LlmHttpClientNames.Ollama);

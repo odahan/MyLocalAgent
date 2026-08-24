@@ -20,6 +20,7 @@ public sealed class OpenAIClientService : ILlmClientService, IOpenAIModelCatalog
     private readonly ILogger<OpenAIClientService> _logger;
     private readonly DynamicOpenAIChatClient _chatClient;
     private readonly IOptionsMonitor<AIOptions>? _aiOptions;
+    private readonly GlobalLlmExecutionGate _executionGate;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="OpenAIClientService"/> class.
@@ -29,12 +30,14 @@ public sealed class OpenAIClientService : ILlmClientService, IOpenAIModelCatalog
     /// <param name="timeProvider">The time source used to measure latency.</param>
     /// <param name="logger">The structured logger.</param>
     /// <param name="aiOptions">The optional reloadable global generation defaults.</param>
+    /// <param name="executionOptions">The optional global model-execution limit.</param>
     public OpenAIClientService(
         IHttpClientFactory httpClientFactory,
         IOptionsMonitor<OpenAIOptions> options,
         TimeProvider timeProvider,
         ILogger<OpenAIClientService> logger,
-        IOptionsMonitor<AIOptions>? aiOptions = null)
+        IOptionsMonitor<AIOptions>? aiOptions = null,
+        IOptionsMonitor<LlmExecutionOptions>? executionOptions = null)
     {
         ArgumentNullException.ThrowIfNull(httpClientFactory);
         ArgumentNullException.ThrowIfNull(options);
@@ -46,7 +49,8 @@ public sealed class OpenAIClientService : ILlmClientService, IOpenAIModelCatalog
         _timeProvider = timeProvider;
         _logger = logger;
         _aiOptions = aiOptions;
-        _chatClient = new DynamicOpenAIChatClient(httpClientFactory, options);
+        _executionGate = new GlobalLlmExecutionGate(executionOptions);
+        _chatClient = new DynamicOpenAIChatClient(httpClientFactory, options, _executionGate);
     }
 
     /// <inheritdoc />
@@ -106,6 +110,7 @@ public sealed class OpenAIClientService : ILlmClientService, IOpenAIModelCatalog
             "Starting {MediaKind} generation with model {Model}.",
             request.Kind,
             request.Kind == MultimodalGenerationKind.Image ? current.ImageModel : current.AudioModel);
+        using var lease = await _executionGate.EnterAsync(cancellationToken).ConfigureAwait(false);
         using var timeoutSource =
             CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutSource.CancelAfter(TimeSpan.FromSeconds(current.TimeoutSeconds));

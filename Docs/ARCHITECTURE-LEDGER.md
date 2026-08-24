@@ -2205,3 +2205,11 @@ compilation, freshness-window expansion, document classification, and late prote
 - Restored **Edit workflow text** to its focused role: it edits only eligible string arguments already present in the workflow JSON and preserves every other step setting, including models, exact tool aliases, Knowledge scope, and `includeContext`.
 - All ordinary string arguments are eligible, including paths, URLs, content, queries, and SQL. Short or technically constrained values are explicitly excluded in Tool Map metadata; absent optional arguments are not offered and are never created by the editor.
 - The dialog no longer exposes prompt-step model, tool, Knowledge, or context configuration. Those values belong to the workflow step editor; a future dedicated step editor may provide typed editing and before/after insertion.
+
+### Version 1.5.5 — Global LLM execution limit — 2026-08-24
+
+- Added reloadable `LlmExecution:MaxConcurrentRequests`, persisted from **Settings → AI provider** and defaulting to `1` with a validated range of `1` through `8`.
+- `GlobalLlmExecutionGate` uses a named Windows semaphore shared by the UI and every Runner process. It serializes or limits chat, streaming, and OpenAI-compatible media generation without holding the workflow runner itself.
+- Queue waiting is cancellation-aware and deliberately begins before the provider timeout. The timeout therefore covers actual provider/model work rather than time spent waiting for an execution slot.
+- The named semaphore’s capacity is established by the first active caller. A changed limit takes full effect once active model calls have released their slots; the default remains appropriate for local Ollama/GPU use.
+- No package versions changed. Release verification completed with a warning-free build and 714 non-integration tests passing, with one expected local Ollama probe skipped.

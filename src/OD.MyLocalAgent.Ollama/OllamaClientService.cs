@@ -27,12 +27,14 @@ public sealed class OllamaClientService : ILlmClientService, IOllamaModelCatalog
     /// <param name="timeProvider">The time source used to measure latency.</param>
     /// <param name="logger">The structured logger.</param>
     /// <param name="aiOptions">The optional reloadable global generation defaults.</param>
+    /// <param name="executionOptions">The optional global model-execution limit.</param>
     public OllamaClientService(
         IHttpClientFactory httpClientFactory,
         IOptionsMonitor<OllamaOptions> options,
         TimeProvider timeProvider,
         ILogger<OllamaClientService> logger,
-        IOptionsMonitor<AIOptions>? aiOptions = null)
+        IOptionsMonitor<AIOptions>? aiOptions = null,
+        IOptionsMonitor<LlmExecutionOptions>? executionOptions = null)
     {
         ArgumentNullException.ThrowIfNull(httpClientFactory);
         ArgumentNullException.ThrowIfNull(options);
@@ -47,7 +49,8 @@ public sealed class OllamaClientService : ILlmClientService, IOllamaModelCatalog
         _chatClient = new DynamicOllamaChatClient(
             httpClientFactory,
             options,
-            EnsureModelAvailableAsync);
+            EnsureModelAvailableAsync,
+            new GlobalLlmExecutionGate(executionOptions));
     }
 
     /// <inheritdoc />

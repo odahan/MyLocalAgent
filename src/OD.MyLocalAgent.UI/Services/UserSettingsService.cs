@@ -270,6 +270,10 @@ internal sealed class UserSettingsService : IUserSettingsService
                 ["DirectChatSystemPrompt"] = settings.DirectChatSystemPrompt.Trim(),
                 ["PromptStepSystemPrompt"] = settings.PromptStepSystemPrompt.Trim(),
             },
+            ["LlmExecution"] = new Dictionary<string, object>
+            {
+                ["MaxConcurrentRequests"] = settings.LlmMaxConcurrentRequests,
+            },
             ["Ollama"] = new Dictionary<string, object>
             {
                 ["Endpoint"] = settings.OllamaEndpoint,
@@ -402,6 +406,12 @@ internal sealed class UserSettingsService : IUserSettingsService
         if (settings.Provider is not AIOptions.OllamaProvider and not AIOptions.OpenAIProvider)
         {
             throw new InvalidOperationException("Select a supported AI provider.");
+        }
+
+        if (settings.LlmMaxConcurrentRequests is < 1 or > 8)
+        {
+            throw new InvalidOperationException(
+                "LLM maximum concurrent requests must be between 1 and 8.");
         }
 
         var generationError = GenerationPolicyValidation.ValidateDefaults(

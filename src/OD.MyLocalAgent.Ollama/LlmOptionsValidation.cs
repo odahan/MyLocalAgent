@@ -57,6 +57,11 @@ internal static class LlmOptionsValidation
             : null;
     }
 
+    public static string? ValidateExecution(LlmExecutionOptions options) =>
+        options.MaxConcurrentRequests is >= 1 and <= 8
+            ? null
+            : "LlmExecution:MaxConcurrentRequests must be between 1 and 8.";
+
     public static Uri ParseEndpoint(string endpoint, string sectionName)
     {
         if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) ||

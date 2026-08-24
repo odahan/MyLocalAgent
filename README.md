@@ -1,6 +1,6 @@
 # OD.MyLocalAgent
 
-Current application release: **1.5.1**.
+Current application release: **1.5.5**.
 
 OD.MyLocalAgent is a native Windows desktop application for running scheduled, AI-driven
 tasks locally. It combines a WPF management UI, a headless runner, Ollama, deterministic
@@ -312,6 +312,11 @@ currently configured project-wide text, or explains why no such text will be app
 ## AI generation policy
 
 **Settings → AI generation defaults** defines the policy used by new AI calls:
+
+**Settings → AI provider → Maximum simultaneous model requests** sets the global limit shared by
+the UI and every active Runner. It defaults to `1`, which is recommended for local Ollama. Increase
+it only when the selected model and GPU are known to support parallel generation. A request waits
+for a slot without consuming its provider timeout, and cancellation stops that wait.
 
 | Setting | Default | Valid range | Meaning |
 |---|---:|---:|---|

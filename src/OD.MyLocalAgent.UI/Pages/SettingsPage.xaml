@@ -67,6 +67,15 @@
                                          Text="{Binding ContextWindowTokensText, UpdateSourceTrigger=PropertyChanged}"
                                          materialDesign:HintAssist.Hint="Context window (tokens)" />
                             </Grid>
+                            <TextBox Margin="0,12,0,0"
+                                     Width="220"
+                                     HorizontalAlignment="Left"
+                                     Text="{Binding LlmMaxConcurrentRequests, UpdateSourceTrigger=PropertyChanged}"
+                                     materialDesign:HintAssist.Hint="Maximum simultaneous model requests · 1–8" />
+                            <TextBlock Margin="0,6,0,0"
+                                       Style="{StaticResource CaptionTextStyle}"
+                                       Text="Requests from every active Runner and the app share this limit. Use 1 for local Ollama unless your model and GPU support parallel generation."
+                                       TextWrapping="Wrap" />
                             <TextBlock Margin="0,10,0,0"
                                        Style="{StaticResource CaptionTextStyle}"
                                        Text="Context window means input messages + tool/agent context + generated output. It is not a timeout or output-token limit. Capacity is model-dependent: this declaration cannot increase the model's physical capacity, and OpenAI-compatible endpoints remain authoritative."

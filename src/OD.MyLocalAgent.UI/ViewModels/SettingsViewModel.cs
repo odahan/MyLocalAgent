@@ -66,6 +66,7 @@ public sealed partial class SettingsViewModel :
         nameof(GenerationTemperatureText),
         nameof(GenerationTopPText),
         nameof(ContextWindowTokensText),
+        nameof(LlmMaxConcurrentRequests),
         nameof(AgentSystemPrompt),
         nameof(DirectChatSystemPrompt),
         nameof(PromptStepSystemPrompt),
@@ -111,6 +112,7 @@ public sealed partial class SettingsViewModel :
     private readonly IOptionsMonitor<AIOptions> _aiOptions;
     private readonly IOptionsMonitor<OllamaOptions> _ollamaOptions;
     private readonly IOptionsMonitor<OpenAIOptions> _openAIOptions;
+    private readonly IOptionsMonitor<LlmExecutionOptions>? _llmExecutionOptions;
     private readonly IOptionsMonitor<FileSystemOptions> _fileSystemOptions;
     private readonly IOptionsMonitor<HttpOptions> _httpOptions;
     private readonly IOptionsMonitor<SchedulerOptions> _schedulerOptions;
@@ -153,6 +155,9 @@ public sealed partial class SettingsViewModel :
 
     [ObservableProperty]
     private int _ollamaTimeoutSeconds;
+
+    [ObservableProperty]
+    private int _llmMaxConcurrentRequests = 1;
 
     [ObservableProperty]
     private bool _isLoadingOllamaModels;
@@ -383,12 +388,14 @@ public sealed partial class SettingsViewModel :
         WorkspacePaths? workspacePaths = null,
         IOptionsMonitor<KnowledgeOptions>? knowledgeOptions = null,
         IKnowledgeEmbeddingService? knowledgeEmbeddingService = null,
-        IKnowledgeLibraryService? knowledgeLibraryService = null)
+        IKnowledgeLibraryService? knowledgeLibraryService = null,
+        IOptionsMonitor<LlmExecutionOptions>? llmExecutionOptions = null)
         : base(messenger)
     {
         _aiOptions = aiOptions;
         _ollamaOptions = ollamaOptions;
         _openAIOptions = openAIOptions;
+        _llmExecutionOptions = llmExecutionOptions;
         _fileSystemOptions = fileSystemOptions;
         _httpOptions = httpOptions;
         _schedulerOptions = schedulerOptions;
@@ -643,6 +650,7 @@ public sealed partial class SettingsViewModel :
             var ai = _aiOptions.CurrentValue;
             var ollama = _ollamaOptions.CurrentValue;
             var openAI = _openAIOptions.CurrentValue;
+            var llmExecution = _llmExecutionOptions?.CurrentValue ?? new LlmExecutionOptions();
             var fileSystem = _fileSystemOptions.CurrentValue;
             var http = _httpOptions.CurrentValue;
             var scheduler = _schedulerOptions.CurrentValue;
@@ -666,6 +674,7 @@ public sealed partial class SettingsViewModel :
             ContextWindowTokensText =
                 ai.GenerationDefaults.ContextWindowTokens.ToString(
                     CultureInfo.CurrentCulture);
+            LlmMaxConcurrentRequests = llmExecution.MaxConcurrentRequests;
             AgentSystemPrompt = ai.EffectiveAgentSystemPrompt;
             DirectChatSystemPrompt = ai.EffectiveDirectChatSystemPrompt;
             PromptStepSystemPrompt = ai.EffectivePromptStepSystemPrompt;
@@ -849,6 +858,7 @@ public sealed partial class SettingsViewModel :
                 generationDefaults.Temperature,
                 generationDefaults.TopP,
                 generationDefaults.ContextWindowTokens,
+                LlmMaxConcurrentRequests,
                 SqliteDefaultMaxRows,
                 SqliteMaxRows,
                 SqliteMaxResultCharacters,

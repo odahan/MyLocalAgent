@@ -6,8 +6,8 @@
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
 <meta content="#08111f" name="theme-color"/>
-<meta content="Complete user manual for the OD.MyLocalAgent 1.5.0 Windows application." name="description"/>
-<title>User Manual 1.5.0 · OD.MyLocalAgent</title>
+<meta content="Complete user manual for the OD.MyLocalAgent 1.5.5 Windows application." name="description"/>
+<title>User Manual 1.5.5 · OD.MyLocalAgent</title>
 <style>
         :root {
             color-scheme: dark;
@@ -1279,7 +1279,7 @@
 <main class="content" id="contenu">
 <div class="content-inner">
 <section class="hero" data-title="Overview" id="accueil">
-<span class="eyebrow">Version 1.5.0 · Local-first · Windows · Ollama</span>
+<span class="eyebrow">Version 1.5.5 · Local-first · Windows · Ollama</span>
 <h1>Your local agent,<br/><span class="gradient-text">from intent to execution.</span></h1>
 <p class="hero-lead">
                     This manual explains how to configure OD.MyLocalAgent, create scheduled tasks,
@@ -2055,7 +2055,14 @@ ollama list</code></pre>
                     null or out-of-range values, and context/provider/endpoint/credential
                     fields are rejected. Existing tasks without overrides remain valid; an
                     empty object is omitted by canonical save.
-                </div><h3>Temporary model selection and warm-up</h3><p>
+                </div><h3>Global model execution queue</h3><p>
+                    In <span class="ui-label">Settings → AI provider</span>,
+                    <span class="ui-label">Maximum simultaneous model requests</span> limits concurrent
+                    requests from the application and every active Runner. The default is <code>1</code>,
+                    which is recommended for local Ollama. Increase it only when the selected model and GPU
+                    are known to handle parallel generation. A request waits for its slot without consuming
+                    the provider timeout, and the wait can be canceled.
+                </p><h3>Temporary model selection and warm-up</h3><p>
                     Add <code>"model": "model-name"</code> to a task to use a model from the
                     active provider for that task only. You can also add it to an object-form
                     <code>ai.prompt</code> step: that value takes precedence and applies only to
@@ -3144,7 +3151,7 @@ capabilities start unrestricted local processes and must remain limited to trust
 <span class="status warn">3 task not found</span>
 </p>
 </section>
-<footer class="footer"><p>Revised document organization — English version 1.5.0.</p><p>OD.MyLocalAgent · User manual<br/>Standalone HTML5 document. Paths, screens, and behaviors described correspond to version 1.5.0 dated August 20, 2026. <a href="User-Manual.html" lang="fr">Lire en français</a>.</p></footer>
+<footer class="footer"><p>Revised document organization — English version 1.5.5.</p><p>OD.MyLocalAgent · User manual<br/>Standalone HTML5 document. Paths, screens, and behaviors described correspond to version 1.5.5 dated August 24, 2026. <a href="User-Manual.html" lang="fr">Lire en français</a>.</p></footer>
 </div>
 <section id="stage22-local-files">
 <h2>Archives, Office documents, and PDF</h2>

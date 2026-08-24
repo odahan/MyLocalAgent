@@ -34,6 +34,7 @@ namespace OD.MyLocalAgent.UI.Services;
 /// <param name="GenerationTemperature">The global default sampling temperature.</param>
 /// <param name="GenerationTopP">The global default nucleus-sampling value.</param>
 /// <param name="ContextWindowTokens">The declared global context-window budget.</param>
+/// <param name="LlmMaxConcurrentRequests">The global simultaneous-model-request limit.</param>
 /// <param name="SQLiteDefaultMaxRows">The default SQLite row limit.</param>
 /// <param name="SQLiteMaxRows">The maximum SQLite row limit.</param>
 /// <param name="SQLiteMaxResultCharacters">The maximum serialized SQLite result size.</param>
@@ -92,6 +93,7 @@ public sealed record UserSettingsData(
     double GenerationTemperature,
     double GenerationTopP,
     int ContextWindowTokens,
+    int LlmMaxConcurrentRequests = 1,
     int SQLiteDefaultMaxRows = 100,
     int SQLiteMaxRows = 1_000,
     int SQLiteMaxResultCharacters = 64_000,
