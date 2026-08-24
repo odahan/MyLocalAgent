@@ -178,6 +178,30 @@ public sealed class GenerationPolicyTests
     }
 
     /// <summary>
+    /// Verifies the task-wide reasoning preference survives JSON persistence.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void TaskReasoningPreferenceRoundTrips(bool reasoningEnabled)
+    {
+        var task = CreateTask() with
+        {
+            GenerationOptions = new GenerationOptions
+            {
+                ReasoningEnabled = reasoningEnabled,
+            },
+        };
+
+        var json = ScheduledTaskSerializer.Serialize(task);
+        var roundTrip = ScheduledTaskSerializer.Deserialize(json);
+
+        json.Should().Contain(
+            $"\"reasoningEnabled\": {reasoningEnabled.ToString().ToLowerInvariant()}");
+        roundTrip.GenerationOptions!.ReasoningEnabled.Should().Be(reasoningEnabled);
+    }
+
+    /// <summary>
     /// Verifies every Tool Map AI alias accepts an object-form generation override.
     /// </summary>
     [Fact]
@@ -247,6 +271,7 @@ public sealed class GenerationPolicyTests
     [InlineData("""{"temperature":"0.2"}""")]
     [InlineData("""{"temperature":null}""")]
     [InlineData("""{"topP":false}""")]
+    [InlineData("""{"reasoningEnabled":"false"}""")]
     [InlineData("""{"contextWindowTokens":8192}""")]
     [InlineData("""{"unknown":1}""")]
     public void InvalidGenerationJsonFailsDeterministically(

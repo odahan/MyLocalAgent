@@ -26,6 +26,7 @@ internal sealed class GenerationOptionsJsonConverter :
         using var document = JsonDocument.ParseValue(ref reader);
         double? temperature = null;
         double? topP = null;
+        bool? reasoningEnabled = null;
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var property in document.RootElement.EnumerateObject())
         {
@@ -49,10 +50,17 @@ internal sealed class GenerationOptionsJsonConverter :
             {
                 topP = ReadNumber(property);
             }
+            else if (string.Equals(
+                         property.Name,
+                         "reasoningEnabled",
+                         StringComparison.OrdinalIgnoreCase))
+            {
+                reasoningEnabled = ReadBoolean(property);
+            }
             else
             {
                 throw new JsonException(
-                    $"Unknown generation option '{property.Name}'. Only 'temperature' and 'topP' are supported.");
+                    $"Unknown generation option '{property.Name}'. Only 'temperature', 'topP', and 'reasoningEnabled' are supported.");
             }
         }
 
@@ -60,6 +68,7 @@ internal sealed class GenerationOptionsJsonConverter :
         {
             Temperature = temperature,
             TopP = topP,
+            ReasoningEnabled = reasoningEnabled,
         };
         var validation = GenerationPolicyValidation.ValidateOverrides(result);
         if (validation is not null)
@@ -86,6 +95,11 @@ internal sealed class GenerationOptionsJsonConverter :
             writer.WriteNumber("topP", topP);
         }
 
+        if (value.ReasoningEnabled is { } reasoningEnabled)
+        {
+            writer.WriteBoolean("reasoningEnabled", reasoningEnabled);
+        }
+
         writer.WriteEndObject();
     }
 
@@ -99,5 +113,17 @@ internal sealed class GenerationOptionsJsonConverter :
         }
 
         return value;
+    }
+
+    private static bool ReadBoolean(JsonProperty property)
+    {
+        if (property.Value.ValueKind != JsonValueKind.True &&
+            property.Value.ValueKind != JsonValueKind.False)
+        {
+            throw new JsonException(
+                $"Generation option '{property.Name}' must be a non-null JSON boolean.");
+        }
+
+        return property.Value.GetBoolean();
     }
 }
