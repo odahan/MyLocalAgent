@@ -76,9 +76,21 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
         var startedUtc = _timeProvider.GetUtcNow();
         var context = new WorkflowContext();
         var results = new List<WorkflowStepResult>(task.Workflow.Count);
+        var warnings = new List<ExecutionWarning>();
+        var indexes = task.Workflow
+            .Select((definition, index) => (definition.EffectiveId, index))
+            .ToDictionary(static item => item.EffectiveId, static item => item.index, StringComparer.OrdinalIgnoreCase);
+        var currentIndex = 0;
+        var executionCount = 0;
 
-        foreach (var definition in task.Workflow)
+        while (currentIndex >= 0)
         {
+            if (++executionCount > task.Workflow.Count)
+            {
+                throw new WorkflowValidationException("Workflow execution exceeded its acyclic step bound.");
+            }
+
+            var definition = task.Workflow[currentIndex];
             cancellationToken.ThrowIfCancellationRequested();
             var step = WorkflowStepFactory.Create(definition, _toolRegistry);
             var policy = step.OnError ?? task.ErrorPolicy;
@@ -92,8 +104,30 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
 
             if (result.Status == WorkflowStepStatus.Success)
             {
-                context.RecordOutput(step.Id, result.Output ?? string.Empty);
-                contextUpdated?.Invoke(context.ToJson());
+                if (step is DecisionStep)
+                {
+                    using var decisionOutput = JsonDocument.Parse(result.Output ?? "{}");
+                    var root = decisionOutput.RootElement;
+                    var outcome = root.GetProperty("outcome").GetString();
+                    if (string.Equals(outcome, "fallback", StringComparison.Ordinal))
+                    {
+                        warnings.Add(new ExecutionWarning(
+                            "WorkflowDecisionFallback",
+                            $"Decision '{step.Id}' used its fallback because its condition could not be evaluated.",
+                            1));
+                    }
+
+                    currentIndex = root.TryGetProperty("target", out var selectedTarget) && selectedTarget.ValueKind == JsonValueKind.String
+                        ? ResolveTarget(selectedTarget.GetString(), indexes)
+                        : ResolveTarget(step.Next, indexes, currentIndex, task.Workflow.Count);
+                }
+                else
+                {
+                    context.RecordOutput(step.Id, result.Output ?? string.Empty);
+                    contextUpdated?.Invoke(context.ToJson());
+                    currentIndex = ResolveTarget(step.Next, indexes, currentIndex, task.Workflow.Count);
+                }
+
                 continue;
             }
 
@@ -101,14 +135,14 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
             {
                 break;
             }
+
+            currentIndex = ResolveTarget(step.Next, indexes, currentIndex, task.Workflow.Count);
         }
 
         var endedUtc = _timeProvider.GetUtcNow();
         var success = results.All(
             static result => result.Status == WorkflowStepStatus.Success);
-        var finalText = results.Count == 0
-            ? string.Empty
-            : results[^1].Output ?? string.Empty;
+        var finalText = context.PreviousOutput ?? string.Empty;
         var errorMessage = results
             .LastOrDefault(
                 static result => result.Status == WorkflowStepStatus.Failure)
@@ -119,7 +153,31 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
             finalText,
             startedUtc,
             endedUtc,
-            errorMessage);
+            errorMessage)
+        {
+            Warnings = warnings,
+        };
+    }
+
+    private static int ResolveTarget(
+        string? target,
+        IReadOnlyDictionary<string, int> indexes,
+        int currentIndex = -1,
+        int workflowCount = 0)
+    {
+        if (target is null)
+        {
+            return currentIndex + 1 < workflowCount ? currentIndex + 1 : -1;
+        }
+
+        if (string.Equals(target, "@end", StringComparison.OrdinalIgnoreCase))
+        {
+            return -1;
+        }
+
+        return indexes.TryGetValue(target, out var index)
+            ? index
+            : throw new WorkflowValidationException($"Workflow targets unknown step id '{target}'.");
     }
 
     private async Task<WorkflowStepResult> ExecuteWithPolicyAsync(
@@ -173,14 +231,32 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
             attempts++;
             try
             {
-                var resolvedArguments =
-                    WorkflowPlaceholderResolver.ResolveArguments(
+                JsonElement resolvedArguments;
+                try
+                {
+                    resolvedArguments = WorkflowPlaceholderResolver.ResolveArguments(
                         step.Args,
                         task,
                         context,
                         step.Id,
                         _timeProvider,
                         modelContext);
+                }
+                catch (Exception exception) when (step is DecisionStep && exception is WorkflowPlaceholderException or JsonException or FormatException)
+                {
+                    var fallbackOutput = WorkflowDecisionEvaluator.CreateFallback(step.Args, exception);
+                    var fallbackDuration = _timeProvider.GetElapsedTime(startedTimestamp);
+                    return new WorkflowStepResult(
+                        step.Id,
+                        step.Alias,
+                        WorkflowStepStatus.Success,
+                        fallbackOutput,
+                        null,
+                        null,
+                        startedUtc,
+                        fallbackDuration,
+                        attempts);
+                }
                 var output = await ExecuteStepAsync(
                     step,
                     resolvedArguments,
@@ -338,9 +414,17 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                 AgentRunResult agentResult;
                 if (step.ToolAliases.Count == 0)
                 {
-                    agentResult = task.UseGlobalSystemPrompt
-                        ? await _agentService.RunPromptWithoutToolsAsync(prompt,promptGenerationPolicy,step.Id,cancellationToken).ConfigureAwait(false)
-                        : await _agentService.RunPromptWithoutToolsAsync(prompt,promptGenerationPolicy,step.Id,false,cancellationToken).ConfigureAwait(false);
+                    agentResult = step.ResponseSchema is { } responseSchema
+                        ? await _agentService.RunPromptWithoutToolsStructuredAsync(
+                            prompt,
+                            promptGenerationPolicy,
+                            step.Id,
+                            task.UseGlobalSystemPrompt,
+                            responseSchema,
+                            cancellationToken).ConfigureAwait(false)
+                        : task.UseGlobalSystemPrompt
+                            ? await _agentService.RunPromptWithoutToolsAsync(prompt,promptGenerationPolicy,step.Id,cancellationToken).ConfigureAwait(false)
+                            : await _agentService.RunPromptWithoutToolsAsync(prompt,promptGenerationPolicy,step.Id,false,cancellationToken).ConfigureAwait(false);
                 }
                 else
                 {
@@ -354,8 +438,13 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                         task.UseGlobalSystemPrompt,
                         cancellationToken).ConfigureAwait(false);
                 }
-                return agentResult.Text;
+                return step.ResponseSchema is { } validationSchema
+                    ? WorkflowResponseSchemaValidator.ValidateResponse(agentResult.Text, validationSchema)
+                    : agentResult.Text;
             }
+
+            case DecisionStep:
+                return WorkflowDecisionEvaluator.Evaluate(resolvedArguments);
 
             default:
                 throw new InvalidOperationException(

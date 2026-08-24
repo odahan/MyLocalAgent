@@ -249,7 +249,7 @@ public static partial class ScheduledTaskValidator
                 ?? throw new WorkflowValidationException(
                     $"Workflow step {index + 1} references unknown alias '{step.Step}'.");
 
-            if (!definition.IsAiStep && !toolGroups.Contains(definition.ToolGroup))
+            if (!definition.IsAiStep && !definition.IsControlFlowStep && !toolGroups.Contains(definition.ToolGroup))
             {
                 throw new WorkflowValidationException(
                     $"Workflow alias '{step.Step}' requires whitelisted tool group '{definition.ToolGroup}'.");
@@ -356,9 +356,229 @@ public static partial class ScheduledTaskValidator
             }
 
             ValidateArguments(step, definition);
+            if (definition.IsControlFlowStep)
+            {
+                _ = WorkflowDecisionDefinition.Parse(step.Args);
+            }
+
+            if (step.Next is not null && string.IsNullOrWhiteSpace(step.Next))
+            {
+                throw new WorkflowValidationException($"Workflow step '{step.EffectiveId}' next target cannot be empty.");
+            }
+
+            if (step.ResponseSchema is { } responseSchema)
+            {
+                if (!string.Equals(step.Step, ToolMap.PromptAlias, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new WorkflowValidationException("Workflow property 'responseSchema' is valid only for 'ai.prompt'.");
+                }
+
+                if (step.ToolAliases.Count > 0)
+                {
+                    throw new WorkflowValidationException($"Workflow step '{step.EffectiveId}' cannot combine 'responseSchema' with 'toolAliases' in Stage 29.");
+                }
+
+                WorkflowResponseSchemaValidator.ValidateSchema(responseSchema);
+            }
+
             ValidatePlaceholders(step, identifiers);
             identifiers.Add(step.EffectiveId);
         }
+
+        ValidateRouting(workflow);
+    }
+
+    private static void ValidateRouting(IReadOnlyList<WorkflowStepDefinition> workflow)
+    {
+        if (workflow.Count == 0)
+        {
+            return;
+        }
+
+        const string end = "@end";
+        var indexes = workflow
+            .Select((step, index) => (step.EffectiveId, index))
+            .ToDictionary(static item => item.EffectiveId, static item => item.index, StringComparer.OrdinalIgnoreCase);
+        var edges = new List<int>[workflow.Count];
+        for (var index = 0; index < workflow.Count; index++)
+        {
+            var step = workflow[index];
+            var targets = new List<string>();
+            if (string.Equals(step.Step, "flow.decision", StringComparison.OrdinalIgnoreCase))
+            {
+                var decision = WorkflowDecisionDefinition.Parse(step.Args);
+                targets.Add(decision.Target);
+                if (decision.Fallback is not null)
+                {
+                    targets.Add(decision.Fallback);
+                }
+            }
+
+            targets.Add(step.Next ?? (index + 1 < workflow.Count ? workflow[index + 1].EffectiveId : end));
+            edges[index] = [];
+            foreach (var target in targets.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                if (string.Equals(target, end, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (!indexes.TryGetValue(target, out var targetIndex))
+                {
+                    throw new WorkflowValidationException($"Workflow step '{step.EffectiveId}' targets unknown step id '{target}'.");
+                }
+
+                edges[index].Add(targetIndex);
+            }
+        }
+
+        var reachable = new bool[workflow.Count];
+        MarkReachable(0, edges, reachable);
+        var unreachable = workflow.Where((_, index) => !reachable[index]).Select(static step => step.EffectiveId).ToArray();
+        if (unreachable.Length > 0)
+        {
+            throw new WorkflowValidationException($"Workflow contains unreachable step(s): {string.Join(", ", unreachable)}.");
+        }
+
+        var state = new byte[workflow.Count];
+        var stack = new List<int>();
+        for (var index = 0; index < workflow.Count; index++)
+        {
+            if (state[index] == 0 && TryFindCycle(index, edges, state, stack, out var cycle))
+            {
+                var names = cycle.Select(item => workflow[item].EffectiveId);
+                throw new WorkflowValidationException($"Workflow contains a cycle: {string.Join(" → ", names)}.");
+            }
+        }
+
+        ValidateGuaranteedOutputs(workflow, indexes, edges);
+    }
+
+    private static void ValidateGuaranteedOutputs(
+        IReadOnlyList<WorkflowStepDefinition> workflow,
+        IReadOnlyDictionary<string, int> indexes,
+        IReadOnlyList<List<int>> edges)
+    {
+        var predecessors = Enumerable.Range(0, workflow.Count).Select(static _ => new List<int>()).ToArray();
+        for (var source = 0; source < edges.Count; source++)
+        {
+            foreach (var target in edges[source])
+            {
+                predecessors[target].Add(source);
+            }
+        }
+
+        var all = Enumerable.Range(0, workflow.Count).ToHashSet();
+        var dominators = new HashSet<int>[workflow.Count];
+        dominators[0] = [0];
+        for (var index = 1; index < workflow.Count; index++)
+        {
+            dominators[index] = [.. all];
+        }
+
+        bool changed;
+        do
+        {
+            changed = false;
+            for (var index = 1; index < workflow.Count; index++)
+            {
+                var intersection = predecessors[index].Count == 0
+                    ? new HashSet<int>()
+                    : new HashSet<int>(dominators[predecessors[index][0]]);
+                foreach (var predecessor in predecessors[index].Skip(1))
+                {
+                    intersection.IntersectWith(dominators[predecessor]);
+                }
+
+                intersection.Add(index);
+                if (!intersection.SetEquals(dominators[index]))
+                {
+                    dominators[index] = intersection;
+                    changed = true;
+                }
+            }
+        }
+        while (changed);
+
+        for (var consumer = 0; consumer < workflow.Count; consumer++)
+        {
+            if (workflow[consumer].Args.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            foreach (var placeholder in EnumerateStrings(workflow[consumer].Args).SelectMany(WorkflowPlaceholderCatalog.Extract))
+            {
+                var marker = placeholder.IndexOf(".output", StringComparison.OrdinalIgnoreCase);
+                if (marker <= 0)
+                {
+                    continue;
+                }
+
+                var producerId = placeholder[..marker];
+                if (string.Equals(producerId, "previous", StringComparison.OrdinalIgnoreCase) ||
+                    !indexes.TryGetValue(producerId, out var producer))
+                {
+                    continue;
+                }
+
+                if (ToolMap.Find(workflow[producer].Step)?.IsControlFlowStep == true)
+                {
+                    throw new WorkflowValidationException(
+                        $"Placeholder '{{{{{placeholder}}}}}' references control-flow step '{producerId}', which does not publish workflow output.");
+                }
+
+                if (!dominators[consumer].Contains(producer))
+                {
+                    throw new WorkflowValidationException(
+                        $"Placeholder '{{{{{placeholder}}}}}' is not guaranteed because step '{producerId}' does not run on every route to '{workflow[consumer].EffectiveId}'.");
+                }
+            }
+        }
+    }
+
+    private static void MarkReachable(int index, IReadOnlyList<List<int>> edges, bool[] reachable)
+    {
+        if (reachable[index])
+        {
+            return;
+        }
+
+        reachable[index] = true;
+        foreach (var target in edges[index])
+        {
+            MarkReachable(target, edges, reachable);
+        }
+    }
+
+    private static bool TryFindCycle(
+        int index,
+        IReadOnlyList<List<int>> edges,
+        byte[] state,
+        List<int> stack,
+        out IReadOnlyList<int> cycle)
+    {
+        state[index] = 1;
+        stack.Add(index);
+        foreach (var target in edges[index])
+        {
+            if (state[target] == 0 && TryFindCycle(target, edges, state, stack, out cycle))
+            {
+                return true;
+            }
+
+            if (state[target] == 1)
+            {
+                var start = stack.IndexOf(target);
+                cycle = [.. stack.Skip(start), target];
+                return true;
+            }
+        }
+
+        stack.RemoveAt(stack.Count - 1);
+        state[index] = 2;
+        cycle = [];
+        return false;
     }
 
     private static void ValidatePromptTools(

@@ -58,4 +58,7 @@ public sealed record ToolArgumentDefinition(
 
     /// <summary>Gets the optional semantic editor override.</summary>
     public WorkflowArgumentEditorHint EditorHint { get; init; }
+
+    /// <summary>Gets whether a structured JSON editor also accepts scalar JSON values.</summary>
+    public bool AllowsScalarJson { get; init; }
 }

@@ -6,8 +6,8 @@
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
 <meta content="#08111f" name="theme-color"/>
-<meta content="Manuel utilisateur complet de l’application Windows OD.MyLocalAgent 1.6.0." name="description"/>
-<title>Manuel utilisateur 1.6.0 · OD.MyLocalAgent</title>
+<meta content="Manuel utilisateur complet de l’application Windows OD.MyLocalAgent 2.0.0." name="description"/>
+<title>Manuel utilisateur 2.0.0 · OD.MyLocalAgent</title>
 <style>
         :root {
             color-scheme: dark;
@@ -1292,7 +1292,7 @@
 <main class="content" id="contenu">
 <div class="content-inner">
 <section class="hero" data-title="Vue d’ensemble" id="accueil">
-<span class="eyebrow">Version 1.6.0 · Local-first · Windows · Ollama</span>
+<span class="eyebrow">Version 2.0.0 · Local-first · Windows · Ollama</span>
 <h1>Votre agent local,<br/><span class="gradient-text">de l’idée à l’exécution.</span></h1>
 <p class="hero-lead">Ce manuel explique comment configurer OD.MyLocalAgent, créer et planifier des tâches, utiliser les outils, maîtriser les placeholders et comprendre les rapports, avec des procédures guidées puis une référence structurée.</p>
 <div class="hero-actions">
@@ -2067,12 +2067,66 @@ ollama list</code></pre>
 <article class="card" id="workflow-mode">
 <h3>Workflow</h3>
 <p>
-                            Les étapes sont exécutées dans l’ordre défini. C’est le mode recommandé
-                            pour les automatisations sans surveillance. Si prompt et workflow
+                            Les étapes suivent l’ordre défini par défaut ; une décision peut choisir
+                            une autre branche validée. C’est le mode recommandé pour les automatisations sans surveillance. Si prompt et workflow
                             coexistent, le workflow est prioritaire.
                         </p>
 </article>
-</div><h3 id="generation-settings">Réglages de génération hiérarchiques</h3><p>
+</div><h3 id="workflow-decisions">Orienter un workflow avec une décision</h3><p>
+                    Le Stage 29 permet à une étape <code>flow.decision</code> de choisir la suite
+                    sans demander au modèle d’exécuter lui-même le routage. Le test peut porter
+                    sur un texte, un nombre ou une propriété d’un objet JSON. Si le test est vrai,
+                    le workflow rejoint <code>target</code> ; s’il est faux, il rejoint
+                    <code>next</code> ou poursuit avec l’étape suivante.
+                </p><div class="code-block"><pre><code>[
+  {
+    "step": "flow.decision",
+    "args": {
+      "source": "{{classification.output}}",
+      "path": "score",
+      "operator": "greaterThanOrEqual",
+      "value": 0.8,
+      "target": "automaticReply",
+      "fallback": "manualReview"
+    },
+    "next": "manualReview"
+  },
+  { "step": "ai.prompt", "id": "automaticReply",
+    "args": { "prompt": "Prepare an answer." }, "next": "@end" },
+  { "step": "ai.prompt", "id": "manualReview",
+    "args": { "prompt": "Prepare a review note." } }
+]</code></pre></div><p>
+                    <code>fallback</code> est utilisé uniquement lorsque le test ne peut pas être
+                    effectué, par exemple si la source n’est pas un JSON valide, si une propriété
+                    demandée par un opérateur autre que <code>exists</code> manque ou si son type est incompatible. Le workflow est refusé avant
+                    sauvegarde si une destination n’existe pas, si une étape est inaccessible ou
+                    si les routes forment une boucle.
+                </p><h3 id="workflow-structured-response">Obtenir un objet JSON depuis ai.prompt</h3><p>
+                    Ajoutez <code>responseSchema</code> à une étape <code>ai.prompt</code> pour demander
+                    une réponse objet vérifiable. Le fournisseur reçoit le schéma et MyLocalAgent
+                    vérifie de nouveau le JSON avant de rendre la sortie disponible au workflow.
+                    Vous pouvez ensuite tester directement une propriété avec
+                    <code>{{classification.output.category}}</code> ou avec une décision et son
+                    argument <code>path</code>.
+                </p><div class="code-block"><pre><code>{
+  "step": "ai.prompt",
+  "id": "classification",
+  "args": { "prompt": "Classify: {{task.prompt}}" },
+  "responseSchema": {
+    "type": "object",
+    "properties": {
+      "category": { "type": "string" },
+      "score": { "type": "number" }
+    },
+    "required": ["category", "score"],
+    "additionalProperties": false
+  }
+}</code></pre></div><div class="callout warning">
+                    Dans ce premier lot, une étape <code>ai.prompt</code> avec
+                    <code>responseSchema</code> ne peut pas aussi déclarer
+                    <code>toolAliases</code>. Si la réponse n’est pas un JSON strict ou ne respecte
+                    pas le schéma, l’étape échoue selon sa politique d’erreur.
+                </div><h3 id="generation-settings">Réglages de génération hiérarchiques</h3><p>
                     Settings définit Temperature, Top P et Context window pour tous les
                     nouveaux appels. Une tâche peut remplacer indépendamment Temperature
                     et/ou Top P avec <span class="ui-label">AI generation override</span>.
@@ -3337,10 +3391,10 @@ confinés et doivent rester réservées aux usages de confiance.
 <span class="status warn">3 tâche absente</span>
 </p>
 </section>
-<footer class="footer"><p>Organisation documentaire révisée — version française 1.6.0.</p>
+<footer class="footer"><p>Organisation documentaire révisée — version française 2.0.0.</p>
 <strong>OD.MyLocalAgent · Manuel utilisateur</strong><br/>
                 Document autonome HTML5. Les chemins, écrans et comportements décrits correspondent
-                à la version 1.6.0 du 24 août 2026.
+                à la version 2.0.0 du 24 août 2026.
                 <a href="User-Manual.en.html" lang="en">Read in English</a>.
             </footer>
 </div>

@@ -402,6 +402,42 @@ public sealed class WorkflowStepEditorViewModelTests
         item.EditorKind.Should().Be(expected);
     }
 
+    /// <summary>Verifies the step editor persists Stage 29 routing and structured-response fields.</summary>
+    [Fact]
+    public void PromptEditorPersistsNextAndResponseSchema()
+    {
+        var viewModel = new WorkflowStepEditorViewModel();
+        viewModel.Initialize(Request());
+        viewModel.SelectedTool = ToolCatalog.Default.Find("ai.prompt");
+        viewModel.Arguments.Single(item => item.Definition.Name == "prompt").Value = "Classify {{task.prompt}}.";
+        viewModel.Next = "review";
+        viewModel.StructuredResponse = true;
+        viewModel.ResponseSchema = """
+            {
+              "type": "object",
+              "properties": { "category": { "type": "string" } },
+              "required": ["category"]
+            }
+            """;
+
+        viewModel.ApplyCommand.Execute(null);
+
+        var step = WorkflowDefinitionSerializer.Deserialize(viewModel.Result!.WorkflowText).Single();
+        step.Next.Should().Be("review");
+        step.ResponseSchema.Should().NotBeNull();
+        step.ResponseSchema!.Value.GetProperty("required")[0].GetString().Should().Be("category");
+    }
+
+    /// <summary>Verifies the decision value editor accepts a scalar JSON value.</summary>
+    [Fact]
+    public void DecisionValueEditorAcceptsScalarJson()
+    {
+        var definition = ToolCatalog.Default.Find("flow.decision")!.ArgumentDefinitions.Single(item => item.Name == "value");
+        var item = new WorkflowStepArgumentEditorItem(definition, true, "0.8");
+
+        item.Parse().GetDecimal().Should().Be(0.8m);
+    }
+
     private static WorkflowStepEditorRequest Request() => new(
         "[]", 0, WorkflowStepEditorMode.InsertBefore, [ToolGroups.Knowledge], [], [], ["safe"], WorkflowErrorPolicy.StopOnError, 0.2, 1);
 }

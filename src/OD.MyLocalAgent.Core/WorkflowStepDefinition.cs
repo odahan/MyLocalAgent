@@ -54,6 +54,12 @@ public sealed record WorkflowStepDefinition
     /// <summary>Gets an optional Knowledge scope that narrows the task scope.</summary>
     public KnowledgeAccessDefinition? KnowledgeAccess { get; init; }
 
+    /// <summary>Gets the optional successor step id, or <c>@end</c>.</summary>
+    public string? Next { get; init; }
+
+    /// <summary>Gets the optional JSON response schema for an <c>ai.prompt</c> step.</summary>
+    public JsonElement? ResponseSchema { get; init; }
+
     /// <summary>
     /// Gets a value indicating whether the step was read from string form.
     /// </summary>

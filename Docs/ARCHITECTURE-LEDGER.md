@@ -2240,3 +2240,27 @@ compilation, freshness-window expansion, document classification, and late prote
 - Queue waiting is cancellation-aware and deliberately begins before the provider timeout. The timeout therefore covers actual provider/model work rather than time spent waiting for an execution slot.
 - The named semaphore’s capacity is established by the first active caller. A changed limit takes full effect once active model calls have released their slots; the default remains appropriate for local Ollama/GPU use.
 - No package versions changed. Release verification completed with a warning-free build and 714 non-integration tests passing, with one expected local Ollama probe skipped.
+
+# Stage 29 — Conditional workflow routing and structured prompt responses — 2026-08-24
+
+### Version 2.0.0 — Conditional workflows and structured AI responses — 2026-08-24
+
+- The persisted workflow remains one task-owned JSON array. Object steps gain optional `next`;
+  `@end` is the collision-free terminal target. Legacy arrays without routing retain declaration-order behavior.
+- `flow.decision` is a workflow-only catalog entry with deterministic text, numeric, JSON-path,
+  empty/null/existence, regex, case, and negation semantics. True selects `target`, false selects
+  `next` or the following declaration, and an indeterminate evaluation selects optional `fallback`.
+- Validation builds an in-memory control-flow graph, rejects unknown targets, unreachable nodes,
+  and cycles. Runtime also enforces an acyclic execution-count bound.
+- Decisions appear in ordered step results but do not enter `WorkflowContext` or replace
+  `previous.output`. A handled fallback produces warning code `WorkflowDecisionFallback`.
+- Tool-free `ai.prompt` steps gain optional top-level `responseSchema`. The root must be an object
+  and uses the portable application-owned subset `type`, `properties`, `required`,
+  `additionalProperties`, `enum`, `const`, numeric/string bounds, and array `items`.
+- The schema is transmitted with `ChatResponseFormat.ForJsonSchema` and enforced again locally.
+  Invalid JSON or schema violations fail the prompt step. Stage 29 rejects combining
+  `responseSchema` with `toolAliases`; structured final responses after an agentic tool loop remain deferred.
+- `IWorkflowEngine` and task storage locations remain unchanged. No package dependency or workflow
+  library was introduced.
+- Stage verification completed with a warning-free solution build and 783 passing
+  non-integration tests; one expected environment-dependent local Ollama probe was skipped.

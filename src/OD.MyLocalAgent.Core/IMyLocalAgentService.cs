@@ -1,5 +1,6 @@
 namespace OD.MyLocalAgent.Core;
 
+using System.Text.Json;
 using OD.MyLocalAgent.Ollama;
 
 /// <summary>
@@ -55,6 +56,21 @@ public interface IMyLocalAgentService
         bool useGlobalSystemPrompt,
         CancellationToken cancellationToken) =>
         RunPromptWithoutToolsAsync(prompt, generationPolicy, logicalOperation, cancellationToken);
+
+    /// <summary>Generates one tool-free response constrained by a runtime JSON schema.</summary>
+    Task<AgentRunResult> RunPromptWithoutToolsStructuredAsync(
+        string prompt,
+        EffectiveGenerationPolicy generationPolicy,
+        string logicalOperation,
+        bool useGlobalSystemPrompt,
+        JsonElement responseSchema,
+        CancellationToken cancellationToken) =>
+        RunPromptWithoutToolsAsync(
+            prompt,
+            generationPolicy,
+            logicalOperation,
+            useGlobalSystemPrompt,
+            cancellationToken);
 
     /// <summary>
     /// Runs a prompt and returns the final concise report.

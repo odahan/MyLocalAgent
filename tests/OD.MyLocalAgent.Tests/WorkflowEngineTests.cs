@@ -966,6 +966,212 @@ public sealed class WorkflowEngineTests
         skill.Policies["second"].TopP.Should().Be(0.6);
     }
 
+    /// <summary>Verifies a decision selects its matching target without changing the business output context.</summary>
+    [Fact]
+    public async Task DecisionRoutesToMatchingTarget()
+    {
+        var registry = new RecordingToolRegistry(
+            (_, _, call) => Task.FromResult(call == 1 ? "{\"items\":[{\"name\":\"x\"}]}" : "done"));
+        var task = CreateTask(
+        [
+            Step("filesystem.list", "source", """{ "path": "." }"""),
+            Step("flow.decision", "route", """
+                {
+                  "source": "{{source.output}}",
+                  "path": "items",
+                  "operator": "isNotEmpty",
+                  "target": "matched"
+                }
+                """) with { Next = "unmatched" },
+            Step("filesystem.list", "unmatched", """{ "path": "." }""") with { Next = "@end" },
+            Step("filesystem.list", "matched", """{ "path": "." }""") with { Next = "@end" },
+        ]);
+
+        ScheduledTaskValidator.Validate(task);
+        var result = await CreateEngine(registry).ExecuteAsync(task, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        result.Steps.Select(static step => step.Id).Should().Equal("source", "route", "matched");
+        result.FinalText.Should().Be("done");
+        registry.Aliases.Should().HaveCount(2);
+    }
+
+    /// <summary>Verifies an invalid decision source takes its declared fallback and records a warning.</summary>
+    [Fact]
+    public async Task DecisionUsesFallbackForInvalidJson()
+    {
+        var registry = new RecordingToolRegistry(
+            (_, _, call) => Task.FromResult(call == 1 ? "not-json" : "recovered"));
+        var task = CreateTask(
+        [
+            Step("filesystem.list", "source", """{ "path": "." }"""),
+            Step("flow.decision", "route", """
+                {
+                  "source": "{{source.output}}",
+                  "path": "category",
+                  "operator": "equals",
+                  "value": "urgent",
+                  "target": "matched",
+                  "fallback": "recovery"
+                }
+                """) with { Next = "normal" },
+            Step("filesystem.list", "normal", """{ "path": "." }""") with { Next = "@end" },
+            Step("filesystem.list", "matched", """{ "path": "." }""") with { Next = "@end" },
+            Step("filesystem.list", "recovery", """{ "path": "." }""") with { Next = "@end" },
+        ]);
+
+        ScheduledTaskValidator.Validate(task);
+        var result = await CreateEngine(registry).ExecuteAsync(task, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        result.Steps.Select(static step => step.Id).Should().Equal("source", "route", "recovery");
+        result.Warnings.Should().ContainSingle(static warning => warning.Code == "WorkflowDecisionFallback");
+    }
+
+    /// <summary>Verifies graph validation rejects a reachable routing cycle.</summary>
+    [Fact]
+    public void DecisionCycleIsRejected()
+    {
+        var task = CreateTask(
+        [
+            Step("flow.decision", "loop", """
+                {
+                  "source": "text",
+                  "operator": "equals",
+                  "value": "text",
+                  "target": "loop"
+                }
+                """) with { Next = "@end" },
+        ]);
+
+        var action = () => ScheduledTaskValidator.Validate(task);
+
+        action.Should().Throw<WorkflowValidationException>().WithMessage("*cycle*loop*");
+    }
+
+    /// <summary>Verifies an explicit route must name a real workflow step or the terminal target.</summary>
+    [Fact]
+    public void UnknownDecisionTargetIsRejected()
+    {
+        var task = CreateTask(
+        [
+            Step("flow.decision", "route", """
+                {
+                  "source": "yes",
+                  "operator": "equals",
+                  "value": "yes",
+                  "target": "missing"
+                }
+                """) with { Next = "@end" },
+        ]);
+
+        var action = () => ScheduledTaskValidator.Validate(task);
+
+        action.Should().Throw<WorkflowValidationException>().WithMessage("*unknown step id 'missing'*");
+    }
+
+    /// <summary>Verifies a branch-only output cannot be consumed after branches merge.</summary>
+    [Fact]
+    public void BranchOnlyOutputIsRejectedAfterMerge()
+    {
+        var task = CreateTask(
+        [
+            Step("flow.decision", "route", """
+                {
+                  "source": "yes",
+                  "operator": "equals",
+                  "value": "yes",
+                  "target": "branchA"
+                }
+                """) with { Next = "branchB" },
+            Step("filesystem.list", "branchA", """{ "path": "." }""") with { Next = "merge" },
+            Step("filesystem.list", "branchB", """{ "path": "." }""") with { Next = "merge" },
+            Step("filesystem.list", "merge", """{ "path": "{{branchA.output.path}}" }""") with { Next = "@end" },
+        ]);
+
+        var action = () => ScheduledTaskValidator.Validate(task);
+
+        action.Should().Throw<WorkflowValidationException>().WithMessage("*not guaranteed*branchA*merge*");
+    }
+
+    /// <summary>Verifies a prompt response schema is sent to the AI service and locally enforced.</summary>
+    [Fact]
+    public async Task PromptResponseSchemaProducesStructuredOutput()
+    {
+        using var schemaDocument = JsonDocument.Parse("""
+            {
+              "type": "object",
+              "properties": {
+                "category": { "type": "string", "enum": ["urgent", "normal"] },
+                "score": { "type": "number", "minimum": 0, "maximum": 1 }
+              },
+              "required": ["category", "score"],
+              "additionalProperties": false
+            }
+            """);
+        var agent = new Mock<IMyLocalAgentService>(MockBehavior.Strict);
+        agent.Setup(service => service.RunPromptWithoutToolsStructuredAsync(
+                "Classify.",
+                It.IsAny<EffectiveGenerationPolicy>(),
+                "classification",
+                true,
+                It.IsAny<JsonElement>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AgentRunResult("{\"category\":\"urgent\",\"score\":0.9}", "Test"));
+        var definition = Step("ai.prompt", "classification", """{ "prompt": "Classify." }""") with
+        {
+            ResponseSchema = schemaDocument.RootElement.Clone(),
+        };
+        var task = CreateTask([definition]);
+
+        ScheduledTaskValidator.Validate(task);
+        var result = await CreateEngine(
+                new RecordingToolRegistry((_, _, _) => Task.FromResult(string.Empty)),
+                agentService: agent.Object)
+            .ExecuteAsync(task, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        using var output = JsonDocument.Parse(result.FinalText);
+        output.RootElement.GetProperty("category").GetString().Should().Be("urgent");
+        agent.VerifyAll();
+    }
+
+    /// <summary>Verifies invalid structured model output fails the prompt step.</summary>
+    [Fact]
+    public void ResponseSchemaRejectsMissingRequiredProperty()
+    {
+        using var schema = JsonDocument.Parse("""
+            {
+              "type": "object",
+              "properties": { "category": { "type": "string" } },
+              "required": ["category"]
+            }
+            """);
+
+        var action = () => WorkflowResponseSchemaValidator.ValidateResponse("{}", schema.RootElement);
+
+        action.Should().Throw<WorkflowStructuredResponseException>().WithMessage("*category*");
+    }
+
+    /// <summary>Verifies Stage 29 keeps structured prompt responses separate from agentic tool loops.</summary>
+    [Fact]
+    public void ResponseSchemaCannotBeCombinedWithPromptTools()
+    {
+        using var schema = JsonDocument.Parse("""{ "type": "object" }""");
+        var task = CreateTask(
+        [
+            Step("ai.prompt", "classification", """{ "prompt": "Classify." }""") with
+            {
+                ToolAliases = ["filesystem.list"],
+                ResponseSchema = schema.RootElement.Clone(),
+            },
+        ]);
+
+        var action = () => ScheduledTaskValidator.Validate(task);
+
+        action.Should().Throw<WorkflowValidationException>().WithMessage("*cannot combine*responseSchema*toolAliases*");
+    }
+
     private static SequentialWorkflowEngine CreateEngine(
         IToolRegistry registry,
         IEnumerable<ISkill>? skills = null,

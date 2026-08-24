@@ -11,7 +11,7 @@ public static class WorkflowAssistantPromptBuilder
     /// <summary>
     /// Gets the generation prompt version.
     /// </summary>
-    public const string GenerationVersion = "workflow-generation-v4";
+    public const string GenerationVersion = "workflow-generation-v5-stage29";
 
     /// <summary>
     /// Gets the explanation prompt version.
@@ -26,13 +26,14 @@ public static class WorkflowAssistantPromptBuilder
     {
         var builder = new StringBuilder();
         builder.AppendLine($"Prompt version: {GenerationVersion}");
-        builder.AppendLine("You create OD.MyLocalAgent sequential workflows.");
+        builder.AppendLine("You create OD.MyLocalAgent workflows with optional Stage 29 deterministic routing.");
         builder.AppendLine("Return exactly one pure JSON array and nothing else. Do not use Markdown fences.");
-        builder.AppendLine("A step is either an alias string or an object with step, optional id, optional args, optional onError, optional retryCount, optional retryBackoffSeconds, and generationOptions only when the Tool Map entry has AI=true.");
+        builder.AppendLine("A step is either an alias string or an object with step, optional id, optional args, optional next, optional onError, optional retryCount, optional retryBackoffSeconds, optional responseSchema only for tool-free ai.prompt, and generationOptions only when the Tool Map entry has AI=true.");
         builder.AppendLine("For AI object steps only, generationOptions may contain optional numeric temperature (0 through 2) and optional numeric topP (greater than 0 through 1). Each omitted value inherits from the task and then Settings. Never add generationOptions to a non-AI step.");
         builder.AppendLine("Never add contextWindowTokens, provider, model, endpoint, credentials, internal policy names, MaxOutputTokens, or other generation fields to task or workflow JSON.");
         builder.AppendLine("Object args must preserve JSON value kinds. Valid error policies are StopOnError, ContinueOnError, and Retry.");
-        builder.AppendLine("Steps execute in declaration order. Effective id is explicit id or alias. Later steps may use named outputs. ai.prompt includeContext is optional and defaults to false.");
+        builder.AppendLine("Steps follow next when supplied, otherwise declaration order. @end terminates. Effective id is explicit id or alias. flow.decision routes a true condition to target, false to next/following, and an indeterminate condition to optional fallback. Cycles and unreachable steps are invalid. Decisions do not replace previous.output.");
+        builder.AppendLine("A tool-free ai.prompt may declare a top-level responseSchema with root type object. The application requests and validates exact structured JSON; do not repeat JSON-format instructions in the prompt. responseSchema and toolAliases cannot be combined in Stage 29.");
         builder.AppendLine("An ai.prompt object may declare toolAliases as an exact array of Tool Map aliases. Missing or empty toolAliases keeps the prompt step tool-free; it never inherits every tool from a task group.");
         builder.AppendLine("Select only entries with an agent function and whose group is enabled on the task. Synthetic AI entries and skills are not callable tools. Never invent an alias, group, capability, path grant, or Knowledge tag.");
         builder.AppendLine("Prefer a direct workflow step when arguments and order are known. Use ai.prompt tools only when the model must decide whether, how, or repeatedly to call a tool from semantic intent.");
@@ -61,6 +62,7 @@ public static class WorkflowAssistantPromptBuilder
             builder.Append("- ").Append(definition.Alias)
                 .Append(" | group=").Append(definition.ToolGroup)
                 .Append(" | AI=").Append(definition.IsAiStep)
+                .Append(" | control=").Append(definition.IsControlFlowStep)
                 .Append(" | required=").Append(required.Length == 0 ? "<none>" : string.Join(",", required))
                 .Append(" | optional=").Append(definition.OptionalArguments.Count == 0 ? "<none>" : string.Join(",", definition.OptionalArguments))
                 .Append(" | ordered=").Append(definition.Arguments.Count == 0 ? "<none>" : string.Join(",", definition.Arguments))

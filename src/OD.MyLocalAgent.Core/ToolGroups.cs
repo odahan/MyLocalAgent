@@ -66,6 +66,9 @@ public static class ToolGroups
     /// </remarks>
     public const string Ai = "ai";
 
+    /// <summary>Gets the synthetic workflow control-flow group name.</summary>
+    public const string Flow = "flow";
+
     /// <summary>
     /// Gets every tool group in stable display order, including authoring-only groups.
     /// </summary>

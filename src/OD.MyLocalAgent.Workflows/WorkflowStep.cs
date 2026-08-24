@@ -40,6 +40,8 @@ public abstract class WorkflowStep
         Model = definition.Model;
         ToolAliases = definition.ToolAliases.ToArray();
         KnowledgeAccess = definition.KnowledgeAccess;
+        Next = definition.Next;
+        ResponseSchema = definition.ResponseSchema?.Clone();
     }
 
     /// <summary>
@@ -90,4 +92,10 @@ public abstract class WorkflowStep
 
     /// <summary>Gets the optional prompt-step Knowledge narrowing.</summary>
     public KnowledgeAccessDefinition? KnowledgeAccess { get; }
+
+    /// <summary>Gets the optional successor step id, or <c>@end</c>.</summary>
+    public string? Next { get; }
+
+    /// <summary>Gets the optional structured response schema.</summary>
+    public JsonElement? ResponseSchema { get; }
 }

@@ -67,4 +67,7 @@ public sealed record ToolDefinition(
     /// Gets a value indicating whether this entry is exposed as an agent tool.
     /// </summary>
     public bool IsAgentTool => AgentFunctionName is not null;
+
+    /// <summary>Gets whether this entry is executed by workflow control flow rather than the tool registry.</summary>
+    public bool IsControlFlowStep { get; init; }
 }

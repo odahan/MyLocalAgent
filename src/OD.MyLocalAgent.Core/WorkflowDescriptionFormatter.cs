@@ -66,14 +66,20 @@ public static class WorkflowDescriptionFormatter
                 .AppendLine(step.RetryCount?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "<omitted>");
             builder.Append("  retryBackoffSeconds: ")
                 .AppendLine(step.RetryBackoffSeconds?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "<omitted>");
+            builder.Append("  next: ").AppendLine(step.Next ?? "<following step>");
+            builder.Append("  responseSchema: ")
+                .AppendLine(step.ResponseSchema is { } schema ? schema.GetRawText() : "<omitted>");
             AppendGenerationOptions(
                 builder,
                 step,
                 taskGenerationOptions,
                 generationDefaults);
-            builder.Append("  Produced output: {{")
-                .Append(step.EffectiveId)
-                .AppendLine(".output}}");
+            if (ToolMap.Find(step.Step)?.IsControlFlowStep != true)
+            {
+                builder.Append("  Produced output: {{")
+                    .Append(step.EffectiveId)
+                    .AppendLine(".output}}");
+            }
         }
 
         return builder.ToString().TrimEnd();

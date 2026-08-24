@@ -246,7 +246,7 @@ public sealed class ToolMapMetadataTests
         };
 
         var actual = ToolMap.Definitions
-            .Where(static item => !item.IsAiStep)
+            .Where(static item => !item.IsAiStep && !item.IsControlFlowStep)
             .ToArray();
 
         actual.Select(static item => item.Alias).Should().BeEquivalentTo(expected.Keys);

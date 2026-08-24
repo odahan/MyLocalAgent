@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.Extensions.AI;
 using Moq;
+using System.Text.Json;
 using OD.MyLocalAgent.Core;
 using OD.MyLocalAgent.Ollama;
 using OD.MyLocalAgent.Tests.TestDoubles;
@@ -86,6 +87,52 @@ public sealed class MyLocalAgentServiceTests
         client.CallCount.Should().Be(1);
         client.ResponseCallCount.Should().Be(0);
         client.StreamingCallCount.Should().Be(1);
+    }
+
+    /// <summary>Verifies both supported provider paths receive the structured response format.</summary>
+    [Theory]
+    [InlineData(AIOptions.OllamaProvider)]
+    [InlineData(AIOptions.OpenAIProvider)]
+    public async Task StructuredPromptPassesJsonSchemaToProvider(string providerName)
+    {
+        var client = new StubChatClient("{\"category\":\"support\"}");
+        var provider = new StubLlmClientService(client, providerName);
+        var factory = new Mock<ILlmClientFactory>(MockBehavior.Strict);
+        factory.Setup(instance => instance.Create()).Returns(provider);
+        var service = new MyLocalAgentService(
+            factory.Object,
+            Mock.Of<IToolRegistry>(),
+            [],
+            Mock.Of<IIncidentReporter>(),
+            TimeProvider.System);
+        var policy = new EffectiveGenerationPolicy(
+            0.1,
+            1,
+            8192,
+            GenerationOptionSource.Step,
+            GenerationOptionSource.Settings);
+        using var schema = JsonDocument.Parse("""
+            {
+              "type": "object",
+              "properties": { "category": { "type": "string" } },
+              "required": ["category"]
+            }
+            """);
+
+        var result = await service.RunPromptWithoutToolsStructuredAsync(
+            "Classify.",
+            policy,
+            "classification",
+            true,
+            schema.RootElement,
+            CancellationToken.None);
+
+        result.Text.Should().Be("{\"category\":\"support\"}");
+        client.LastOptions!.ResponseFormat.Should().NotBeNull();
+        client.LastOptions.Tools.Should().BeNullOrEmpty();
+        client.LastMessages.Single(message => message.Role == ChatRole.System).Text.Should()
+            .Contain("\"required\"")
+            .And.Contain("\"category\"");
     }
 
     /// <summary>

@@ -56,6 +56,8 @@ internal sealed class WorkflowStepDefinitionJsonConverter : JsonConverter<Workfl
             Model = ReadOptionalString(root, "model"),
             ToolAliases = ReadToolAliases(root, options),
             KnowledgeAccess = ReadKnowledgeAccess(root, options),
+            Next = ReadOptionalString(root, "next"),
+            ResponseSchema = ReadOptionalObject(root, "responseSchema"),
         };
     }
 
@@ -73,7 +75,9 @@ internal sealed class WorkflowStepDefinitionJsonConverter : JsonConverter<Workfl
             (value.GenerationOptions is null || value.GenerationOptions.IsEmpty) &&
             value.Model is null &&
             value.ToolAliases.Count == 0 &&
-            value.KnowledgeAccess is null)
+            value.KnowledgeAccess is null &&
+            value.Next is null &&
+            value.ResponseSchema is null)
         {
             writer.WriteStringValue(value.Step);
             return;
@@ -130,6 +134,17 @@ internal sealed class WorkflowStepDefinitionJsonConverter : JsonConverter<Workfl
             JsonSerializer.Serialize(writer, value.KnowledgeAccess, options);
         }
 
+        if (value.Next is not null)
+        {
+            writer.WriteString("next", value.Next);
+        }
+
+        if (value.ResponseSchema is { } responseSchema)
+        {
+            writer.WritePropertyName("responseSchema");
+            responseSchema.WriteTo(writer);
+        }
+
         writer.WriteEndObject();
     }
 
@@ -147,6 +162,8 @@ internal sealed class WorkflowStepDefinitionJsonConverter : JsonConverter<Workfl
             "model",
             "toolAliases",
             "knowledgeAccess",
+            "next",
+            "responseSchema",
         ];
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var property in root.EnumerateObject())
@@ -165,6 +182,21 @@ internal sealed class WorkflowStepDefinitionJsonConverter : JsonConverter<Workfl
                     $"Workflow-step property '{property.Name}' is duplicated.");
             }
         }
+    }
+
+    private static JsonElement? ReadOptionalObject(JsonElement root, string propertyName)
+    {
+        if (!root.TryGetProperty(propertyName, out var element))
+        {
+            return null;
+        }
+
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            throw new JsonException($"Workflow property '{propertyName}' must be an object.");
+        }
+
+        return element.Clone();
     }
 
     private static IReadOnlyList<string> ReadToolAliases(JsonElement root, JsonSerializerOptions options)

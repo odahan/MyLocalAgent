@@ -25,11 +25,14 @@
             <StackPanel>
                 <TextBlock Margin="0,0,0,5" Style="{StaticResource SectionTitleStyle}" Text="Step" />
                 <TextBox Text="{Binding Id, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Id" />
+                <TextBox Margin="0,8,0,0" Text="{Binding Next, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Next step id (blank means following step; @end ends the workflow)" />
                 <CheckBox Margin="0,12,0,0" Content="Override error policy" IsChecked="{Binding OverrideErrorPolicy}" />
                 <ComboBox ItemsSource="{Binding ErrorPolicies}" SelectedItem="{Binding OnError}" Visibility="{Binding OverrideErrorPolicy, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 <TextBox Text="{Binding RetryCount, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding IsRetrySelected, Converter={StaticResource BooleanToVisibilityConverter}}" materialDesign:HintAssist.Hint="Retry count" />
                 <TextBox Text="{Binding RetryBackoffSeconds, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding IsRetrySelected, Converter={StaticResource BooleanToVisibilityConverter}}" materialDesign:HintAssist.Hint="Retry backoff seconds" />
                 <TextBlock Margin="0,18,0,6" Style="{StaticResource SectionTitleStyle}" Text="Prompt execution" Visibility="{Binding IsPromptSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <CheckBox Content="Require a structured JSON response" IsChecked="{Binding StructuredResponse}" Visibility="{Binding IsPromptSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <TextBox Margin="0,6,0,8" MinHeight="130" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" FontFamily="Consolas" Text="{Binding ResponseSchema, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding ShowResponseSchema, Converter={StaticResource BooleanToVisibilityConverter}}" materialDesign:HintAssist.Hint="JSON response schema" />
                 <CheckBox Content="Use the model inherited by this task" IsChecked="{Binding InheritModel}" Visibility="{Binding IsPromptSelected, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.Name="Use inherited prompt model" />
                 <TextBlock Margin="0,3,0,0" Style="{StaticResource CaptionTextStyle}" Text="{Binding InheritedModelDescription}" Visibility="{Binding IsPromptSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 <StackPanel Margin="0,8,0,0" Visibility="{Binding UsesExplicitModel, Converter={StaticResource BooleanToVisibilityConverter}}">

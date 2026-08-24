@@ -32,7 +32,7 @@ public static partial class WorkflowRequirementAnalyzer
             StringComparer.OrdinalIgnoreCase);
         var requiredGroups = workflow
             .SelectMany(EnumerateDefinitions)
-            .Where(static definition => definition is { IsAiStep: false })
+            .Where(static definition => definition is { IsAiStep: false, IsControlFlowStep: false })
             .Select(static definition => definition!.ToolGroup)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(static group => group, StringComparer.OrdinalIgnoreCase)

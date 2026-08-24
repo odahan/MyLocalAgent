@@ -2,26 +2,73 @@ using System.Text.Json;
 
 namespace OD.MyLocalAgent.Core;
 
-/// <summary>Finds later placeholder references to one workflow step without changing workflow data.</summary>
+/// <summary>Finds placeholder and routing references to one workflow step without changing workflow data.</summary>
 public static class WorkflowStepDependencyAnalyzer
 {
-    /// <summary>Returns later steps and argument names that reference the selected effective id.</summary>
+    /// <summary>Returns steps and fields that reference the selected effective id.</summary>
     public static IReadOnlyList<WorkflowStepDependency> FindLaterReferences(IReadOnlyList<WorkflowStepDefinition> workflow, int targetIndex)
     {
         ArgumentNullException.ThrowIfNull(workflow);
         if (targetIndex < 0 || targetIndex >= workflow.Count) throw new ArgumentOutOfRangeException(nameof(targetIndex));
         var id = workflow[targetIndex].EffectiveId;
-        var matches = new List<WorkflowStepDependency>();
+        var matches = new Dictionary<int, WorkflowStepDependency>();
         IReadOnlySet<string> available = new HashSet<string>([id], StringComparer.OrdinalIgnoreCase);
         for (var index = targetIndex + 1; index < workflow.Count; index++)
         {
             var arguments = ReferencingArguments(workflow[index].Args, id, available);
             if (arguments.Count > 0)
             {
-                matches.Add(new WorkflowStepDependency(index, workflow[index].EffectiveId, workflow[index].Step, arguments));
+                matches[index] = new WorkflowStepDependency(index, workflow[index].EffectiveId, workflow[index].Step, arguments);
             }
         }
-        return matches;
+
+        for (var index = 0; index < workflow.Count; index++)
+        {
+            if (index == targetIndex)
+            {
+                continue;
+            }
+
+            var routing = ReferencingRoutes(workflow[index], id);
+            if (routing.Count == 0)
+            {
+                continue;
+            }
+
+            if (matches.TryGetValue(index, out var existing))
+            {
+                matches[index] = existing with { ArgumentNames = [.. existing.ArgumentNames, .. routing] };
+            }
+            else
+            {
+                matches[index] = new WorkflowStepDependency(index, workflow[index].EffectiveId, workflow[index].Step, routing);
+            }
+        }
+
+        return matches.Values.OrderBy(static match => match.StepIndex).ToArray();
+    }
+
+    private static IReadOnlyList<string> ReferencingRoutes(WorkflowStepDefinition step, string id)
+    {
+        var routes = new List<string>();
+        if (string.Equals(step.Next, id, StringComparison.OrdinalIgnoreCase))
+        {
+            routes.Add("next");
+        }
+
+        if (string.Equals(step.Step, "flow.decision", StringComparison.OrdinalIgnoreCase) && step.Args.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var name in new[] { "target", "fallback" })
+            {
+                if (step.Args.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String &&
+                    string.Equals(value.GetString(), id, StringComparison.OrdinalIgnoreCase))
+                {
+                    routes.Add(name);
+                }
+            }
+        }
+
+        return routes;
     }
 
     private static IReadOnlyList<string> ReferencingArguments(JsonElement arguments, string id, IReadOnlySet<string> available)
@@ -41,5 +88,5 @@ public static class WorkflowStepDependencyAnalyzer
     }
 }
 
-/// <summary>Describes one later step that depends on a selected step output.</summary>
+/// <summary>Describes one step that depends on a selected step id or output.</summary>
 public sealed record WorkflowStepDependency(int StepIndex, string EffectiveId, string Alias, IReadOnlyList<string> ArgumentNames);

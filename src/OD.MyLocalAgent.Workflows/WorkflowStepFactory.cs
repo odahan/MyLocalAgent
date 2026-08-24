@@ -29,6 +29,11 @@ public static class WorkflowStepFactory
 
         if (!toolDefinition.IsAiStep)
         {
+            if (toolDefinition.IsControlFlowStep)
+            {
+                return new DecisionStep(definition);
+            }
+
             return new ToolStep(definition);
         }
 

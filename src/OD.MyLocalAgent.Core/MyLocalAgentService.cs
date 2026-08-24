@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.Json;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
@@ -123,6 +124,46 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
         string logicalOperation,
         bool useGlobalSystemPrompt,
         CancellationToken cancellationToken)
+        => await RunPromptStepCoreAsync(
+            prompt,
+            toolAliases,
+            enabledToolGroups,
+            executionContext,
+            generationPolicy,
+            logicalOperation,
+            useGlobalSystemPrompt,
+            responseSchema: null,
+            cancellationToken).ConfigureAwait(false);
+
+    /// <inheritdoc />
+    public async Task<AgentRunResult> RunPromptWithoutToolsStructuredAsync(
+        string prompt,
+        EffectiveGenerationPolicy generationPolicy,
+        string logicalOperation,
+        bool useGlobalSystemPrompt,
+        JsonElement responseSchema,
+        CancellationToken cancellationToken)
+        => await RunPromptStepCoreAsync(
+            prompt,
+            [],
+            [],
+            ToolExecutionContext.Taskless,
+            generationPolicy,
+            logicalOperation,
+            useGlobalSystemPrompt,
+            responseSchema,
+            cancellationToken).ConfigureAwait(false);
+
+    private async Task<AgentRunResult> RunPromptStepCoreAsync(
+        string prompt,
+        IReadOnlyList<string> toolAliases,
+        IReadOnlyList<string> enabledToolGroups,
+        ToolExecutionContext executionContext,
+        EffectiveGenerationPolicy generationPolicy,
+        string logicalOperation,
+        bool useGlobalSystemPrompt,
+        JsonElement? responseSchema,
+        CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
         ArgumentNullException.ThrowIfNull(toolAliases);
@@ -148,6 +189,16 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
             var systemPrompt = BuildPromptStepSystemPrompt(
                 _timeProvider.GetLocalNow(),
                 ResolvePromptStepSystemPrompt(useGlobalSystemPrompt));
+            if (responseSchema is { } structuredSchema)
+            {
+                systemPrompt = string.Concat(
+                    systemPrompt,
+                    Environment.NewLine,
+                    Environment.NewLine,
+                    "Return only one JSON object that conforms exactly to this application-provided schema. Do not use Markdown fences:",
+                    Environment.NewLine,
+                    structuredSchema.GetRawText());
+            }
             WriteLlmRequestTrace(
                 "ai.prompt",
                 provider.ProviderName,
@@ -170,6 +221,7 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
                         GetEffectiveModelName(provider),
                         logicalOperation,
                         messages,
+                        responseSchema,
                         cancellationToken)
                     .ConfigureAwait(false);
             }
@@ -550,8 +602,18 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
         string modelName,
         string logicalOperation,
         IReadOnlyList<ChatMessage> messages,
+        JsonElement? responseSchema,
         CancellationToken cancellationToken)
     {
+        var options = responseSchema is { } schema
+            ? new ChatOptions
+            {
+                ResponseFormat = ChatResponseFormat.ForJsonSchema(
+                    schema,
+                    "workflow_response",
+                    "Structured workflow step response"),
+            }
+            : null;
         if (string.Equals(
                 providerName,
                 AIOptions.OpenAIProvider,
@@ -563,12 +625,13 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
                     modelName,
                     logicalOperation,
                     messages,
+                    options,
                     cancellationToken)
                 .ConfigureAwait(false);
         }
 
         var response = await client
-            .GetResponseAsync(messages, cancellationToken: cancellationToken)
+            .GetResponseAsync(messages, options, cancellationToken)
             .ConfigureAwait(false);
         return response.Text;
     }
@@ -579,6 +642,7 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
         string modelName,
         string logicalOperation,
         IReadOnlyList<ChatMessage> messages,
+        ChatOptions? options,
         CancellationToken cancellationToken)
     {
         var response = new StringBuilder();
@@ -592,6 +656,7 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
             await foreach (var update in client
                                .GetStreamingResponseAsync(
                                    messages,
+                                   options,
                                    cancellationToken: cancellationToken)
                                .ConfigureAwait(false))
             {

@@ -1,6 +1,6 @@
 # OD.MyLocalAgent
 
-Current application release: **1.6.0**.
+Current application release: **2.0.0**.
 
 OD.MyLocalAgent is a native Windows desktop application for running scheduled, AI-driven
 tasks locally. It combines a WPF management UI, a headless runner, Ollama, deterministic
@@ -49,6 +49,7 @@ its own navigation, search, styles, and scripts in one file.
 | 24 | Direct Chat with persistent SQLite history and context compression | Complete with automated verification |
 | 25 | Not implemented |
 | 28 | Reflection-driven workflow step editor | Complete with automated verification |
+| 29 | Conditional workflow routing and structured AI prompt responses | Complete with automated verification |
 
 See [Docs/acceptance-report.md](Docs/acceptance-report.md) for the executed acceptance
 evidence and any remaining environment-dependent checks.
@@ -658,6 +659,58 @@ Concurrent `run` commands for the same id are rejected by a global named executi
 | `3` | Requested task not found |
 
 ## Task and workflow syntax
+
+### Stage 29 — decisions, routing, and structured prompt responses
+
+Object-form steps may declare `next` with another step id or `@end`. When omitted, execution
+continues with the following declaration. The workflow validator rejects unknown targets,
+unreachable declarations, and cycles before execution.
+
+`flow.decision` tests text, numbers, or a value selected from JSON. A matching condition uses
+`target`; a normal false result uses `next` or the following declaration; an evaluation problem
+uses optional `fallback`. Decisions are traced but do not replace `{{previous.output}}`.
+
+```json
+{
+  "step": "flow.decision",
+  "id": "isUrgent",
+  "args": {
+    "source": "{{classification.output}}",
+    "path": "category",
+    "operator": "equals",
+    "value": "urgent",
+    "target": "urgentProcessing",
+    "fallback": "manualReview"
+  },
+  "next": "normalProcessing"
+}
+```
+
+A tool-free `ai.prompt` may declare a top-level `responseSchema`. The schema is sent through the
+active provider's structured-output contract and the returned JSON object is validated locally
+before entering workflow context. Stage 29 deliberately rejects combining `responseSchema` with
+prompt `toolAliases`.
+
+```json
+{
+  "step": "ai.prompt",
+  "id": "classification",
+  "args": { "prompt": "Classify the message." },
+  "responseSchema": {
+    "type": "object",
+    "properties": {
+      "category": { "type": "string", "enum": ["urgent", "normal", "spam"] },
+      "score": { "type": "number", "minimum": 0, "maximum": 1 }
+    },
+    "required": ["category", "score"],
+    "additionalProperties": false
+  }
+}
+```
+
+Supported decision operators are `equals`, `contains`, `startsWith`, `endsWith`, `matches`,
+`exists`, `isNull`, `isEmpty`, `isNotEmpty`, `lessThan`, `lessThanOrEqual`, `greaterThan`, and
+`greaterThanOrEqual`. `caseSensitive` and `negate` are optional and default to `false`.
 
 The Task editor offers a primary **Workflow step editor**. Put the caret on valid workflow JSON
 and use **Insert before**, **Insert after**, **Edit step**, or **Delete step**. Its form is

@@ -75,6 +75,9 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
     [ObservableProperty] private bool? _reasoningEnabled;
     [ObservableProperty] private string _toolSearchText = string.Empty;
     [ObservableProperty] private WorkflowStepArgumentEditorItem? _selectedArgument;
+    [ObservableProperty] private string _next = string.Empty;
+    [ObservableProperty] private bool _structuredResponse;
+    [ObservableProperty] private string _responseSchema = "{\n  \"type\": \"object\",\n  \"properties\": {},\n  \"required\": []\n}";
 
     /// <summary>Gets the currently generated argument rows.</summary>
     public ObservableCollection<WorkflowStepArgumentEditorItem> Arguments { get; } = [];
@@ -108,6 +111,8 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
     public bool IsRetrySelected => (OverrideErrorPolicy ? OnError : _request?.ErrorPolicy) == WorkflowErrorPolicy.Retry;
     /// <summary>Gets whether task-bounded Knowledge narrowing is applicable.</summary>
     public bool ShowKnowledgeTags => IsPromptSelected && PromptTools.Any(static item => item.IsSelected && string.Equals(item.Tool.Alias, "knowledge.search", StringComparison.OrdinalIgnoreCase));
+    /// <summary>Gets whether the structured response schema editor is visible.</summary>
+    public bool ShowResponseSchema => IsPromptSelected && StructuredResponse;
     /// <summary>Gets whether this step overrides the model inherited by the task.</summary>
     public bool UsesExplicitModel => !InheritModel;
     /// <summary>Gets a plain-language description of the model inherited by this step.</summary>
@@ -176,6 +181,7 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
             OnPropertyChanged(nameof(IsPromptSelected));
             OnPropertyChanged(nameof(IsAiSelected));
             OnPropertyChanged(nameof(ShowKnowledgeTags));
+            OnPropertyChanged(nameof(ShowResponseSchema));
             return;
         }
         _lastSelectedTool = value;
@@ -187,6 +193,7 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(IsPromptSelected));
         OnPropertyChanged(nameof(IsAiSelected));
         OnPropertyChanged(nameof(ShowKnowledgeTags));
+        OnPropertyChanged(nameof(ShowResponseSchema));
     }
 
     partial void OnToolSearchTextChanged(string value) => RefreshToolFilter();
@@ -197,6 +204,7 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
     }
 
     partial void OnOnErrorChanged(WorkflowErrorPolicy value) => OnPropertyChanged(nameof(IsRetrySelected));
+    partial void OnStructuredResponseChanged(bool value) => OnPropertyChanged(nameof(ShowResponseSchema));
     partial void OnOverrideErrorPolicyChanged(bool value) => OnPropertyChanged(nameof(IsRetrySelected));
     partial void OnToolAliasesChanged(string value)
     {
@@ -415,6 +423,9 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
         OnError = step?.OnError ?? _request!.ErrorPolicy;
         RetryCount = step?.RetryCount?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
         RetryBackoffSeconds = step?.RetryBackoffSeconds?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+        Next = step?.Next ?? string.Empty;
+        StructuredResponse = step?.ResponseSchema is not null;
+        ResponseSchema = step?.ResponseSchema?.GetRawText() ?? "{\n  \"type\": \"object\",\n  \"properties\": {},\n  \"required\": []\n}";
         Model = step?.Model ?? string.Empty;
         InheritModel = step?.Model is null;
         ToolAliases = string.Join(", ", step?.ToolAliases ?? []);
@@ -441,7 +452,7 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
             item.PropertyChanged += OnArgumentPropertyChanged;
             Arguments.Add(item);
         }
-        if (!tool.IsAiStep && !_request!.ToolGroups.Contains(tool.ToolGroup, StringComparer.OrdinalIgnoreCase))
+        if (!tool.IsAiStep && !tool.IsControlFlowStep && !_request!.ToolGroups.Contains(tool.ToolGroup, StringComparer.OrdinalIgnoreCase))
         {
             AuthorizationProposals.Add(new WorkflowProposalItem("Tool group", tool.ToolGroup, $"Allow the '{tool.ToolGroup}' tool group for this task."));
         }
@@ -482,7 +493,25 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
         var original = IsEdit ? _workflow[_location!.Index] : null;
         var isPrompt = string.Equals(SelectedTool!.Alias, ToolMap.PromptAlias, StringComparison.OrdinalIgnoreCase);
         var aliases = isPrompt ? ParseAliases() : original?.ToolAliases ?? [];
+        if (isPrompt && StructuredResponse && aliases.Count > 0)
+        {
+            throw new WorkflowValidationException("Structured prompt responses cannot be combined with prompt tools in Stage 29.");
+        }
         var knowledge = isPrompt ? ParseKnowledge(aliases) : original?.KnowledgeAccess;
+        JsonElement? responseSchema = null;
+        if (isPrompt && StructuredResponse)
+        {
+            try
+            {
+                using var schemaDocument = JsonDocument.Parse(ResponseSchema);
+                responseSchema = schemaDocument.RootElement.Clone();
+                WorkflowResponseSchemaValidator.ValidateSchema(responseSchema.Value);
+            }
+            catch (JsonException exception)
+            {
+                throw new WorkflowValidationException($"Response schema JSON is invalid: {exception.Message}");
+            }
+        }
         var persistedId = IsEdit && original is not null && original.Id is null && string.Equals(id, original.EffectiveId, StringComparison.Ordinal) ? null : id;
         var persistedArguments = properties.Count == 0 && original?.Args.ValueKind == JsonValueKind.Undefined
             ? default
@@ -499,6 +528,8 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
             Model = isPrompt ? ParseModel() : original?.Model,
             ToolAliases = aliases,
             KnowledgeAccess = knowledge,
+            Next = NullIfWhiteSpace(Next),
+            ResponseSchema = responseSchema,
             IsStringForm = original?.IsStringForm == true,
         };
     }
@@ -923,7 +954,7 @@ public sealed partial class WorkflowStepArgumentEditorItem : ObservableObject
         {
             throw new FormatException($"{Definition.Name} must be a JSON object.");
         }
-        if ((Definition.ValueType == typeof(JsonElement) || Definition.ValueType == typeof(string)) && document.RootElement.ValueKind is not JsonValueKind.Object and not JsonValueKind.Array)
+        if (!Definition.AllowsScalarJson && (Definition.ValueType == typeof(JsonElement) || Definition.ValueType == typeof(string)) && document.RootElement.ValueKind is not JsonValueKind.Object and not JsonValueKind.Array)
         {
             throw new FormatException($"{Definition.Name} must be a JSON object or array.");
         }

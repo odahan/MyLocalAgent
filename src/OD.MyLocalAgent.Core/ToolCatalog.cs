@@ -458,6 +458,7 @@ public sealed class ToolCatalog : IToolCatalog
 
         // Add explicit AI step definitions
         AddBuiltInAiSteps(groupDefs, toolDefs, discoveredAliases);
+        AddBuiltInFlowSteps(groupDefs, toolDefs, discoveredAliases);
 
         // Sort groups by DisplayOrder
         groupDefs.Sort(static (a, b) => a.DisplayOrder.CompareTo(b.DisplayOrder));
@@ -635,6 +636,109 @@ public sealed class ToolCatalog : IToolCatalog
         {
             throw new InvalidOperationException($"Parameter '{parameter.Name}' has an unsupported default value.", exception);
         }
+    }
+
+    private static void AddBuiltInFlowSteps(
+        List<ToolGroupDefinition> groupDefs,
+        List<ToolDefinition> toolDefs,
+        HashSet<string> discoveredAliases)
+    {
+        const string alias = "flow.decision";
+        if (!discoveredAliases.Add(alias))
+        {
+            throw new InvalidOperationException($"Duplicate alias '{alias}' in flow steps.");
+        }
+
+        groupDefs.Add(new ToolGroupDefinition(
+            ToolGroups.Flow,
+            "Flow control",
+            "Route workflow execution through deterministic conditions.",
+            IsTaskWhitelistGroup: false,
+            DisplayOrder: 1900));
+
+        var arguments = new ToolArgumentDefinition[]
+        {
+            new("source", WorkflowArgumentKind.String, true, "Text or structured output to test.")
+            {
+                Example = "{{previous.output}}",
+                ValueType = typeof(string),
+            },
+            new("path", WorkflowArgumentKind.String, false, "Optional dot-and-index path within a JSON source.")
+            {
+                Example = "items[0].category",
+                ValueType = typeof(string),
+            },
+            new("operator", WorkflowArgumentKind.Enumeration, true, "Deterministic comparison operator.")
+            {
+                Example = "equals",
+                ValueType = typeof(string),
+                AllowedValues =
+                [
+                    "equals", "contains", "startsWith", "endsWith", "matches", "exists",
+                    "isNull", "isEmpty", "isNotEmpty", "lessThan", "lessThanOrEqual",
+                    "greaterThan", "greaterThanOrEqual",
+                ],
+                SupportsPlaceholders = false,
+            },
+            new("value", WorkflowArgumentKind.Object, false, "Comparison value required by binary operators.")
+            {
+                Example = "\"urgent\"",
+                ValueType = typeof(JsonElement),
+                AllowsNull = true,
+                SupportsPlaceholders = false,
+                AllowsScalarJson = true,
+                EditorHint = WorkflowArgumentEditorHint.StructuredJson,
+            },
+            new("caseSensitive", WorkflowArgumentKind.Boolean, false, "Whether string comparisons preserve case.")
+            {
+                Example = "false",
+                ValueType = typeof(bool),
+                SupportsPlaceholders = false,
+                HasDefaultValue = true,
+                DefaultValue = JsonSerializer.SerializeToElement(false),
+            },
+            new("negate", WorkflowArgumentKind.Boolean, false, "Whether to invert the evaluated condition.")
+            {
+                Example = "false",
+                ValueType = typeof(bool),
+                SupportsPlaceholders = false,
+                HasDefaultValue = true,
+                DefaultValue = JsonSerializer.SerializeToElement(false),
+            },
+            new("target", WorkflowArgumentKind.String, true, "Step id selected when the condition matches, or @end.")
+            {
+                Example = "matchedStep",
+                ValueType = typeof(string),
+                SupportsPlaceholders = false,
+            },
+            new("fallback", WorkflowArgumentKind.String, false, "Step id selected when the condition cannot be evaluated, or @end.")
+            {
+                Example = "manualReview",
+                ValueType = typeof(string),
+                SupportsPlaceholders = false,
+            },
+        };
+        foreach (var argument in arguments)
+        {
+            ValidateArgumentDefinition(alias, argument);
+        }
+
+        toolDefs.Add(new ToolDefinition(
+            alias,
+            AgentFunctionName: null,
+            ToolGroups.Flow,
+            typeof(WorkflowDecisionOperation),
+            MethodName: null,
+            arguments.Select(static argument => argument.Name).ToArray(),
+            RequiredCapability: null,
+            IsAiStep: false)
+        {
+            IsControlFlowStep = true,
+            OptionalArguments = arguments.Where(static argument => !argument.IsRequired).Select(static argument => argument.Name).ToArray(),
+            Description = "Routes execution to a target when a deterministic condition matches, with an optional fallback for indeterminate values.",
+            ArgumentDefinitions = arguments,
+            Order = 100,
+        });
     }
 
     private static void ValidateArgumentDefinition(string alias, ToolArgumentDefinition argument)
