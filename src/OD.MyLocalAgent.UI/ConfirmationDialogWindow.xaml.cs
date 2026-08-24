@@ -43,6 +43,8 @@ public partial class ConfirmationDialogWindow : Window
     /// Optional text for a secondary action; omit it to hide that action.
     /// </param>
     /// <param name="isInformational">Whether the notice is informational rather than an error.</param>
+    /// <param name="isDestructive">Whether the primary action uses destructive styling.</param>
+    /// <param name="defaultToCancel">Whether keyboard Enter defaults to Cancel.</param>
     public ConfirmationDialogWindow(
         string title,
         string message,
@@ -50,7 +52,9 @@ public partial class ConfirmationDialogWindow : Window
         string? primaryButtonText = null,
         string? cancelButtonText = null,
         string? secondaryButtonText = null,
-        bool isInformational = false)
+        bool isInformational = false,
+        bool isDestructive = false,
+        bool defaultToCancel = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
         ArgumentException.ThrowIfNullOrWhiteSpace(message);
@@ -59,6 +63,12 @@ public partial class ConfirmationDialogWindow : Window
         DialogMessage.Text = message;
         ConfirmButton.Content = primaryButtonText ?? "Continue";
         CancelButton.Content = cancelButtonText ?? "Cancel";
+        ConfirmButton.IsDefault = !defaultToCancel;
+        CancelButton.IsDefault = defaultToCancel;
+        if (isDestructive)
+        {
+            ConfirmButton.Style = (Style)FindResource("DangerButtonStyle");
+        }
         if (!string.IsNullOrWhiteSpace(secondaryButtonText))
         {
             SecondaryButton.Content = secondaryButtonText;

@@ -1,6 +1,6 @@
 # MyLocalAgent — guide de première mise en route
 
-Version de l’application : **1.5.5**.
+Version de l’application : **1.6.0**.
 
 Ce guide reprend le parcours réalisé pour compiler l’application, la publier et
 configurer ses connecteurs. Il ne couvre ni la création d’une tâche métier ni

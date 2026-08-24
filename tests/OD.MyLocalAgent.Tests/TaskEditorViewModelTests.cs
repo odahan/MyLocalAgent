@@ -16,6 +16,34 @@ namespace OD.MyLocalAgent.Tests;
 /// </summary>
 public sealed class TaskEditorViewModelTests
 {
+    /// <summary>Verifies the step editor receives the model configured for the active provider.</summary>
+    [Fact]
+    public void StepEditorReceivesConfiguredProviderModel()
+    {
+        WorkflowStepEditorRequest? captured = null;
+        var dialog = new Mock<IWorkflowStepEditorDialogService>(MockBehavior.Strict);
+        dialog.Setup(service => service.Show(It.IsAny<WorkflowStepEditorRequest>()))
+            .Callback<WorkflowStepEditorRequest>(request => captured = request)
+            .Returns((WorkflowStepEditorResult?)null);
+        var viewModel = new TaskEditorViewModel(
+            Mock.Of<ITaskStore>(),
+            Mock.Of<ITaskSchedulerService>(),
+            Mock.Of<IIncidentReporter>(),
+            Mock.Of<IDesktopInteractionService>(),
+            Mock.Of<IMessenger>(),
+            TimeProvider.System,
+            aiOptions: new MutableOptionsMonitor<AIOptions>(new AIOptions { Provider = AIOptions.OpenAIProvider }),
+            stepEditorDialog: dialog.Object,
+            ollamaOptions: new MutableOptionsMonitor<OllamaOptions>(new OllamaOptions { Model = "local-model" }),
+            openAiOptions: new MutableOptionsMonitor<OpenAIOptions>(new OpenAIOptions { Model = "remote-model" }));
+
+        viewModel.InsertWorkflowStepBeforeCommand.Execute(null);
+
+        captured.Should().NotBeNull();
+        captured!.ConfiguredModel.Should().Be("remote-model");
+        dialog.VerifyAll();
+    }
+
     /// <summary>Verifies Knowledge tags come from the library catalog and stale grants remain visible.</summary>
     [Fact]
     public async Task KnowledgeTagCatalogShowsStalePersistedScope()

@@ -54,4 +54,13 @@ public sealed class ToolArgumentAttribute : DescriptionAttribute
     /// text editor even when it is present in workflow JSON.
     /// </summary>
     public bool IsExcludedFromWorkflowTextEditor { get; set; }
+
+    /// <summary>Gets or sets the optional inclusive authoring minimum.</summary>
+    public double Minimum { get; set; } = double.NaN;
+
+    /// <summary>Gets or sets the optional inclusive authoring maximum.</summary>
+    public double Maximum { get; set; } = double.NaN;
+
+    /// <summary>Gets or sets the optional semantic editor override.</summary>
+    public WorkflowArgumentEditorHint EditorHint { get; set; }
 }

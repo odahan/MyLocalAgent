@@ -139,6 +139,7 @@ public partial class App : Application
         services.AddSingleton<IWebView2AvailabilityService, WebView2AvailabilityService>();
         services.AddSingleton<IAIWorkflowHelperDialogService, AIWorkflowHelperDialogService>();
         services.AddSingleton<IWorkflowToolCatalogDialogService, WorkflowToolCatalogDialogService>();
+        services.AddSingleton<IWorkflowStepEditorDialogService, WorkflowStepEditorDialogService>();
         services.AddSingleton<IWorkflowPromptEditorDialogService, WorkflowPromptEditorDialogService>();
         services.AddSingleton<IKnowledgeMetadataEditorDialogService, KnowledgeMetadataEditorDialogService>();
         services.AddSingleton<IncidentMessengerBridge>();

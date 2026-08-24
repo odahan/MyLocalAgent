@@ -52,7 +52,11 @@ public sealed partial class TaskEditorViewModel :
     private readonly IAIWorkflowHelperDialogService? _workflowHelperDialog;
     private readonly IWorkflowToolCatalogDialogService? _toolCatalogDialog;
     private readonly IWorkflowPromptEditorDialogService? _promptEditorDialog;
+    private readonly IWorkflowStepEditorDialogService? _stepEditorDialog;
+    private readonly IToolCatalog _catalog;
     private readonly IOptionsMonitor<AIOptions>? _aiOptions;
+    private readonly IOptionsMonitor<OllamaOptions>? _ollamaOptions;
+    private readonly IOptionsMonitor<OpenAIOptions>? _openAiOptions;
     private readonly IOptionsMonitor<SQLiteOptions>? _sqliteOptions;
     private readonly IPathSandbox? _pathSandbox;
     private readonly IKnowledgeLibraryService? _knowledgeLibrary;
@@ -244,7 +248,11 @@ public sealed partial class TaskEditorViewModel :
         IOptionsMonitor<AIOptions>? aiOptions = null,
         IOptionsMonitor<SQLiteOptions>? sqliteOptions = null,
         IPathSandbox? pathSandbox = null,
-        IKnowledgeLibraryService? knowledgeLibrary = null)
+        IKnowledgeLibraryService? knowledgeLibrary = null,
+        IWorkflowStepEditorDialogService? stepEditorDialog = null,
+        IToolCatalog? catalog = null,
+        IOptionsMonitor<OllamaOptions>? ollamaOptions = null,
+        IOptionsMonitor<OpenAIOptions>? openAiOptions = null)
     {
         _taskStore = taskStore;
         _scheduler = scheduler;
@@ -259,6 +267,10 @@ public sealed partial class TaskEditorViewModel :
         _sqliteOptions = sqliteOptions;
         _pathSandbox = pathSandbox;
         _knowledgeLibrary = knowledgeLibrary;
+        _stepEditorDialog = stepEditorDialog;
+        _catalog = catalog ?? ToolCatalog.Default;
+        _ollamaOptions = ollamaOptions;
+        _openAiOptions = openAiOptions;
         ErrorPolicies = Enum.GetValues<WorkflowErrorPolicy>();
         WorkflowAliases = ToolMap.Definitions;
         _toolGroupSelectionItems = new ObservableCollection<ToolGroupSelectionItem>(
@@ -402,6 +414,161 @@ public sealed partial class TaskEditorViewModel :
         OpenToolCatalogCommand.NotifyCanExecuteChanged();
         OpenWorkflowPromptEditorCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(CapabilityWarning));
+        RefreshCurrentStep();
+    }
+
+    partial void OnWorkflowCaretIndexChanged(int value) => RefreshCurrentStep();
+
+    /// <summary>Gets the compact caret-derived current step projection.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(InsertWorkflowStepBeforeCommand))]
+    [NotifyCanExecuteChangedFor(nameof(InsertWorkflowStepAfterCommand))]
+    [NotifyCanExecuteChangedFor(nameof(EditWorkflowStepCommand))]
+    [NotifyCanExecuteChangedFor(nameof(DeleteWorkflowStepCommand))]
+    private string _currentWorkflowStepText = "No current step — the workflow is empty.";
+
+    [RelayCommand(CanExecute = nameof(CanInsertWorkflowStep))]
+    private void InsertWorkflowStepBefore() => OpenStepEditor(WorkflowStepEditorMode.InsertBefore);
+
+    [RelayCommand(CanExecute = nameof(CanInsertWorkflowStep))]
+    private void InsertWorkflowStepAfter() => OpenStepEditor(WorkflowStepEditorMode.InsertAfter);
+
+    [RelayCommand(CanExecute = nameof(CanEditWorkflowStep))]
+    private void EditWorkflowStep() => OpenStepEditor(WorkflowStepEditorMode.Edit);
+
+    [RelayCommand(CanExecute = nameof(CanDeleteWorkflowStep))]
+    private void DeleteWorkflowStep()
+    {
+        var location = WorkflowStepEditingService.Locate(WorkflowText, WorkflowCaretIndex).Location;
+        if (location is null) return;
+        try
+        {
+            var workflow = WorkflowDefinitionSerializer.Deserialize(WorkflowText);
+            var dependents = WorkflowStepDependencyAnalyzer.FindLaterReferences(workflow, location.Index);
+            var dependencyText = dependents.Count == 0
+                ? string.Empty
+                : $"{Environment.NewLine}{Environment.NewLine}The remaining workflow will contain broken references in {string.Join(", ", dependents.Select(static dependency => $"#{dependency.StepIndex + 1} “{dependency.EffectiveId}” ({string.Join(", ", dependency.ArgumentNames)})"))}.";
+            if (!_desktopInteraction.ConfirmDestructive(
+                    dependents.Count == 0 ? "Delete workflow step" : "Delete referenced workflow step",
+                    $"Delete step #{location.Index + 1} “{location.EffectiveId}” ({location.Alias})?{Environment.NewLine}This removes the step from the workflow draft. Task permissions are not removed.{dependencyText}",
+                    dependents.Count == 0 ? "Delete step" : "Delete anyway"))
+            {
+                return;
+            }
+            var mutation = WorkflowStepEditingService.Delete(WorkflowText, location.Index, location.Alias);
+            ApplyStepEditorResult(new WorkflowStepEditorResult(mutation.Text, mutation.CaretIndex, [], [], [], $"Workflow step deleted from #{location.Index + 1} — {location.Alias} ({location.EffectiveId}). Task permissions were unchanged. Save the task to persist this change.")
+            {
+                AffectedIndex = mutation.AffectedIndex,
+                Operation = "Delete",
+                Alias = location.Alias,
+                EffectiveId = location.EffectiveId,
+                CanonicalFormattingApplied = mutation.CanonicalFormattingApplied,
+                Warnings = dependents.Count == 0 ? [] : ["The remaining workflow contains dependent placeholder references that must be repaired."],
+            });
+        }
+        catch (WorkflowValidationException exception) { ValidationText = exception.Message; }
+    }
+
+    private bool CanInsertWorkflowStep() => WorkflowStepEditingService.Locate(WorkflowText, WorkflowCaretIndex).Error is null;
+    private bool CanEditWorkflowStep() { var location = WorkflowStepEditingService.Locate(WorkflowText, WorkflowCaretIndex).Location; return location is not null && _catalog.Find(location.Alias) is not null; }
+    private bool CanDeleteWorkflowStep() => WorkflowStepEditingService.Locate(WorkflowText, WorkflowCaretIndex).Location is not null;
+    private void RefreshCurrentStep()
+    {
+        var result = WorkflowStepEditingService.Locate(WorkflowText, WorkflowCaretIndex);
+        CurrentWorkflowStepText = result.Error is not null ? result.Error : result.Location is null ? "No current step — the workflow is empty." : $"Current step: #{result.Location.Index + 1} — {result.Location.Alias} ({result.Location.EffectiveId})";
+        InsertWorkflowStepBeforeCommand.NotifyCanExecuteChanged(); InsertWorkflowStepAfterCommand.NotifyCanExecuteChanged(); EditWorkflowStepCommand.NotifyCanExecuteChanged(); DeleteWorkflowStepCommand.NotifyCanExecuteChanged();
+    }
+    private void OpenStepEditor(WorkflowStepEditorMode mode)
+    {
+        if (_stepEditorDialog is null) { ValidationText = "Workflow step editor is unavailable."; return; }
+        try
+        {
+            var location = WorkflowStepEditingService.Locate(WorkflowText, WorkflowCaretIndex);
+            if (location.Error is not null || mode == WorkflowStepEditorMode.Edit && location.Location is null)
+            {
+                ValidationText = location.Error ?? "No workflow step is selected.";
+                return;
+            }
+            var workflow = DeserializeWorkflow(WorkflowText);
+            var effective = GenerationPolicyResolver.Resolve(CurrentGenerationDefaults, TryCreateGenerationOptions(out var overrides) ? overrides : null);
+            var result = _stepEditorDialog.Show(new WorkflowStepEditorRequest(WorkflowText, WorkflowCaretIndex, mode, GetSelectedToolGroups(), AuthorizedLocations.Select(static item => item.ToRule()).ToArray(), GetSelectedCapabilities(), CreateKnowledgeAccess()?.AllowedTags ?? [], SelectedErrorPolicy, effective.Temperature, effective.TopP)
+            {
+                ConfiguredModel = GetConfiguredProviderModel(),
+                TaskModel = UseSettingsModel ? null : ModelOverride.Trim(),
+                DraftTask = CreateWorkflowPreviewTask(workflow),
+            });
+            if (result is not null) ApplyStepEditorResult(result);
+        }
+        catch (Exception exception) when (exception is WorkflowValidationException or TaskValidationException or JsonException or FormatException)
+        {
+            ValidationText = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            ValidationText = "The workflow step editor encountered an unexpected error. No draft changes were applied.";
+            _ = ReportAsync(exception, "Workflow step editor");
+        }
+    }
+
+    private string? GetConfiguredProviderModel()
+    {
+        var provider = _aiOptions?.CurrentValue.Provider;
+        return string.Equals(provider, AIOptions.OpenAIProvider, StringComparison.OrdinalIgnoreCase)
+            ? _openAiOptions?.CurrentValue.Model
+            : _ollamaOptions?.CurrentValue.Model;
+    }
+    private void ApplyStepEditorResult(WorkflowStepEditorResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        _ = DeserializeWorkflow(result.WorkflowText);
+        if (WorkflowStepEditingService.Locate(result.WorkflowText, result.CaretIndex).Error is { } error)
+        {
+            throw new WorkflowValidationException(error);
+        }
+        if (result.AcceptedToolGroups.Any(group => !ToolGroups.All.Contains(group))) throw new TaskValidationException("The step editor returned an unknown task tool group.");
+        if (result.AcceptedCapabilities.Any(capability => capability == TaskCapability.None || !Enum.IsDefined(capability))) throw new TaskValidationException("The step editor returned an unknown task capability.");
+        foreach (var rule in result.AcceptedFileSystemAccess)
+        {
+            if (string.IsNullOrWhiteSpace(rule.Path) || !Path.IsPathRooted(Environment.ExpandEnvironmentVariables(rule.Path.Trim())) || !Enum.IsDefined(rule.Access)) throw new TaskValidationException("The step editor returned an invalid file-system authorization proposal.");
+        }
+        CaptureAssistedUndoSnapshot();
+        _isLoading = true;
+        try
+        {
+            WorkflowText = result.WorkflowText;
+            WorkflowCaretIndex = result.CaretIndex;
+            foreach (var group in result.AcceptedToolGroups)
+            {
+                SetToolGroupSelected(group, true);
+            }
+            foreach (var capability in result.AcceptedCapabilities)
+            {
+                var selection = _capabilitySelectionItems.FirstOrDefault(item => item.Capability == capability);
+                if (selection is not null)
+                {
+                    selection.IsSelected = true;
+                }
+            }
+            foreach (var access in result.AcceptedFileSystemAccess)
+            {
+                var existing = AuthorizedLocations.FirstOrDefault(item => string.Equals(ScheduledTaskValidator.NormalizeAccessPath(item.Path), ScheduledTaskValidator.NormalizeAccessPath(access.Path), StringComparison.OrdinalIgnoreCase));
+                if (existing is null)
+                {
+                    AuthorizedLocations.Add(new FileSystemAccessItem(access.Path, access.Access));
+                }
+                else if (access.Access == FileSystemAccessMode.ReadWrite)
+                {
+                    existing.CanWrite = true;
+                }
+            }
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+        HasAssistedUndoSnapshot = true;
+        IsDirty = true;
+        ValidationText = result.Summary;
     }
 
     [RelayCommand]
@@ -1133,10 +1300,11 @@ public sealed partial class TaskEditorViewModel :
         };
     }
 
-    private void ValidateWorkflowPreview(
-        IReadOnlyList<WorkflowStepDefinition> workflow) =>
-        ScheduledTaskValidator.Validate(
-            new ScheduledTask
+    private void ValidateWorkflowPreview(IReadOnlyList<WorkflowStepDefinition> workflow) =>
+        ScheduledTaskValidator.Validate(CreateWorkflowPreviewTask(workflow));
+
+    private ScheduledTask CreateWorkflowPreviewTask(IReadOnlyList<WorkflowStepDefinition> workflow) =>
+            new()
             {
                 Id = string.IsNullOrWhiteSpace(Id) ? "workflow-preview" : Id.Trim(),
                 Name = string.IsNullOrWhiteSpace(Name) ? "Workflow preview" : Name.Trim(),
@@ -1150,8 +1318,9 @@ public sealed partial class TaskEditorViewModel :
                 FileSystemAccess = AuthorizedLocations.Select(static item => item.ToRule()).ToArray(),
                 Workflow = workflow,
                 Enabled = false,
+                SqliteGuardrailsEnabled = SqliteGuardrailsEnabled,
                 ErrorPolicy = SelectedErrorPolicy,
-            });
+            };
 
     private KnowledgeAccessDefinition? CreateKnowledgeAccess()
     {

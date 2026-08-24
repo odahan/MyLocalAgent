@@ -479,3 +479,17 @@ Date: 2026-08-20
 | Scheduler registrations use the deployed runner after migration. | ✅ | UI resynchronization reported three registrations and four removals; the three enabled tasks were independently observed in Windows Task Scheduler as `Ready` with the deployed runner path. |
 | Application-owned workspace data is protected from managed task and Direct Chat tools. | ✅ | `.od-my-local-agent` is hidden on Windows, omitted from workspace listings, denied for direct access even with an explicit rule, and protected against recursive archive capture and parent-destructive writes. Focused automated tests cover each boundary. |
 | Release gate is clean. | ✅ | Release build completed with zero warnings and errors; 663 non-integration tests passed, one environment-dependent local Ollama probe was skipped, task samples parsed as JSON, manual structure remained valid, and `git diff --check` passed. |
+
+## Stage 28 — Workflow step editor
+
+Date: 2026-08-24
+
+| Acceptance item | Status | Executed evidence |
+|---|---:|---|
+| Caret-based insert, edit, and delete preserve deterministic top-level step targeting. | ✅ | Normative boundary, empty-workflow, exact-anchor, malformed-root, trailing-content, and UTF-16 surrogate-pair tests cover the pure editing service. |
+| Forms and validation are generated from immutable Tool Map metadata. | ✅ | Catalog projection tests cover every argument, nullable/default semantics, bounds, editor hints, invalid metadata fail-fast behavior, and typed field parsing. |
+| Prompt, model, generation, and Knowledge scopes preserve inheritance explicitly. | ✅ | Tests cover catalog-ordered exact tools, configured-provider/task model choices, independent generation overrides, Knowledge narrowing, stale-tag repair, and explicit null values. |
+| Authorization changes remain explicit and atomic. | ✅ | Missing groups, capabilities, and paths start unchecked; accepted proposals are returned separately; provisional structural validation permits unchecked execution warnings; cancel and undo preserve the task draft. |
+| Dependency-aware deletion and safe dialog lifecycle are implemented. | ✅ | Structured placeholder analysis identifies the dependent step, effective id, alias, and argument; destructive confirmation defaults to Cancel; changed forms confirm close or tool switching. |
+| Accessibility, theme, and constrained layout contracts are present. | ✅ | The modal has named controls, live validation text, keyboard Cancel, no default Enter action, dynamic theme resources, minimum dimensions, and independent scrolling. Live inspection verified a legible dark modal and the application resource transition in both Dark and Light themes. |
+| Release gate and deployment are clean. | ✅ | Release build completed with 0 warnings and 0 errors. The non-integration suite completed with 765 passed, 0 failed, and 1 expected local Ollama integration probe skipped. `git diff --check` passed. The self-contained single-file `win-x64` UI and Runner were published atomically to `%LOCALAPPDATA%\Programs\OD.MyLocalAgent`. Every build, test, and publish invocation used `-m:1`. |

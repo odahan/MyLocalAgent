@@ -462,11 +462,11 @@ public static partial class ScheduledTaskValidator
 
         foreach (var property in supplied)
         {
-            var expectedType = GetArgumentType(definition, property.Name);
-            if (!IsCompatible(property.Value, expectedType))
+            var argument = definition.ArgumentDefinitions.Single(item => string.Equals(item.Name, property.Name, StringComparison.OrdinalIgnoreCase));
+            if (property.Value.ValueKind == JsonValueKind.Null ? !argument.AllowsNull : !IsCompatible(property.Value, argument.ValueType))
             {
                 throw new WorkflowValidationException(
-                    $"Workflow argument '{property.Name}' for '{step.Step}' must be {DescribeType(expectedType)}.");
+                    $"Workflow argument '{property.Name}' for '{step.Step}' must be {DescribeType(argument.ValueType)}.");
             }
         }
     }
@@ -533,39 +533,6 @@ public static partial class ScheduledTaskValidator
                 yield return element.GetString() ?? string.Empty;
                 break;
         }
-    }
-
-    private static Type GetArgumentType(
-        ToolDefinition definition,
-        string argumentName)
-    {
-        if (definition.IsAiStep)
-        {
-            if (string.Equals(argumentName, "includeContext", StringComparison.OrdinalIgnoreCase))
-            {
-                return typeof(bool);
-            }
-
-            if (string.Equals(argumentName, "thinking", StringComparison.OrdinalIgnoreCase))
-            {
-                return typeof(bool);
-            }
-
-            return string.Equals(argumentName, "timeout", StringComparison.OrdinalIgnoreCase)
-                ? typeof(int)
-                : typeof(string);
-        }
-
-        var method = definition.DeclaringType.GetMethod(definition.MethodName!)
-            ?? throw new InvalidOperationException(
-                $"Tool Map method '{definition.MethodName}' is unavailable.");
-        return method.GetParameters()
-            .Single(
-                parameter => string.Equals(
-                    parameter.Name,
-                    argumentName,
-                    StringComparison.OrdinalIgnoreCase))
-            .ParameterType;
     }
 
     private static bool IsCompatible(JsonElement value, Type expectedType)

@@ -1,5 +1,32 @@
 # Architecture Ledger
 
+## Stage 28 — Reflection-driven workflow step editor
+
+### Version 1.6.0 — Complete typed workflow-step authoring — 2026-08-24
+
+- Added `WorkflowStepEditingService` as the pure Core owner of Unicode-safe top-level step
+  location plus canonical insertion, immutable-alias replacement, and single-step deletion.
+- `ToolArgumentDefinition` retains reflected CLR type, safe default, numeric bounds, and editor
+  hint, including nullable-value information. Catalog construction rejects incompatible metadata;
+  validation consumes this projection rather than reflecting methods by name.
+- The Task editor applies insert, edit, and delete results as one undoable in-memory draft change.
+  Existing aliases are immutable; changing tools requires deletion followed by insertion.
+- Delete analysis is deliberately limited to valid later `stepId.output` placeholder references.
+  It warns and requires an explicit second confirmation, but never changes references, ids,
+  permissions, ordering, or any other step.
+- `ai.prompt` exact tools remain catalog ordered; model and generation inheritance are independent;
+  Knowledge may only inherit or narrow the task scope. Authorization proposals are separate,
+  unchecked opt-ins and successful dialog results are validated against a complete provisional
+  task before one assisted draft mutation.
+- Public additions are `WorkflowStepEditingService`, `WorkflowStepDependencyAnalyzer`,
+  `WorkflowArgumentEditorHint`, `IWorkflowStepEditorDialogService`, and the memory-only editor
+  request/result contracts. No package, persistence format, runtime tool, or network dependency
+  was added.
+- The final Release gate completed with 0 warnings, 0 errors, 765 passing non-integration tests,
+  and one expected local Ollama integration probe skipped. Dark modal and Light/Dark resource
+  rendering were inspected live, and self-contained single-file `win-x64` UI and Runner artifacts
+  were published atomically to the standard local installation.
+
 This ledger is the binding project memory for OD.MyLocalAgent. Every stage must read it completely before changing the repository and append an entry that records decisions, public API additions, package choices, and deviations from the normative shared specification.
 
 ## Key architecture decisions

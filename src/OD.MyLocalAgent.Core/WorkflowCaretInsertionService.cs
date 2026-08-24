@@ -72,7 +72,7 @@ public static class WorkflowCaretInsertionService
         try
         {
             workflow = WorkflowDefinitionSerializer.Deserialize(source);
-            spans = TopLevelSpans(Encoding.UTF8.GetBytes(source));
+            spans = WorkflowStepEditingService.GetSpans(source);
         }
         catch (Exception exception)
             when (exception is WorkflowValidationException or JsonException or ArgumentException)
@@ -80,48 +80,25 @@ public static class WorkflowCaretInsertionService
             return false;
         }
 
-        if (spans.Count != workflow.Count)
-        {
-            return false;
-        }
-
         var caretByte = Encoding.UTF8.GetByteCount(source.AsSpan(0, caret));
-        var index = InsertionIndex(spans, caretByte);
-
-        var updated = workflow.ToList();
-        updated.Insert(index, step);
-        var finalText = WorkflowDefinitionSerializer.Serialize(updated);
-
-        var finalBytes = Encoding.UTF8.GetBytes(finalText);
-        var finalSpans = TopLevelSpans(finalBytes);
-        var caretResult = finalSpans.Count > index
-            ? Encoding.UTF8.GetCharCount(finalBytes, 0, finalSpans[index].Start)
-            : finalText.Length;
+        var location = WorkflowStepEditingService.Locate(source, caret);
+        var mutation = WorkflowStepEditingService.Insert(
+            source,
+            location.Location?.Index,
+            spans.Count > 0 && caretByte <= spans[0].Start
+                ? WorkflowStepInsertionPosition.Before
+                : WorkflowStepInsertionPosition.After,
+            step);
 
         result = new WorkflowCaretInsertionResult
         {
-            Text = finalText,
-            CaretIndex = caretResult,
-            InsertedIndex = index,
+            Text = mutation.Text,
+            CaretIndex = mutation.CaretIndex,
+            InsertedIndex = mutation.AffectedIndex,
             IsStructured = true,
             CanonicalFormattingApplied = true,
         };
         return true;
-    }
-
-    private static int InsertionIndex(
-        IReadOnlyList<(int Start, int End)> spans,
-        int caretByte)
-    {
-        for (var index = spans.Count - 1; index >= 0; index--)
-        {
-            if (caretByte > spans[index].Start)
-            {
-                return index + 1;
-            }
-        }
-
-        return 0;
     }
 
     private static WorkflowCaretInsertionResult InsertVerbatim(
@@ -165,22 +142,4 @@ public static class WorkflowCaretInsertionService
         return source[lineStart..end];
     }
 
-    private static IReadOnlyList<(int Start, int End)> TopLevelSpans(byte[] utf8)
-    {
-        var spans = new List<(int Start, int End)>();
-        var reader = new Utf8JsonReader(utf8);
-        if (!reader.Read() || reader.TokenType != JsonTokenType.StartArray)
-        {
-            return spans;
-        }
-
-        while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
-        {
-            var start = (int)reader.TokenStartIndex;
-            reader.Skip();
-            spans.Add((start, (int)reader.BytesConsumed));
-        }
-
-        return spans;
-    }
 }

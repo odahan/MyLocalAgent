@@ -17,6 +17,9 @@ public interface IDesktopInteractionService
     /// </summary>
     bool Confirm(string title, string message);
 
+    /// <summary>Requests a destructive confirmation with Cancel focused by default.</summary>
+    bool ConfirmDestructive(string title, string message, string confirmButtonText) => Confirm(title, message);
+
     /// <summary>
     /// Displays an error message that requires acknowledgement.
     /// </summary>

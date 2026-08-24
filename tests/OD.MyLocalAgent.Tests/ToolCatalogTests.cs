@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Globalization;
 using System.Reflection;
 using System.Text.Json;
 using FluentAssertions;
@@ -338,11 +339,54 @@ public sealed class ToolCatalogTests
         agentTools.Should().HaveCount(1);
     }
 
+    /// <summary>Verifies every discovered argument exposes compatible immutable authoring metadata.</summary>
+    [Fact]
+    public void EveryCatalogArgumentHasCompatibleAuthoringMetadata()
+    {
+        ToolCatalog.Default.Definitions.SelectMany(static tool => tool.ArgumentDefinitions).Should().AllSatisfy(argument =>
+        {
+            argument.ValueType.Should().NotBeNull();
+            if (argument.HasDefaultValue) argument.DefaultValue.Should().NotBeNull();
+            if (argument.Minimum is not null || argument.Maximum is not null) argument.Kind.Should().BeOneOf(WorkflowArgumentKind.Integer, WorkflowArgumentKind.Number);
+        });
+        ToolCatalog.Default.Find("ai.prompt")!.ArgumentDefinitions.Should().OnlyContain(static argument => argument.ValueType != typeof(void));
+    }
+
+    /// <summary>Verifies catalog construction fails fast for an impossible kind and CLR type pair.</summary>
+    [Fact]
+    public void IncompatibleArgumentKindFailsFast()
+    {
+        var action = () => ToolCatalog.FromTypes([typeof(IncompatibleKindTool)]);
+        action.Should().Throw<InvalidOperationException>().WithMessage("*incompatible kind*");
+    }
+
+    /// <summary>Verifies catalog construction fails fast for reversed numeric bounds.</summary>
+    [Fact]
+    public void ReversedArgumentBoundsFailFast()
+    {
+        var action = () => ToolCatalog.FromTypes([typeof(ReversedBoundsTool)]);
+        action.Should().Throw<InvalidOperationException>().WithMessage("*minimum greater than its maximum*");
+    }
+
     [ToolGroup("", "Blank", "Desc", 10)]
     private sealed class InvalidBlankGroupTool
     {
         [Tool("test.foo", "Foo", 10)]
         public void Foo([ToolArgument(WorkflowArgumentKind.String, "Arg")] string x) { }
+    }
+
+    [ToolGroup("kindtest", "Kind test", "Kind metadata test.", 901)]
+    private sealed class IncompatibleKindTool
+    {
+        [Tool("kindtest.run", "Runs the kind metadata test.", 1)]
+        public Task<string> RunAsync([ToolArgument(WorkflowArgumentKind.Boolean, "An incompatible string value.")] string value) => Task.FromResult(value);
+    }
+
+    [ToolGroup("boundtest", "Bound test", "Bound metadata test.", 902)]
+    private sealed class ReversedBoundsTool
+    {
+        [Tool("boundtest.run", "Runs the bound metadata test.", 1)]
+        public Task<string> RunAsync([ToolArgument(WorkflowArgumentKind.Integer, "A bounded integer.", Minimum = 10, Maximum = 1)] int value) => Task.FromResult(value.ToString(CultureInfo.InvariantCulture));
     }
 
     /// <summary>

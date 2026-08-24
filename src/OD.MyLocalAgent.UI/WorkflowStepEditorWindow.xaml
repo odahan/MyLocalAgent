@@ -1,0 +1,74 @@
+<Window x:Class="OD.MyLocalAgent.UI.WorkflowStepEditorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:behaviors="clr-namespace:OD.MyLocalAgent.UI.Behaviors"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        Title="{Binding Title}" Width="900" Height="700" MinWidth="760" MinHeight="560" WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Background="{DynamicResource AppBackgroundBrush}" FontFamily="{DynamicResource MaterialDesign.Font}" TextElement.FontSize="14" TextElement.Foreground="{DynamicResource OnBackgroundBrush}">
+    <Window.Resources>
+        <CollectionViewSource x:Key="GroupedWorkflowTools" Source="{Binding FilteredTools}">
+            <CollectionViewSource.GroupDescriptions><PropertyGroupDescription PropertyName="ToolGroup"/></CollectionViewSource.GroupDescriptions>
+        </CollectionViewSource>
+    </Window.Resources>
+    <Grid Margin="20">
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <StackPanel>
+            <TextBlock FontSize="20" Text="{Binding Title}" />
+            <TextBox Margin="0,12,0,0" Text="{Binding ToolSearchText, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding IsInsert, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.Name="Search Tool Map" materialDesign:HintAssist.Hint="Search Tool Map" />
+            <ComboBox Margin="0,6,0,0" ItemsSource="{Binding Source={StaticResource GroupedWorkflowTools}}" DisplayMemberPath="Alias" SelectedItem="{Binding SelectedTool}" Visibility="{Binding IsInsert, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.Name="Workflow tool" materialDesign:HintAssist.Hint="Tool"><ComboBox.GroupStyle><GroupStyle><GroupStyle.HeaderTemplate><DataTemplate><TextBlock FontWeight="SemiBold" Text="{Binding Name}"/></DataTemplate></GroupStyle.HeaderTemplate></GroupStyle></ComboBox.GroupStyle></ComboBox>
+            <TextBlock Margin="0,12,0,0" Text="{Binding SelectedTool.Alias}" Visibility="{Binding IsEdit, Converter={StaticResource BooleanToVisibilityConverter}}" />
+            <TextBlock Text="{Binding SelectedTool.ToolGroup}" Visibility="{Binding IsEdit, Converter={StaticResource BooleanToVisibilityConverter}}" />
+            <TextBlock Text="{Binding SelectedTool.Description}" TextWrapping="Wrap" Visibility="{Binding IsEdit, Converter={StaticResource BooleanToVisibilityConverter}}" />
+        </StackPanel>
+        <ScrollViewer Grid.Row="1" Margin="0,16,0,12" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock Style="{StaticResource SectionTitleStyle}" Text="Step" />
+                <TextBox Text="{Binding Id, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Id" />
+                <CheckBox Margin="0,12,0,0" Content="Override error policy" IsChecked="{Binding OverrideErrorPolicy}" />
+                <ComboBox ItemsSource="{Binding ErrorPolicies}" SelectedItem="{Binding OnError}" Visibility="{Binding OverrideErrorPolicy, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <TextBox Text="{Binding RetryCount, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding IsRetrySelected, Converter={StaticResource BooleanToVisibilityConverter}}" materialDesign:HintAssist.Hint="Retry count" />
+                <TextBox Text="{Binding RetryBackoffSeconds, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding IsRetrySelected, Converter={StaticResource BooleanToVisibilityConverter}}" materialDesign:HintAssist.Hint="Retry backoff seconds" />
+                <TextBlock Margin="0,18,0,6" Style="{StaticResource SectionTitleStyle}" Text="Prompt execution" Visibility="{Binding IsPromptSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <CheckBox Content="Inherit task or Settings model" IsChecked="{Binding InheritModel}" Visibility="{Binding IsPromptSelected, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.Name="Inherit prompt model" />
+                <ComboBox IsEditable="True" ItemsSource="{Binding ModelChoices}" Text="{Binding Model, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding IsPromptSelected, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.Name="Prompt model" materialDesign:HintAssist.Hint="Explicit model"><ComboBox.Style><Style TargetType="ComboBox"><Setter Property="IsEnabled" Value="True"/><Style.Triggers><DataTrigger Binding="{Binding InheritModel}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger></Style.Triggers></Style></ComboBox.Style></ComboBox>
+                <TextBlock Margin="0,10,0,4" Text="Exact prompt tools" Visibility="{Binding IsPromptSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <ItemsControl ItemsSource="{Binding PromptTools}" Visibility="{Binding IsPromptSelected, Converter={StaticResource BooleanToVisibilityConverter}}"><ItemsControl.ItemTemplate><DataTemplate><CheckBox Margin="0,2" IsChecked="{Binding IsSelected}" AutomationProperties.Name="{Binding Tool.Alias}" AutomationProperties.HelpText="{Binding Details}"><StackPanel><TextBlock Text="{Binding Tool.Alias}"/><TextBlock FontSize="11" Opacity="0.75" Text="{Binding Tool.Description}" TextWrapping="Wrap"/><TextBlock FontSize="11" Opacity="0.75" Text="{Binding Details}" TextWrapping="Wrap"/></StackPanel></CheckBox></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+                <CheckBox Margin="0,10,0,0" Content="Narrow Knowledge tags" IsChecked="{Binding NarrowKnowledge}" Visibility="{Binding ShowKnowledgeTags, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.Name="Narrow prompt Knowledge tags" />
+                <ItemsControl ItemsSource="{Binding KnowledgeTagSelections}" Visibility="{Binding NarrowKnowledge, Converter={StaticResource BooleanToVisibilityConverter}}"><ItemsControl.ItemTemplate><DataTemplate><CheckBox Margin="0,2" Content="{Binding DisplayLabel}" IsChecked="{Binding IsSelected}" AutomationProperties.Name="{Binding DisplayLabel}" /></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+                <TextBlock Margin="0,18,0,6" Style="{StaticResource SectionTitleStyle}" Text="Generation overrides" Visibility="{Binding IsAiSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <CheckBox Content="Override Temperature" Visibility="{Binding IsAiSelected, Converter={StaticResource BooleanToVisibilityConverter}}" IsChecked="{Binding OverrideTemperature}" />
+                <TextBox Text="{Binding Temperature, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding OverrideTemperature, Converter={StaticResource BooleanToVisibilityConverter}}" materialDesign:HintAssist.Hint="Temperature" />
+                <CheckBox Content="Override Top P" Visibility="{Binding IsAiSelected, Converter={StaticResource BooleanToVisibilityConverter}}" IsChecked="{Binding OverrideTopP}" />
+                <TextBox Text="{Binding TopP, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding OverrideTopP, Converter={StaticResource BooleanToVisibilityConverter}}" materialDesign:HintAssist.Hint="Top P" />
+                <CheckBox Content="Override reasoning" Visibility="{Binding IsAiSelected, Converter={StaticResource BooleanToVisibilityConverter}}" IsChecked="{Binding OverrideReasoning}" />
+                <CheckBox Content="Reasoning enabled" Visibility="{Binding OverrideReasoning, Converter={StaticResource BooleanToVisibilityConverter}}" IsChecked="{Binding ReasoningEnabled}" />
+                <WrapPanel Margin="0,12,0,0"><ComboBox Width="280" ItemsSource="{Binding Placeholders}" DisplayMemberPath="DisplayText" SelectedItem="{Binding SelectedPlaceholder}" AutomationProperties.Name="Workflow placeholder" materialDesign:HintAssist.Hint="Placeholder"/><Button Command="{Binding InsertPlaceholderCommand}" AutomationProperties.Name="Insert selected placeholder" Content="Insert placeholder" /></WrapPanel>
+                <TextBlock Margin="0,18,0,6" Style="{StaticResource SectionTitleStyle}" Text="Authorization proposals" />
+                <ItemsControl ItemsSource="{Binding AuthorizationProposals}">
+                    <ItemsControl.ItemTemplate><DataTemplate><CheckBox Margin="0,2" IsChecked="{Binding IsAccepted}" Content="{Binding Description}" /></DataTemplate></ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <ItemsControl ItemsSource="{Binding ExecutionWarnings}"><ItemsControl.ItemTemplate><DataTemplate><TextBlock Margin="0,2" Text="{Binding}" TextWrapping="Wrap" AutomationProperties.Name="Execution warning" /></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+                <TextBlock Margin="0,18,0,6" Style="{StaticResource SectionTitleStyle}" Text="Arguments" />
+                <ListBox ItemsSource="{Binding Arguments}" SelectedItem="{Binding SelectedArgument}" ScrollViewer.VerticalScrollBarVisibility="Auto">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,4">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                <CheckBox Content="{Binding Definition.Name}" IsChecked="{Binding IsIncluded}" IsEnabled="{Binding CanExclude}" AutomationProperties.HelpText="{Binding Definition.Description}"/>
+                                <Grid Grid.Column="1"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                    <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" ToolTip="{Binding Definition.Description}" AcceptsReturn="{Binding Definition.IsLongText}" MinHeight="28" TextWrapping="Wrap" behaviors:TextBoxSelectionBinding.Attach="True" behaviors:TextBoxSelectionBinding.SelectionStart="{Binding SelectionStart, Mode=TwoWay}" behaviors:TextBoxSelectionBinding.SelectionLength="{Binding SelectionLength, Mode=TwoWay}">
+                                        <TextBox.Style><Style TargetType="TextBox"><Style.Triggers><DataTrigger Binding="{Binding EditorKind}" Value="Boolean"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger><DataTrigger Binding="{Binding EditorKind}" Value="Enumeration"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger><DataTrigger Binding="{Binding EditorKind}" Value="KnowledgeTags"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBox.Style>
+                                    </TextBox>
+                                    <CheckBox Visibility="Collapsed" IsChecked="{Binding BooleanValue}" Content="Enabled"><CheckBox.Style><Style TargetType="CheckBox"><Style.Triggers><DataTrigger Binding="{Binding EditorKind}" Value="Boolean"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></CheckBox.Style></CheckBox>
+                                    <ComboBox Visibility="Collapsed" ItemsSource="{Binding Definition.AllowedValues}" SelectedItem="{Binding Value, UpdateSourceTrigger=PropertyChanged}"><ComboBox.Style><Style TargetType="ComboBox"><Style.Triggers><DataTrigger Binding="{Binding EditorKind}" Value="Enumeration"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></ComboBox.Style></ComboBox>
+                                    <ItemsControl Visibility="Collapsed" ItemsSource="{Binding KnowledgeTagChoices}"><ItemsControl.Style><Style TargetType="ItemsControl"><Style.Triggers><DataTrigger Binding="{Binding EditorKind}" Value="KnowledgeTags"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></ItemsControl.Style><ItemsControl.ItemTemplate><DataTemplate><CheckBox Content="{Binding DisplayLabel}" IsChecked="{Binding IsSelected}" /></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+                                    <TextBlock Grid.Row="1" Text="{Binding ValidationError}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
+                                </Grid>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </StackPanel>
+        </ScrollViewer>
+        <StackPanel Grid.Row="2"><TextBlock AutomationProperties.LiveSetting="Assertive" Text="{Binding StatusText}" TextWrapping="Wrap" /><WrapPanel HorizontalAlignment="Right"><Button Command="{Binding CancelCommand}" AutomationProperties.Name="Cancel workflow step editing" Content="Cancel" IsCancel="True"/><Button Command="{Binding ApplyCommand}" AutomationProperties.Name="Apply workflow step changes" Content="{Binding ApplyLabel}" /></WrapPanel></StackPanel>
+    </Grid>
+</Window>

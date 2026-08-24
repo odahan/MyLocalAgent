@@ -1,6 +1,6 @@
 # OD.MyLocalAgent
 
-Current application release: **1.5.5**.
+Current application release: **1.6.0**.
 
 OD.MyLocalAgent is a native Windows desktop application for running scheduled, AI-driven
 tasks locally. It combines a WPF management UI, a headless runner, Ollama, deterministic
@@ -48,6 +48,7 @@ its own navigation, search, styles, and scripts in one file.
 | 23 | Web Discovery Tool (`research.discover`) | Complete — inline parameters, bounded discovery, Guardrails protection, no profiles or storage |
 | 24 | Direct Chat with persistent SQLite history and context compression | Complete with automated verification |
 | 25 | Not implemented |
+| 28 | Reflection-driven workflow step editor | Complete with automated verification |
 
 See [Docs/acceptance-report.md](Docs/acceptance-report.md) for the executed acceptance
 evidence and any remaining environment-dependent checks.
@@ -657,6 +658,18 @@ Concurrent `run` commands for the same id are rejected by a global named executi
 | `3` | Requested task not found |
 
 ## Task and workflow syntax
+
+The Task editor offers a primary **Workflow step editor**. Put the caret on valid workflow JSON
+and use **Insert before**, **Insert after**, **Edit step**, or **Delete step**. Its form is
+generated from the declarative Tool Map; JSON remains the sole persisted format. An existing
+step's tool alias is immutable. To change tools, delete the old step and insert a new one.
+Each accepted operation updates only the in-memory draft and can be undone before **Save task**;
+raw JSON, AI Helper, Tool catalog, and focused workflow-text editing remain available.
+For `ai.prompt`, select exact agent-callable aliases in catalog order, choose whether the model and
+each generation value inherit, and optionally narrow Knowledge only within the task's authorized
+tags. Missing groups, capabilities, and statically inferable absolute-directory access appear as
+unchecked proposals. Refusing a proposal keeps the structural edit and displays an execution
+warning. Successful structural operations canonically format the workflow array.
 
 ### Intelligent Downloads sorting helpers
 

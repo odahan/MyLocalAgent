@@ -362,7 +362,8 @@ public sealed class ToolCatalog : IToolCatalog
 
                     bool supportsPlaceholders = argAttr.SupportsPlaceholders ?? (argAttr.Kind == WorkflowArgumentKind.String || argAttr.Kind == WorkflowArgumentKind.Enumeration);
 
-                    argDefs.Add(new ToolArgumentDefinition(
+                    var defaultValue = CreateDefaultValue(param);
+                    var argumentDefinition = new ToolArgumentDefinition(
                         paramName,
                         argAttr.Kind,
                         isRequired,
@@ -373,7 +374,16 @@ public sealed class ToolCatalog : IToolCatalog
                         SupportsPlaceholders = supportsPlaceholders,
                         IsLongText = argAttr.IsLongText,
                         IsExcludedFromWorkflowTextEditor = argAttr.IsExcludedFromWorkflowTextEditor,
-                    });
+                        ValueType = paramType,
+                        AllowsNull = Nullable.GetUnderlyingType(param.ParameterType) is not null || !param.ParameterType.IsValueType,
+                        HasDefaultValue = defaultValue is not null,
+                        DefaultValue = defaultValue,
+                        Minimum = double.IsNaN(argAttr.Minimum) ? null : argAttr.Minimum,
+                        Maximum = double.IsNaN(argAttr.Maximum) ? null : argAttr.Maximum,
+                        EditorHint = argAttr.EditorHint,
+                    };
+                    ValidateArgumentDefinition(toolAttr.Alias, argumentDefinition);
+                    argDefs.Add(argumentDefinition);
                 }
 
                 // Rule 15: Local path attribute validation
@@ -486,6 +496,11 @@ public sealed class ToolCatalog : IToolCatalog
                 throw new InvalidOperationException($"Duplicate alias '{alias}' in AI steps.");
             }
 
+            foreach (var argument in arguments)
+            {
+                ValidateArgumentDefinition(alias, argument);
+            }
+
             var argNames = arguments.Select(static a => a.Name).ToList();
             var optionalArgNames = arguments.Where(static a => !a.IsRequired).Select(static a => a.Name).ToList();
 
@@ -539,6 +554,7 @@ public sealed class ToolCatalog : IToolCatalog
                     Example = "Summarize the workflow context in five bullet points.",
                     SupportsPlaceholders = true,
                     IsLongText = true,
+                    ValueType = typeof(string),
                 },
                 new ToolArgumentDefinition(
                     "includeContext",
@@ -548,6 +564,10 @@ public sealed class ToolCatalog : IToolCatalog
                 {
                     Example = "true",
                     SupportsPlaceholders = false,
+                    ValueType = typeof(bool),
+                    AllowsNull = false,
+                    HasDefaultValue = true,
+                    DefaultValue = JsonSerializer.SerializeToElement(false),
                 },
                 new ToolArgumentDefinition(
                     "timeout",
@@ -557,6 +577,10 @@ public sealed class ToolCatalog : IToolCatalog
                 {
                     Example = "20",
                     SupportsPlaceholders = false,
+                    ValueType = typeof(int),
+                    AllowsNull = false,
+                    Minimum = 1,
+                    Maximum = 999,
                 },
                 new ToolArgumentDefinition(
                     "thinking",
@@ -566,6 +590,8 @@ public sealed class ToolCatalog : IToolCatalog
                 {
                     Example = "false",
                     SupportsPlaceholders = false,
+                    ValueType = typeof(bool),
+                    AllowsNull = false,
                 },
             ]);
     }
@@ -579,7 +605,83 @@ public sealed class ToolCatalog : IToolCatalog
         {
             Example = "The quarterly financial results were positive across all regions.",
             SupportsPlaceholders = true,
+            ValueType = typeof(string),
+            AllowsNull = true,
         };
+
+    private static System.Text.Json.JsonElement? CreateDefaultValue(ParameterInfo parameter)
+    {
+        if (!parameter.HasDefaultValue || parameter.DefaultValue is null || parameter.DefaultValue == DBNull.Value)
+        {
+            return null;
+        }
+
+        try
+        {
+            return System.Text.Json.JsonSerializer.SerializeToElement(parameter.DefaultValue, parameter.ParameterType, ScheduledTaskSerializer.Options);
+        }
+        catch (Exception exception) when (exception is NotSupportedException or ArgumentException)
+        {
+            throw new InvalidOperationException($"Parameter '{parameter.Name}' has an unsupported default value.", exception);
+        }
+    }
+
+    private static void ValidateArgumentDefinition(string alias, ToolArgumentDefinition argument)
+    {
+        var type = argument.ValueType;
+        var compatible = argument.Kind switch
+        {
+            WorkflowArgumentKind.String => type == typeof(string) || type == typeof(DateTimeOffset) || type == typeof(DateTime) || type == typeof(Uri),
+            WorkflowArgumentKind.Boolean => type == typeof(bool),
+            WorkflowArgumentKind.Integer => type == typeof(byte) || type == typeof(short) || type == typeof(int) || type == typeof(long) || type == typeof(sbyte) || type == typeof(ushort) || type == typeof(uint) || type == typeof(ulong),
+            WorkflowArgumentKind.Number => type == typeof(float) || type == typeof(double) || type == typeof(decimal),
+            WorkflowArgumentKind.Enumeration => type.IsEnum || type == typeof(string),
+            WorkflowArgumentKind.Object => type == typeof(JsonElement) || type.IsArray || (!type.IsPrimitive && type != typeof(string) && !type.IsEnum),
+            _ => false,
+        };
+        if (!compatible)
+        {
+            throw new InvalidOperationException($"Argument '{argument.Name}' on tool '{alias}' has incompatible kind '{argument.Kind}' and CLR type '{type.Name}'.");
+        }
+
+        if (argument.Minimum is { } minimum && !double.IsFinite(minimum) || argument.Maximum is { } maximum && !double.IsFinite(maximum))
+        {
+            throw new InvalidOperationException($"Argument '{argument.Name}' on tool '{alias}' has a non-finite numeric bound.");
+        }
+        if (argument.Minimum is { } lower && argument.Maximum is { } upper && lower > upper)
+        {
+            throw new InvalidOperationException($"Argument '{argument.Name}' on tool '{alias}' has a minimum greater than its maximum.");
+        }
+        if ((argument.Minimum is not null || argument.Maximum is not null) && argument.Kind is not WorkflowArgumentKind.Integer and not WorkflowArgumentKind.Number)
+        {
+            throw new InvalidOperationException($"Argument '{argument.Name}' on tool '{alias}' defines numeric bounds for a non-numeric kind.");
+        }
+        if (argument.EditorHint == WorkflowArgumentEditorHint.StructuredJson && argument.Kind != WorkflowArgumentKind.Object || argument.EditorHint == WorkflowArgumentEditorHint.KnowledgeTags && argument.Kind != WorkflowArgumentKind.Object)
+        {
+            throw new InvalidOperationException($"Argument '{argument.Name}' on tool '{alias}' has an incompatible editor hint.");
+        }
+        if (argument.DefaultValue is { } defaultValue && !IsDefaultCompatible(defaultValue, argument))
+        {
+            throw new InvalidOperationException($"Argument '{argument.Name}' on tool '{alias}' has an incompatible reflected default value.");
+        }
+    }
+
+    private static bool IsDefaultCompatible(JsonElement value, ToolArgumentDefinition argument)
+    {
+        var compatible = argument.Kind switch
+        {
+            WorkflowArgumentKind.String or WorkflowArgumentKind.Enumeration => value.ValueKind == JsonValueKind.String,
+            WorkflowArgumentKind.Boolean => value.ValueKind is JsonValueKind.True or JsonValueKind.False,
+            WorkflowArgumentKind.Integer => value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out _),
+            WorkflowArgumentKind.Number => value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var finite) && double.IsFinite(finite),
+            WorkflowArgumentKind.Object => value.ValueKind is JsonValueKind.Object or JsonValueKind.Array,
+            _ => false,
+        };
+        if (!compatible) return false;
+        if (argument.AllowedValues.Count > 0 && value.ValueKind == JsonValueKind.String && !argument.AllowedValues.Contains(value.GetString()!, StringComparer.Ordinal)) return false;
+        if (value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var number) && (argument.Minimum is { } minimum && number < minimum || argument.Maximum is { } maximum && number > maximum)) return false;
+        return true;
+    }
 
     /// <summary>
     /// Derives the default lower snake-case agent function name from a workflow alias.

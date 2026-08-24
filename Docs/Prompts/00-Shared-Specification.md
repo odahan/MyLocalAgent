@@ -2203,3 +2203,12 @@ XLS/XLSX/XLSB, and PDF operations are read-only and bounded by the validated `Fi
 configuration. Extracted content is untrusted and must never be logged. No passwords, OCR,
 Office automation, macro execution, formula recalculation, external fetch, or document writing is
 provided.
+
+# Addendum Stage 28 — Workflow step editor
+
+The Task editor may structurally locate, insert, edit, and delete one top-level workflow step.
+The operation is in-memory and canonical JSON remains the only persisted workflow format. Tool
+metadata comes from the immutable Core catalog. An existing alias is immutable: a different tool
+requires delete followed by insert. Delete warns for later valid output placeholders but never
+repairs them or changes task permissions. Missing groups and capabilities are explicit opt-in
+proposals; Save task remains the only persistence boundary.

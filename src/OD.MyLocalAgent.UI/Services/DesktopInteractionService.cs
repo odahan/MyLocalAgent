@@ -41,6 +41,12 @@ internal sealed class DesktopInteractionService : IDesktopInteractionService
         return dialog.ShowDialog() == true;
     }
 
+    public bool ConfirmDestructive(string title, string message, string confirmButtonText)
+    {
+        var dialog = CreateDialog(title, message, requiresConfirmation: true, primaryButtonText: confirmButtonText, isDestructive: true, defaultToCancel: true);
+        return dialog.ShowDialog() == true;
+    }
+
     public void ShowError(string title, string message)
     {
         var dialog = CreateDialog(title, message, requiresConfirmation: false);
@@ -64,7 +70,9 @@ internal sealed class DesktopInteractionService : IDesktopInteractionService
         string? primaryButtonText = null,
         string? cancelButtonText = null,
         string? secondaryButtonText = null,
-        bool isInformational = false)
+        bool isInformational = false,
+        bool isDestructive = false,
+        bool defaultToCancel = false)
     {
         var dialog = new ConfirmationDialogWindow(
             title,
@@ -73,7 +81,9 @@ internal sealed class DesktopInteractionService : IDesktopInteractionService
             primaryButtonText,
             cancelButtonText,
             secondaryButtonText,
-            isInformational);
+            isInformational,
+            isDestructive,
+            defaultToCancel);
         var owner = Application.Current?.Windows
             .OfType<Window>()
             .FirstOrDefault(static window => window.IsActive) ??

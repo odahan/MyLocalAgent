@@ -6,8 +6,8 @@
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
 <meta content="#08111f" name="theme-color"/>
-<meta content="Complete user manual for the OD.MyLocalAgent 1.5.5 Windows application." name="description"/>
-<title>User Manual 1.5.5 · OD.MyLocalAgent</title>
+<meta content="Complete user manual for the OD.MyLocalAgent 1.6.0 Windows application." name="description"/>
+<title>User Manual 1.6.0 · OD.MyLocalAgent</title>
 <style>
         :root {
             color-scheme: dark;
@@ -1279,7 +1279,7 @@
 <main class="content" id="contenu">
 <div class="content-inner">
 <section class="hero" data-title="Overview" id="accueil">
-<span class="eyebrow">Version 1.5.5 · Local-first · Windows · Ollama</span>
+<span class="eyebrow">Version 1.6.0 · Local-first · Windows · Ollama</span>
 <h1>Your local agent,<br/><span class="gradient-text">from intent to execution.</span></h1>
 <p class="hero-lead">
                     This manual explains how to configure OD.MyLocalAgent, create scheduled tasks,
@@ -3151,7 +3151,7 @@ capabilities start unrestricted local processes and must remain limited to trust
 <span class="status warn">3 task not found</span>
 </p>
 </section>
-<footer class="footer"><p>Revised document organization — English version 1.5.5.</p><p>OD.MyLocalAgent · User manual<br/>Standalone HTML5 document. Paths, screens, and behaviors described correspond to version 1.5.5 dated August 24, 2026. <a href="User-Manual.html" lang="fr">Lire en français</a>.</p></footer>
+<footer class="footer"><p>Revised document organization — English version 1.6.0.</p><p>OD.MyLocalAgent · User manual<br/>Standalone HTML5 document. Paths, screens, and behaviors described correspond to version 1.6.0 dated August 24, 2026. <a href="User-Manual.html" lang="fr">Lire en français</a>.</p></footer>
 </div>
 <section id="stage22-local-files">
 <h2>Archives, Office documents, and PDF</h2>
@@ -3426,6 +3426,10 @@ capabilities start unrestricted local processes and must remain limited to trust
       <h2>Per-task sensitive permissions</h2>
       <p>Sensitive operations are denied by default. There is no global Safety switch. A task must explicitly grant the required capability in addition to its tool-group whitelist and file-system access rules. PowerShell and Shell Execute are separate permissions. Legacy tasks without <code>capabilities</code> receive no sensitive permission.</p>
       <p>The <strong>Edit workflow text</strong> dialog edits long AI prompts and PowerShell scripts atomically while preserving step identity, order, type, and unrelated arguments.</p>
+      <h3>Workflow step editor</h3>
+      <p>Place the caret in valid workflow JSON, then choose <strong>Insert before</strong>, <strong>Insert after</strong>, <strong>Edit step</strong>, or <strong>Delete step</strong>. The form is generated from the Tool Map. An existing step cannot be converted to another tool: delete it and insert a replacement.</p>
+      <p>Delete warns when a later step uses that step’s output placeholder. Tool groups and sensitive capabilities are proposed unchecked and are changed only when you explicitly accept them. Changes affect the task draft; choose <strong>Save task</strong> to persist them.</p>
+      <p>In an <code>ai.prompt</code> step, select exact prompt tools from the catalog list. Model, Temperature, Top P, and reasoning can inherit independently. Knowledge scope appears only when <code>knowledge.search</code> is selected: inherit the task scope or narrow it to one or more currently authorized tags. Absolute local paths may create unchecked directory proposals and root, UNC, or broader-scope warnings. Cancel or close discards the complete working copy after confirmation; Apply validates the complete provisional task and never runs a tool.</p>
     </section>
 </body>
 </html>

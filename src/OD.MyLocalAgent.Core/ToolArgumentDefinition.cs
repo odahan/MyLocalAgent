@@ -34,4 +34,25 @@ public sealed record ToolArgumentDefinition(
 
     /// <summary>Gets whether this short or constrained string is excluded from the workflow text editor.</summary>
     public bool IsExcludedFromWorkflowTextEditor { get; init; }
+
+    /// <summary>Gets the non-cancellation CLR value type reflected for this argument.</summary>
+    public Type ValueType { get; init; } = typeof(string);
+
+    /// <summary>Gets whether an explicitly included JSON null is compatible with the CLR parameter.</summary>
+    public bool AllowsNull { get; init; }
+
+    /// <summary>Gets whether the CLR parameter declares a serializable default value.</summary>
+    public bool HasDefaultValue { get; init; }
+
+    /// <summary>Gets an immutable JSON-compatible reflected default value when one exists.</summary>
+    public System.Text.Json.JsonElement? DefaultValue { get; init; }
+
+    /// <summary>Gets the optional inclusive authoring minimum.</summary>
+    public double? Minimum { get; init; }
+
+    /// <summary>Gets the optional inclusive authoring maximum.</summary>
+    public double? Maximum { get; init; }
+
+    /// <summary>Gets the optional semantic editor override.</summary>
+    public WorkflowArgumentEditorHint EditorHint { get; init; }
 }

@@ -1,6 +1,6 @@
 # What's Where
 
-Application version: **1.5.5**.
+Application version: **1.6.0**.
 
 All file and folder locations used by OD.MyLocalAgent after deployment.
 
@@ -132,3 +132,15 @@ stores the exact `knowledge.search` alias. Knowledge tags are the document autho
 an empty scope authorizes no documents, and a prompt step may narrow its task scope but cannot
 broaden it. Retrieval is always tool-driven; no RAG excerpt is injected automatically into a
 prompt.
+
+# Workflow step editor
+
+| Location | Responsibility |
+|----------|----------------|
+| `src/OD.MyLocalAgent.Core/WorkflowStepEditingService.cs` | UTF-16 caret location and atomic canonical top-level insert, replace, and delete operations. |
+| `src/OD.MyLocalAgent.Core/WorkflowStepDependencyAnalyzer.cs` | Read-only discovery of later output-placeholder dependencies before deletion. |
+| `src/OD.MyLocalAgent.Core/ToolArgumentDefinition.cs` | Immutable reflected argument type, default, bounds, and editor metadata. |
+| `src/OD.MyLocalAgent.UI/ViewModels/WorkflowStepEditorViewModel.cs` | Catalog-driven memory-only form, prompt scope validation, and explicit authorization proposals. |
+| `src/OD.MyLocalAgent.UI/WorkflowStepEditorWindow.xaml` | Modal editor controls and context-sensitive sections. |
+
+Existing aliases are immutable during edit. Delete and insert a new step to choose another tool.
