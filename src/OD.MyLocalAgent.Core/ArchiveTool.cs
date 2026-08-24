@@ -47,7 +47,7 @@ public sealed class ArchiveTool : IArchiveTool
 
     /// <inheritdoc/>
     [ToolLocalPath("archivePath", LocalPathTargetKind.File, FileSystemAccessMode.ReadOnly)]
-    [ToolLocalPath("destinationPath", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite)]
+    [ToolLocalPath("destinationPath", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite, PickerMode = LocalPathPickerMode.SaveFile)]
     [Tool("archive.extract", "Extracts one safe archive file entry to an authorized destination.", 200, AgentFunctionName = "archive_extract", RequiredCapability = TaskCapability.ArchiveWrite)]
     public async Task<string> ExtractAsync(
         [ToolArgument(WorkflowArgumentKind.String, "Authorized archive path.", Example = "archives/input.zip")] string archivePath,
@@ -132,7 +132,7 @@ public sealed class ArchiveTool : IArchiveTool
     }
 
     /// <inheritdoc/>
-    [ToolLocalPath("archivePath", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite)]
+    [ToolLocalPath("archivePath", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite, PickerMode = LocalPathPickerMode.SaveFile)]
     [ToolLocalPath("sourcePath", LocalPathTargetKind.FileOrDirectory, FileSystemAccessMode.ReadOnly)]
     [Tool("archive.createZip", "Creates a ZIP from an authorized file or directory source.", 400, AgentFunctionName = "archive_create_zip", RequiredCapability = TaskCapability.ArchiveWrite)]
     public Task<string> CreateZipAsync(

@@ -156,7 +156,7 @@ public sealed class FileSystemTool : IFileSystemTool
             });
 
     /// <inheritdoc />
-    [ToolLocalPath("path", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite)]
+    [ToolLocalPath("path", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite, PickerMode = LocalPathPickerMode.SaveFile)]
     [Tool("filesystem.write", "Writes UTF-8 text to an authorized local file path.", 300)]
     public Task<string> WriteAsync(
         [ToolArgument(WorkflowArgumentKind.String, "Relative global-root path or task-authorized absolute file path.", Example = "reports/summary.txt")] string path,
@@ -541,7 +541,7 @@ public sealed class FileSystemTool : IFileSystemTool
 
     /// <inheritdoc />
     [ToolLocalPath("sourcePath", LocalPathTargetKind.File, FileSystemAccessMode.ReadOnly)]
-    [ToolLocalPath("sourcePath", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite, Derivation = LocalPathDerivationKind.OptionalDestinationOrSameDirectoryExtension, ValueArgumentName = "destinationPath", DefaultValue = ".html")]
+    [ToolLocalPath("sourcePath", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite, Derivation = LocalPathDerivationKind.OptionalDestinationOrSameDirectoryExtension, ValueArgumentName = "destinationPath", DefaultValue = ".html", PickerMode = LocalPathPickerMode.SaveFile)]
     [Tool("filesystem.markdownToHtml", "Converts an authorized Markdown file to a standalone UTF-8 HTML file using a dark or light theme.", 1000)]
     public Task<string> MarkdownToHtmlAsync(
         [ToolArgument(WorkflowArgumentKind.String, "Relative global-root or task-authorized absolute Markdown source file path.", Example = "reports/summary.md")] string sourcePath,

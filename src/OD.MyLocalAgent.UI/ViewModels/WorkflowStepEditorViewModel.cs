@@ -1,8 +1,10 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.IO;
 using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Options;
 using OD.MyLocalAgent.Core;
 using OD.MyLocalAgent.UI.Services;
 using OD.MyLocalAgent.Ollama;
@@ -12,6 +14,7 @@ namespace OD.MyLocalAgent.UI.ViewModels;
 /// <summary>Builds one typed workflow step form solely from Tool Map metadata.</summary>
 public sealed partial class WorkflowStepEditorViewModel : ObservableObject
 {
+    private const int ModelCatalogTimeoutSeconds = 10;
     private WorkflowStepEditorRequest? _request;
     private WorkflowStepLocation? _location;
     private IReadOnlyList<WorkflowStepDefinition> _workflow = [];
@@ -19,15 +22,32 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
     private bool _synchronizingPromptTools;
     private readonly IToolCatalog _catalog;
     private readonly IDesktopInteractionService? _desktopInteraction;
+    private readonly IOllamaModelCatalog? _ollamaModelCatalog;
+    private readonly IOpenAIModelCatalog? _openAIModelCatalog;
+    private readonly IOptionsMonitor<AIOptions>? _aiOptions;
+    private readonly IOptionsMonitor<OllamaOptions>? _ollamaOptions;
+    private readonly IOptionsMonitor<OpenAIOptions>? _openAIOptions;
     private ToolDefinition? _lastSelectedTool;
     private bool _revertingTool;
     private readonly Dictionary<string, FileSystemAccessRule> _pathProposals = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Initializes a new step editor ViewModel.</summary>
-    public WorkflowStepEditorViewModel(IToolCatalog? catalog = null, IDesktopInteractionService? desktopInteraction = null)
+    public WorkflowStepEditorViewModel(
+        IToolCatalog? catalog = null,
+        IDesktopInteractionService? desktopInteraction = null,
+        IOllamaModelCatalog? ollamaModelCatalog = null,
+        IOpenAIModelCatalog? openAIModelCatalog = null,
+        IOptionsMonitor<AIOptions>? aiOptions = null,
+        IOptionsMonitor<OllamaOptions>? ollamaOptions = null,
+        IOptionsMonitor<OpenAIOptions>? openAIOptions = null)
     {
         _catalog = catalog ?? ToolCatalog.Default;
         _desktopInteraction = desktopInteraction;
+        _ollamaModelCatalog = ollamaModelCatalog;
+        _openAIModelCatalog = openAIModelCatalog;
+        _aiOptions = aiOptions;
+        _ollamaOptions = ollamaOptions;
+        _openAIOptions = openAIOptions;
         PropertyChanged += OnEditorPropertyChanged;
     }
 
@@ -41,6 +61,8 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
     [ObservableProperty] private string _retryBackoffSeconds = string.Empty;
     [ObservableProperty] private string _model = string.Empty;
     [ObservableProperty] private bool _inheritModel = true;
+    [ObservableProperty] private bool _isLoadingModels;
+    [ObservableProperty] private string _modelCatalogStatus = string.Empty;
     [ObservableProperty] private string _toolAliases = string.Empty;
     [ObservableProperty] private string _knowledgeTags = string.Empty;
     [ObservableProperty] private bool _overrideGeneration;
@@ -52,10 +74,7 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
     [ObservableProperty] private string _topP = string.Empty;
     [ObservableProperty] private bool? _reasoningEnabled;
     [ObservableProperty] private string _toolSearchText = string.Empty;
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(InsertPlaceholderCommand))]
-    private WorkflowStepArgumentEditorItem? _selectedArgument;
-    [ObservableProperty] private WorkflowPlaceholderDefinition? _selectedPlaceholder;
+    [ObservableProperty] private WorkflowStepArgumentEditorItem? _selectedArgument;
 
     /// <summary>Gets the currently generated argument rows.</summary>
     public ObservableCollection<WorkflowStepArgumentEditorItem> Arguments { get; } = [];
@@ -67,14 +86,14 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
     public ObservableCollection<WorkflowPromptToolSelectionItem> PromptTools { get; } = [];
     /// <summary>Gets the task-bounded Knowledge tag choices.</summary>
     public ObservableCollection<WorkflowKnowledgeTagSelectionItem> KnowledgeTagSelections { get; } = [];
+    /// <summary>Gets model identifiers exposed by the active provider, while allowing free text.</summary>
+    public ObservableCollection<string> ModelChoices { get; } = [];
     /// <summary>Gets the Tool Map choices in catalog order.</summary>
     public IReadOnlyList<ToolDefinition> Tools => _catalog.Definitions;
     /// <summary>Gets catalog tools matching the current insert-mode search text.</summary>
     public ObservableCollection<ToolDefinition> FilteredTools { get; } = [];
     /// <summary>Gets shared placeholder templates available to eligible text arguments.</summary>
     public IReadOnlyList<WorkflowPlaceholderDefinition> Placeholders => WorkflowPlaceholderCatalog.Entries;
-    /// <summary>Gets whether placeholder insertion applies to the selected argument.</summary>
-    public bool CanInsertPlaceholder => SelectedArgument?.Definition.SupportsPlaceholders == true;
     /// <summary>Gets the available error policies.</summary>
     public IReadOnlyList<WorkflowErrorPolicy> ErrorPolicies => Enum.GetValues<WorkflowErrorPolicy>();
     /// <summary>Gets whether this is an edit with an immutable alias.</summary>
@@ -89,8 +108,14 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
     public bool IsRetrySelected => (OverrideErrorPolicy ? OnError : _request?.ErrorPolicy) == WorkflowErrorPolicy.Retry;
     /// <summary>Gets whether task-bounded Knowledge narrowing is applicable.</summary>
     public bool ShowKnowledgeTags => IsPromptSelected && PromptTools.Any(static item => item.IsSelected && string.Equals(item.Tool.Alias, "knowledge.search", StringComparison.OrdinalIgnoreCase));
-    /// <summary>Gets deterministic model choices assembled from the request only.</summary>
-    public IReadOnlyList<string> ModelChoices => new[] { _request?.ConfiguredModel, _request?.TaskModel, Model }.Where(static value => !string.IsNullOrWhiteSpace(value)).Select(static value => value!.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    /// <summary>Gets whether this step overrides the model inherited by the task.</summary>
+    public bool UsesExplicitModel => !InheritModel;
+    /// <summary>Gets a plain-language description of the model inherited by this step.</summary>
+    public string InheritedModelDescription => !string.IsNullOrWhiteSpace(_request?.TaskModel)
+        ? $"This step uses the task model: {_request.TaskModel}."
+        : !string.IsNullOrWhiteSpace(_request?.ConfiguredModel)
+            ? $"This step uses the model from Settings: {_request.ConfiguredModel}."
+            : "This step uses the model configured in Settings.";
     /// <summary>Gets the modal title.</summary>
     public string Title => IsEdit ? "Edit workflow step" : "Insert workflow step";
     /// <summary>Gets the primary button label.</summary>
@@ -111,6 +136,7 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
         try
         {
         _request = request;
+        ReplaceModelChoices([]);
         var located = WorkflowStepEditingService.Locate(request.WorkflowText, request.CaretIndex);
         if (located.Error is not null)
         {
@@ -164,7 +190,11 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
     }
 
     partial void OnToolSearchTextChanged(string value) => RefreshToolFilter();
-    partial void OnSelectedArgumentChanged(WorkflowStepArgumentEditorItem? value) => OnPropertyChanged(nameof(CanInsertPlaceholder));
+    partial void OnInheritModelChanged(bool value)
+    {
+        OnPropertyChanged(nameof(UsesExplicitModel));
+        OnPropertyChanged(nameof(InheritedModelDescription));
+    }
 
     partial void OnOnErrorChanged(WorkflowErrorPolicy value) => OnPropertyChanged(nameof(IsRetrySelected));
     partial void OnOverrideErrorPolicyChanged(bool value) => OnPropertyChanged(nameof(IsRetrySelected));
@@ -189,6 +219,121 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
     partial void OnOverrideTemperatureChanged(bool value) => OverrideGeneration = OverrideTemperature || OverrideTopP || OverrideReasoning;
     partial void OnOverrideTopPChanged(bool value) => OverrideGeneration = OverrideTemperature || OverrideTopP || OverrideReasoning;
     partial void OnOverrideReasoningChanged(bool value) => OverrideGeneration = OverrideTemperature || OverrideTopP || OverrideReasoning;
+
+    /// <summary>Loads model identifiers from the provider currently selected in Settings.</summary>
+    public async Task LoadModelChoicesAsync(CancellationToken cancellationToken)
+    {
+        if (!IsPromptSelected || _aiOptions is null)
+        {
+            return;
+        }
+
+        IsLoadingModels = true;
+        ModelCatalogStatus = "Loading models from the active provider…";
+        try
+        {
+            IReadOnlyList<string> models;
+            var provider = _aiOptions.CurrentValue.Provider;
+            if (string.Equals(provider, AIOptions.OpenAIProvider, StringComparison.OrdinalIgnoreCase) &&
+                _openAIModelCatalog is not null &&
+                _openAIOptions is not null)
+            {
+                var options = _openAIOptions.CurrentValue;
+                models = await _openAIModelCatalog.ListModelsAsync(
+                    options.Endpoint,
+                    Math.Clamp(options.TimeoutSeconds, 1, ModelCatalogTimeoutSeconds),
+                    cancellationToken).ConfigureAwait(true);
+            }
+            else if (_ollamaModelCatalog is not null && _ollamaOptions is not null)
+            {
+                var options = _ollamaOptions.CurrentValue;
+                models = await _ollamaModelCatalog.ListInstalledModelsAsync(
+                    options.Endpoint,
+                    Math.Clamp(options.TimeoutSeconds, 1, ModelCatalogTimeoutSeconds),
+                    cancellationToken).ConfigureAwait(true);
+            }
+            else
+            {
+                ModelCatalogStatus = "The active provider model catalog is unavailable; a model name can still be entered.";
+                return;
+            }
+
+            ReplaceModelChoices(models);
+            ModelCatalogStatus = models.Count switch
+            {
+                0 => "The active provider returned no model; a model name can still be entered.",
+                1 => "1 model exposed by the active provider. You can also enter another model name.",
+                _ => $"{models.Count} models exposed by the active provider. You can also enter another model name.",
+            };
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            ModelCatalogStatus = "Model loading was canceled.";
+        }
+        catch (Exception exception)
+        {
+            ModelCatalogStatus = $"Models could not be loaded: {exception.Message} You can still enter a model name.";
+        }
+        finally
+        {
+            IsLoadingModels = false;
+        }
+    }
+
+    private void ReplaceModelChoices(IEnumerable<string> providerModels)
+    {
+        var choices = providerModels
+            .Append(_request?.ConfiguredModel)
+            .Append(_request?.TaskModel)
+            .Append(Model)
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .Select(static value => value!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        ModelChoices.Clear();
+        foreach (var choice in choices)
+        {
+            ModelChoices.Add(choice);
+        }
+    }
+
+    [RelayCommand]
+    private void BrowseArgumentFile(WorkflowStepArgumentEditorItem? argument)
+    {
+        if (argument?.CanBrowseFile != true || _desktopInteraction is null)
+        {
+            return;
+        }
+
+        var selected = argument.ResolvedPickerMode == LocalPathPickerMode.SaveFile
+            ? _desktopInteraction.SelectSavePath(
+                $"Select {argument.Definition.Name}",
+                "All files (*.*)|*.*",
+                Path.GetExtension(argument.Value),
+                Path.GetFileName(argument.Value))
+            : _desktopInteraction.SelectOpenFile(
+                $"Select {argument.Definition.Name}",
+                "All files (*.*)|*.*");
+        if (!string.IsNullOrWhiteSpace(selected))
+        {
+            argument.Value = selected;
+        }
+    }
+
+    [RelayCommand]
+    private void BrowseArgumentFolder(WorkflowStepArgumentEditorItem? argument)
+    {
+        if (argument?.CanBrowseFolder != true || _desktopInteraction is null)
+        {
+            return;
+        }
+
+        var selected = _desktopInteraction.SelectFolder($"Select {argument.Definition.Name}");
+        if (!string.IsNullOrWhiteSpace(selected))
+        {
+            argument.Value = selected;
+        }
+    }
 
     [RelayCommand]
     private void Apply()
@@ -244,15 +389,19 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
     [RelayCommand]
     private void Cancel() { Result = null; IsApplyCloseRequested = false; CloseRequested?.Invoke(this, EventArgs.Empty); }
 
-    [RelayCommand(CanExecute = nameof(CanInsertPlaceholder))]
-    private void InsertPlaceholder()
+    [RelayCommand]
+    private static void InsertPlaceholder(WorkflowStepArgumentEditorItem? argument)
     {
-        if (SelectedArgument is null || SelectedPlaceholder is null) return;
-        var start = Math.Clamp(SelectedArgument.SelectionStart, 0, SelectedArgument.Value.Length);
-        var length = Math.Clamp(SelectedArgument.SelectionLength, 0, SelectedArgument.Value.Length - start);
-        SelectedArgument.Value = string.Concat(SelectedArgument.Value.AsSpan(0, start), SelectedPlaceholder.InsertText, SelectedArgument.Value.AsSpan(start + length));
-        SelectedArgument.SelectionStart = start + SelectedPlaceholder.InsertText.Length;
-        SelectedArgument.SelectionLength = 0;
+        if (argument?.Definition.SupportsPlaceholders != true || argument.SelectedPlaceholder is null)
+        {
+            return;
+        }
+
+        var start = Math.Clamp(argument.SelectionStart, 0, argument.Value.Length);
+        var length = Math.Clamp(argument.SelectionLength, 0, argument.Value.Length - start);
+        argument.Value = string.Concat(argument.Value.AsSpan(0, start), argument.SelectedPlaceholder.InsertText, argument.Value.AsSpan(start + length));
+        argument.SelectionStart = start + argument.SelectedPlaceholder.InsertText.Length;
+        argument.SelectionLength = 0;
     }
 
     private void Rebuild(ToolDefinition? tool, WorkflowStepDefinition? step)
@@ -282,8 +431,14 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
         {
             var value = default(JsonElement);
             var present = step is not null && TryGetValue(step.Args, definition.Name, out value);
-            var item = new WorkflowStepArgumentEditorItem(definition, present || definition.IsRequired || (string.Equals(tool.Alias, ToolMap.PromptAlias, StringComparison.OrdinalIgnoreCase) && string.Equals(definition.Name, "includeContext", StringComparison.OrdinalIgnoreCase)), present ? value.GetRawText() : InitialValue(tool, definition), _request!.KnowledgeTags);
-            item.PropertyChanged += (_, _) => { if (!_initializing) { HasChanges = true; RefreshAuthorizationProposals(); } };
+            var pathDefinition = tool.LocalPathArguments.FirstOrDefault(path =>
+                path.Derivation == LocalPathDerivationKind.Direct &&
+                string.Equals(path.ArgumentName, definition.Name, StringComparison.OrdinalIgnoreCase)) ??
+                tool.LocalPathArguments.FirstOrDefault(path =>
+                    path.Derivation == LocalPathDerivationKind.OptionalDestinationOrSameDirectoryExtension &&
+                    string.Equals(path.ValueArgumentName, definition.Name, StringComparison.OrdinalIgnoreCase));
+            var item = new WorkflowStepArgumentEditorItem(definition, present || definition.IsRequired || (string.Equals(tool.Alias, ToolMap.PromptAlias, StringComparison.OrdinalIgnoreCase) && string.Equals(definition.Name, "includeContext", StringComparison.OrdinalIgnoreCase)), present ? FormatEditorValue(definition, value) : InitialValue(tool, definition), _request!.KnowledgeTags, pathDefinition);
+            item.PropertyChanged += OnArgumentPropertyChanged;
             Arguments.Add(item);
         }
         if (!tool.IsAiStep && !_request!.ToolGroups.Contains(tool.ToolGroup, StringComparer.OrdinalIgnoreCase))
@@ -393,6 +548,29 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
         if (string.Equals(tool.Alias, ToolMap.PromptAlias, StringComparison.OrdinalIgnoreCase) && string.Equals(argument.Name, "prompt", StringComparison.OrdinalIgnoreCase)) return WorkflowSnippetBuilder.DefaultPromptText;
         if (string.Equals(tool.Alias, ToolMap.PromptAlias, StringComparison.OrdinalIgnoreCase) && string.Equals(argument.Name, "includeContext", StringComparison.OrdinalIgnoreCase)) return "true";
         return argument.DefaultValue?.GetRawText() ?? (argument.Kind == WorkflowArgumentKind.Boolean ? "false" : argument.Kind == WorkflowArgumentKind.Object ? "{}" : string.Empty);
+    }
+
+    private static string FormatEditorValue(ToolArgumentDefinition definition, JsonElement value)
+    {
+        if (value.ValueKind == JsonValueKind.Null)
+        {
+            return "null";
+        }
+
+        return definition.Kind is WorkflowArgumentKind.String or WorkflowArgumentKind.Enumeration && value.ValueKind == JsonValueKind.String
+            ? value.GetString() ?? string.Empty
+            : value.GetRawText();
+    }
+
+    private void OnArgumentPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs eventArgs)
+    {
+        if (_initializing || eventArgs.PropertyName is not nameof(WorkflowStepArgumentEditorItem.Value) and not nameof(WorkflowStepArgumentEditorItem.IsIncluded))
+        {
+            return;
+        }
+
+        HasChanges = true;
+        RefreshAuthorizationProposals();
     }
 
     private void RefreshAuthorizationProposals()
@@ -537,7 +715,7 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
 
     private void OnEditorPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs eventArgs)
     {
-        if (_initializing || eventArgs.PropertyName is nameof(HasChanges) or nameof(StatusText) or nameof(ToolSearchText) or nameof(SelectedArgument) or nameof(SelectedPlaceholder))
+        if (_initializing || eventArgs.PropertyName is nameof(HasChanges) or nameof(StatusText) or nameof(ToolSearchText) or nameof(SelectedArgument) or nameof(IsLoadingModels) or nameof(ModelCatalogStatus))
         {
             return;
         }
@@ -549,11 +727,20 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
 public sealed partial class WorkflowStepArgumentEditorItem : ObservableObject
 {
     /// <summary>Initializes an argument editor.</summary>
-    public WorkflowStepArgumentEditorItem(ToolArgumentDefinition definition, bool isIncluded, string value, IReadOnlyList<string>? taskKnowledgeTags = null)
+    public WorkflowStepArgumentEditorItem(
+        ToolArgumentDefinition definition,
+        bool isIncluded,
+        string value,
+        IReadOnlyList<string>? taskKnowledgeTags = null,
+        LocalPathArgumentDefinition? localPath = null)
     {
         Definition = definition;
+        LocalPath = localPath;
         IsIncluded = isIncluded;
         Value = value;
+        SelectedPlaceholder = definition.SupportsPlaceholders
+            ? WorkflowPlaceholderCatalog.Entries.FirstOrDefault()
+            : null;
         if (definition.EditorHint == WorkflowArgumentEditorHint.KnowledgeTags)
         {
             var selected = ParseSelectedTags(value);
@@ -568,6 +755,8 @@ public sealed partial class WorkflowStepArgumentEditorItem : ObservableObject
     }
     /// <summary>Gets Tool Map metadata.</summary>
     public ToolArgumentDefinition Definition { get; }
+    /// <summary>Gets optional declarative local-path metadata for this argument.</summary>
+    public LocalPathArgumentDefinition? LocalPath { get; }
     /// <summary>Gets task-bounded choices for a Knowledge-tag editor hint.</summary>
     public ObservableCollection<WorkflowKnowledgeTagSelectionItem> KnowledgeTagChoices { get; } = [];
     /// <summary>Gets the deterministic editor mapping selected from Core metadata.</summary>
@@ -584,6 +773,63 @@ public sealed partial class WorkflowStepArgumentEditorItem : ObservableObject
             WorkflowArgumentKind.Number => WorkflowArgumentEditorKind.Number,
             _ => WorkflowArgumentEditorKind.String,
         };
+    /// <summary>Gets the WPF maximum length, where zero means unlimited.</summary>
+    public int EditorMaximumLength => Definition.MaximumLength ?? 0;
+    /// <summary>Gets the effective picker inferred solely from local-path metadata.</summary>
+    public LocalPathPickerMode ResolvedPickerMode => LocalPath?.PickerMode switch
+    {
+        null => LocalPathPickerMode.Automatic,
+        LocalPathPickerMode.OpenFile => LocalPathPickerMode.OpenFile,
+        LocalPathPickerMode.SaveFile => LocalPathPickerMode.SaveFile,
+        LocalPathPickerMode.SelectFolder => LocalPathPickerMode.SelectFolder,
+        LocalPathPickerMode.OpenFileOrFolder => LocalPathPickerMode.OpenFileOrFolder,
+        _ => LocalPath.TargetKind switch
+        {
+            LocalPathTargetKind.Directory => LocalPathPickerMode.SelectFolder,
+            LocalPathTargetKind.FileOrDirectory => LocalPathPickerMode.OpenFileOrFolder,
+            _ => LocalPathPickerMode.OpenFile,
+        },
+    };
+    /// <summary>Gets whether a generic existing-file picker is available.</summary>
+    public bool CanBrowseFile => ResolvedPickerMode is LocalPathPickerMode.OpenFile or LocalPathPickerMode.SaveFile or LocalPathPickerMode.OpenFileOrFolder;
+    /// <summary>Gets whether a generic folder picker is available.</summary>
+    public bool CanBrowseFolder => ResolvedPickerMode is LocalPathPickerMode.SelectFolder or LocalPathPickerMode.OpenFileOrFolder;
+    /// <summary>Gets concise type and constraint help generated from Tool Map metadata.</summary>
+    public string EditorHelpText
+    {
+        get
+        {
+            var parts = new List<string> { Definition.Description };
+            parts.Add(EditorKind switch
+            {
+                WorkflowArgumentEditorKind.Integer => "Integer",
+                WorkflowArgumentEditorKind.Number => "Decimal number",
+                WorkflowArgumentEditorKind.Boolean => "True or false",
+                WorkflowArgumentEditorKind.Enumeration => "Choose one value",
+                WorkflowArgumentEditorKind.StructuredJson => "Structured JSON",
+                WorkflowArgumentEditorKind.KnowledgeTags => "Authorized Knowledge tags",
+                _ => "Text",
+            });
+            if (Definition.Minimum is not null || Definition.Maximum is not null)
+            {
+                parts.Add($"Range: {Definition.Minimum?.ToString(CultureInfo.InvariantCulture) ?? "−∞"} to {Definition.Maximum?.ToString(CultureInfo.InvariantCulture) ?? "+∞"}");
+            }
+            if (Definition.MaximumLength is { } maximumLength)
+            {
+                parts.Add($"Maximum: {maximumLength} characters");
+            }
+            if (LocalPath is not null)
+            {
+                parts.Add(LocalPath.TargetKind switch
+                {
+                    LocalPathTargetKind.File => "File path",
+                    LocalPathTargetKind.Directory => "Folder path",
+                    _ => "File or folder path",
+                });
+            }
+            return string.Join(" · ", parts);
+        }
+    }
     /// <summary>Gets whether the argument can be omitted from the generated JSON object.</summary>
     public bool CanExclude => !Definition.IsRequired;
     /// <summary>Gets whether the optional argument is emitted.</summary>
@@ -596,6 +842,8 @@ public sealed partial class WorkflowStepArgumentEditorItem : ObservableObject
     [ObservableProperty] private int _selectionStart;
     /// <summary>Gets or sets the UTF-16 selection length used for placeholder replacement.</summary>
     [ObservableProperty] private int _selectionLength;
+    /// <summary>Gets or sets the placeholder selected for this argument editor.</summary>
+    [ObservableProperty] private WorkflowPlaceholderDefinition? _selectedPlaceholder;
     /// <summary>Gets or sets the Boolean typed value without a string-to-CheckBox binding.</summary>
     public bool BooleanValue
     {
@@ -629,6 +877,7 @@ public sealed partial class WorkflowStepArgumentEditorItem : ObservableObject
     public JsonElement Parse()
     {
         if (Definition.AllowsNull && string.Equals(Value.Trim(), "null", StringComparison.Ordinal)) return JsonSerializer.SerializeToElement<object?>(null);
+        if (Definition.MaximumLength is { } maximumLength && Value.Length > maximumLength) throw new FormatException($"{Definition.Name} must contain at most {maximumLength} characters.");
         if (Definition.AllowedValues.Count > 0 && !Definition.AllowedValues.Contains(Value, StringComparer.Ordinal)) throw new FormatException($"{Definition.Name} must be one of: {string.Join(", ", Definition.AllowedValues)}.");
         return Definition.Kind switch
     {

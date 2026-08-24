@@ -17,7 +17,7 @@ public sealed class KnowledgeTool : IKnowledgeTool
     public async Task<string> SearchAsync(
         [ToolArgument(WorkflowArgumentKind.String, "Semantic query text.", Example = "How should application startup failures be handled?", IsLongText = true)] string query,
         [ToolArgument(WorkflowArgumentKind.Object, "Optional unique tags that narrow the owning authorization scope.", Example = "[\"architecture\"]", EditorHint = WorkflowArgumentEditorHint.KnowledgeTags)] string[]? tags = null,
-        [ToolArgument(WorkflowArgumentKind.Integer, "Optional result limit from 1 to 20.", Example = "5")] int? maxResults = null,
+        [ToolArgument(WorkflowArgumentKind.Integer, "Optional result limit from 1 to 20.", Example = "5", Minimum = 1, Maximum = 20)] int? maxResults = null,
         CancellationToken cancellationToken = default)
     {
         try { return ToolJson.Serialize(await _search.SearchAsync(query, _context.KnowledgeTags, tags, maxResults, cancellationToken).ConfigureAwait(false)); }

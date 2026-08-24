@@ -15,6 +15,9 @@ public sealed record LocalPathArgumentDefinition(
     LocalPathDerivationKind Derivation = LocalPathDerivationKind.Direct,
     string? ValueArgumentName = null)
 {
+    /// <summary>Gets the generic authoring picker declared for this path.</summary>
+    public LocalPathPickerMode PickerMode { get; init; }
+
     /// <summary>
     /// Gets the fixed fallback value used by an optional derived path.
     /// </summary>

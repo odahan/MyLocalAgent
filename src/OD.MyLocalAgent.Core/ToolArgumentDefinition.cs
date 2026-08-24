@@ -53,6 +53,9 @@ public sealed record ToolArgumentDefinition(
     /// <summary>Gets the optional inclusive authoring maximum.</summary>
     public double? Maximum { get; init; }
 
+    /// <summary>Gets the optional maximum number of characters accepted by a string argument.</summary>
+    public int? MaximumLength { get; init; }
+
     /// <summary>Gets the optional semantic editor override.</summary>
     public WorkflowArgumentEditorHint EditorHint { get; init; }
 }

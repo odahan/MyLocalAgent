@@ -380,6 +380,7 @@ public sealed class ToolCatalog : IToolCatalog
                         DefaultValue = defaultValue,
                         Minimum = double.IsNaN(argAttr.Minimum) ? null : argAttr.Minimum,
                         Maximum = double.IsNaN(argAttr.Maximum) ? null : argAttr.Maximum,
+                        MaximumLength = argAttr.MaximumLength > 0 ? argAttr.MaximumLength : null,
                         EditorHint = argAttr.EditorHint,
                     };
                     ValidateArgumentDefinition(toolAttr.Alias, argumentDefinition);
@@ -399,6 +400,15 @@ public sealed class ToolCatalog : IToolCatalog
                     {
                         throw new InvalidOperationException($"ToolLocalPathAttribute on '{toolAttr.Alias}' references unknown ValueArgumentName '{pathAttr.ValueArgumentName}'.");
                     }
+                    if ((pathAttr.PickerMode == LocalPathPickerMode.SelectFolder && pathAttr.TargetKind == LocalPathTargetKind.File) ||
+                        (pathAttr.PickerMode is LocalPathPickerMode.OpenFile or LocalPathPickerMode.SaveFile && pathAttr.TargetKind == LocalPathTargetKind.Directory))
+                    {
+                        throw new InvalidOperationException($"ToolLocalPathAttribute on '{toolAttr.Alias}' uses picker '{pathAttr.PickerMode}' with incompatible target kind '{pathAttr.TargetKind}'.");
+                    }
+                    if (pathAttr.PickerMode == LocalPathPickerMode.SaveFile && pathAttr.RequiredAccess != FileSystemAccessMode.ReadWrite)
+                    {
+                        throw new InvalidOperationException($"ToolLocalPathAttribute on '{toolAttr.Alias}' uses a save-file picker without read-write access.");
+                    }
 
                     localPathDefs.Add(new LocalPathArgumentDefinition(
                         pathAttr.ArgumentName,
@@ -408,6 +418,7 @@ public sealed class ToolCatalog : IToolCatalog
                         pathAttr.ValueArgumentName)
                     {
                         DefaultValue = pathAttr.DefaultValue,
+                        PickerMode = pathAttr.PickerMode,
                     });
                 }
 
@@ -656,6 +667,14 @@ public sealed class ToolCatalog : IToolCatalog
         {
             throw new InvalidOperationException($"Argument '{argument.Name}' on tool '{alias}' defines numeric bounds for a non-numeric kind.");
         }
+        if (argument.MaximumLength is <= 0)
+        {
+            throw new InvalidOperationException($"Argument '{argument.Name}' on tool '{alias}' has a non-positive maximum length.");
+        }
+        if (argument.MaximumLength is not null && argument.Kind is not WorkflowArgumentKind.String and not WorkflowArgumentKind.Enumeration)
+        {
+            throw new InvalidOperationException($"Argument '{argument.Name}' on tool '{alias}' defines a maximum length for a non-string kind.");
+        }
         if (argument.EditorHint == WorkflowArgumentEditorHint.StructuredJson && argument.Kind != WorkflowArgumentKind.Object || argument.EditorHint == WorkflowArgumentEditorHint.KnowledgeTags && argument.Kind != WorkflowArgumentKind.Object)
         {
             throw new InvalidOperationException($"Argument '{argument.Name}' on tool '{alias}' has an incompatible editor hint.");
@@ -679,6 +698,7 @@ public sealed class ToolCatalog : IToolCatalog
         };
         if (!compatible) return false;
         if (argument.AllowedValues.Count > 0 && value.ValueKind == JsonValueKind.String && !argument.AllowedValues.Contains(value.GetString()!, StringComparer.Ordinal)) return false;
+        if (argument.MaximumLength is { } maximumLength && value.ValueKind == JsonValueKind.String && value.GetString()!.Length > maximumLength) return false;
         if (value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var number) && (argument.Minimum is { } minimum && number < minimum || argument.Maximum is { } maximum && number > maximum)) return false;
         return true;
     }

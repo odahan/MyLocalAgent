@@ -61,6 +61,9 @@ public sealed class ToolArgumentAttribute : DescriptionAttribute
     /// <summary>Gets or sets the optional inclusive authoring maximum.</summary>
     public double Maximum { get; set; } = double.NaN;
 
+    /// <summary>Gets or sets the optional maximum number of characters accepted by a string argument.</summary>
+    public int MaximumLength { get; set; }
+
     /// <summary>Gets or sets the optional semantic editor override.</summary>
     public WorkflowArgumentEditorHint EditorHint { get; set; }
 }

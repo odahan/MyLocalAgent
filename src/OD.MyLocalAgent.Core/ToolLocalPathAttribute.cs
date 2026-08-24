@@ -37,6 +37,9 @@ public sealed class ToolLocalPathAttribute : Attribute
     /// </summary>
     public FileSystemAccessMode RequiredAccess { get; }
 
+    /// <summary>Gets or sets the generic authoring picker for this path argument.</summary>
+    public LocalPathPickerMode PickerMode { get; set; }
+
     /// <summary>
     /// Gets or sets how the analyzed path is derived.
     /// Defaults to <see cref="LocalPathDerivationKind.Direct"/>.

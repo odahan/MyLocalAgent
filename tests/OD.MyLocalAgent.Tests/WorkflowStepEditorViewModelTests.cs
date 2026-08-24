@@ -1,7 +1,9 @@
 using FluentAssertions;
+using Microsoft.Extensions.Options;
 using Moq;
 using System.Text.Json;
 using OD.MyLocalAgent.Core;
+using OD.MyLocalAgent.Ollama;
 using OD.MyLocalAgent.UI.Services;
 using OD.MyLocalAgent.UI.ViewModels;
 using Xunit;
@@ -23,6 +25,71 @@ public sealed class WorkflowStepEditorViewModelTests
         viewModel.SelectedTool = ToolCatalog.Default.Find("filesystem.read");
         viewModel.IsPromptSelected.Should().BeFalse();
         viewModel.IsAiSelected.Should().BeFalse();
+    }
+
+    /// <summary>Verifies existing JSON strings load as typed editor values without recursive validation.</summary>
+    [Fact]
+    public void ResearchDiscoverEditLoadsStringAndEnumerationValuesWithoutJsonQuotes()
+    {
+        const string workflow = """
+            [{
+              "step": "research.discover",
+              "id": "discover",
+              "args": {
+                "themes": "[{\"terms\":[\".NET\"]}]",
+                "freshnessWindow": "sliding",
+                "sourceLanguage": "en",
+                "language": "fr",
+                "preferredDomains": "[\"learn.microsoft.com\"]",
+                "minimumDocuments": 8,
+                "maxResultsPerQuery": 10,
+                "maxRetrievalsPerRun": 40
+              }
+            }]
+            """;
+        var viewModel = new WorkflowStepEditorViewModel();
+
+        viewModel.Initialize(new WorkflowStepEditorRequest(
+            workflow,
+            workflow.IndexOf("research.discover", StringComparison.Ordinal),
+            WorkflowStepEditorMode.Edit,
+            [ToolGroups.Research],
+            [],
+            [],
+            [],
+            WorkflowErrorPolicy.StopOnError,
+            0.2,
+            1));
+
+        viewModel.SelectedTool!.Alias.Should().Be("research.discover");
+        viewModel.Arguments.Single(item => item.Definition.Name == "freshnessWindow").Value.Should().Be("sliding");
+        viewModel.Arguments.Single(item => item.Definition.Name == "sourceLanguage").Value.Should().Be("en");
+        viewModel.Arguments.Single(item => item.Definition.Name == "themes").Value.Should().Be("[{\"terms\":[\".NET\"]}]");
+        viewModel.Arguments.Should().OnlyContain(item => string.IsNullOrEmpty(item.ValidationError));
+        viewModel.HasChanges.Should().BeFalse();
+    }
+
+    /// <summary>Verifies a repair draft reports an invalid constrained value without recursively revalidating.</summary>
+    [Fact]
+    public void InvalidExistingEnumerationProducesOneFieldErrorWithoutRecursion()
+    {
+        const string workflow = """[{"step":"research.discover","id":"discover","args":{"themes":"[]","freshnessWindow":"legacy"}}]""";
+        var viewModel = new WorkflowStepEditorViewModel();
+
+        viewModel.Initialize(new WorkflowStepEditorRequest(
+            workflow,
+            workflow.IndexOf("research.discover", StringComparison.Ordinal),
+            WorkflowStepEditorMode.Edit,
+            [ToolGroups.Research],
+            [],
+            [],
+            [],
+            WorkflowErrorPolicy.StopOnError,
+            0.2,
+            1));
+
+        viewModel.Arguments.Single(item => item.Definition.Name == "freshnessWindow").ValidationError.Should().Contain("sliding");
+        viewModel.HasChanges.Should().BeFalse();
     }
 
     /// <summary>Verifies Knowledge narrowing appears only for the exact Knowledge search alias.</summary>
@@ -115,6 +182,94 @@ public sealed class WorkflowStepEditorViewModelTests
         action.Should().Throw<FormatException>().WithMessage("*between 1 and 3*");
     }
 
+    /// <summary>Verifies string length metadata is enforced independently of the visual host.</summary>
+    [Fact]
+    public void StringEditorRejectsValueBeyondCatalogMaximumLength()
+    {
+        var item = new WorkflowStepArgumentEditorItem(
+            new ToolArgumentDefinition("language", WorkflowArgumentKind.String, true, "Language.") { MaximumLength = 5 },
+            true,
+            "toolong");
+
+        var action = () => item.Parse();
+
+        action.Should().Throw<FormatException>().WithMessage("*at most 5 characters*");
+        item.EditorMaximumLength.Should().Be(5);
+        item.EditorHelpText.Should().Contain("Maximum: 5 characters");
+    }
+
+    /// <summary>Verifies local-path attributes project to generic file and folder editor capabilities.</summary>
+    [Fact]
+    public void LocalPathMetadataSelectsGenericBrowseEditors()
+    {
+        var fileTool = ToolCatalog.Default.Find("filesystem.read")!;
+        var fileArgument = fileTool.ArgumentDefinitions.Single(item => item.Name == "path");
+        var filePath = fileTool.LocalPathArguments.Single(item => item.Derivation == LocalPathDerivationKind.Direct);
+        var fileItem = new WorkflowStepArgumentEditorItem(fileArgument, true, string.Empty, localPath: filePath);
+
+        var folderTool = ToolCatalog.Default.Find("filesystem.list")!;
+        var folderArgument = folderTool.ArgumentDefinitions.Single(item => item.Name == "path");
+        var folderPath = folderTool.LocalPathArguments.Single(item => item.Derivation == LocalPathDerivationKind.Direct);
+        var folderItem = new WorkflowStepArgumentEditorItem(folderArgument, true, string.Empty, localPath: folderPath);
+
+        fileItem.CanBrowseFile.Should().BeTrue();
+        fileItem.CanBrowseFolder.Should().BeFalse();
+        fileItem.EditorHelpText.Should().Contain("File path");
+        folderItem.CanBrowseFolder.Should().BeTrue();
+        folderItem.CanBrowseFile.Should().BeFalse();
+        folderItem.EditorHelpText.Should().Contain("Folder path");
+    }
+
+    /// <summary>Verifies reflected attributes carry authoring constraints into the immutable Tool Map.</summary>
+    [Fact]
+    public void ToolArgumentAttributesProjectLengthAndNumericBounds()
+    {
+        var tool = ToolCatalog.Default.Find("research.discover")!;
+
+        tool.ArgumentDefinitions.Single(item => item.Name == "sourceLanguage").MaximumLength.Should().Be(35);
+        tool.ArgumentDefinitions.Single(item => item.Name == "minimumDocuments").Should().Match<ToolArgumentDefinition>(
+            item => item.Minimum == 1 && item.Maximum == 100);
+        tool.ArgumentDefinitions.Single(item => item.Name == "maxResultsPerQuery").Should().Match<ToolArgumentDefinition>(
+            item => item.Minimum == 1 && item.Maximum == 10);
+    }
+
+    /// <summary>Verifies the prompt editor loads the active provider catalog without preventing free entry.</summary>
+    [Fact]
+    public async Task PromptEditorLoadsActiveOllamaModelsAndKeepsConfiguredChoices()
+    {
+        var catalog = new Mock<IOllamaModelCatalog>(MockBehavior.Strict);
+        catalog.Setup(service => service.ListInstalledModelsAsync(
+                "http://localhost:11434",
+                10,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(["provider-model", "shared-model"]);
+        var aiOptions = new Mock<IOptionsMonitor<AIOptions>>();
+        aiOptions.SetupGet(options => options.CurrentValue).Returns(new AIOptions { Provider = AIOptions.OllamaProvider });
+        var ollamaOptions = new Mock<IOptionsMonitor<OllamaOptions>>();
+        ollamaOptions.SetupGet(options => options.CurrentValue).Returns(new OllamaOptions
+        {
+            Endpoint = "http://localhost:11434",
+            Model = "configured-model",
+            TimeoutSeconds = 300,
+        });
+        var viewModel = new WorkflowStepEditorViewModel(
+            ollamaModelCatalog: catalog.Object,
+            aiOptions: aiOptions.Object,
+            ollamaOptions: ollamaOptions.Object);
+        viewModel.Initialize(Request() with { ConfiguredModel = "configured-model", TaskModel = "task-model" });
+        viewModel.SelectedTool = ToolCatalog.Default.Find("ai.prompt");
+        viewModel.HasChanges = false;
+
+        await viewModel.LoadModelChoicesAsync(CancellationToken.None);
+
+        viewModel.ModelChoices.Should().Equal("provider-model", "shared-model", "configured-model", "task-model");
+        viewModel.ModelCatalogStatus.Should().Contain("2 models exposed");
+        viewModel.HasChanges.Should().BeFalse();
+        viewModel.InheritModel = false;
+        viewModel.UsesExplicitModel.Should().BeTrue();
+        catalog.VerifyAll();
+    }
+
     /// <summary>Verifies the insert selector filters only the immutable catalog projection.</summary>
     [Fact]
     public void ToolSearchFiltersCatalogByAliasOrDescription()
@@ -141,13 +296,17 @@ public sealed class WorkflowStepEditorViewModelTests
         var viewModel = new WorkflowStepEditorViewModel();
         viewModel.Initialize(Request());
         viewModel.SelectedTool = ToolCatalog.Default.Find("ai.prompt");
-        viewModel.SelectedArgument = viewModel.Arguments.Single(item => item.Definition.Name == "prompt");
-        viewModel.SelectedArgument.Value = "replace this text";
-        viewModel.SelectedArgument.SelectionStart = 8;
-        viewModel.SelectedArgument.SelectionLength = 4;
-        viewModel.SelectedPlaceholder = WorkflowPlaceholderCatalog.Entries.First();
-        viewModel.InsertPlaceholderCommand.Execute(null);
-        viewModel.SelectedArgument.Value.Should().Be("replace {{task.id}} text");
+        var prompt = viewModel.Arguments.Single(item => item.Definition.Name == "prompt");
+        prompt.Value = "replace this text";
+        prompt.SelectionStart = 8;
+        prompt.SelectionLength = 4;
+        prompt.SelectedPlaceholder.Should().Be(WorkflowPlaceholderCatalog.Entries.First());
+
+        viewModel.InsertPlaceholderCommand.Execute(prompt);
+
+        prompt.Value.Should().Be("replace {{task.id}} text");
+        prompt.SelectionStart.Should().Be(19);
+        prompt.SelectionLength.Should().Be(0);
     }
 
     /// <summary>Verifies an otherwise valid prompt tool produces an opt-in group proposal.</summary>

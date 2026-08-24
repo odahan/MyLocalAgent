@@ -72,7 +72,7 @@ public sealed class DropboxTool : IDropboxTool
             SummarizeDropboxResult);
 
     /// <inheritdoc />
-    [ToolLocalPath("localPath", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite)]
+    [ToolLocalPath("localPath", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite, PickerMode = LocalPathPickerMode.SaveFile)]
     [Tool("dropbox.download", "Downloads a Dropbox file into an authorized local path.", 200)]
     public Task<string> DownloadAsync(
         [ToolArgument(WorkflowArgumentKind.String, "Dropbox source path.", Example = "/Reports/summary.txt")] string dropboxPath,
