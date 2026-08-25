@@ -1,6 +1,6 @@
 # MyLocalAgent — first-run guide
 
-Application version: **2.0.0**.
+Application version: **2.1.0**.
 
 This guide summarizes the setup used to build the application, publish it, and
 configure its connectors. It does not cover creating a business task, setup
@@ -385,6 +385,31 @@ not an external runtime plug-in loader.
 **Undo assisted change** reverts the last assisted application in one operation,
 whatever its origin, until save or reload. As with any editor change, only
 **Save task** persists the result.
+
+### Repeat one step for each item
+
+The step editor offers **Repeat for each item** only for `ai.prompt` and
+`filesystem.write`. Its source must be exactly one placeholder selecting an array produced by an
+earlier step, for example `{{mails.output.messages}}`:
+
+```json
+{
+  "step": "ai.prompt",
+  "id": "analyses",
+  "forEach": "{{mails.output.messages}}",
+  "args": {
+    "prompt": "Analyze mail #{{foreach.position}}: {{foreach.item.content}}"
+  }
+}
+```
+
+Items run sequentially in source order, with a maximum of 100. `{{foreach.item}}` is the current
+value and `{{foreach.position}}` is its one-based position. The step output is one ordered JSON
+array. An empty array succeeds as `[]`; a non-array source fails. With `Retry`, only the current
+item is retried. After a final failure, remaining items do not run and no partial output is
+published, although files already written are not rolled back. To create one file per item, put
+`{{foreach.position}}` or a safe item property in the path so each iteration does not replace the
+same file.
 
 ## 12. Authoring a dated prompt-only task
 

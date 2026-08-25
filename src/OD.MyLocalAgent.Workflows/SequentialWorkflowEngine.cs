@@ -11,6 +11,9 @@ namespace OD.MyLocalAgent.Workflows;
 /// </summary>
 public sealed class SequentialWorkflowEngine : IWorkflowEngine
 {
+    /// <summary>Gets the maximum number of items accepted by one repeated step.</summary>
+    public const int MaximumForEachItems = 100;
+
     private static readonly JsonSerializerOptions SerializerOptions =
         new(JsonSerializerDefaults.Web);
 
@@ -226,6 +229,20 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                 generationPolicy.ContextWindowTokens);
         }
 
+        if (step.ForEach is not null)
+        {
+            return await ExecuteForEachAsync(
+                step,
+                policy,
+                task,
+                context,
+                generationPolicy,
+                modelContext,
+                startedUtc,
+                startedTimestamp,
+                cancellationToken).ConfigureAwait(false);
+        }
+
         while (true)
         {
             attempts++;
@@ -329,6 +346,190 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                     attempts);
             }
         }
+    }
+
+    private async Task<WorkflowStepResult> ExecuteForEachAsync(
+        WorkflowStep step,
+        WorkflowErrorPolicy policy,
+        ScheduledTask task,
+        WorkflowContext context,
+        EffectiveGenerationPolicy? generationPolicy,
+        ModelPromptPlaceholderContext modelContext,
+        DateTimeOffset startedUtc,
+        long startedTimestamp,
+        CancellationToken cancellationToken)
+    {
+        var attempts = 0;
+        try
+        {
+            var source = WorkflowPlaceholderResolver.ResolveText(
+                step.ForEach!,
+                task,
+                context,
+                step.Id,
+                _timeProvider.GetLocalNow(),
+                modelContext);
+            var items = ParseForEachItems(source, step.Id);
+            var outputs = new List<string>(items.Count);
+
+            for (var index = 0; index < items.Count; index++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var iteration = new WorkflowForEachContext(items[index], index + 1);
+                var iterationAttempts = 0;
+                while (true)
+                {
+                    attempts++;
+                    iterationAttempts++;
+                    try
+                    {
+                        var resolvedArguments = WorkflowPlaceholderResolver.ResolveArguments(
+                            step.Args,
+                            task,
+                            context,
+                            step.Id,
+                            _timeProvider,
+                            modelContext,
+                            iteration);
+                        var output = await ExecuteStepAsync(
+                            step,
+                            resolvedArguments,
+                            task,
+                            context,
+                            generationPolicy,
+                            cancellationToken).ConfigureAwait(false);
+                        outputs.Add(output);
+                        break;
+                    }
+                    catch (Exception exception) when (exception is not OperationCanceledException)
+                    {
+                        if (policy == WorkflowErrorPolicy.Retry &&
+                            iterationAttempts <= step.RetryCount)
+                        {
+                            var delay = ComputeBackoff(step, iterationAttempts);
+                            _logger.LogWarning(
+                                exception,
+                                "Workflow step {StepId} ({StepAlias}) item {ForEachPosition} attempt {Attempt} failed. Retrying in {BackoffSeconds} seconds.",
+                                step.Id,
+                                step.Alias,
+                                iteration.Position,
+                                iterationAttempts,
+                                delay.TotalSeconds);
+                            await Task.Delay(
+                                delay,
+                                _timeProvider,
+                                cancellationToken).ConfigureAwait(false);
+                            continue;
+                        }
+
+                        throw new InvalidOperationException(
+                            $"Workflow step '{step.Id}' failed for forEach item at position {iteration.Position}.",
+                            exception);
+                    }
+                }
+            }
+
+            var aggregatedOutput = AggregateOutputs(outputs);
+            var duration = _timeProvider.GetElapsedTime(startedTimestamp);
+            var outputSize = System.Text.Encoding.UTF8.GetByteCount(aggregatedOutput);
+            _logger.LogInformation(
+                "Workflow step {StepId} ({StepAlias}) completed {ForEachCount} forEach item(s) in {DurationMs} ms with status {Status}, output size {OutputSizeBytes} bytes, and {Attempts} attempt(s).",
+                step.Id,
+                step.Alias,
+                items.Count,
+                duration.TotalMilliseconds,
+                WorkflowStepStatus.Success,
+                outputSize,
+                attempts);
+            return new WorkflowStepResult(
+                step.Id,
+                step.Alias,
+                WorkflowStepStatus.Success,
+                aggregatedOutput,
+                null,
+                null,
+                startedUtc,
+                duration,
+                attempts);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            var duration = _timeProvider.GetElapsedTime(startedTimestamp);
+            _logger.LogWarning(
+                exception,
+                "Workflow step {StepId} ({StepAlias}) forEach execution failed in {DurationMs} ms after {Attempts} attempt(s).",
+                step.Id,
+                step.Alias,
+                duration.TotalMilliseconds,
+                attempts);
+            return new WorkflowStepResult(
+                step.Id,
+                step.Alias,
+                WorkflowStepStatus.Failure,
+                null,
+                exception.Message,
+                exception,
+                startedUtc,
+                duration,
+                attempts);
+        }
+    }
+
+    private static IReadOnlyList<JsonElement> ParseForEachItems(
+        string source,
+        string stepId)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(source);
+            if (document.RootElement.ValueKind != JsonValueKind.Array)
+            {
+                throw new WorkflowValidationException(
+                    $"Workflow step '{stepId}' property 'forEach' must resolve to a JSON array.");
+            }
+
+            var count = document.RootElement.GetArrayLength();
+            if (count > MaximumForEachItems)
+            {
+                throw new WorkflowValidationException(
+                    $"Workflow step '{stepId}' property 'forEach' resolved to {count} items; the maximum is {MaximumForEachItems}.");
+            }
+
+            return document.RootElement.EnumerateArray()
+                .Select(static item => item.Clone())
+                .ToArray();
+        }
+        catch (JsonException exception)
+        {
+            throw new WorkflowValidationException(
+                $"Workflow step '{stepId}' property 'forEach' must resolve to a JSON array.",
+                exception);
+        }
+    }
+
+    private static string AggregateOutputs(IReadOnlyList<string> outputs)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteStartArray();
+            foreach (var output in outputs)
+            {
+                try
+                {
+                    using var document = JsonDocument.Parse(output);
+                    document.RootElement.WriteTo(writer);
+                }
+                catch (JsonException)
+                {
+                    writer.WriteStringValue(output);
+                }
+            }
+
+            writer.WriteEndArray();
+        }
+
+        return System.Text.Encoding.UTF8.GetString(stream.ToArray());
     }
 
     private async Task<string> ExecuteStepAsync(

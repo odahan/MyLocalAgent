@@ -58,6 +58,7 @@ internal sealed class WorkflowStepDefinitionJsonConverter : JsonConverter<Workfl
             KnowledgeAccess = ReadKnowledgeAccess(root, options),
             Next = ReadOptionalString(root, "next"),
             ResponseSchema = ReadOptionalObject(root, "responseSchema"),
+            ForEach = ReadOptionalString(root, "forEach"),
         };
     }
 
@@ -77,7 +78,8 @@ internal sealed class WorkflowStepDefinitionJsonConverter : JsonConverter<Workfl
             value.ToolAliases.Count == 0 &&
             value.KnowledgeAccess is null &&
             value.Next is null &&
-            value.ResponseSchema is null)
+            value.ResponseSchema is null &&
+            value.ForEach is null)
         {
             writer.WriteStringValue(value.Step);
             return;
@@ -145,6 +147,11 @@ internal sealed class WorkflowStepDefinitionJsonConverter : JsonConverter<Workfl
             responseSchema.WriteTo(writer);
         }
 
+        if (value.ForEach is not null)
+        {
+            writer.WriteString("forEach", value.ForEach);
+        }
+
         writer.WriteEndObject();
     }
 
@@ -164,6 +171,7 @@ internal sealed class WorkflowStepDefinitionJsonConverter : JsonConverter<Workfl
             "knowledgeAccess",
             "next",
             "responseSchema",
+            "forEach",
         ];
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var property in root.EnumerateObject())

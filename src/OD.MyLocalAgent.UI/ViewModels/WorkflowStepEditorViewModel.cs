@@ -76,6 +76,8 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
     [ObservableProperty] private string _toolSearchText = string.Empty;
     [ObservableProperty] private WorkflowStepArgumentEditorItem? _selectedArgument;
     [ObservableProperty] private string _next = string.Empty;
+    [ObservableProperty] private bool _repeatForEachItem;
+    [ObservableProperty] private string _forEachSource = string.Empty;
     [ObservableProperty] private bool _structuredResponse;
     [ObservableProperty] private string _responseSchema = "{\n  \"type\": \"object\",\n  \"properties\": {},\n  \"required\": []\n}";
 
@@ -107,6 +109,10 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
     public bool IsPromptSelected => string.Equals(SelectedTool?.Alias, ToolMap.PromptAlias, StringComparison.OrdinalIgnoreCase);
     /// <summary>Gets whether the selected step supports generation overrides.</summary>
     public bool IsAiSelected => SelectedTool?.IsAiStep == true;
+    /// <summary>Gets whether the selected step supports sequential item repetition.</summary>
+    public bool SupportsForEach => SelectedTool?.SupportsForEach == true;
+    /// <summary>Gets whether the forEach source editor is visible.</summary>
+    public bool ShowForEachSource => SupportsForEach && RepeatForEachItem;
     /// <summary>Gets whether retry-specific fields apply.</summary>
     public bool IsRetrySelected => (OverrideErrorPolicy ? OnError : _request?.ErrorPolicy) == WorkflowErrorPolicy.Retry;
     /// <summary>Gets whether task-bounded Knowledge narrowing is applicable.</summary>
@@ -180,6 +186,8 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
             _revertingTool = false;
             OnPropertyChanged(nameof(IsPromptSelected));
             OnPropertyChanged(nameof(IsAiSelected));
+            OnPropertyChanged(nameof(SupportsForEach));
+            OnPropertyChanged(nameof(ShowForEachSource));
             OnPropertyChanged(nameof(ShowKnowledgeTags));
             OnPropertyChanged(nameof(ShowResponseSchema));
             return;
@@ -192,6 +200,8 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
         }
         OnPropertyChanged(nameof(IsPromptSelected));
         OnPropertyChanged(nameof(IsAiSelected));
+        OnPropertyChanged(nameof(SupportsForEach));
+        OnPropertyChanged(nameof(ShowForEachSource));
         OnPropertyChanged(nameof(ShowKnowledgeTags));
         OnPropertyChanged(nameof(ShowResponseSchema));
     }
@@ -206,6 +216,12 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
     partial void OnOnErrorChanged(WorkflowErrorPolicy value) => OnPropertyChanged(nameof(IsRetrySelected));
     partial void OnStructuredResponseChanged(bool value) => OnPropertyChanged(nameof(ShowResponseSchema));
     partial void OnOverrideErrorPolicyChanged(bool value) => OnPropertyChanged(nameof(IsRetrySelected));
+    partial void OnRepeatForEachItemChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowForEachSource));
+        RefreshAuthorizationProposals();
+    }
+    partial void OnForEachSourceChanged(string value) => RefreshAuthorizationProposals();
     partial void OnToolAliasesChanged(string value)
     {
         if (!_synchronizingPromptTools)
@@ -424,6 +440,8 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
         RetryCount = step?.RetryCount?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
         RetryBackoffSeconds = step?.RetryBackoffSeconds?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
         Next = step?.Next ?? string.Empty;
+        RepeatForEachItem = step?.ForEach is not null;
+        ForEachSource = step?.ForEach ?? string.Empty;
         StructuredResponse = step?.ResponseSchema is not null;
         ResponseSchema = step?.ResponseSchema?.GetRawText() ?? "{\n  \"type\": \"object\",\n  \"properties\": {},\n  \"required\": []\n}";
         Model = step?.Model ?? string.Empty;
@@ -530,6 +548,9 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
             KnowledgeAccess = knowledge,
             Next = NullIfWhiteSpace(Next),
             ResponseSchema = responseSchema,
+            ForEach = SupportsForEach && RepeatForEachItem
+                ? NullIfWhiteSpace(ForEachSource) ?? throw new WorkflowValidationException("A forEach output selector is required.")
+                : null,
             IsStringForm = original?.IsStringForm == true,
         };
     }
@@ -626,6 +647,16 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
             }
             var analysis = WorkflowRequirementAnalyzer.Analyze(candidate, _request.ToolGroups, _request.FileSystemAccess, _request.Capabilities);
             foreach (var warning in analysis.Warnings) ExecutionWarnings.Add(warning);
+            if (string.Equals(step.Step, "filesystem.write", StringComparison.OrdinalIgnoreCase) &&
+                step.ForEach is not null &&
+                TryGetValue(step.Args, "path", out var pathValue) &&
+                pathValue.ValueKind == JsonValueKind.String &&
+                !WorkflowPlaceholderCatalog.Extract(pathValue.GetString() ?? string.Empty).Any(
+                    static placeholder => placeholder.StartsWith("foreach.", StringComparison.OrdinalIgnoreCase)))
+            {
+                ExecutionWarnings.Add(
+                    "The repeated filesystem.write path does not use a foreach placeholder; every item will replace the same file.");
+            }
             foreach (var group in analysis.MissingToolGroups)
             {
                 AuthorizationProposals.Add(new WorkflowProposalItem("Tool group", group, $"Allow the '{group}' tool group for this task.") { IsAccepted = accepted.Contains(("Tool group", group)) });

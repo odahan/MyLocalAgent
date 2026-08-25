@@ -1,0 +1,38 @@
+{
+  "id": "foreach-mail-analysis",
+  "name": "ForEach mail analysis",
+  "schedule": "0 8 * * 1-5",
+  "prompt": "Analyze each message independently and save one concise Markdown report per message.",
+  "tools": ["gmail", "filesystem"],
+  "capabilities": [],
+  "fileSystemAccess": [],
+  "workflow": [
+    {
+      "step": "gmail.readToday",
+      "id": "mails"
+    },
+    {
+      "step": "ai.prompt",
+      "id": "analyses",
+      "forEach": "{{mails.output.messages}}",
+      "args": {
+        "prompt": "Analyze this email independently. Identify its purpose, urgency, and required follow-up. Return concise Markdown.\n\nEmail #{{foreach.position}}:\n{{foreach.item.content}}",
+        "thinking": false
+      },
+      "onError": "Retry",
+      "retryCount": 2,
+      "retryBackoffSeconds": 2
+    },
+    {
+      "step": "filesystem.write",
+      "id": "reports",
+      "forEach": "{{analyses.output}}",
+      "args": {
+        "path": "reports/mail-analysis-{{foreach.position}}.md",
+        "content": "{{foreach.item}}"
+      }
+    }
+  ],
+  "enabled": false,
+  "errorPolicy": "StopOnError"
+}

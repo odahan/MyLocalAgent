@@ -15,7 +15,12 @@ public static class WorkflowStepDependencyAnalyzer
         IReadOnlySet<string> available = new HashSet<string>([id], StringComparer.OrdinalIgnoreCase);
         for (var index = targetIndex + 1; index < workflow.Count; index++)
         {
-            var arguments = ReferencingArguments(workflow[index].Args, id, available);
+            var arguments = ReferencingArguments(workflow[index].Args, id, available).ToList();
+            if (ReferencesOutput(workflow[index].ForEach, id, available))
+            {
+                arguments.Add("forEach");
+            }
+
             if (arguments.Count > 0)
             {
                 matches[index] = new WorkflowStepDependency(index, workflow[index].EffectiveId, workflow[index].Step, arguments);
@@ -79,6 +84,11 @@ public static class WorkflowStepDependencyAnalyzer
             .Select(static property => property.Name)
             .ToArray();
     }
+
+    private static bool ReferencesOutput(string? text, string id, IReadOnlySet<string> available) =>
+        text is not null && WorkflowPlaceholderCatalog.Extract(text).Any(
+            marker => marker.StartsWith(id + ".output", StringComparison.OrdinalIgnoreCase) &&
+                      WorkflowPlaceholderCatalog.IsValid(marker, available, out _));
 
     private static IEnumerable<string> EnumerateStrings(JsonElement element)
     {

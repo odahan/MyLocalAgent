@@ -40,4 +40,9 @@ public sealed class ToolAttribute : DescriptionAttribute
     /// Gets or sets the optional sensitive capability required for invocation.
     /// </summary>
     public TaskCapability RequiredCapability { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether workflow steps may repeat this tool for an array.
+    /// </summary>
+    public bool SupportsForEach { get; set; }
 }

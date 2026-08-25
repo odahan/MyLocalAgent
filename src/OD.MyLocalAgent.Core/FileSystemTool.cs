@@ -157,7 +157,7 @@ public sealed class FileSystemTool : IFileSystemTool
 
     /// <inheritdoc />
     [ToolLocalPath("path", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite, PickerMode = LocalPathPickerMode.SaveFile)]
-    [Tool("filesystem.write", "Writes UTF-8 text to an authorized local file path.", 300)]
+    [Tool("filesystem.write", "Writes UTF-8 text to an authorized local file path.", 300, SupportsForEach = true)]
     public Task<string> WriteAsync(
         [ToolArgument(WorkflowArgumentKind.String, "Relative global-root path or task-authorized absolute file path.", Example = "reports/summary.txt")] string path,
         [ToolArgument(WorkflowArgumentKind.String, "Text content to write.", Example = "Report body.")] string content,

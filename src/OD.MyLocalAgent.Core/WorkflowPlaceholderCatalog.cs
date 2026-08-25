@@ -10,7 +10,7 @@ public static partial class WorkflowPlaceholderCatalog
     /// <summary>
     /// Gets the version of the placeholder contract supplied to workflow assistants.
     /// </summary>
-    public const string Version = "2";
+    public const string Version = "3";
 
     /// <summary>
     /// Gets the structured placeholder templates shared by validation, execution, and authoring.
@@ -41,6 +41,14 @@ public static partial class WorkflowPlaceholderCatalog
             SupportsStructuredSelector = true,
         },
         new("{{workflow.context}}", "ordered successful outputs before the current step"),
+        new("{{foreach.item}}", "current item of a forEach step")
+        {
+            Details =
+                "Available only inside a step that declares forEach. " +
+                "Accepts structured selectors such as {{foreach.item.subject}}.",
+            SupportsStructuredSelector = true,
+        },
+        new("{{foreach.position}}", "one-based position of the current forEach item"),
         new("{{ModelName}}", "active model name"),
         new("{{ModelSettings}}", "effective Temperature and Top P"),
         new("{{ModelContextSize}}", "declared context-window size in tokens"),
@@ -126,7 +134,9 @@ public static partial class WorkflowPlaceholderCatalog
     {
         ArgumentNullException.ThrowIfNull(placeholder);
         if (placeholder.Equals("task.prompt", StringComparison.OrdinalIgnoreCase) ||
-            placeholder.Equals("workflow.context", StringComparison.OrdinalIgnoreCase))
+            placeholder.Equals("workflow.context", StringComparison.OrdinalIgnoreCase) ||
+            placeholder.Equals("foreach.position", StringComparison.OrdinalIgnoreCase) ||
+            placeholder.StartsWith("foreach.item", StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
@@ -151,11 +161,13 @@ public static partial class WorkflowPlaceholderCatalog
     /// <param name="placeholder">The trimmed placeholder body.</param>
     /// <param name="availableStepIds">The output identifiers declared before the current step.</param>
     /// <param name="error">The deterministic validation error when invalid.</param>
+    /// <param name="allowForEach">Whether iteration-only placeholders are available at this position.</param>
     /// <returns><see langword="true"/> when the placeholder is valid.</returns>
     public static bool IsValid(
         string placeholder,
         IReadOnlySet<string> availableStepIds,
-        out string? error)
+        out string? error,
+        bool allowForEach = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(placeholder);
         ArgumentNullException.ThrowIfNull(availableStepIds);
@@ -168,6 +180,34 @@ public static partial class WorkflowPlaceholderCatalog
         {
             error = null;
             return true;
+        }
+
+        if (placeholder.Equals("foreach.position", StringComparison.OrdinalIgnoreCase))
+        {
+            error = allowForEach
+                ? null
+                : $"Placeholder '{{{{{placeholder}}}}}' is valid only inside a step that declares 'forEach'.";
+            return allowForEach;
+        }
+
+        const string forEachItem = "foreach.item";
+        if (placeholder.StartsWith(forEachItem, StringComparison.OrdinalIgnoreCase))
+        {
+            var suffix = placeholder[forEachItem.Length..];
+            if (!allowForEach)
+            {
+                error = $"Placeholder '{{{{{placeholder}}}}}' is valid only inside a step that declares 'forEach'.";
+                return false;
+            }
+
+            if (suffix.Length == 0 || StructuredSelectorPattern().IsMatch(suffix))
+            {
+                error = null;
+                return true;
+            }
+
+            error = $"Placeholder '{{{{{placeholder}}}}}' has an invalid structured selector.";
+            return false;
         }
 
         var dateTime = DateTimePlaceholderFormatter.Resolve(

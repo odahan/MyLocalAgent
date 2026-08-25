@@ -16,7 +16,8 @@ internal static class WorkflowPlaceholderResolver
         WorkflowContext context,
         string stepId,
         TimeProvider timeProvider,
-        ModelPromptPlaceholderContext modelContext)
+        ModelPromptPlaceholderContext modelContext,
+        WorkflowForEachContext? forEachContext = null)
     {
         if (arguments.ValueKind == JsonValueKind.Undefined)
         {
@@ -35,7 +36,8 @@ internal static class WorkflowPlaceholderResolver
                 context,
                 stepId,
                 localNow,
-                modelContext);
+                modelContext,
+                forEachContext);
         }
 
         using var document = JsonDocument.Parse(buffer.WrittenMemory);
@@ -48,7 +50,8 @@ internal static class WorkflowPlaceholderResolver
         WorkflowContext context,
         string stepId,
         DateTimeOffset localNow,
-        ModelPromptPlaceholderContext modelContext)
+        ModelPromptPlaceholderContext modelContext,
+        WorkflowForEachContext? forEachContext = null)
     {
         ArgumentNullException.ThrowIfNull(template);
         return WorkflowPlaceholderCatalog.Replace(
@@ -59,7 +62,8 @@ internal static class WorkflowPlaceholderResolver
                 context,
                 stepId,
                 localNow,
-                modelContext));
+                modelContext,
+                forEachContext));
     }
 
     private static void WriteResolvedElement(
@@ -69,7 +73,8 @@ internal static class WorkflowPlaceholderResolver
         WorkflowContext context,
         string stepId,
         DateTimeOffset localNow,
-        ModelPromptPlaceholderContext modelContext)
+        ModelPromptPlaceholderContext modelContext,
+        WorkflowForEachContext? forEachContext)
     {
         switch (element.ValueKind)
         {
@@ -85,7 +90,8 @@ internal static class WorkflowPlaceholderResolver
                         context,
                         stepId,
                         localNow,
-                        modelContext);
+                        modelContext,
+                        forEachContext);
                 }
 
                 writer.WriteEndObject();
@@ -102,7 +108,8 @@ internal static class WorkflowPlaceholderResolver
                         context,
                         stepId,
                         localNow,
-                        modelContext);
+                        modelContext,
+                        forEachContext);
                 }
 
                 writer.WriteEndArray();
@@ -116,7 +123,8 @@ internal static class WorkflowPlaceholderResolver
                         context,
                         stepId,
                         localNow,
-                        modelContext));
+                        modelContext,
+                        forEachContext));
                 break;
 
             default:
@@ -131,7 +139,8 @@ internal static class WorkflowPlaceholderResolver
         WorkflowContext context,
         string stepId,
         DateTimeOffset localNow,
-        ModelPromptPlaceholderContext modelContext)
+        ModelPromptPlaceholderContext modelContext,
+        WorkflowForEachContext? forEachContext)
     {
         if (string.Equals(placeholder, "task.id", StringComparison.OrdinalIgnoreCase))
         {
@@ -170,6 +179,25 @@ internal static class WorkflowPlaceholderResolver
                 StringComparison.OrdinalIgnoreCase))
         {
             return context.ToJson();
+        }
+
+        const string forEachItemPrefix = "foreach.item";
+        if (placeholder.StartsWith(forEachItemPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            var iteration = forEachContext ??
+                throw new WorkflowPlaceholderException(placeholder, stepId);
+            return ResolveJsonElementPath(
+                iteration.Item,
+                placeholder[forEachItemPrefix.Length..],
+                placeholder,
+                stepId);
+        }
+
+        if (string.Equals(placeholder, "foreach.position", StringComparison.OrdinalIgnoreCase))
+        {
+            var iteration = forEachContext ??
+                throw new WorkflowPlaceholderException(placeholder, stepId);
+            return iteration.Position.ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
 
         const string previousPrefix = "previous.output";
@@ -242,63 +270,76 @@ internal static class WorkflowPlaceholderResolver
         try
         {
             using var document = JsonDocument.Parse(output);
-            var current = document.RootElement;
-            var position = 0;
-            while (position < path.Length)
-            {
-                if (path[position] == '.')
-                {
-                    position++;
-                    var propertyStart = position;
-                    while (position < path.Length &&
-                           path[position] is not '.' and not '[')
-                    {
-                        position++;
-                    }
-
-                    if (position == propertyStart ||
-                        current.ValueKind != JsonValueKind.Object ||
-                        !TryGetPropertyIgnoreCase(
-                            current,
-                            path[propertyStart..position],
-                            out current))
-                    {
-                        throw new WorkflowPlaceholderException(placeholder, stepId);
-                    }
-
-                    continue;
-                }
-
-                if (path[position] == '[')
-                {
-                    var closingBracket = path.IndexOf(']', position + 1);
-                    if (closingBracket < 0 ||
-                        !int.TryParse(
-                            path[(position + 1)..closingBracket],
-                            out var index) ||
-                        index < 0 ||
-                        current.ValueKind != JsonValueKind.Array ||
-                        index >= current.GetArrayLength())
-                    {
-                        throw new WorkflowPlaceholderException(placeholder, stepId);
-                    }
-
-                    current = current[index];
-                    position = closingBracket + 1;
-                    continue;
-                }
-
-                throw new WorkflowPlaceholderException(placeholder, stepId);
-            }
-
-            return current.ValueKind == JsonValueKind.String
-                ? current.GetString() ?? string.Empty
-                : current.GetRawText();
+            return ResolveJsonElementPath(
+                document.RootElement,
+                path,
+                placeholder,
+                stepId);
         }
         catch (JsonException)
         {
             throw new WorkflowPlaceholderException(placeholder, stepId);
         }
+    }
+
+    private static string ResolveJsonElementPath(
+        JsonElement element,
+        string path,
+        string placeholder,
+        string stepId)
+    {
+        var current = element;
+        var position = 0;
+        while (position < path.Length)
+        {
+            if (path[position] == '.')
+            {
+                position++;
+                var propertyStart = position;
+                while (position < path.Length &&
+                       path[position] is not '.' and not '[')
+                {
+                    position++;
+                }
+
+                if (position == propertyStart ||
+                    current.ValueKind != JsonValueKind.Object ||
+                    !TryGetPropertyIgnoreCase(
+                        current,
+                        path[propertyStart..position],
+                        out current))
+                {
+                    throw new WorkflowPlaceholderException(placeholder, stepId);
+                }
+
+                continue;
+            }
+
+            if (path[position] == '[')
+            {
+                var closingBracket = path.IndexOf(']', position + 1);
+                if (closingBracket < 0 ||
+                    !int.TryParse(
+                        path[(position + 1)..closingBracket],
+                        out var index) ||
+                    index < 0 ||
+                    current.ValueKind != JsonValueKind.Array ||
+                    index >= current.GetArrayLength())
+                {
+                    throw new WorkflowPlaceholderException(placeholder, stepId);
+                }
+
+                current = current[index];
+                position = closingBracket + 1;
+                continue;
+            }
+
+            throw new WorkflowPlaceholderException(placeholder, stepId);
+        }
+
+        return current.ValueKind == JsonValueKind.String
+            ? current.GetString() ?? string.Empty
+            : current.GetRawText();
     }
 
     private static bool TryGetPropertyIgnoreCase(

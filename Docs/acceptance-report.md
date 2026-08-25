@@ -493,3 +493,21 @@ Date: 2026-08-24
 | Dependency-aware deletion and safe dialog lifecycle are implemented. | ✅ | Structured placeholder analysis identifies the dependent step, effective id, alias, and argument; destructive confirmation defaults to Cancel; changed forms confirm close or tool switching. |
 | Accessibility, theme, and constrained layout contracts are present. | ✅ | The modal has named controls, live validation text, keyboard Cancel, no default Enter action, dynamic theme resources, minimum dimensions, and independent scrolling. Live inspection verified a legible dark modal and the application resource transition in both Dark and Light themes. |
 | Release gate and deployment are clean. | ✅ | Release build completed with 0 warnings and 0 errors. The non-integration suite completed with 765 passed, 0 failed, and 1 expected local Ollama integration probe skipped. `git diff --check` passed. The self-contained single-file `win-x64` UI and Runner were published atomically to `%LOCALAPPDATA%\Programs\OD.MyLocalAgent`. Every build, test, and publish invocation used `-m:1`. |
+
+# Stage 29 — Conditional workflow routing and structured prompt responses — 2026-08-24
+
+- some tests have been done but still in progress
+
+## Stage 30 — Limited step-level `forEach`
+
+Date: 2026-08-25
+
+| Acceptance item | Status | Executed evidence |
+|---|---:|---|
+| Only supported aliases accept repetition. | ✅ | Declarative catalog and validator tests confirm that only `ai.prompt` and `filesystem.write` expose `SupportsForEach`; all other aliases reject the property. |
+| The source and iteration placeholders are statically safe. | ✅ | Tests cover exact prior-output selectors, structured paths, declaration order, routing dominance, invalid first-step/`previous.output` use, scope violations, and dependency-aware deletion. |
+| Execution is sequential, bounded, and ordered. | ✅ | Engine tests cover ordered prompt/tool calls, aggregation as one JSON array, empty input, non-array input, and rejection above the 100-item ceiling. |
+| Failure policy remains step-scoped. | ✅ | Retry-isolation tests confirm only the current item is retried; final failure stops remaining items and publishes no partial output. Existing `ContinueOnError` behavior is preserved. |
+| Authoring surfaces expose the limited feature. | ✅ | Editor, catalog, AI Helper, formatter, placeholder, round-trip, and same-path overwrite-warning tests cover the new contract. |
+| Documentation and sample are complete. | ✅ | README, bilingual user and first-run guides, bilingual technical manual, architecture ledger, location map, shared specification, Stage 30 prompt, and `foreach-mail-analysis.json` describe the same semantics. |
+| Deterministic gate is clean. | ✅ | `dotnet test OD.MyLocalAgent.sln -m:1 --no-restore --filter "Category!=Integration"` completed with 797 passed, 0 failed, and 1 expected Ollama probe skipped. `git diff --check` passed. |

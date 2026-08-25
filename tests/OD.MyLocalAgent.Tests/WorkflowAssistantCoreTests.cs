@@ -95,6 +95,55 @@ public sealed class WorkflowAssistantCoreTests
         action.Should().Throw<WorkflowValidationException>();
     }
 
+    /// <summary>Verifies forEach round-trips and remains restricted to declared operations.</summary>
+    [Fact]
+    public void ForEachContractRoundTripsAndValidatesSupportedAliases()
+    {
+        var workflow = WorkflowDefinitionSerializer.Deserialize(
+            """
+            [
+              { "step": "filesystem.list", "id": "files", "args": { "path": "inbox" } },
+              {
+                "step": "filesystem.write",
+                "id": "save",
+                "forEach": "{{files.output.entries}}",
+                "args": {
+                  "path": "reports/{{foreach.position}}.txt",
+                  "content": "{{foreach.item.name}}"
+                }
+              }
+            ]
+            """);
+
+        ScheduledTaskValidator.ValidateWorkflowDefinitions(
+            workflow,
+            [ToolGroups.FileSystem]);
+
+        var roundTrip = WorkflowDefinitionSerializer.Deserialize(
+            WorkflowDefinitionSerializer.Serialize(workflow));
+        roundTrip[1].ForEach.Should().Be("{{files.output.entries}}");
+        ToolMap.Find("filesystem.write")!.SupportsForEach.Should().BeTrue();
+        ToolMap.Find("ai.prompt")!.SupportsForEach.Should().BeTrue();
+        ToolMap.Find("filesystem.list")!.SupportsForEach.Should().BeFalse();
+    }
+
+    /// <summary>Verifies unsupported aliases and iteration placeholders outside forEach fail closed.</summary>
+    [Theory]
+    [InlineData("""[{"step":"filesystem.list","id":"files","args":{"path":"inbox"}},{"step":"filesystem.list","forEach":"{{files.output.entries}}","args":{"path":"{{foreach.item.name}}"}}]""")]
+    [InlineData("""[{"step":"filesystem.write","args":{"path":"out.txt","content":"{{foreach.item}}"}}]""")]
+    [InlineData("""[{"step":"filesystem.list","id":"files","args":{"path":"inbox"}},{"step":"filesystem.write","forEach":"prefix {{files.output.entries}}","args":{"path":"out.txt","content":"x"}}]""")]
+    [InlineData("""[{"step":"filesystem.write","forEach":"{{previous.output}}","args":{"path":"out.txt","content":"{{foreach.item}}"}}]""")]
+    public void InvalidForEachContractsAreRejected(string json)
+    {
+        var workflow = WorkflowDefinitionSerializer.Deserialize(json);
+
+        var action = () => ScheduledTaskValidator.ValidateWorkflowDefinitions(
+            workflow,
+            [ToolGroups.FileSystem]);
+
+        action.Should().Throw<WorkflowValidationException>();
+    }
+
     /// <summary>
     /// Verifies tool, path, dynamic-path, and Safety requirements are derived from Tool Map metadata.
     /// </summary>

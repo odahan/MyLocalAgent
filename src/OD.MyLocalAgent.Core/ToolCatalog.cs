@@ -444,6 +444,7 @@ public sealed class ToolCatalog : IToolCatalog
                     Order = toolAttr.Order,
                     Activation = groupAttr.Activation,
                     Method = method,
+                    SupportsForEach = toolAttr.SupportsForEach,
                 };
 
                 toolDefs.Add(toolDef);
@@ -531,6 +532,7 @@ public sealed class ToolCatalog : IToolCatalog
                 ArgumentDefinitions = arguments,
                 Order = aiOrder++,
                 Activation = ToolActivationKind.Singleton,
+                SupportsForEach = string.Equals(alias, ToolMap.PromptAlias, StringComparison.OrdinalIgnoreCase),
             });
         }
 

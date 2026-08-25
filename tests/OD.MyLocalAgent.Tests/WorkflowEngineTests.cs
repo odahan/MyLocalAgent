@@ -483,6 +483,245 @@ public sealed class WorkflowEngineTests
     }
 
     /// <summary>
+    /// Verifies a supported step executes sequentially for every selected array item and
+    /// publishes one ordered structured output array.
+    /// </summary>
+    [Fact]
+    public async Task ForEachExecutesItemsSequentiallyAndAggregatesOutputs()
+    {
+        var observedPaths = new List<string>();
+        var observedContents = new List<string>();
+        var registry = new RecordingToolRegistry(
+            (alias, arguments, _) =>
+            {
+                if (alias == "filesystem.list")
+                {
+                    return Task.FromResult(
+                        """{"entries":[{"name":"alpha"},{"name":"beta"}]}""");
+                }
+
+                var path = arguments.GetProperty("path").GetString()!;
+                observedPaths.Add(path);
+                observedContents.Add(arguments.GetProperty("content").GetString()!);
+                return Task.FromResult($$"""{"path":"{{path}}"}""");
+            });
+        var repeated = Step(
+            "filesystem.write",
+            "saved",
+            """
+            {
+              "path": "reports/{{foreach.position}}-{{foreach.item.name}}.txt",
+              "content": "Item {{foreach.item.name}}"
+            }
+            """) with
+        {
+            ForEach = "{{files.output.entries}}",
+        };
+        var task = CreateTask(
+            [
+                Step("filesystem.list", "files", """{ "path": "inbox" }"""),
+                repeated,
+            ]);
+
+        ScheduledTaskValidator.Validate(task);
+        var result = await CreateEngine(registry).ExecuteAsync(
+            task,
+            CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        observedPaths.Should().Equal(
+            "reports/1-alpha.txt",
+            "reports/2-beta.txt");
+        observedContents.Should().Equal("Item alpha", "Item beta");
+        using var output = JsonDocument.Parse(result.FinalText);
+        output.RootElement.GetArrayLength().Should().Be(2);
+        output.RootElement[0].GetProperty("path").GetString()
+            .Should().Be("reports/1-alpha.txt");
+        output.RootElement[1].GetProperty("path").GetString()
+            .Should().Be("reports/2-beta.txt");
+        result.Steps[1].Attempts.Should().Be(2);
+    }
+
+    /// <summary>Verifies an agentic prompt receives one isolated item per invocation.</summary>
+    [Fact]
+    public async Task PromptForEachRunsOncePerSelectedItem()
+    {
+        var registry = new RecordingToolRegistry(
+            (_, _, _) => Task.FromResult(
+                """{"entries":[{"subject":"First"},{"subject":"Second"}]}"""));
+        var prompts = new List<string>();
+        var agent = new Mock<IMyLocalAgentService>(MockBehavior.Strict);
+        agent.Setup(
+                service => service.RunPromptWithoutToolsAsync(
+                    It.IsAny<string>(),
+                    It.IsAny<EffectiveGenerationPolicy>(),
+                    It.IsAny<string>(),
+                    It.IsAny<CancellationToken>()))
+            .Callback<string, EffectiveGenerationPolicy, string, CancellationToken>(
+                (prompt, _, _, _) => prompts.Add(prompt))
+            .ReturnsAsync(new AgentRunResult("reviewed", "Test"));
+        var repeated = Step(
+            "ai.prompt",
+            "reviews",
+            """{ "prompt": "Review {{foreach.item.subject}}." }""") with
+        {
+            ForEach = "{{files.output.entries}}",
+        };
+        var task = CreateTask(
+            [
+                Step("filesystem.list", "files", """{ "path": "inbox" }"""),
+                repeated,
+            ]);
+
+        var result = await CreateEngine(registry, agentService: agent.Object)
+            .ExecuteAsync(task, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        prompts.Should().Equal("Review First.", "Review Second.");
+        result.FinalText.Should().Be("""["reviewed","reviewed"]""");
+        agent.VerifyAll();
+    }
+
+    /// <summary>Verifies Retry repeats only the failing item rather than the completed prefix.</summary>
+    [Fact]
+    public async Task ForEachRetryRepeatsOnlyCurrentItem()
+    {
+        var writeAttempts = new List<string>();
+        var betaAttempts = 0;
+        var registry = new RecordingToolRegistry(
+            (alias, arguments, _) =>
+            {
+                if (alias == "filesystem.list")
+                {
+                    return Task.FromResult("""{"entries":["alpha","beta"]}""");
+                }
+
+                var content = arguments.GetProperty("content").GetString()!;
+                writeAttempts.Add(content);
+                if (content == "beta" && ++betaAttempts == 1)
+                {
+                    return Task.FromException<string>(new IOException("transient"));
+                }
+
+                return Task.FromResult(content);
+            });
+        var repeated = Step(
+            "filesystem.write",
+            "saved",
+            """{ "path": "reports/{{foreach.position}}.txt", "content": "{{foreach.item}}" }""",
+            WorkflowErrorPolicy.Retry,
+            retryCount: 1,
+            retryBackoffSeconds: 0) with
+        {
+            ForEach = "{{files.output.entries}}",
+        };
+        var task = CreateTask(
+            [
+                Step("filesystem.list", "files", """{ "path": "inbox" }"""),
+                repeated,
+            ]);
+
+        var result = await CreateEngine(registry).ExecuteAsync(
+            task,
+            CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        writeAttempts.Should().Equal("alpha", "beta", "beta");
+        result.Steps[1].Attempts.Should().Be(3);
+        result.FinalText.Should().Be("""["alpha","beta"]""");
+    }
+
+    /// <summary>Verifies an empty selected array succeeds without invoking the repeated tool.</summary>
+    [Fact]
+    public async Task ForEachEmptyArrayPublishesEmptyArray()
+    {
+        var registry = new RecordingToolRegistry(
+            (alias, _, _) => Task.FromResult(
+                alias == "filesystem.list" ? """{"entries":[]}""" : "unexpected"));
+        var repeated = Step(
+            "filesystem.write",
+            "saved",
+            """{ "path": "report.txt", "content": "{{foreach.item}}" }""") with
+        {
+            ForEach = "{{files.output.entries}}",
+        };
+        var task = CreateTask(
+            [
+                Step("filesystem.list", "files", """{ "path": "inbox" }"""),
+                repeated,
+            ]);
+
+        var result = await CreateEngine(registry).ExecuteAsync(
+            task,
+            CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        result.FinalText.Should().Be("[]");
+        result.Steps[1].Attempts.Should().Be(0);
+        registry.Aliases.Should().Equal("filesystem.list");
+    }
+
+    /// <summary>Verifies the repeated source must resolve to a bounded JSON array.</summary>
+    [Fact]
+    public async Task ForEachRejectsNonArrayRuntimeSource()
+    {
+        var registry = new RecordingToolRegistry(
+            (alias, _, _) => Task.FromResult(
+                alias == "filesystem.list" ? """{"entries":"not-an-array"}""" : "unexpected"));
+        var repeated = Step(
+            "filesystem.write",
+            "saved",
+            """{ "path": "report.txt", "content": "{{foreach.item}}" }""") with
+        {
+            ForEach = "{{files.output.entries}}",
+        };
+        var task = CreateTask(
+            [
+                Step("filesystem.list", "files", """{ "path": "inbox" }"""),
+                repeated,
+            ]);
+
+        var result = await CreateEngine(registry).ExecuteAsync(
+            task,
+            CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        result.Steps[1].ErrorMessage.Should().Contain("JSON array");
+        registry.Aliases.Should().Equal("filesystem.list");
+    }
+
+    /// <summary>Verifies a repeated step fails before invocation when its source exceeds the hard bound.</summary>
+    [Fact]
+    public async Task ForEachRejectsSourceAboveMaximumItemCount()
+    {
+        var source = JsonSerializer.Serialize(
+            new { entries = Enumerable.Range(1, SequentialWorkflowEngine.MaximumForEachItems + 1) });
+        var registry = new RecordingToolRegistry(
+            (alias, _, _) => Task.FromResult(
+                alias == "filesystem.list" ? source : "unexpected"));
+        var repeated = Step(
+            "filesystem.write",
+            "saved",
+            """{ "path": "{{foreach.position}}.txt", "content": "{{foreach.item}}" }""") with
+        {
+            ForEach = "{{files.output.entries}}",
+        };
+        var task = CreateTask(
+            [
+                Step("filesystem.list", "files", """{ "path": "inbox" }"""),
+                repeated,
+            ]);
+
+        var result = await CreateEngine(registry).ExecuteAsync(
+            task,
+            CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        result.Steps[1].ErrorMessage.Should().Contain("maximum");
+        registry.Aliases.Should().Equal("filesystem.list");
+    }
+
+    /// <summary>
     /// Verifies prompt steps can receive the accumulated structured workflow context.
     /// </summary>
     [Fact]

@@ -2264,3 +2264,28 @@ compilation, freshness-window expansion, document classification, and late prote
   library was introduced.
 - Stage verification completed with a warning-free solution build and 783 passing
   non-integration tests; one expected environment-dependent local Ollama probe was skipped.
+
+# Stage 30 — Limited step-level `forEach` — 2026-08-25
+
+### Version 2.1.0 — Limited sequential `forEach` execution — 2026-08-25
+
+- The persisted object-step contract gains optional string `forEach`. It remains a property of
+  one step and does not introduce a nested workflow, child execution graph, parallel map, or
+  rollback boundary.
+- Declarative Tool Map metadata owns support. Only `ai.prompt` and `filesystem.write` set
+  `SupportsForEach`; catalog, validation, editor, and helper surfaces consume the same flag.
+- Static validation requires one exact prior named-output selector whose producer dominates the
+  consumer. Iteration placeholders are scoped to repeated-step arguments and support the current
+  JSON value, structured paths, and one-based position.
+- `SequentialWorkflowEngine` resolves and bounds the source before execution, processes at most
+  100 items sequentially, and commits one ordered JSON-array output only after full success.
+- Retry state is item-local. A final item failure stops the batch; `ContinueOnError` may route past
+  the failed outer step but does not execute remaining items. Previously completed external side
+  effects remain observable and are not rolled back.
+- `WorkflowForEachContext` is the immutable runtime carrier. The existing placeholder resolver,
+  workflow context, run results, report pipeline, scheduler, and task storage locations remain the
+  integration boundaries; no package or workflow library was added.
+- The Task editor exposes repeat controls only for supported aliases and warns when a repeated
+  `filesystem.write` path lacks an iteration placeholder and would overwrite the same file.
+- Verification completed with 797 non-integration tests passing, no failures, one expected local
+  Ollama probe skipped, and a clean `git diff --check`.

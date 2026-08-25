@@ -42,6 +42,7 @@ public abstract class WorkflowStep
         KnowledgeAccess = definition.KnowledgeAccess;
         Next = definition.Next;
         ResponseSchema = definition.ResponseSchema?.Clone();
+        ForEach = definition.ForEach;
     }
 
     /// <summary>
@@ -98,4 +99,7 @@ public abstract class WorkflowStep
 
     /// <summary>Gets the optional structured response schema.</summary>
     public JsonElement? ResponseSchema { get; }
+
+    /// <summary>Gets the optional JSON-array selector used to repeat this step.</summary>
+    public string? ForEach { get; }
 }

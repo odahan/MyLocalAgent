@@ -61,6 +61,11 @@ public sealed record WorkflowStepDefinition
     public JsonElement? ResponseSchema { get; init; }
 
     /// <summary>
+    /// Gets the optional prior-output selector whose JSON array items execute this step.
+    /// </summary>
+    public string? ForEach { get; init; }
+
+    /// <summary>
     /// Gets a value indicating whether the step was read from string form.
     /// </summary>
     [JsonIgnore]

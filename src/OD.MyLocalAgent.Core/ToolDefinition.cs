@@ -70,4 +70,7 @@ public sealed record ToolDefinition(
 
     /// <summary>Gets whether this entry is executed by workflow control flow rather than the tool registry.</summary>
     public bool IsControlFlowStep { get; init; }
+
+    /// <summary>Gets whether workflow steps may repeat this operation for an array.</summary>
+    public bool SupportsForEach { get; init; }
 }

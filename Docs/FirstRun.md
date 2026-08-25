@@ -1,6 +1,6 @@
 # MyLocalAgent — guide de première mise en route
 
-Version de l’application : **2.0.0**.
+Version de l’application : **2.1.0**.
 
 Ce guide reprend le parcours réalisé pour compiler l’application, la publier et
 configurer ses connecteurs. Il ne couvre ni la création d’une tâche métier ni
@@ -395,6 +395,32 @@ Safety. Il s’agit d’un catalogue compilé, pas d’un chargeur de plug-ins e
 **Undo assisted change** annule d’un seul geste la dernière application assistée,
 quelle qu’en soit l’origine, jusqu’à la sauvegarde ou au rechargement. Comme pour
 toute modification de l’éditeur, seul **Save task** persiste le résultat.
+
+### Répéter une étape pour chaque élément
+
+Dans l’éditeur d’étape, **Repeat for each item** est proposé uniquement pour
+`ai.prompt` et `filesystem.write`. La source doit être exactement un placeholder vers un tableau
+produit par une étape précédente, par exemple `{{mails.output.messages}}` :
+
+```json
+{
+  "step": "ai.prompt",
+  "id": "analyses",
+  "forEach": "{{mails.output.messages}}",
+  "args": {
+    "prompt": "Analyse le mail n°{{foreach.position}} : {{foreach.item.content}}"
+  }
+}
+```
+
+Les éléments sont traités séquentiellement, dans leur ordre d’origine, avec une limite de 100.
+`{{foreach.item}}` désigne l’élément courant et `{{foreach.position}}` sa position à partir de 1.
+La sortie de l’étape est un tableau JSON ordonné. Un tableau vide réussit avec `[]` ; une source
+qui n’est pas un tableau échoue. Avec `Retry`, seul l’élément courant est retenté. Après un échec
+final, les éléments restants ne sont pas exécutés et aucune sortie partielle n’est publiée, mais
+les fichiers déjà écrits ne sont pas annulés. Pour écrire un fichier par élément, placez
+`{{foreach.position}}` ou une propriété sûre de l’élément dans le chemin afin d’éviter de remplacer
+le même fichier à chaque passage.
 
 ## 12. Écrire une tâche sans workflow avec un nom daté
 

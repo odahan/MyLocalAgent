@@ -428,6 +428,40 @@ public sealed class WorkflowStepEditorViewModelTests
         step.ResponseSchema!.Value.GetProperty("required")[0].GetString().Should().Be("category");
     }
 
+    /// <summary>Verifies the typed step editor persists the supported forEach contract.</summary>
+    [Fact]
+    public void PromptEditorPersistsForEachSource()
+    {
+        var viewModel = new WorkflowStepEditorViewModel();
+        viewModel.Initialize(Request());
+        viewModel.SelectedTool = ToolCatalog.Default.Find("ai.prompt");
+        viewModel.Arguments.Single(item => item.Definition.Name == "prompt").Value =
+            "Summarize {{foreach.item}}.";
+        viewModel.RepeatForEachItem = true;
+        viewModel.ForEachSource = "{{mails.output.messages}}";
+
+        viewModel.ApplyCommand.Execute(null);
+
+        var step = WorkflowDefinitionSerializer.Deserialize(viewModel.Result!.WorkflowText).Single();
+        step.ForEach.Should().Be("{{mails.output.messages}}");
+    }
+
+    /// <summary>Verifies repeated file writes warn when every item targets the same path.</summary>
+    [Fact]
+    public void RepeatedFileWriteWarnsAboutConstantPath()
+    {
+        var viewModel = new WorkflowStepEditorViewModel();
+        viewModel.Initialize(Request());
+        viewModel.SelectedTool = ToolCatalog.Default.Find("filesystem.write");
+        viewModel.Arguments.Single(item => item.Definition.Name == "path").Value = "reports/mail.txt";
+        viewModel.Arguments.Single(item => item.Definition.Name == "content").Value = "{{foreach.item}}";
+        viewModel.RepeatForEachItem = true;
+        viewModel.ForEachSource = "{{mails.output.messages}}";
+
+        viewModel.ExecutionWarnings.Should().ContainSingle(
+            warning => warning.Contains("replace the same file", StringComparison.Ordinal));
+    }
+
     /// <summary>Verifies the decision value editor accepts a scalar JSON value.</summary>
     [Fact]
     public void DecisionValueEditorAcceptsScalarJson()

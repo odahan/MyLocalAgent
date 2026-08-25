@@ -27,6 +27,12 @@ public static class WorkflowStepFactory
                 $"Unknown Tool Map alias '{definition.Step}'.");
         }
 
+        if (definition.ForEach is not null && !toolDefinition.SupportsForEach)
+        {
+            throw new WorkflowValidationException(
+                $"Workflow alias '{definition.Step}' does not support 'forEach'.");
+        }
+
         if (!toolDefinition.IsAiStep)
         {
             if (toolDefinition.IsControlFlowStep)

@@ -1,6 +1,6 @@
 # OD.MyLocalAgent
 
-Current application release: **2.0.0**.
+Current application release: **2.1.0**.
 
 OD.MyLocalAgent is a native Windows desktop application for running scheduled, AI-driven
 tasks locally. It combines a WPF management UI, a headless runner, Ollama, deterministic
@@ -718,11 +718,48 @@ generated from the declarative Tool Map; JSON remains the sole persisted format.
 step's tool alias is immutable. To change tools, delete the old step and insert a new one.
 Each accepted operation updates only the in-memory draft and can be undone before **Save task**;
 raw JSON, AI Helper, Tool catalog, and focused workflow-text editing remain available.
+For aliases that support repetition, the form exposes **Repeat for each item** and a source
+selector. A repeated `filesystem.write` step also warns when its path contains no
+`{{foreach.*}}` placeholder, because every iteration would replace the same file.
 For `ai.prompt`, select exact agent-callable aliases in catalog order, choose whether the model and
 each generation value inherit, and optionally narrow Knowledge only within the task's authorized
 tags. Missing groups, capabilities, and statically inferable absolute-directory access appear as
 unchecked proposals. Refusing a proposal keeps the structural edit and displays an execution
 warning. Successful structural operations canonically format the workflow array.
+
+### Stage 30 — repeat one step for each item
+
+Object-form `ai.prompt` and `filesystem.write` steps may declare a top-level `forEach`. It must be
+exactly one placeholder selecting an array produced by an earlier step. The step runs once per
+item, sequentially and in source order, without introducing a sub-workflow:
+
+```json
+{
+  "step": "ai.prompt",
+  "id": "analyses",
+  "forEach": "{{mails.output.messages}}",
+  "args": {
+    "prompt": "Analyze mail #{{foreach.position}}: {{foreach.item.content}}"
+  }
+}
+```
+
+Inside the repeated step, `{{foreach.item}}` is the current value,
+`{{foreach.item.<field>}}` selects a structured property or array element, and
+`{{foreach.position}}` is the one-based position. At most 100 items are accepted. An empty array
+succeeds with `[]`; a non-array or oversized source fails before any iteration. Successful
+iteration outputs are published as one ordered JSON array, so a following step can use the whole
+`{{analyses.output}}` value or select an item such as `{{analyses.output[0]}}`.
+
+`Retry` retries only the current item. The first final item failure stops the repetition and
+publishes no partial step output. `ContinueOnError` may then continue the workflow according to
+the existing step policy, but it does not process the remaining items. External effects already
+completed by earlier iterations are not rolled back.
+
+For Gmail, select the stable array exposed by the chosen output mode. Detailed output uses
+`{{mails.output.messages}}`; compact-report output uses `{{mails.output.entries}}`. For
+`filesystem.write`, include an item-derived value or `{{foreach.position}}` in `args.path` when
+each iteration must create a distinct file.
 
 ### Intelligent Downloads sorting helpers
 
@@ -864,7 +901,8 @@ String form is for steps without explicit arguments:
 "gmail.readToday"
 ```
 
-Object form supplies arguments, an optional output id, and an optional error policy:
+Object form supplies arguments, an optional output id, an optional `forEach` source, and an
+optional error policy:
 
 ```json
 {
@@ -895,6 +933,8 @@ Available placeholders are:
 - `{{<stepId>.output.<field>}}`
 - `{{<stepId>.output.<array>[<index>].<field>}}`
 - `{{workflow.context}}`
+- `{{foreach.item}}` and structured selectors such as `{{foreach.item.subject}}`
+- `{{foreach.position}}`
 - `{{ModelName}}`
 - `{{ModelSettings}}`
 - `{{ModelContextSize}}`
@@ -906,6 +946,10 @@ Tool outputs that contain JSON can be addressed by property and zero-based array
 selected string is inserted as text; other JSON values are inserted as compact JSON.
 `{{workflow.context}}` serializes every successful named output accumulated so far, preserving
 structured JSON values.
+
+The `foreach` placeholders are valid only inside a step that declares `forEach`. The source itself
+must be exactly one prior-output placeholder and cannot use `previous.output`, task/model/date
+markers, surrounding text, or another `foreach` marker.
 
 Placeholders use two opening and two closing braces and may appear in any JSON string value
 inside `args`; surrounding text is retained. Names and JSON property selectors are
@@ -942,8 +986,8 @@ adds two memory-only aids:
   field creates replacement candidates without a visible or hidden chat transcript.
 - **AI Explain** is enabled for a non-empty workflow. The application parses and validates it
   locally before any provider call, then asks for an English explanation of purpose, ordered
-  execution, prompts, skills, placeholders, data flow, permissions, Safety gates, external
-  effects, Guardrails boundaries, and likely failures.
+  execution, repetition, prompts, skills, placeholders, data flow, permissions, Safety gates,
+  external effects, Guardrails boundaries, and likely failures.
 
 Both modes stream through the provider and model currently selected in Settings. Helper calls
 use the provider's `IChatClient` directly with one system message, one user message, and no
@@ -1152,11 +1196,10 @@ An `ai.prompt` step always records the model response as its named output. Set
 `"includeContext": true` to append a JSON snapshot of all completed step outputs to the
 prompt. The snapshot is explicitly labeled as data rather than instructions. The default is
 `false`, preserving existing workflow behavior and avoiding unnecessary context growth.
-`ai.prompt` is a direct, tool-less model call: it cannot select a connector or a skill, even
-when the containing task whitelists them. Agent-capable prompt-only tasks retain their
-whitelisted tools, but stop after two consecutive tool errors, an unknown function call, or
-the same (tool, arguments, result) call repeated three times consecutively with no different
-call in between.
+`ai.prompt` runs without tools when `toolAliases` is absent or empty. An object-form prompt step
+may instead declare exact agent-callable aliases; each alias must belong to a group already
+whitelisted by the task and all normal capabilities, path grants, Safety gates, and agent-loop
+limits still apply. `responseSchema` and `toolAliases` remain mutually exclusive.
 
 `ai.extractActionItems` and `ai.classifyEmail` are tool-less LLM skills. With no
 `args.text`, they consume the previous step output; when first, they consume the task prompt.
@@ -1426,6 +1469,13 @@ the brief inside the filesystem sandbox:
 
 The ready-to-copy file is
 [`Docs/samples/web-daily-brief.json`](Docs/samples/web-daily-brief.json).
+
+### ForEach mail-analysis sample
+
+[`Docs/samples/foreach-mail-analysis.json`](Docs/samples/foreach-mail-analysis.json) reads the
+day's messages, analyzes each detailed message independently, then writes one Markdown file per
+analysis. It demonstrates a repeated `ai.prompt` followed by a repeated `filesystem.write`, with
+ordered array outputs and one-based filenames.
 
 ### Multiline prompt sample
 

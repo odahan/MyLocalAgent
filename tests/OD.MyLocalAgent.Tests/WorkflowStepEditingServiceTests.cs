@@ -137,4 +137,28 @@ public sealed class WorkflowStepEditingServiceTests
         dependency.EffectiveId.Should().Be("use");
         dependency.ArgumentNames.Should().Equal("prompt");
     }
+
+    /// <summary>Verifies deletion analysis treats a forEach source as an output dependency.</summary>
+    [Fact]
+    public void DependencyAnalysisReportsForEachSource()
+    {
+        var workflow = WorkflowDefinitionSerializer.Deserialize("""
+            [
+              { "step": "filesystem.list", "id": "files", "args": { "path": "inbox" } },
+              {
+                "step": "filesystem.write",
+                "id": "save",
+                "forEach": "{{files.output.entries}}",
+                "args": { "path": "{{foreach.position}}.txt", "content": "{{foreach.item.name}}" }
+              }
+            ]
+            """);
+
+        var dependency = WorkflowStepDependencyAnalyzer
+            .FindLaterReferences(workflow, 0)
+            .Should().ContainSingle().Which;
+
+        dependency.EffectiveId.Should().Be("save");
+        dependency.ArgumentNames.Should().Equal("forEach");
+    }
 }

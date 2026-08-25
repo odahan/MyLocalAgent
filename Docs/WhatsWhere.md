@@ -1,6 +1,6 @@
 # What's Where
 
-Application version: **2.0.0**.
+Application version: **2.1.0**.
 
 All file and folder locations used by OD.MyLocalAgent after deployment.
 
@@ -144,3 +144,20 @@ prompt.
 | `src/OD.MyLocalAgent.UI/WorkflowStepEditorWindow.xaml` | Modal editor controls and context-sensitive sections. |
 
 Existing aliases are immutable during edit. Delete and insert a new step to choose another tool.
+
+# Workflow `forEach` execution
+
+| Location | Responsibility |
+|----------|----------------|
+| `src/OD.MyLocalAgent.Core/WorkflowStepDefinition.cs` | Persisted top-level `forEach` selector. |
+| `src/OD.MyLocalAgent.Core/WorkflowStepDefinitionJsonConverter.cs` | JSON round-trip and strict property handling. |
+| `src/OD.MyLocalAgent.Core/ToolAttribute.cs` and `ToolDefinition.cs` | Declarative `SupportsForEach` capability exposed by the Tool Map. |
+| `src/OD.MyLocalAgent.Core/ScheduledTaskValidator.cs` | Alias, source, scope, graph-dominance, and placeholder validation. |
+| `src/OD.MyLocalAgent.Workflows/SequentialWorkflowEngine.cs` | Ordered execution, 100-item limit, retry isolation, fail-fast behavior, and output aggregation. |
+| `src/OD.MyLocalAgent.Workflows/WorkflowForEachContext.cs` | Immutable current-item and one-based-position context. |
+| `src/OD.MyLocalAgent.Workflows/WorkflowPlaceholderResolver.cs` | Resolution of `foreach.item`, structured item selectors, and `foreach.position`. |
+| `src/OD.MyLocalAgent.UI/ViewModels/WorkflowStepEditorViewModel.cs` | Repeat controls and same-path overwrite warning. |
+| `Docs/samples/foreach-mail-analysis.json` | Ready-to-copy two-stage repetition example. |
+
+Only `ai.prompt` and `filesystem.write` currently opt in. Repetition remains a property of one
+step: it does not create nested workflows, branches, parallel execution, or rollback semantics.

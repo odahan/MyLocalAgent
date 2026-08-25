@@ -2212,3 +2212,26 @@ metadata comes from the immutable Core catalog. An existing alias is immutable: 
 requires delete followed by insert. Delete warns for later valid output placeholders but never
 repairs them or changes task permissions. Missing groups and capabilities are explicit opt-in
 proposals; Save task remains the only persistence boundary.
+
+# Addendum Stage 30 — Limited step-level `forEach`
+
+Stage 30 adds optional top-level `forEach` only to object-form `ai.prompt` and
+`filesystem.write` steps. It is deliberately not a workflow container: no nested workflow,
+parallel map, item branch, item-specific route, rollback, or persisted child-run model is added.
+The immutable declarative Tool Map advertises support through `SupportsForEach`; every other alias
+rejects the property.
+
+The source is exactly one `{{id.output...}}` placeholder selecting an array from an earlier step
+that dominates the repeated step on every control-flow path. Surrounding text,
+`previous.output`, task/date/model markers, and `foreach.*` markers are invalid as sources.
+Within the repeated step arguments, `{{foreach.item}}`, structured item selectors, and the
+one-based `{{foreach.position}}` are available; outside such a step they are invalid.
+
+Execution is sequential and stable, with a hard maximum of 100 source items. Empty input succeeds
+with `[]`; non-array and oversized inputs fail before item execution. Successful item results are
+published atomically to workflow context as one ordered JSON array. `Retry` retries only the
+current item. The first final item failure stops the batch and publishes no partial output;
+`ContinueOnError` may continue the outer workflow but does not process remaining items. External
+effects completed by prior iterations are not rolled back. A repeated `filesystem.write` with no
+`foreach.*` marker in its path remains legal but the editor must warn that it will replace the
+same file repeatedly.

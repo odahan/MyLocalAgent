@@ -311,6 +311,8 @@ public static partial class ScheduledTaskValidator
                     $"Workflow step '{step.Step}' has a negative retry backoff.");
             }
 
+            ValidateForEach(step, definition, identifiers);
+
             if (string.Equals(step.Step, ToolMap.PromptAlias, StringComparison.OrdinalIgnoreCase))
             {
                 if (step.Args.ValueKind != JsonValueKind.Object ||
@@ -502,12 +504,15 @@ public static partial class ScheduledTaskValidator
 
         for (var consumer = 0; consumer < workflow.Count; consumer++)
         {
-            if (workflow[consumer].Args.ValueKind != JsonValueKind.Object)
+            var texts = workflow[consumer].Args.ValueKind == JsonValueKind.Object
+                ? EnumerateStrings(workflow[consumer].Args)
+                : [];
+            if (workflow[consumer].ForEach is { } forEach)
             {
-                continue;
+                texts = texts.Append(forEach);
             }
 
-            foreach (var placeholder in EnumerateStrings(workflow[consumer].Args).SelectMany(WorkflowPlaceholderCatalog.Extract))
+            foreach (var placeholder in texts.SelectMany(WorkflowPlaceholderCatalog.Extract))
             {
                 var marker = placeholder.IndexOf(".output", StringComparison.OrdinalIgnoreCase);
                 if (marker <= 0)
@@ -717,11 +722,61 @@ public static partial class ScheduledTaskValidator
                 if (!WorkflowPlaceholderCatalog.IsValid(
                         placeholder,
                         availableStepIds,
-                        out var error))
+                        out var error,
+                        allowForEach: step.ForEach is not null))
                 {
                     throw new WorkflowValidationException(error!);
                 }
             }
+        }
+    }
+
+    private static void ValidateForEach(
+        WorkflowStepDefinition step,
+        ToolDefinition definition,
+        IReadOnlySet<string> availableStepIds)
+    {
+        if (step.ForEach is null)
+        {
+            return;
+        }
+
+        if (!definition.SupportsForEach)
+        {
+            throw new WorkflowValidationException(
+                $"Workflow alias '{step.Step}' does not support 'forEach'.");
+        }
+
+        var source = step.ForEach.Trim();
+        var placeholders = WorkflowPlaceholderCatalog.Extract(source);
+        if (placeholders.Count != 1 ||
+            source.Length < 4 ||
+            !source.StartsWith("{{", StringComparison.Ordinal) ||
+            !source.EndsWith("}}", StringComparison.Ordinal) ||
+            !string.Equals(source[2..^2].Trim(), placeholders[0], StringComparison.Ordinal))
+        {
+            throw new WorkflowValidationException(
+                $"Workflow step '{step.EffectiveId}' property 'forEach' must contain exactly one output placeholder.");
+        }
+
+        var placeholder = placeholders[0];
+        var outputMarker = placeholder.IndexOf(".output", StringComparison.OrdinalIgnoreCase);
+        string? error = null;
+        if (placeholder.StartsWith("previous.output", StringComparison.OrdinalIgnoreCase) &&
+            availableStepIds.Count == 0)
+        {
+            error = $"Workflow step '{step.EffectiveId}' property 'forEach' cannot select previous.output because no prior step is available.";
+        }
+
+        if (error is not null ||
+            outputMarker <= 0 ||
+            !WorkflowPlaceholderCatalog.IsValid(
+                placeholder,
+                availableStepIds,
+                out error))
+        {
+            throw new WorkflowValidationException(
+                error ?? $"Workflow step '{step.EffectiveId}' property 'forEach' must select a prior step output.");
         }
     }
 
