@@ -17,6 +17,28 @@ public sealed class DirectChatViewModelTests
     private static readonly byte[] PngBytes = Convert.FromBase64String(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
 
+    /// <summary>Verifies that a conversation title can be renamed and remains persisted.</summary>
+    [Fact]
+    public async Task RenameConversationPersistsTitle()
+    {
+        await using var context = await CreateViewModelAsync(
+            new StubLlmClientService(new StubChatClient(["Unused response."]), "Stub"));
+        var conversation = context.ViewModel.SelectedConversation!;
+
+        context.ViewModel.BeginRenameConversationCommand.Execute(conversation);
+        conversation.IsRenaming.Should().BeTrue();
+        conversation.TitleDraft = "  Project planning  ";
+
+        await context.ViewModel.SaveConversationTitleCommand.ExecuteAsync(conversation);
+
+        conversation.Title.Should().Be("Project planning");
+        conversation.IsRenaming.Should().BeFalse();
+        var persisted = await context.Store.GetConversationAsync(
+            conversation.Id,
+            CancellationToken.None);
+        persisted!.Title.Should().Be("Project planning");
+    }
+
     /// <summary>Verifies application-owned workspace data cannot be added as a chat grant.</summary>
     [Fact]
     public void ApplicationOwnedLocationCannotBeAuthorized()

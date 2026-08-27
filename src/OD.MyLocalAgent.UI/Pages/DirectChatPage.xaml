@@ -104,14 +104,61 @@
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <Grid Width="205"
-                                      Margin="4,7">
+                                      Margin="4,7"
+                                      Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                    <Grid.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Command="{Binding PlacementTarget.Tag.BeginRenameConversationCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                      CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                      Header="Rename" />
+                                        </ContextMenu>
+                                    </Grid.ContextMenu>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
-                                    <TextBlock FontWeight="SemiBold"
-                                               Text="{Binding Title}"
-                                               TextTrimming="CharacterEllipsis" />
+                                    <Grid>
+                                        <TextBlock FontWeight="SemiBold"
+                                                   Text="{Binding Title}"
+                                                   TextTrimming="CharacterEllipsis">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsRenaming}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <StackPanel Orientation="Horizontal">
+                                            <StackPanel.Style>
+                                                <Style TargetType="StackPanel">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsRenaming}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </StackPanel.Style>
+                                            <TextBox Width="130"
+                                                     Text="{Binding TitleDraft, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     ToolTip="Conversation title" />
+                                            <Button Margin="4,0,0,0"
+                                                    Padding="4,0"
+                                                    Command="{Binding DataContext.SaveConversationTitleCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}"
+                                                    Content="✓"
+                                                    ToolTip="Save title" />
+                                            <Button Margin="4,0,0,0"
+                                                    Padding="4,0"
+                                                    Command="{Binding DataContext.CancelRenameConversationCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}"
+                                                    Content="×"
+                                                    ToolTip="Cancel renaming" />
+                                        </StackPanel>
+                                    </Grid>
                                     <TextBlock Grid.Row="1"
                                                Margin="0,3,0,0"
                                                FontSize="11"

@@ -134,6 +134,8 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(DeleteConversationCommand))]
+    [NotifyCanExecuteChangedFor(nameof(BeginRenameConversationCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SaveConversationTitleCommand))]
     [NotifyCanExecuteChangedFor(nameof(SendCommand))]
     [NotifyCanExecuteChangedFor(nameof(AttachFileCommand))]
     private DirectChatConversationItem? _selectedConversation;
@@ -346,6 +348,84 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
         {
             IsBusy = false;
         }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRenameConversation))]
+    private void BeginRenameConversation(DirectChatConversationItem? conversation)
+    {
+        if (conversation is null || !Conversations.Contains(conversation))
+        {
+            return;
+        }
+
+        SelectedConversation = conversation;
+        foreach (var item in Conversations)
+        {
+            item.IsRenaming = false;
+        }
+
+        conversation.TitleDraft = conversation.Title;
+        conversation.IsRenaming = true;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRenameConversation))]
+    private async Task SaveConversationTitleAsync(
+        DirectChatConversationItem? conversation,
+        CancellationToken cancellationToken)
+    {
+        if (conversation is null || !Conversations.Contains(conversation))
+        {
+            return;
+        }
+
+        var title = string.Join(
+            ' ',
+            conversation.TitleDraft.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            StatusText = "A conversation title cannot be empty.";
+            return;
+        }
+
+        if (title.Length > 80)
+        {
+            title = title[..77] + "…";
+        }
+
+        IsBusy = true;
+        try
+        {
+            await _store.UpdateConversationTitleAsync(conversation.Id, title, cancellationToken)
+                .ConfigureAwait(true);
+            conversation.Title = title;
+            conversation.TitleDraft = title;
+            conversation.IsRenaming = false;
+            StatusText = "Conversation renamed.";
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            await HandleExceptionAsync(exception, "Direct Chat rename conversation")
+                .ConfigureAwait(true);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private void CancelRenameConversation(DirectChatConversationItem? conversation)
+    {
+        if (conversation is null)
+        {
+            return;
+        }
+
+        conversation.TitleDraft = conversation.Title;
+        conversation.IsRenaming = false;
     }
 
     [RelayCommand(CanExecute = nameof(CanLoadOlderMessages))]
@@ -983,6 +1063,8 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
 
     private bool CanDeleteConversation() =>
         CanMutateConversation() && SelectedConversation is not null;
+
+    private bool CanRenameConversation() => CanMutateConversation();
 
     private bool CanSend() =>
         !IsBusy &&

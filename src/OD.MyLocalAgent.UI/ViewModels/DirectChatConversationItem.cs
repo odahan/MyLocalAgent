@@ -17,6 +17,12 @@ public sealed partial class DirectChatConversationItem : ObservableObject
     private string _title = string.Empty;
 
     [ObservableProperty]
+    private string _titleDraft = string.Empty;
+
+    [ObservableProperty]
+    private bool _isRenaming;
+
+    [ObservableProperty]
     private DateTimeOffset _updatedUtc;
 
     /// <summary>Gets a compact local-time label.</summary>
@@ -28,6 +34,7 @@ public sealed partial class DirectChatConversationItem : ObservableObject
         ArgumentNullException.ThrowIfNull(conversation);
         Id = conversation.Id;
         Title = conversation.Title;
+        TitleDraft = conversation.Title;
         UpdatedUtc = conversation.UpdatedUtc;
         OnPropertyChanged(nameof(UpdatedText));
     }
