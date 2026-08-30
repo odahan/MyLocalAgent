@@ -17,15 +17,28 @@ public sealed class EditorialWorkflowSampleTests
     {
         using var document = LoadSample("editorial-watch-daily.json");
         var workflow = document.RootElement.GetProperty("workflow");
-        var discovery = workflow[0].GetProperty("args");
-        var prompt = workflow[1].GetProperty("args").GetProperty("prompt").GetString();
+        var discovery = workflow[1].GetProperty("args");
+        var promptStep = workflow[2];
+        var prompt = promptStep.GetProperty("args").GetProperty("prompt").GetString();
 
+        workflow[0].GetProperty("step").GetString().Should().Be("sqlite.createProposalDatabase");
         discovery.GetProperty("freshnessWindow").GetString().Should().Be("sliding");
+        discovery.GetProperty("previousProposalsLookbackMonths").GetInt32().Should().Be(6);
+        discovery.GetProperty("usePreviousProposalUsedTag").GetBoolean().Should().BeFalse();
+        promptStep.GetProperty("toolAliases").EnumerateArray()
+            .Select(static value => value.GetString())
+            .Should().Equal("sqlite.storeProposal");
+        document.RootElement.GetProperty("tools").EnumerateArray()
+            .Select(static value => value.GetString())
+            .Should().Contain("sqlite");
+        document.RootElement.GetProperty("capabilities").EnumerateArray()
+            .Select(static value => value.GetString())
+            .Should().Contain("SqliteWrite");
         prompt.Should().Contain("Si searchStatus vaut rateLimited, unavailable ou degraded")
             .And.Contain("Si searchStatus vaut available et candidateCount vaut 0")
-            .And.Contain("ne crée aucun sujet et aucun post")
-            .And.Contain("Arrête le rapport après ce diagnostic")
-            .And.Contain("Distingue toujours queryCount de retrievalsUsed");
+            .And.Contain("n'écris rien dans SQLite")
+            .And.Contain("appelle sqlite.storeProposal exactement une fois")
+            .And.Contain("Ne fournis ni SQL, ni vecteur, ni date de création");
     }
 
     /// <summary>

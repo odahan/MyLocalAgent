@@ -30,6 +30,7 @@ public sealed class SqliteTool : ISqliteTool
     private readonly ILogger<SqliteTool> _logger;
     private readonly TimeProvider _timeProvider;
     private readonly IIncidentReporter _incidentReporter;
+    private readonly IProposalMemoryService _proposalMemoryService;
 
     static SqliteTool()
     {
@@ -38,7 +39,7 @@ public sealed class SqliteTool : ISqliteTool
 
     /// <summary>Initializes a new instance of the <see cref="SqliteTool"/> class.</summary>
     [ActivatorUtilitiesConstructor]
-    public SqliteTool(IPathSandbox sandbox, IOptions<SQLiteOptions> options, IOptionsMonitor<GuardrailsOptions> guardrailsOptions, IContentTrustService contentTrustService, ToolExecutionContext context, ILogger<SqliteTool> logger, TimeProvider timeProvider, IIncidentReporter incidentReporter)
+    public SqliteTool(IPathSandbox sandbox, IOptions<SQLiteOptions> options, IOptionsMonitor<GuardrailsOptions> guardrailsOptions, IContentTrustService contentTrustService, ToolExecutionContext context, ILogger<SqliteTool> logger, TimeProvider timeProvider, IIncidentReporter incidentReporter, IProposalMemoryService proposalMemoryService)
     {
         _sandbox = sandbox ?? throw new ArgumentNullException(nameof(sandbox));
         _options = options ?? throw new ArgumentNullException(nameof(options));
@@ -48,6 +49,7 @@ public sealed class SqliteTool : ISqliteTool
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
         _incidentReporter = incidentReporter ?? throw new ArgumentNullException(nameof(incidentReporter));
+        _proposalMemoryService = proposalMemoryService ?? throw new ArgumentNullException(nameof(proposalMemoryService));
     }
 
     /// <inheritdoc />
@@ -339,6 +341,83 @@ public sealed class SqliteTool : ISqliteTool
             throw;
         }
     }, cancellationToken), cancellationToken);
+
+    /// <inheritdoc />
+    [ToolLocalPath("databasePath", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite)]
+    [Tool("sqlite.createProposalDatabase", "Creates or validates an authorized editorial proposal-memory database.", 500, RequiredCapability = TaskCapability.SqliteWrite)]
+    public Task<string> CreateProposalDatabaseAsync(
+        [ToolArgument(WorkflowArgumentKind.String, "Authorized editorial proposal-memory database file path.", Example = "data/editorial-proposals.db")] string databasePath,
+        CancellationToken cancellationToken = default) => ExecuteSanitizedAsync(
+            "sqlite.createProposalDatabase",
+            "create",
+            null,
+            CreateProposalDatabaseCoreAsync(databasePath, cancellationToken),
+            cancellationToken);
+
+    /// <inheritdoc />
+    [ToolLocalPath("databasePath", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite)]
+    [Tool("sqlite.storeProposal", "Stores one editorial proposal with a locally generated embedding.", 600, RequiredCapability = TaskCapability.SqliteWrite)]
+    public Task<string> StoreProposalAsync(
+        [ToolArgument(WorkflowArgumentKind.String, "Authorized editorial proposal-memory database file path.", Example = "data/editorial-proposals.db")] string databasePath,
+        [ToolArgument(WorkflowArgumentKind.String, "Editorial proposal title.", Example = ".NET runtime performance update", IsLongText = true)] string title,
+        [ToolArgument(WorkflowArgumentKind.String, "Brief factual editorial proposal summary.", Example = "A new runtime release improves startup performance.", IsLongText = true)] string summary,
+        [ToolArgument(WorkflowArgumentKind.String, "Optional canonical source URL.", Example = "https://devblogs.microsoft.com/dotnet/example", IsExcludedFromWorkflowTextEditor = true)] string? sourceUrl = null,
+        [ToolArgument(WorkflowArgumentKind.Boolean, "Whether the proposal has been published.", Example = "false")] bool used = false,
+        CancellationToken cancellationToken = default) => ExecuteSanitizedAsync(
+            "sqlite.storeProposal",
+            "write",
+            null,
+            StoreProposalCoreAsync(databasePath, title, summary, sourceUrl, used, cancellationToken),
+            cancellationToken);
+
+    private async Task<string> CreateProposalDatabaseCoreAsync(string databasePath, CancellationToken cancellationToken)
+    {
+        ValidateDatabasePathInput(databasePath);
+        var path = _sandbox.Resolve(databasePath, FileSystemAccessMode.ReadWrite, _context);
+        if (Directory.Exists(path))
+        {
+            throw new InvalidOperationException("The SQLite database path must identify a file.");
+        }
+
+        var result = await _proposalMemoryService.CreateDatabaseAsync(path, cancellationToken).ConfigureAwait(false);
+        return ToolJson.Serialize(new
+        {
+            databaseCreated = result.DatabaseCreated,
+            tableCreated = result.TableCreated,
+            schemaCompatible = result.SchemaCompatible,
+        });
+    }
+
+    private async Task<string> StoreProposalCoreAsync(
+        string databasePath,
+        string title,
+        string summary,
+        string? sourceUrl,
+        bool used,
+        CancellationToken cancellationToken)
+    {
+        ValidateDatabasePathInput(databasePath);
+        var path = _sandbox.Resolve(databasePath, FileSystemAccessMode.ReadWrite, _context);
+        if (!File.Exists(path))
+        {
+            throw new FileNotFoundException("The proposal-memory database file does not exist.");
+        }
+
+        var result = await _proposalMemoryService.StoreAsync(
+            path,
+            title,
+            summary,
+            sourceUrl,
+            used,
+            cancellationToken).ConfigureAwait(false);
+        return ToolJson.Serialize(new
+        {
+            stored = true,
+            inserted = result.Inserted,
+            embeddingModel = result.EmbeddingModel,
+            embeddingDimension = result.EmbeddingDimension,
+        });
+    }
 
     private SqliteConnection OpenRead(string databasePath)
     {

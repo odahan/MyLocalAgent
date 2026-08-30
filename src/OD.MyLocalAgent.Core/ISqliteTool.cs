@@ -13,4 +13,8 @@ public interface ISqliteTool
     Task<string> QueryAsync(string? databasePath, string sql, JsonElement parameters = default, int? maxRows = null, string? storageSpaceId = null, CancellationToken cancellationToken = default);
     /// <summary>Runs one modifying statement in an application-owned transaction.</summary>
     Task<string> ExecuteAsync(string databasePath, string sql, JsonElement parameters = default, bool createIfMissing = false, CancellationToken cancellationToken = default);
+    /// <summary>Creates or validates a task-owned editorial proposal-memory database.</summary>
+    Task<string> CreateProposalDatabaseAsync(string databasePath, CancellationToken cancellationToken = default);
+    /// <summary>Stores one editorial proposal with a locally generated embedding.</summary>
+    Task<string> StoreProposalAsync(string databasePath, string title, string summary, string? sourceUrl = null, bool used = false, CancellationToken cancellationToken = default);
 }

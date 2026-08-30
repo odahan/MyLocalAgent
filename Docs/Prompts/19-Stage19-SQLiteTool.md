@@ -1064,3 +1064,12 @@ do not require a real LLM for this smoke test.
 9. Run the complete gate with `-m:1`, then report changed files, package/native versions, alias
    surface, prompt-version changes, test counts, publish smoke evidence, GUI checks actually
    performed, and residual limitations.
+
+## 20. Stage 23 proposal-memory extension
+
+`Docs/Prompts/23-Stage23-Addentum-WebSearchProposalMemory.md` adds two specialized aliases to
+this historical four-alias general SQLite surface: `sqlite.createProposalDatabase` and
+`sqlite.storeProposal`. They do not relax or replace any Stage 19 generic SQL rule. Both require
+the `sqlite` group, ReadWrite path authorization, and the `SqliteWrite` task capability. The
+specialized aliases accept neither SQL nor vectors; they exclusively own the proposal schema,
+local embedding generation, migration, and atomic idempotent persistence.

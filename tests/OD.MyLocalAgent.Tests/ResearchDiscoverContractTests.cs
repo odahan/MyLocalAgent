@@ -332,6 +332,10 @@ public sealed class ResearchDiscoverContractTests
         definition.OptionalArguments.Should().Contain("minimumDocuments");
         definition.OptionalArguments.Should().Contain("maxResultsPerQuery");
         definition.OptionalArguments.Should().Contain("maxRetrievalsPerRun");
+        definition.OptionalArguments.Should().Contain("previousProposalsDatabasePath");
+        definition.OptionalArguments.Should().Contain("previousProposalsLookbackMonths");
+        definition.OptionalArguments.Should().Contain("usePreviousProposalUsedTag");
+        definition.OptionalArguments.Should().Contain("previousProposalsSemanticSimilarityThreshold");
     }
 
     /// <summary>
@@ -355,15 +359,15 @@ public sealed class ResearchDiscoverContractTests
     }
 
     /// <summary>
-    /// Verifies ToolMap shows 8 arguments total for research.discover (1 required + 7 optional).
+    /// Verifies ToolMap shows 12 arguments total for research.discover (1 required + 11 optional).
     /// </summary>
     [Fact]
     public void ResearchDiscoverToolHasCorrectArgumentCount()
     {
         var definition = ToolMap.Find("research.discover");
         definition.Should().NotBeNull();
-        definition!.Arguments.Count.Should().Be(8);
-        definition.OptionalArguments.Count.Should().Be(7);
+        definition!.Arguments.Count.Should().Be(12);
+        definition.OptionalArguments.Count.Should().Be(11);
     }
 
     /// <summary>

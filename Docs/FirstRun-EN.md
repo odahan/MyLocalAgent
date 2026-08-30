@@ -270,6 +270,27 @@ no posts with zero candidates. The Sunday article focuses on the available sourc
 one, becomes a limited cross-analysis with two, and a full multi-source article from three. Only
 zero candidates produce a diagnostic without an article.
 
+### Enable non-repetitive editorial proposals
+
+The bundled `Docs/samples/editorial-watch-daily.json` workflow can keep an optional task-owned
+proposal memory. It enables `research`, `sqlite`, and `filesystem`, grants the database directory
+ReadWrite access, and declares `SqliteWrite`. Its first step calls
+`sqlite.createProposalDatabase`; `research.discover` then reads the same file through
+`previousProposalsDatabasePath`, with `previousProposalsLookbackMonths: 6`,
+`usePreviousProposalUsedTag: false`, and
+`previousProposalsSemanticSimilarityThreshold: 0.92`. The final `ai.prompt` step may call only
+`sqlite.storeProposal` for topics actually selected. The default used-tag setting still excludes every recent proposal,
+whether used or not; set it to `true` only when old rows marked as published should also remain
+excluded. Proposal embeddings require the local Ollama Knowledge embedding provider.
+
+Do not create this schema with `sqlite.execute`, and never put SQL, vectors, an embedding model,
+or a creation timestamp in the prompt. A missing or incompatible database and unavailable local
+embeddings fail discovery instead of silently disabling memory.
+Successful discovery exposes aggregate diagnostics only, including
+`proposalMemoryConsideredCount`, `proposalMemoryIncompatibleEmbeddingCount`,
+`rejectedPreviousProposalExactCount`, `rejectedPreviousProposalSemanticCount`, and
+`rejectedPreviousProposalCount`.
+
 ## 9. Tools without credentials
 
 - **Filesystem**: no account is required. Relative paths remain under the

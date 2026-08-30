@@ -265,3 +265,11 @@ dotnet test OD.MyLocalAgent.sln --configuration Release --no-build --no-restore 
 Integration tests remain opt-in because they require the configured Web Search credential.
 
 Update the architecture ledger, README, Tool Map documentation, and privacy text.
+
+## 9. Proposal-memory extension
+
+`Docs/Prompts/23-Stage23-Addentum-WebSearchProposalMemory.md` extends this contract with an
+optional task-owned SQLite proposal memory. When enabled, deterministic exact title/URL and local
+cosine filtering runs after normal eligibility and ranking but before bounded Guardrails delivery.
+The original behavior and output compatibility remain unchanged when no database path is supplied,
+apart from the added disabled/zero aggregate diagnostics.

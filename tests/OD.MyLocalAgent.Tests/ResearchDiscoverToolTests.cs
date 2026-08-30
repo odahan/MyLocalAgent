@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
 using OD.MyLocalAgent.Connectors;
 using OD.MyLocalAgent.Core;
@@ -533,6 +534,88 @@ public sealed class ResearchDiscoverToolTests
         protectedResults.Should().NotContain("Alpha one").And.NotContain("Beta one");
     }
 
+    /// <summary>Applies proposal memory after ranking and returns aggregate diagnostics only.</summary>
+    [Fact]
+    public async Task ProposalMemoryFiltersRankedCandidatesAndReportsAggregateDiagnostics()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"od-research-memory-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        var databasePath = Path.Combine(root, "memory.db");
+        await File.WriteAllBytesAsync(databasePath, []);
+        try
+        {
+            var connector = CreateConnector(_ => ["https://example.com/article"]);
+            var memory = new Mock<IProposalMemoryService>(MockBehavior.Strict);
+            memory.Setup(instance => instance.FilterAsync(
+                    databasePath,
+                    It.Is<IReadOnlyList<WebDocument>>(items => items.Count == 1),
+                    6,
+                    false,
+                    0.92,
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new ProposalFilterResult([], 4, 1, 1, 0));
+            var tool = CreateTool(
+                connector.Object,
+                new Dictionary<string, string> { ["/article"] = Html("Candidate", null, "Summary") },
+                new StubContentTrustService(),
+                new StubResearchTranslationService(),
+                proposalMemoryService: memory.Object,
+                fileSystemRoot: root);
+
+            var json = await tool.DiscoverAsync(
+                "[{\"terms\":[\"alpha\"]}]",
+                freshnessWindow: "none",
+                previousProposalsDatabasePath: "memory.db");
+
+            using var document = JsonDocument.Parse(json);
+            document.RootElement.GetProperty("proposalMemoryEnabled").GetBoolean().Should().BeTrue();
+            document.RootElement.GetProperty("proposalMemoryConsideredCount").GetInt32().Should().Be(4);
+            document.RootElement.GetProperty("proposalMemoryIncompatibleEmbeddingCount").GetInt32().Should().Be(1);
+            document.RootElement.GetProperty("rejectedPreviousProposalCount").GetInt32().Should().Be(1);
+            document.RootElement.GetProperty("candidateCount").GetInt32().Should().Be(0);
+            json.Should().NotContain(databasePath);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>Checks task filesystem authorization before opening proposal memory or searching.</summary>
+    [Fact]
+    public async Task ProposalMemoryRejectsUnauthorizedPathBeforeSearch()
+    {
+        var sandboxRoot = Path.Combine(Path.GetTempPath(), $"od-research-root-{Guid.NewGuid():N}");
+        var outsideRoot = Path.Combine(Path.GetTempPath(), $"od-research-outside-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(sandboxRoot);
+        Directory.CreateDirectory(outsideRoot);
+        var databasePath = Path.Combine(outsideRoot, "memory.db");
+        await File.WriteAllBytesAsync(databasePath, []);
+        try
+        {
+            var connector = new Mock<IWebSearchConnector>(MockBehavior.Strict);
+            var tool = CreateTool(
+                connector.Object,
+                new Dictionary<string, string>(),
+                new StubContentTrustService(),
+                new StubResearchTranslationService(),
+                fileSystemRoot: sandboxRoot);
+
+            var action = () => tool.DiscoverAsync(
+                "[{\"terms\":[\"alpha\"]}]",
+                freshnessWindow: "none",
+                previousProposalsDatabasePath: databasePath);
+
+            await action.Should().ThrowAsync<PathSandboxException>();
+            connector.VerifyNoOtherCalls();
+        }
+        finally
+        {
+            Directory.Delete(sandboxRoot, recursive: true);
+            Directory.Delete(outsideRoot, recursive: true);
+        }
+    }
+
     private static Mock<IWebSearchConnector> CreateConnector(
         Func<string, IReadOnlyList<string>> selectUrls)
     {
@@ -555,7 +638,9 @@ public sealed class ResearchDiscoverToolTests
         StubContentTrustService trust,
         StubResearchTranslationService translation,
         List<string>? order = null,
-        GuardrailsOptions? guardrails = null)
+        GuardrailsOptions? guardrails = null,
+        IProposalMemoryService? proposalMemoryService = null,
+        string? fileSystemRoot = null)
     {
         var handler = new StubHttpMessageHandler((request, _) =>
         {
@@ -576,6 +661,9 @@ public sealed class ResearchDiscoverToolTests
             trust,
             new StubIncidentReporter(),
             translation,
+            new PathSandbox(Options.Create(new FileSystemOptions { RootPath = fileSystemRoot ?? Path.GetTempPath() })),
+            ToolExecutionContext.Taskless,
+            proposalMemoryService ?? Mock.Of<IProposalMemoryService>(),
             NullLogger<ResearchDiscoverTool>.Instance,
             new FixedLocalTimeProvider());
     }

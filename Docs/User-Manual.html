@@ -1791,6 +1791,25 @@ ollama list</code></pre>
                     pénurie : zéro candidat produit zéro post LinkedIn et aucun article du
                     dimanche. Une source suffit à un article focalisé, deux à une analyse croisée
                     limitée, et trois ou plus à un article multi-source.
+                    Les arguments complets de découverte sont : <code>themes</code> obligatoire ;
+                    puis <code>freshnessWindow</code> (<code>sliding</code> par défaut ou
+                    <code>none</code>), <code>sourceLanguage</code> (<code>en</code>),
+                    <code>language</code> (vide), <code>preferredDomains</code>
+                    (<code>[]</code>), <code>minimumDocuments</code> (8, plage 1–100),
+                    <code>maxResultsPerQuery</code> (10, plage 1–10) et
+                    <code>maxRetrievalsPerRun</code> (40, plage 1–100). La mémoire ajoute
+                    <code>previousProposalsDatabasePath</code> (vide),
+                    <code>previousProposalsLookbackMonths</code> (6, plage 1–60),
+                    <code>usePreviousProposalUsedTag</code> (false) et
+                    <code>previousProposalsSemanticSimilarityThreshold</code> (0,92, plage
+                    0,80–0,99).
+                    L’exemple LinkedIn quotidien montre aussi la mémoire de propositions
+                    optionnelle : <code>sqlite.createProposalDatabase</code> initialise une base
+                    possédée par la tâche, <code>research.discover</code> retire les correspondances
+                    exactes ou sémantiques récentes, puis un prompt agentique ne peut appeler que
+                    <code>sqlite.storeProposal</code> pour ses sélections finales. Cela exige le
+                    groupe <code>sqlite</code>, un emplacement Authorized locations en ReadWrite,
+                    <code>SqliteWrite</code> et le fournisseur local Ollama d’embeddings Knowledge.
                 </div>
 </section>
 <section data-title="Scénario : utiliser l’AI playground" id="scenario-playground">
@@ -2649,15 +2668,16 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
                     pas classifié par Guardrails : n’autorisez que les dossiers nécessaires.
                 </p><div class="card tool-reference-block">
 <h3 id="tools-sqlite">SQLite</h3>
-<p>Le groupe <code>sqlite</code> fournit quatre alias pour un seul fichier de
+<p>Le groupe <code>sqlite</code> fournit quatre alias généraux et deux alias spécialisés de mémoire de propositions pour un seul fichier de
                     base local autorisé : <code>sqlite.listObjects</code>,
                     <code>sqlite.describeTable</code>, <code>sqlite.query</code> et
-                    <code>sqlite.execute</code>. Ajoutez <code>sqlite</code> aux outils autorisés
+                    <code>sqlite.execute</code>, plus <code>sqlite.createProposalDatabase</code> et
+                    <code>sqlite.storeProposal</code>. Ajoutez <code>sqlite</code> aux outils autorisés
                     de la tâche. Les chemins relatifs restent sous
                     <code>FileSystem:RootPath</code> ; un chemin absolu requiert une autorisation
                     dans Authorized locations. Les trois premiers alias requièrent ReadOnly.
-                    <code>sqlite.execute</code> exige aussi ReadWrite et
-                    la capacité de tâche <code>SqliteWrite</code>.</p>
+                    Les trois alias d’écriture exigent ReadWrite et la capacité de tâche
+                    <code>SqliteWrite</code>.</p>
 <p>Utilisez un chemin de base, jamais une chaîne de connexion, une URI, une
                     base réseau ou <code>:memory:</code>. Une lecture ne crée jamais de fichier.
                     Une écriture ne crée un fichier manquant qu’avec
@@ -2677,12 +2697,14 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
 <li>Dans <span class="ui-label">Settings → SQLite</span>, définissez le nombre de lignes par défaut et maximal, les limites de caractères de résultat et de SQL, la limite BLOB et le délai d’attente. Les limites tronquent la réponse ; elles ne garantissent pas un nombre total de lignes ou d’objets.</li>
 </ol>
 <p>La case <strong>Protect SQLite read results with Guardrails</strong> de l’éditeur est enregistrée avec chaque tâche. Le réglage homonyme de Settings sert seulement de valeur initiale aux nouvelles tâches et aux essais sans tâche (Tool tester et AI Playground) ; modifier Settings ne change pas une tâche existante.</p>
-<h3>Les quatre alias</h3>
+<h3>Les six alias</h3>
 <ul>
 <li><code>sqlite.listObjects</code> — <code>databasePath</code>, <code>objectType</code> (<code>All</code>, <code>Table</code>, <code>View</code>, <code>Index</code> ou <code>Trigger</code>), <code>namePattern</code> (motif SQLite LIKE) et <code>maxResults</code>. Renvoie les objets de schéma visibles, dans un ordre stable, sans leur SQL brut.</li>
 <li><code>sqlite.describeTable</code> — <code>databasePath</code> et <code>tableName</code> exact. Renvoie les colonnes, clés étrangères et index de cette table ou vue ; les corps de déclencheurs ne sont jamais renvoyés.</li>
 <li><code>sqlite.query</code> — <code>databasePath</code>, une instruction de lecture dans <code>sql</code>, <code>parameters</code> et <code>maxRows</code>. Dans cette version, fournissez un chemin de base : <code>storageSpaceId</code> est réservé et ne doit pas être renseigné.</li>
 <li><code>sqlite.execute</code> — <code>databasePath</code>, une instruction de modification dans <code>sql</code>, <code>parameters</code> et <code>createIfMissing</code>. L’appel est exécuté dans une transaction possédée par l’application.</li>
+<li><code>sqlite.createProposalDatabase</code> — <code>databasePath</code> obligatoire. Crée le fichier manquant ou valide/migre le schéma compatible <code>editorial_proposals</code>. Il n’accepte aucun SQL, ne crée pas le dossier parent et reste idempotent.</li>
+<li><code>sqlite.storeProposal</code> — <code>databasePath</code>, <code>title</code> et <code>summary</code> obligatoires ; <code>sourceUrl</code> et <code>used</code> facultatifs (<code>false</code> par défaut). Il canonicalise l’URL, calcule localement l’embedding <code>title + summary</code>, puis insère ou met à jour atomiquement l’identité déterministe. Il n’accepte ni SQL, ni vecteur, ni modèle, ni dimension, ni date.</li>
 </ul>
 <p>Les lectures doivent être productrices de résultats (<code>SELECT</code>, <code>WITH</code>, <code>VALUES</code> ou <code>EXPLAIN</code>). Les écritures acceptent notamment <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>, <code>CREATE</code>, <code>ALTER</code> et <code>DROP</code>, mais pas <code>RETURNING</code>. Un seul énoncé est autorisé, avec au plus un point-virgule final et des commentaires de fin. Les paramètres doivent correspondre exactement aux paramètres nommés du SQL ; les objets, tableaux, paramètres positionnels et valeurs non finies ne sont pas acceptés.</p>
 <div class="code-block"><pre><code>{
@@ -2712,6 +2734,38 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
   "createIfMissing": true
 }</code></pre></div>
 <p>Un accusé d’écriture contient seulement <code>rowsAffected</code>, <code>lastInsertRowId</code> lorsqu’il est significatif, <code>databaseCreated</code> et <code>committed</code> ; il ne réaffiche ni SQL, ni paramètres, ni données de la base.</p>
+<h3>Syntaxe de la mémoire de propositions</h3>
+<p>La mémoire de propositions est une base ordinaire possédée par la tâche, et non un stockage possédé par l’application ou un registre de publication. Le dossier doit être ReadWrite car le workflow initialise la base et enregistre les propositions ; <code>research.discover</code> ouvre lui-même le fichier en ReadOnly. Utilisez le fournisseur local Ollama d’embeddings Knowledge. Un fournisseur OpenAI-compatible est refusé avant la génération afin qu’aucun vecteur de proposition ne quitte la machine.</p>
+<div class="code-block"><pre><code>{
+  "step": "sqlite.createProposalDatabase",
+  "id": "ensureProposalMemory",
+  "args": {
+    "databasePath": "C:\\VeilleEditoriale\\editorial-proposals.db"
+  }
+}</code></pre></div>
+<div class="code-block"><pre><code>{
+  "step": "research.discover",
+  "id": "discover",
+  "args": {
+    "themes": "[{\"terms\":[\".NET\",\"C#\"]}]",
+    "freshnessWindow": "sliding",
+    "previousProposalsDatabasePath": "C:\\VeilleEditoriale\\editorial-proposals.db",
+    "previousProposalsLookbackMonths": 6,
+    "usePreviousProposalUsedTag": false,
+    "previousProposalsSemanticSimilarityThreshold": 0.92
+  }
+}</code></pre></div>
+<p><code>previousProposalsDatabasePath</code> est facultatif et vide par défaut ; son omission désactive la mémoire. <code>previousProposalsLookbackMonths</code> vaut <code>6</code> par défaut et accepte 1 à 60. <code>usePreviousProposalUsedTag</code> vaut <code>false</code> par défaut : toutes les lignes récentes restent exclues indépendamment de <code>used</code> ; lorsqu’il vaut true, les anciennes lignes avec <code>used = 1</code> restent aussi exclues. <code>previousProposalsSemanticSimilarityThreshold</code> vaut <code>0.92</code> par défaut et accepte 0,80 à 0,99 inclus. Une base absente, inaccessible, malformée ou incompatible fait échouer l’étape.</p>
+<p>Le filtrage intervient après la déduplication d’URL, l’éligibilité par date et le classement ordinaires. Il rejette d’abord les titres normalisés identiques, puis les URL canoniques identiques, puis les embeddings locaux compatibles dont le cosinus atteint le seuil. Les vecteurs d’un autre modèle ou d’une autre dimension ne sont pas comparés et sont comptés. La découverte renvoie seulement <code>proposalMemoryEnabled</code>, <code>proposalMemoryLookbackMonths</code>, <code>proposalMemoryUsedTagEnabled</code>, <code>proposalMemorySemanticSimilarityThreshold</code>, <code>proposalMemoryConsideredCount</code>, <code>proposalMemoryIncompatibleEmbeddingCount</code>, <code>rejectedPreviousProposalExactCount</code>, <code>rejectedPreviousProposalSemanticCount</code> et <code>rejectedPreviousProposalCount</code> ; elle ne renvoie jamais les anciens titres, résumés, URL, chemins de base, clés ou vecteurs.</p>
+<div class="code-block"><pre><code>{
+  "step": "ai.prompt",
+  "id": "writeEditorialWatch",
+  "toolAliases": ["sqlite.storeProposal"],
+  "args": {
+    "prompt": "Sélectionne les sujets finaux dans {{discover.output}}. Pour chaque sujet retenu, appelle sqlite.storeProposal exactement une fois avec le chemin fixe, le titre, un résumé factuel, l’URL canonique si elle existe et used=false."
+  }
+}</code></pre></div>
+<p>La création expose <code>databaseCreated</code>, <code>tableCreated</code> et <code>schemaCompatible</code>. Le stockage expose <code>stored</code>, <code>inserted</code>, <code>embeddingModel</code> et <code>embeddingDimension</code>, jamais le vecteur. Le contrat de table contient <code>id</code>, <code>title</code>, <code>summary</code>, <code>source_url</code> nullable, <code>created_at_utc</code> UTC, <code>used</code> sous forme d’entier booléen, <code>proposal_key</code> unique, <code>embedding_model</code>, <code>embedding_dimension</code> et le BLOB <code>embedding</code>. Enregistrer chaque sélection finale, même avec <code>used=false</code>, empêche volontairement le retour quotidien des mêmes alternatives non utilisées.</p>
 <h3>Lire les résultats et protéger les données</h3>
 <p>Les trois alias de lecture retournent une enveloppe avec <code>data</code> ou <code>protectedData</code>, jamais les deux, ainsi que <code>contentEncoding</code>, <code>screened</code>, <code>sqliteGuardrailsEnabled</code>, les champs de confiance, <code>screeningChunkCount</code> et <code>resultCharacterCount</code>. Pour une lecture propre, <code>data</code> contient le résultat logique. Une requête expose des <code>columns</code> ordonnées (<code>name</code>, <code>ordinal</code>, <code>declaredType</code>) et des <code>rows</code> sous forme de tableaux afin de préserver l’ordre et les noms de colonnes dupliqués. Les objets et descriptions signalent aussi leur troncature ; <code>query</code> fournit <code>hasMoreRows</code>, <code>truncated</code> et <code>resultTruncated</code>.</p>
 <p>Les BLOB sont décrits par <code>$type</code>, <code>byteLength</code>, <code>base64</code> et <code>omitted</code>. Quand la limite BLOB est nulle ou dépassée, le contenu Base64 est omis. Les résultats s’arrêtent aux limites d’objets ou de lignes, puis de taille complète ; les données absentes ne doivent donc pas être interprétées comme inexistantes.</p>

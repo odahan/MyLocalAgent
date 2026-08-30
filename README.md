@@ -45,7 +45,7 @@ its own navigation, search, styles, and scripts in one file.
 | 20 | Agent Prompt Placeholders | Complete with documented, human task test done |
 | 21 | Model Information Placeholders | Complete with automated verification |
 | 22 | Archive, Office, and PDF Tools | Complete with automated verification |
-| 23 | Web Discovery Tool (`research.discover`) | Complete — inline parameters, bounded discovery, Guardrails protection, no profiles or storage |
+| 23 | Web Discovery Tool (`research.discover`) | Complete — inline parameters, bounded discovery, Guardrails protection, and optional task-owned proposal memory |
 | 24 | Direct Chat with persistent SQLite history and context compression | Complete with automated verification |
 | 25 | Not implemented |
 | 28 | Reflection-driven workflow step editor | Complete with automated verification |
@@ -242,6 +242,20 @@ URLs and parsed dates remain whitelisted metadata; external titles and summaries
 `protectedResults`. With translation enabled, the approved source block is checked immediately
 before the tool-less translation call and the exact translated block is checked again before
 delivery. Disabled screening skips translation and still forces marked Base64 protection.
+
+An optional task-owned proposal-memory database can suppress recurring editorial suggestions.
+Set `previousProposalsDatabasePath` on `research.discover`; the other optional arguments are
+`previousProposalsLookbackMonths` (default 6, range 1–60),
+`usePreviousProposalUsedTag` (default false), and
+`previousProposalsSemanticSimilarityThreshold` (default 0.92, range 0.80–0.99). The authorized database is opened
+read-only; exact normalized title/URL matches and compatible local embedding matches are removed
+after ranking. Missing or incompatible databases and unavailable embeddings fail the step clearly.
+Only aggregate memory counters are returned: `proposalMemoryEnabled`,
+`proposalMemoryLookbackMonths`, `proposalMemoryUsedTagEnabled`,
+`proposalMemorySemanticSimilarityThreshold`, `proposalMemoryConsideredCount`,
+`proposalMemoryIncompatibleEmbeddingCount`, `rejectedPreviousProposalExactCount`,
+`rejectedPreviousProposalSemanticCount`, and `rejectedPreviousProposalCount`. Prior titles,
+summaries, URLs, paths, keys, and vectors are never exposed in discovery output or normal logs.
 
 The bundled editorial workflows fail closed on insufficient source material. The daily LinkedIn
 sample produces no topics or posts when discovery returns zero candidates and never treats an
@@ -454,6 +468,8 @@ The following side effects are disabled by default:
 | `filesystem.moveToBin` | `RecycleBin` |
 | `http.post` | `HttpPost` |
 | `sqlite.execute` | `SqliteWrite` |
+| `sqlite.createProposalDatabase` | `SqliteWrite` |
+| `sqlite.storeProposal` | `SqliteWrite` |
 | `filesystem.shellExecute` | `ShellExecute` |
 | `filesystem.powerShell` | `PowerShellExecution` |
 | archive write/extract aliases | `ArchiveWrite` |
@@ -1081,8 +1097,9 @@ persisted by these dialogs; the only outbound copy is the explicit Copy placehol
 
 ### SQLite
 
-The `sqlite` group provides four bounded operations against one authorized local database file:
-`sqlite.listObjects`, `sqlite.describeTable`, `sqlite.query`, and `sqlite.execute`. Add
+The `sqlite` group provides four general bounded operations and two proposal-memory operations
+against one authorized local database file: `sqlite.listObjects`, `sqlite.describeTable`,
+`sqlite.query`, `sqlite.execute`, `sqlite.createProposalDatabase`, and `sqlite.storeProposal`. Add
 `"sqlite"` to the task `tools` list. Relative paths stay under `FileSystem:RootPath`; absolute
 paths need an **Authorized locations** grant. Read aliases require ReadOnly access.
 `sqlite.execute` additionally requires ReadWrite access and the `SqliteWrite` task capability.
@@ -1099,6 +1116,8 @@ statement. Transaction controls, `ATTACH`, `DETACH`, `PRAGMA`, `VACUUM`, extensi
 | `sqlite.describeTable` | `databasePath`, `tableName` | — | Describes one table or view. |
 | `sqlite.query` | `databasePath`, `sql` | `parameters`, `maxRows` | Runs one read-only result-producing statement. |
 | `sqlite.execute` | `databasePath`, `sql` | `parameters`, `createIfMissing` | Runs one modifying statement in an application-owned transaction. |
+| `sqlite.createProposalDatabase` | `databasePath` | — | Creates or validates the application-owned proposal schema without caller SQL. |
+| `sqlite.storeProposal` | `databasePath`, `title`, `summary` | `sourceUrl`, `used` | Calculates a local embedding and atomically stores an idempotent proposal. |
 
 Parameters are a JSON object whose keys retain the native `$`, `:`, or `@` prefix; values may be
 null, Boolean, integer, finite number, or string. Values are bound by SQLite, never concatenated
@@ -1182,11 +1201,13 @@ JSON, and every new-task whitelist choice starts disabled.
 | `sqlite.describeTable` | `sqlite_describe_table` | `SqliteTool.DescribeTableAsync` | `databasePath`, `tableName` | — |
 | `sqlite.query` | `sqlite_query` | `SqliteTool.QueryAsync` | `databasePath`, `sql`, optional object `parameters`, optional `maxRows`, optional `storageSpaceId` | — |
 | `sqlite.execute` | `sqlite_execute` | `SqliteTool.ExecuteAsync` | `databasePath`, `sql`, optional object `parameters`, optional `createIfMissing` | `SqliteWrite` |
+| `sqlite.createProposalDatabase` | `sqlite_create_proposal_database` | `SqliteTool.CreateProposalDatabaseAsync` | `databasePath` | `SqliteWrite` |
+| `sqlite.storeProposal` | `sqlite_store_proposal` | `SqliteTool.StoreProposalAsync` | `databasePath`, `title`, `summary`, optional `sourceUrl`, optional `used` | `SqliteWrite` |
 | `http.get` | `http_get` | `HttpTool.GetAsync` | `url` | — |
 | `http.post` | `http_post` | `HttpTool.PostAsync` | `url`, `body`, `contentType` | `HttpPost` |
 | `http.getText` | `http_get_text` | `HttpTool.GetTextAsync` | `url` | — |
 | `web.search` | `web_search` | `WebSearchTool.SearchAsync` | `query`, optional `maxResults` | cloud opt-in |
-| `research.discover` | `research_discover` | `ResearchDiscoverTool.DiscoverAsync` | `themes`, optional discovery and budget arguments | cloud opt-in |
+| `research.discover` | `research_discover` | `ResearchDiscoverTool.DiscoverAsync` | `themes`, optional discovery, budget, and proposal-memory arguments | cloud opt-in; optional ReadOnly database path |
 | `ai.summarize` | — | `SummarizeTextSkill` | optional `text` | — |
 | `ai.extractActionItems` | — | `ExtractActionItemsSkill` | optional `text` | — |
 | `ai.classifyEmail` | — | `ClassifyEmailSkill` | optional `text` | — |

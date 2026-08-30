@@ -227,6 +227,8 @@ public sealed class ToolMapMetadataTests
             ["sqlite.describeTable"] = (["databasePath", "tableName"], []),
             ["sqlite.query"] = (["databasePath", "sql", "parameters", "maxRows", "storageSpaceId"], ["parameters", "maxRows", "storageSpaceId"]),
             ["sqlite.execute"] = (["databasePath", "sql", "parameters", "createIfMissing"], ["parameters", "createIfMissing"]),
+            ["sqlite.createProposalDatabase"] = (["databasePath"], []),
+            ["sqlite.storeProposal"] = (["databasePath", "title", "summary", "sourceUrl", "used"], ["sourceUrl", "used"]),
             ["archive.list"] = (["archivePath", "maxEntries"], ["maxEntries"]),
             ["archive.extract"] = (["archivePath", "entryPath", "destinationPath", "overwrite"], ["overwrite"]),
             ["archive.extractAll"] = (["archivePath", "destinationDirectory"], []),
@@ -241,7 +243,7 @@ public sealed class ToolMapMetadataTests
             ["http.post"] = (["url", "body", "contentType"], []),
             ["http.getText"] = (["url"], []),
             ["web.search"] = (["query", "maxResults"], ["maxResults"]),
-            ["research.discover"] = (["themes", "freshnessWindow", "sourceLanguage", "language", "preferredDomains", "minimumDocuments", "maxResultsPerQuery", "maxRetrievalsPerRun"], ["freshnessWindow", "sourceLanguage", "language", "preferredDomains", "minimumDocuments", "maxResultsPerQuery", "maxRetrievalsPerRun"]),
+            ["research.discover"] = (["themes", "freshnessWindow", "sourceLanguage", "language", "preferredDomains", "minimumDocuments", "maxResultsPerQuery", "maxRetrievalsPerRun", "previousProposalsDatabasePath", "previousProposalsLookbackMonths", "usePreviousProposalUsedTag", "previousProposalsSemanticSimilarityThreshold"], ["freshnessWindow", "sourceLanguage", "language", "preferredDomains", "minimumDocuments", "maxResultsPerQuery", "maxRetrievalsPerRun", "previousProposalsDatabasePath", "previousProposalsLookbackMonths", "usePreviousProposalUsedTag", "previousProposalsSemanticSimilarityThreshold"]),
             ["knowledge.search"] = (["query", "tags", "maxResults"], ["tags", "maxResults"]),
         };
 

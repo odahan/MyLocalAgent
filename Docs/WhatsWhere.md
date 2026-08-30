@@ -66,6 +66,21 @@ database and imported files are not encrypted at rest; include the complete
 contents manually: imports, replacements, deletions, and reindexing are managed from the
 Knowledge page.
 
+Editorial proposal-memory databases are ordinary task-owned files at the path chosen in the
+workflow, for example
+`C:\Users\<user>\Dropbox\VeilleAutomatique\editorial-proposals.db`. They never live implicitly
+under `.od-my-local-agent`, are not global application state, and must be covered by the task's
+ReadWrite Authorized location. Back them up or remove them with the other user-owned files in
+that directory. Only `sqlite.createProposalDatabase` may create or migrate their schema;
+`research.discover` opens them ReadOnly and `sqlite.storeProposal` records selected proposals.
+
+| Proposal-memory implementation | Responsibility |
+|---|---|
+| `src/OD.MyLocalAgent.Core/ProposalMemoryService.cs` | Schema creation/migration, idempotent storage, normalization, local embeddings, and exact cosine filtering |
+| `src/OD.MyLocalAgent.Core/ResearchDiscoverTool.cs` | Optional ReadOnly proposal-memory filtering and aggregate diagnostics |
+| `src/OD.MyLocalAgent.Core/SqliteTool.cs` | Authorized `sqlite.createProposalDatabase` and `sqlite.storeProposal` aliases |
+| `Docs/samples/editorial-watch-daily.json` | Complete scheduled editorial workflow with proposal memory |
+
 ## Configuration Layers
 
 Configuration is loaded in this priority order (last wins):

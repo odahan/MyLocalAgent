@@ -16,7 +16,7 @@ namespace OD.MyLocalAgent.Core;
     "Web Discovery",
     "Discover web documents using bounded search themes.",
     1200,
-    Activation = ToolActivationKind.Singleton,
+    Activation = ToolActivationKind.Contextual,
     ServiceContract = typeof(IResearchDiscoverTool))]
 public sealed class ResearchDiscoverTool : IResearchDiscoverTool
 {
@@ -33,6 +33,9 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
     private readonly IContentTrustService _contentTrustService;
     private readonly IIncidentReporter _incidentReporter;
     private readonly IResearchTranslationService _translationService;
+    private readonly IPathSandbox _pathSandbox;
+    private readonly ToolExecutionContext _executionContext;
+    private readonly IProposalMemoryService _proposalMemoryService;
     private readonly ILogger<ResearchDiscoverTool> _logger;
     private readonly TimeProvider _timeProvider;
 
@@ -47,6 +50,9 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
         IContentTrustService contentTrustService,
         IIncidentReporter incidentReporter,
         IResearchTranslationService translationService,
+        IPathSandbox pathSandbox,
+        ToolExecutionContext executionContext,
+        IProposalMemoryService proposalMemoryService,
         ILogger<ResearchDiscoverTool> logger,
         TimeProvider timeProvider)
     {
@@ -57,6 +63,9 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
         ArgumentNullException.ThrowIfNull(contentTrustService);
         ArgumentNullException.ThrowIfNull(incidentReporter);
         ArgumentNullException.ThrowIfNull(translationService);
+        ArgumentNullException.ThrowIfNull(pathSandbox);
+        ArgumentNullException.ThrowIfNull(executionContext);
+        ArgumentNullException.ThrowIfNull(proposalMemoryService);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(timeProvider);
         _webSearchConnector = webSearchConnector;
@@ -66,11 +75,15 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
         _contentTrustService = contentTrustService;
         _incidentReporter = incidentReporter;
         _translationService = translationService;
+        _pathSandbox = pathSandbox;
+        _executionContext = executionContext;
+        _proposalMemoryService = proposalMemoryService;
         _logger = logger;
         _timeProvider = timeProvider;
     }
 
     /// <inheritdoc />
+    [ToolLocalPath("previousProposalsDatabasePath", LocalPathTargetKind.File, FileSystemAccessMode.ReadOnly)]
     [Tool("research.discover", "Discovers web documents matching search themes with bounded search and retrieval.", 100)]
     public Task<string> DiscoverAsync(
         [ToolArgument(WorkflowArgumentKind.String, "JSON array of search themes.", Example = "[{\"terms\":[\".NET\",\"C#\"],\"includeTerms\":[\"release\"]}]", IsLongText = true)] string themes,
@@ -81,6 +94,10 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
         [ToolArgument(WorkflowArgumentKind.Integer, "Minimum unique dated documents target (1-100), ignored in 'none' mode.", Example = "8", Minimum = 1, Maximum = 100)] int minimumDocuments = 8,
         [ToolArgument(WorkflowArgumentKind.Integer, "Advanced compatibility setting: maximum search hits returned per request (1-10).", Example = "10", Minimum = 1, Maximum = 10)] int maxResultsPerQuery = 10,
         [ToolArgument(WorkflowArgumentKind.Integer, "Advanced compatibility safeguard: maximum page fetch attempts for the entire run (1-100).", Example = "40", Minimum = 1, Maximum = 100)] int maxRetrievalsPerRun = 40,
+        [ToolArgument(WorkflowArgumentKind.String, "Optional authorized editorial proposal-memory SQLite database path.", Example = "data/editorial-proposals.db", IsExcludedFromWorkflowTextEditor = true)] string previousProposalsDatabasePath = "",
+        [ToolArgument(WorkflowArgumentKind.Integer, "Proposal-memory lookback in whole months (1-60).", Example = "6", Minimum = 1, Maximum = 60)] int previousProposalsLookbackMonths = 6,
+        [ToolArgument(WorkflowArgumentKind.Boolean, "Whether proposals marked as used remain excluded regardless of age.", Example = "false")] bool usePreviousProposalUsedTag = false,
+        [ToolArgument(WorkflowArgumentKind.Number, "Proposal-memory cosine-similarity threshold (0.80-0.99).", Example = "0.92", Minimum = 0.80, Maximum = 0.99)] double previousProposalsSemanticSimilarityThreshold = 0.92,
         CancellationToken cancellationToken = default)
     {
         return ToolCallLog.ExecuteAsync(
@@ -96,6 +113,10 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
                 minimumDocuments,
                 maxResultsPerQuery,
                 maxRetrievalsPerRun,
+                proposalMemoryEnabled = !string.IsNullOrWhiteSpace(previousProposalsDatabasePath),
+                previousProposalsLookbackMonths,
+                usePreviousProposalUsedTag,
+                previousProposalsSemanticSimilarityThreshold,
             },
             async () =>
             {
@@ -116,6 +137,11 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
                 var effectiveSourceLanguage = string.IsNullOrWhiteSpace(sourceLanguage)
                     ? "en"
                     : sourceLanguage.Trim();
+                var proposalMemory = ResolveProposalMemoryOptions(
+                    previousProposalsDatabasePath,
+                    previousProposalsLookbackMonths,
+                    usePreviousProposalUsedTag,
+                    previousProposalsSemanticSimilarityThreshold);
                 var localNow = _timeProvider.GetLocalNow();
                 var guardrails = _guardrailsOptions.CurrentValue;
                 if (guardrails.MaxContentChars < 2)
@@ -135,6 +161,7 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
                         effectiveMaxRetrievals,
                         localNow,
                         guardrails,
+                        proposalMemory,
                         cancellationToken).ConfigureAwait(false)
                     : await RunNoneModeAsync(
                         parsedThemes,
@@ -144,6 +171,7 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
                         effectiveMaxPerQuery,
                         effectiveMaxRetrievals,
                         guardrails,
+                        proposalMemory,
                         cancellationToken).ConfigureAwait(false);
             },
             SummarizeResult);
@@ -159,6 +187,7 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
         int maxRetrievalsPerRun,
         DateTimeOffset localNow,
         GuardrailsOptions guardrails,
+        ProposalMemoryOptions proposalMemory,
         CancellationToken cancellationToken)
     {
         var state = new DiscoveryCollectionState();
@@ -282,6 +311,7 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
                 rejectedFuture,
                 insufficient,
                 minimumDocuments,
+                proposalMemory,
                 cancellationToken)
             .ConfigureAwait(false);
     }
@@ -294,6 +324,7 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
         int maxResultsPerQuery,
         int maxRetrievalsPerRun,
         GuardrailsOptions guardrails,
+        ProposalMemoryOptions proposalMemory,
         CancellationToken cancellationToken)
     {
         var state = new DiscoveryCollectionState();
@@ -362,6 +393,7 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
                 0,
                 false,
                 0,
+                proposalMemory,
                 cancellationToken)
             .ConfigureAwait(false);
     }
@@ -636,9 +668,21 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
         int rejectedFuture,
         bool insufficient,
         int minimumDocuments,
+        ProposalMemoryOptions proposalMemory,
         CancellationToken cancellationToken)
     {
-        var ordered = SortAndPrioritize(eligibleCandidates, preferredDomains);
+        IReadOnlyList<WebDocument> rankedEligible = SortAndPrioritize(eligibleCandidates, preferredDomains);
+        var memoryResult = proposalMemory.Enabled
+            ? await _proposalMemoryService.FilterAsync(
+                    proposalMemory.DatabasePath!,
+                    rankedEligible,
+                    proposalMemory.LookbackMonths,
+                    proposalMemory.UseUsedTag,
+                    proposalMemory.SemanticSimilarityThreshold,
+                    cancellationToken)
+                .ConfigureAwait(false)
+            : new ProposalFilterResult(rankedEligible, 0, 0, 0, 0);
+        var ordered = memoryResult.Candidates;
         var budgeted = BuildBudgetedPayload(ordered, guardrails.MaxContentChars);
         var finalBudget = budgeted;
         var trust = await ScreenWithFallbackAsync(
@@ -727,15 +771,24 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
             ["windowHistory"] = state.WindowHistory,
             ["retrievalsUsed"] = state.RetrievalsUsed,
             ["discoveredCandidateCount"] = state.Documents.Count,
-            ["eligibleCandidateCount"] = ordered.Count,
+            ["eligibleCandidateCount"] = rankedEligible.Count,
             ["candidateCount"] = deliveredCandidates.Length,
-            ["datedCount"] = ordered.Count(candidate =>
+            ["datedCount"] = rankedEligible.Count(candidate =>
                 candidate.DateStatus == PublicationDateStatus.Verified && candidate.PublicationTime.HasValue),
-            ["unknownDateCount"] = ordered.Count(candidate =>
+            ["unknownDateCount"] = rankedEligible.Count(candidate =>
                 candidate.DateStatus == PublicationDateStatus.Unknown || !candidate.PublicationTime.HasValue),
             ["rejectedTooOldCount"] = rejectedTooOld,
             ["rejectedUnknownDateCount"] = rejectedUnknown,
             ["rejectedFutureDateCount"] = rejectedFuture,
+            ["proposalMemoryEnabled"] = proposalMemory.Enabled,
+            ["proposalMemoryLookbackMonths"] = proposalMemory.LookbackMonths,
+            ["proposalMemoryUsedTagEnabled"] = proposalMemory.Enabled && proposalMemory.UseUsedTag,
+            ["proposalMemorySemanticSimilarityThreshold"] = proposalMemory.SemanticSimilarityThreshold,
+            ["proposalMemoryConsideredCount"] = memoryResult.ConsideredCount,
+            ["proposalMemoryIncompatibleEmbeddingCount"] = memoryResult.IncompatibleEmbeddingCount,
+            ["rejectedPreviousProposalExactCount"] = memoryResult.RejectedExactCount,
+            ["rejectedPreviousProposalSemanticCount"] = memoryResult.RejectedSemanticCount,
+            ["rejectedPreviousProposalCount"] = memoryResult.RejectedCount,
             ["omittedBecauseOfBudget"] = ordered.Count - finalBudget.Items.Count,
             ["truncated"] = finalBudget.Truncated,
             ["candidates"] = deliveredCandidates.Select(candidate => new
@@ -981,6 +1034,49 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
             .ThenByDescending(document => document.PublicationTime)
             .ThenBy(document => document.CanonicalUrl, StringComparer.Ordinal)
             .ToList();
+
+    private ProposalMemoryOptions ResolveProposalMemoryOptions(
+        string? databasePath,
+        int lookbackMonths,
+        bool useUsedTag,
+        double semanticSimilarityThreshold)
+    {
+        if (string.IsNullOrWhiteSpace(databasePath))
+        {
+            return ProposalMemoryOptions.Disabled;
+        }
+
+        if (lookbackMonths is < 1 or > 60)
+        {
+            throw new ArgumentOutOfRangeException(nameof(lookbackMonths), "Proposal-memory lookback must be from 1 through 60 months.");
+        }
+
+        if (semanticSimilarityThreshold is < 0.80 or > 0.99 || !double.IsFinite(semanticSimilarityThreshold))
+        {
+            throw new ArgumentOutOfRangeException(nameof(semanticSimilarityThreshold), "Proposal-memory similarity threshold must be from 0.80 through 0.99.");
+        }
+
+        var resolvedPath = _pathSandbox.Resolve(
+            databasePath.Trim(),
+            FileSystemAccessMode.ReadOnly,
+            _executionContext);
+        if (!File.Exists(resolvedPath))
+        {
+            throw new FileNotFoundException("The proposal-memory database file does not exist.");
+        }
+
+        if (Directory.Exists(resolvedPath))
+        {
+            throw new InvalidOperationException("The proposal-memory database path must identify a file.");
+        }
+
+        return new ProposalMemoryOptions(
+            true,
+            resolvedPath,
+            lookbackMonths,
+            useUsedTag,
+            semanticSimilarityThreshold);
+    }
 
     private static string? SummarizeResult(string json)
     {
@@ -1320,6 +1416,16 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
         IReadOnlyList<ExternalCandidateContent> Items,
         string CanonicalPayload,
         bool Truncated);
+
+    private sealed record ProposalMemoryOptions(
+        bool Enabled,
+        string? DatabasePath,
+        int LookbackMonths,
+        bool UseUsedTag,
+        double SemanticSimilarityThreshold)
+    {
+        public static ProposalMemoryOptions Disabled { get; } = new(false, null, 6, false, 0.92);
+    }
 
     private sealed class DiscoveryCollectionState
     {

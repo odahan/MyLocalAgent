@@ -16,6 +16,10 @@ public interface IResearchDiscoverTool
     /// <param name="minimumDocuments">The minimum unique dated documents target.</param>
     /// <param name="maxResultsPerQuery">The advanced compatibility limit for search hits per request.</param>
     /// <param name="maxRetrievalsPerRun">The advanced compatibility safeguard for page fetch attempts.</param>
+    /// <param name="previousProposalsDatabasePath">The optional authorized proposal-memory database path.</param>
+    /// <param name="previousProposalsLookbackMonths">The proposal-memory lookback period in whole months.</param>
+    /// <param name="usePreviousProposalUsedTag">Whether old proposals marked as used remain applicable.</param>
+    /// <param name="previousProposalsSemanticSimilarityThreshold">The exact cosine-similarity exclusion threshold.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>Structured discovery results as compact JSON.</returns>
     Task<string> DiscoverAsync(
@@ -27,5 +31,9 @@ public interface IResearchDiscoverTool
         int minimumDocuments,
         int maxResultsPerQuery,
         int maxRetrievalsPerRun,
-        CancellationToken cancellationToken);
+        string previousProposalsDatabasePath = "",
+        int previousProposalsLookbackMonths = 6,
+        bool usePreviousProposalUsedTag = false,
+        double previousProposalsSemanticSimilarityThreshold = 0.92,
+        CancellationToken cancellationToken = default);
 }

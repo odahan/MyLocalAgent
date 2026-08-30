@@ -2235,3 +2235,20 @@ current item. The first final item failure stops the batch and publishes no part
 effects completed by prior iterations are not rolled back. A repeated `filesystem.write` with no
 `foreach.*` marker in its path remains legal but the editor must warn that it will replace the
 same file repeatedly.
+
+# Addendum Stage 23 — Task-owned editorial proposal memory
+
+The optional `previousProposalsDatabasePath` extension to `research.discover` uses an ordinary
+task-owned SQLite file and existing filesystem authorization. With no path, discovery retains its
+Stage 23 behavior and reports disabled/zero memory diagnostics. With a path, recent proposals and,
+when explicitly requested, every old proposal marked `used = 1` are compared after normal ranking
+by normalized title, canonical URL, then exact local cosine similarity over the compact
+`title + summary` projection. No agent, generative chat model, fuzzy matcher, or external embedding
+provider participates.
+
+The SQLite group additionally exposes `sqlite.createProposalDatabase(databasePath)` and
+`sqlite.storeProposal(databasePath, title, summary, sourceUrl?, used?)`. Both require ReadWrite
+path access and `SqliteWrite`. The former exclusively owns validated idempotent schema creation or
+migration; the latter creates the local embedding and atomically upserts a deterministic proposal
+key. Workflows never provide schema SQL, vectors, or creation timestamps. Discovery reads the file
+only and returns aggregate diagnostics without prior proposal content, paths, keys, or vectors.

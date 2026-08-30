@@ -78,6 +78,7 @@ public static class HostApplicationBuilderExtensions
         builder.Services.AddSingleton<KnowledgeChunker>();
         builder.Services.AddSingleton<IKnowledgeEmbeddingGeneratorFactory, KnowledgeEmbeddingGeneratorFactory>();
         builder.Services.AddSingleton<IKnowledgeEmbeddingService, KnowledgeEmbeddingService>();
+        builder.Services.AddSingleton<IProposalMemoryService, ProposalMemoryService>();
         builder.Services.AddSingleton<IKnowledgeSearchService, KnowledgeSearchService>();
         builder.Services.AddSingleton<IKnowledgeLibraryService, KnowledgeLibraryService>();
 

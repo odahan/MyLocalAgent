@@ -2,6 +2,7 @@ using System.Xml.Linq;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Moq;
 using OD.MyLocalAgent.Core;
 using OD.MyLocalAgent.Guardrails;
 using OD.MyLocalAgent.Tests.TestDoubles;
@@ -85,7 +86,7 @@ public sealed class SqliteCatalogContractTests
     }
 
     /// <summary>
-    /// Verifies the four SQLite aliases expose their exact declarative runtime metadata.
+    /// Verifies the SQLite aliases expose their exact declarative runtime metadata.
     /// </summary>
     [Fact]
     public void SqliteAliasesExposeTheirExactMetadata()
@@ -96,6 +97,8 @@ public sealed class SqliteCatalogContractTests
             ["sqlite.describeTable"] = ("sqlite_describe_table", "DescribeTableAsync", ["databasePath", "tableName"], [], FileSystemAccessMode.ReadOnly, null),
             ["sqlite.query"] = ("sqlite_query", "QueryAsync", ["databasePath", "sql", "parameters", "maxRows", "storageSpaceId"], ["parameters", "maxRows", "storageSpaceId"], FileSystemAccessMode.ReadOnly, null),
             ["sqlite.execute"] = ("sqlite_execute", "ExecuteAsync", ["databasePath", "sql", "parameters", "createIfMissing"], ["parameters", "createIfMissing"], FileSystemAccessMode.ReadWrite, TaskCapability.SqliteWrite),
+            ["sqlite.createProposalDatabase"] = ("sqlite_create_proposal_database", "CreateProposalDatabaseAsync", ["databasePath"], [], FileSystemAccessMode.ReadWrite, TaskCapability.SqliteWrite),
+            ["sqlite.storeProposal"] = ("sqlite_store_proposal", "StoreProposalAsync", ["databasePath", "title", "summary", "sourceUrl", "used"], ["sourceUrl", "used"], FileSystemAccessMode.ReadWrite, TaskCapability.SqliteWrite),
         };
 
         var definitions = ToolMap.Definitions.Where(static definition => definition.ToolGroup == ToolGroups.Sqlite).ToArray();
@@ -137,6 +140,7 @@ public sealed class SqliteCatalogContractTests
         services.AddSingleton<IOptionsMonitor<GuardrailsOptions>>(new MutableOptionsMonitor<GuardrailsOptions>(new GuardrailsOptions()));
         services.AddSingleton<IContentTrustService, StubContentTrustService>();
         services.AddSingleton<IIncidentReporter, StubIncidentReporter>();
+        services.AddSingleton(Mock.Of<IProposalMemoryService>());
         services.AddSingleton(TimeProvider.System);
         services.AddLogging();
         services.AddSingleton<IToolCatalog>(ToolCatalog.Default);

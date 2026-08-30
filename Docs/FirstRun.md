@@ -278,6 +278,29 @@ LinkedIn ne produit aucun post avec zéro candidat. L’article du dimanche est 
 source disponible lorsqu’il n’y en a qu’une, devient une analyse croisée limitée avec deux, puis
 un article multi-source à partir de trois. Seul zéro candidat produit uniquement un diagnostic.
 
+### Activer des propositions éditoriales non répétitives
+
+Le workflow fourni `Docs/samples/editorial-watch-daily.json` peut conserver une mémoire de
+propositions optionnelle possédée par la tâche. Il active `research`, `sqlite` et `filesystem`,
+accorde ReadWrite au dossier de la base et déclare `SqliteWrite`. Sa première étape appelle
+`sqlite.createProposalDatabase` ; `research.discover` relit ensuite le même fichier via
+`previousProposalsDatabasePath`, avec `previousProposalsLookbackMonths: 6`,
+`usePreviousProposalUsedTag: false` et
+`previousProposalsSemanticSimilarityThreshold: 0.92`. L’étape `ai.prompt` finale ne peut appeler
+que `sqlite.storeProposal` pour les sujets effectivement retenus. Ce réglage par défaut exclut déjà toutes les propositions récentes, utilisées ou
+non ; passez-la à `true` seulement pour continuer aussi à exclure les anciennes lignes marquées
+comme publiées. Les embeddings de propositions exigent le fournisseur local Ollama configuré
+pour Knowledge.
+
+Ne créez pas ce schéma avec `sqlite.execute` et ne placez jamais de SQL, vecteur, modèle
+d’embedding ou date de création dans le prompt. Une base absente ou incompatible et des
+embeddings locaux indisponibles font échouer la découverte au lieu de désactiver silencieusement
+la mémoire.
+Une découverte réussie n’expose que des diagnostics agrégés, notamment
+`proposalMemoryConsideredCount`, `proposalMemoryIncompatibleEmbeddingCount`,
+`rejectedPreviousProposalExactCount`, `rejectedPreviousProposalSemanticCount` et
+`rejectedPreviousProposalCount`.
+
 ## 9. Outils sans identifiants
 
 - **Filesystem** : aucun compte n’est requis. Les chemins relatifs restent sous

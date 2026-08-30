@@ -2,6 +2,7 @@ using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Moq;
 using OD.MyLocalAgent.Core;
 using OD.MyLocalAgent.Guardrails;
 using OD.MyLocalAgent.Tests.TestDoubles;
@@ -611,7 +612,8 @@ public sealed class SqliteToolTests : IDisposable
             new ToolExecutionContext(null, [], sqliteGuardrailsEnabled),
             logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<SqliteTool>.Instance,
             TimeProvider.System,
-            incidentReporter ?? new StubIncidentReporter());
+            incidentReporter ?? new StubIncidentReporter(),
+            Mock.Of<IProposalMemoryService>());
     }
 
     private sealed class CapturingLogger : ILogger<SqliteTool>
