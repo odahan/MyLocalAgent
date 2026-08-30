@@ -53,7 +53,7 @@ public sealed class FileSystemToolTests : IDisposable
         var writeJson = await blockedTool.WriteAsync(
             "reports/report.txt",
             "hello",
-            CancellationToken.None);
+            cancellationToken: CancellationToken.None);
         File.SetLastWriteTimeUtc(
             Path.Combine(_rootPath, "reports", "report.txt"),
             new DateTime(2026, 8, 12, 10, 30, 0, DateTimeKind.Utc));
@@ -101,6 +101,79 @@ public sealed class FileSystemToolTests : IDisposable
             CancellationToken.None);
         JsonDocument.Parse(deleteJson).RootElement.GetProperty("deleted").GetBoolean()
             .Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Verifies overwrite, atomic create-new, and exact append semantics.
+    /// </summary>
+    [Fact]
+    public async Task WriteSupportsExplicitDestinationModes()
+    {
+        Directory.CreateDirectory(_rootPath);
+        var tool = CreateTool(allowDelete: false);
+
+        await tool.WriteAsync(
+            "report.txt",
+            "first",
+            cancellationToken: CancellationToken.None);
+        var overwriteJson = await tool.WriteAsync(
+            "report.txt",
+            "second",
+            "overwrite",
+            CancellationToken.None);
+        var createExisting = () => tool.WriteAsync(
+            "report.txt",
+            "blocked",
+            "createNew",
+            CancellationToken.None);
+
+        await createExisting.Should().ThrowAsync<IOException>();
+        (await File.ReadAllTextAsync(Path.Combine(_rootPath, "report.txt")))
+            .Should().Be("second");
+
+        await tool.WriteAsync(
+            "created.txt",
+            "created",
+            "createNew",
+            CancellationToken.None);
+        var appendJson = await tool.WriteAsync(
+            "created.txt",
+            "+appended",
+            "append",
+            CancellationToken.None);
+        await tool.WriteAsync(
+            "append-created.txt",
+            "no-newline",
+            "append",
+            CancellationToken.None);
+
+        (await File.ReadAllTextAsync(Path.Combine(_rootPath, "created.txt")))
+            .Should().Be("created+appended");
+        (await File.ReadAllTextAsync(Path.Combine(_rootPath, "append-created.txt")))
+            .Should().Be("no-newline");
+        JsonDocument.Parse(overwriteJson).RootElement.GetProperty("mode").GetString()
+            .Should().Be("overwrite");
+        JsonDocument.Parse(appendJson).RootElement.GetProperty("bytes").GetInt32()
+            .Should().Be(9);
+    }
+
+    /// <summary>
+    /// Verifies an unsupported write mode is rejected before creating a destination directory.
+    /// </summary>
+    [Fact]
+    public async Task WriteRejectsUnsupportedModeBeforeFileSystemChanges()
+    {
+        Directory.CreateDirectory(_rootPath);
+        var tool = CreateTool(allowDelete: false);
+        var action = () => tool.WriteAsync(
+            "new/report.txt",
+            "content",
+            "replace",
+            CancellationToken.None);
+
+        await action.Should().ThrowAsync<ArgumentException>()
+            .WithMessage("*overwrite*createNew*append*");
+        Directory.Exists(Path.Combine(_rootPath, "new")).Should().BeFalse();
     }
 
     /// <summary>
@@ -354,7 +427,10 @@ public sealed class FileSystemToolTests : IDisposable
     {
         Directory.CreateDirectory(_rootPath);
         var tool = CreateTool(allowDelete: false);
-        await tool.WriteAsync("source.txt", "content", CancellationToken.None);
+        await tool.WriteAsync(
+            "source.txt",
+            "content",
+            cancellationToken: CancellationToken.None);
 
         var rename = () => tool.RenameAsync(
             "source.txt",
@@ -418,22 +494,22 @@ public sealed class FileSystemToolTests : IDisposable
         await tool.WriteAsync(
             Path.Combine(writableChild, "allowed.txt"),
             "allowed",
-            CancellationToken.None);
+            cancellationToken: CancellationToken.None);
         var readJson = await tool.ReadAsync(
             Path.Combine(writableChild, "allowed.txt"),
             CancellationToken.None);
         var readOnlyWrite = () => tool.WriteAsync(
             Path.Combine(_authorizedPath, "blocked.txt"),
             "blocked",
-            CancellationToken.None);
+            cancellationToken: CancellationToken.None);
         var unauthorizedWrite = () => tool.WriteAsync(
             Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "blocked.txt"),
             "blocked",
-            CancellationToken.None);
+            cancellationToken: CancellationToken.None);
         var siblingPrefixWrite = () => tool.WriteAsync(
             _authorizedPath + "-sibling" + Path.DirectorySeparatorChar + "blocked.txt",
             "blocked",
-            CancellationToken.None);
+            cancellationToken: CancellationToken.None);
 
         JsonDocument.Parse(readJson).RootElement.GetProperty("content").GetString()
             .Should().Be("allowed");
@@ -575,11 +651,11 @@ public sealed class FileSystemToolTests : IDisposable
             firstTool.WriteAsync(
                 Path.Combine(firstRoot, "first.txt"),
                 "first",
-                CancellationToken.None),
+                cancellationToken: CancellationToken.None),
             secondTool.WriteAsync(
                 Path.Combine(secondRoot, "second.txt"),
                 "second",
-                CancellationToken.None));
+                cancellationToken: CancellationToken.None));
         var firstCrossAccess = () => firstTool.ReadAsync(
             Path.Combine(secondRoot, "second.txt"),
             CancellationToken.None);
@@ -641,7 +717,7 @@ public sealed class FileSystemToolTests : IDisposable
             var action = () => tool.WriteAsync(
                 Path.Combine(linkPath, "escaped.txt"),
                 "blocked",
-                CancellationToken.None);
+                cancellationToken: CancellationToken.None);
 
             await action.Should().ThrowAsync<PathSandboxException>()
                 .WithMessage("*reparse point*");

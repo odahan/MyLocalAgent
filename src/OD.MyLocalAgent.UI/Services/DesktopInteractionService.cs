@@ -120,6 +120,12 @@ internal sealed class DesktopInteractionService : IDesktopInteractionService
         return dialog.ShowDialog() == true ? dialog.FileName : null;
     }
 
+    public IReadOnlyList<string> SelectOpenFiles(string title, string filter)
+    {
+        var dialog = new OpenFileDialog { Title = title, Filter = filter, Multiselect = true, CheckFileExists = true };
+        return dialog.ShowDialog() == true ? dialog.FileNames : [];
+    }
+
     public string? SelectFolder(string title)
     {
         var dialog = new OpenFolderDialog

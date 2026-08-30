@@ -419,6 +419,68 @@ public sealed class KnowledgeStage26Tests : IDisposable
         chunks.Should().Contain(chunk => chunk.PageNumber == 1 && chunk.Text.Contains("First page", StringComparison.Ordinal));
     }
 
+    /// <summary>Verifies HTML and HTM sources are converted internally to safe structured Markdown.</summary>
+    [Theory]
+    [InlineData(".html")]
+    [InlineData(".htm")]
+    public async Task HtmlExtractionProducesSafeStructuredMarkdown(string extension)
+    {
+        Directory.CreateDirectory(_directory);
+        var path = Path.Combine(_directory, $"guide{extension}");
+        await File.WriteAllTextAsync(
+            path,
+            "<html><body><main><h1>Setup guide</h1><p>Install <strong>locally</strong>.</p><ul><li>First step</li></ul><script>unsafe()</script></main></body></html>");
+        var options = Mock.Of<IOptionsMonitor<KnowledgeOptions>>(
+            monitor => monitor.CurrentValue == new KnowledgeOptions());
+
+        var extracted = await new KnowledgeDocumentExtractor(options)
+            .ExtractAsync(path, CancellationToken.None);
+
+        extracted.Text.Should().Contain("# Setup guide");
+        extracted.Text.Should().Contain("Install **locally**.");
+        extracted.Text.Should().Contain("- First step");
+        extracted.Text.Should().NotContain("unsafe()");
+    }
+
+    /// <summary>Verifies HTML import is native and reports each visible ingestion phase.</summary>
+    [Fact]
+    public async Task HtmlImportReportsIngestionProgress()
+    {
+        var paths = new WorkspacePaths(_directory);
+        paths.EnsureDirectories();
+        var source = Path.Combine(_directory, "knowledge.html");
+        await File.WriteAllTextAsync(
+            source,
+            "<html><body><article><h1>Knowledge</h1><p>Searchable content.</p></article></body></html>");
+        var options = Mock.Of<IOptionsMonitor<KnowledgeOptions>>(
+            monitor => monitor.CurrentValue == new KnowledgeOptions());
+        var extractor = new KnowledgeDocumentExtractor(options);
+        var library = CreateLibrary(paths, options, extractor, new RecordingEmbeddings([1f, 0f]));
+        var phases = new List<string>();
+
+        var document = await library.ImportAsync(
+            source,
+            "HTML knowledge",
+            string.Empty,
+            ["public"],
+            CancellationToken.None,
+            progress: new RecordingProgress(value => phases.Add(value.Phase)));
+
+        document.MediaType.Should().Be("text/html");
+        document.OriginalFileName.Should().Be("knowledge.html");
+        phases.Should().Equal(
+            "Preparing",
+            "Copying",
+            "Checking content",
+            "Extracting",
+            "Chunking",
+            "Embedding",
+            "Saving",
+            "Complete");
+        (await library.GetChunkPreviewAsync(document.Id, 20, CancellationToken.None))
+            .Should().ContainSingle().Which.Text.Should().Contain("# Knowledge");
+    }
+
     /// <summary>Verifies provider-neutral generation batches requests and normalizes vectors.</summary>
     [Fact]
     public async Task EmbeddingServiceBatchesAndNormalizesVectors()
@@ -798,6 +860,11 @@ public sealed class KnowledgeStage26Tests : IDisposable
     {
         public Task<IReadOnlyList<float[]>> GenerateAsync(IReadOnlyList<string> inputs, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<float[]>>(inputs.Select(input => vectors[input]).ToArray());
+    }
+
+    private sealed class RecordingProgress(Action<KnowledgeIndexProgress> report) : IProgress<KnowledgeIndexProgress>
+    {
+        public void Report(KnowledgeIndexProgress value) => report(value);
     }
 
     private sealed record KnowledgeEvaluationFixture(KnowledgeEvaluationDocument[] Documents, KnowledgeEvaluationCase[] Cases);

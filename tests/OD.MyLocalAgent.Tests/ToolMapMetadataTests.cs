@@ -210,7 +210,7 @@ public sealed class ToolMapMetadataTests
             ["dropbox.list"] = (["folderPath"], []),
             ["filesystem.list"] = (["path"], []),
             ["filesystem.read"] = (["path"], []),
-            ["filesystem.write"] = (["path", "content"], []),
+            ["filesystem.write"] = (["path", "content", "mode"], ["mode"]),
             ["filesystem.move"] = (["from", "to"], []),
             ["filesystem.moveToBin"] = (["path"], []),
             ["filesystem.rename"] = (["path", "newName"], []),

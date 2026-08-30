@@ -6,9 +6,20 @@ public interface IKnowledgeLibraryService
     /// <summary>Initializes the Knowledge store.</summary>
     Task InitializeAsync(CancellationToken cancellationToken);
     /// <summary>Imports and indexes one external document into private application storage.</summary>
-    Task<KnowledgeDocument> ImportAsync(string sourcePath, string name, string description, IReadOnlyList<string> tags, CancellationToken cancellationToken, bool allowDuplicate = false);
+    Task<KnowledgeDocument> ImportAsync(
+        string sourcePath,
+        string name,
+        string description,
+        IReadOnlyList<string> tags,
+        CancellationToken cancellationToken,
+        bool allowDuplicate = false,
+        IProgress<KnowledgeIndexProgress>? progress = null);
     /// <summary>Replaces the active content of an existing document atomically.</summary>
-    Task<KnowledgeDocument> ReplaceAsync(string documentId, string sourcePath, CancellationToken cancellationToken);
+    Task<KnowledgeDocument> ReplaceAsync(
+        string documentId,
+        string sourcePath,
+        CancellationToken cancellationToken,
+        IProgress<KnowledgeIndexProgress>? progress = null);
     /// <summary>Updates administrative details without recomputing embeddings.</summary>
     Task<KnowledgeDocument> UpdateDetailsAsync(string documentId, string name, string description, IReadOnlyList<string> tags, CancellationToken cancellationToken);
     /// <summary>Rebuilds one document with the active index contract.</summary>

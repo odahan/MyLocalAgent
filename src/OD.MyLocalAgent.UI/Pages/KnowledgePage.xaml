@@ -12,7 +12,7 @@
                        FontWeight="SemiBold"
                        Text="Knowledge" />
             <TextBlock Margin="0,6,0,0"
-                       Text="Imported files are copied into private application storage. TXT, Markdown, DOCX, and text PDF are supported; OCR is not."
+                       Text="Imported files are copied into private application storage. TXT, Markdown, HTML, DOCX, and text PDF are supported; OCR is not."
                        TextWrapping="Wrap" />
         </StackPanel>
 
@@ -218,15 +218,16 @@
                                        Text="Import a new document" />
                             <TextBlock Margin="0,4,0,16"
                                        Foreground="{DynamicResource MutedTextBrush}"
-                                       Text="These fields apply only to the next imported document and are cleared after a successful import."
+                                       Text="Import one or more TXT, Markdown, HTML, DOCX, or text-based PDF files. With multiple files, the tags apply to all documents, names come from file names, and descriptions are empty."
                                        TextWrapping="Wrap" />
 
                             <TextBlock Margin="0,0,0,4"
                                        FontWeight="SemiBold"
                                        Text="Document name" />
                             <TextBox AutomationProperties.Name="New document name"
+                                     IsEnabled="{Binding CanEditImportMetadata}"
                                      Text="{Binding ImportName,UpdateSourceTrigger=PropertyChanged}"
-                                     ToolTip="Leave blank to use the selected file name" />
+                                     ToolTip="Leave blank to use the selected file name; batch imports always use file names" />
                             <TextBlock Margin="0,3,0,0"
                                        Foreground="{DynamicResource MutedTextBrush}"
                                        FontSize="11"
@@ -238,6 +239,7 @@
                             <TextBox Height="82"
                                      AcceptsReturn="True"
                                      AutomationProperties.Name="New document description"
+                                     IsEnabled="{Binding CanEditImportMetadata}"
                                      Text="{Binding ImportDescription,UpdateSourceTrigger=PropertyChanged}"
                                      TextWrapping="Wrap"
                                      ToolTip="Short description of the new document"
@@ -258,12 +260,22 @@
                             <StackPanel Margin="0,18,0,0" Orientation="Horizontal">
                                 <Button AutomationProperties.Name="Import Knowledge document"
                                         Command="{Binding ImportCommand}"
-                                        Content="Select file and import" />
+                                        Content="Select files and import" />
                                 <Button Margin="8,0,0,0"
                                         AutomationProperties.Name="Cancel Knowledge import"
                                         Command="{Binding ImportCancelCommand}"
                                         Content="Cancel import" />
                             </StackPanel>
+                            <ProgressBar Height="7"
+                                         Margin="0,14,0,0"
+                                         Maximum="100"
+                                         Value="{Binding ImportProgressValue}"
+                                         Visibility="{Binding IsImporting,Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            <TextBlock Margin="0,6,0,0"
+                                       FontWeight="SemiBold"
+                                       Text="{Binding ImportProgressText}"
+                                       TextWrapping="Wrap"
+                                       Visibility="{Binding IsImporting,Converter={StaticResource BooleanToVisibilityConverter}}" />
                             <TextBlock Margin="0,8,0,0"
                                        Text="{Binding ImportStatusText}"
                                        TextWrapping="Wrap"

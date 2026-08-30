@@ -142,6 +142,13 @@ Close the UI and disable its Windows scheduled tasks before running the command 
 | `src/OD.MyLocalAgent.UI/Services/UserSettingsService.cs` | Persistence of the `Knowledge` settings section in the user settings file |
 | `Docs/samples/knowledge-rag-example.json` | Ready-to-copy task example using `knowledge.search` and an agentic `ai.prompt` step |
 
+Knowledge import accepts TXT, Markdown, HTML/HTM, DOCX, and text-based PDF. HTML extraction
+reuses the internal structured-Markdown converter and removes active or non-content nodes before
+chunking. The UI may select multiple files: the batch shares authorization tags, derives document
+names from file names, leaves descriptions empty, and processes files sequentially so one duplicate
+or failure does not stop later files. Progress is reported per file and phase; cancellation preserves
+only documents whose atomic import already completed.
+
 `ScheduledTask.tools` stores the `knowledge` group name. An `ai.prompt` step's `toolAliases`
 stores the exact `knowledge.search` alias. Knowledge tags are the document authorization boundary:
 an empty scope authorizes no documents, and a prompt step may narrow its task scope but cannot

@@ -2289,3 +2289,51 @@ compilation, freshness-window expansion, document classification, and late prote
   `filesystem.write` path lacks an iteration placeholder and would overwrite the same file.
 - Verification completed with 797 non-integration tests passing, no failures, one expected local
   Ollama probe skipped, and a clean `git diff --check`.
+
+### Knowledge HTML and batch ingestion refinements — 2026-08-25
+
+- Knowledge ingestion now accepts HTML and HTM as native source formats. Extraction reuses the
+  existing safe HTML converter in structured-Markdown mode, preserving useful headings and lists
+  while removing scripts, styles, forms, frames, and other non-content nodes. Original source files
+  remain the canonical private copies, so replacement and reindex use the same extraction path.
+- The Knowledge picker supports multiple files. Batch semantics are explicit and deterministic:
+  authorization tags are shared, each document name comes from its file name without the extension,
+  and descriptions are empty. Files run sequentially; duplicates and individual failures are counted
+  and skipped without stopping later files.
+- Import progress reports the current file plus preparation, copy, duplicate checking, extraction,
+  chunking, embedding, and save phases. Canceling stops the current and remaining work while preserving
+  documents whose atomic commits completed earlier in the batch.
+- Release verification completed with a warning-free build and 801 passing non-integration tests;
+  one expected local Ollama probe was skipped.
+
+### Version 2.1.1 — Explicit filesystem write modes — 2026-08-25
+
+- `filesystem.write` adds the optional `mode` enumeration with exact values `overwrite`,
+  `createNew`, and `append`; omission preserves the historical overwrite behavior.
+- `createNew` uses the operating system's atomic create-new operation. `append` creates a
+  missing file, writes UTF-8 text exactly as supplied, and inserts no implicit newline.
+- The existing three-argument `IFileSystemTool.WriteAsync` overload remains available for
+  source compatibility and delegates to `overwrite`. Tool results now include the effective mode.
+- No package, authorization, capability, task schema, workflow routing, or storage-location
+  change was introduced. Deterministic coverage exercises all modes and invalid-mode rejection.
+- Release verification completed with 803 passing non-integration tests, no failures, and one
+  expected skipped local Ollama probe.
+
+# Stage 23 addendum — Web Search proposal memory (2026-08-30)
+
+- `research.discover` now accepts an optional authorized proposal-memory SQLite path, a 1–60
+  month lookback, the opt-in historical `used` rule, and a 0.80–0.99 exact cosine threshold.
+  The contextual tool resolves ReadOnly access before opening a private non-pooled connection.
+- `ProposalMemoryService` owns the compatible `editorial_proposals` schema, supported legacy
+  migration, deterministic title/URL normalization, compact `title + summary` embeddings,
+  vector encoding, compatibility checks, parameterized applicable-row selection, and local
+  cosine comparison. It never invokes a chat model, agent, generic SQLite alias, or external
+  vector service.
+- The contextual SQLite group adds `sqlite.createProposalDatabase` and
+  `sqlite.storeProposal`. Both require ReadWrite path access and `SqliteWrite`; workflows never
+  supply schema SQL or vectors. Proposal keys make retries idempotent and writes commit once.
+- Discovery output adds aggregate proposal-memory diagnostics only. Stored proposal content,
+  database paths, keys, and raw vectors remain absent from discovery output and normal logs.
+- No package or application-owned database changed. The bundled daily editorial workflow owns
+  its database path, initializes it before discovery, and exposes only `sqlite.storeProposal`
+  to its bounded agentic prompt step.

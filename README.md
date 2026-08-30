@@ -1186,7 +1186,7 @@ JSON, and every new-task whitelist choice starts disabled.
 | `dropbox.list` | `dropbox_list` | `DropboxTool.ListAsync` | `folderPath` | — |
 | `filesystem.list` | `filesystem_list` | `FileSystemTool.ListAsync` | `path` | — |
 | `filesystem.read` | `filesystem_read` | `FileSystemTool.ReadAsync` | `path` | — |
-| `filesystem.write` | `filesystem_write` | `FileSystemTool.WriteAsync` | `path`, `content` | — |
+| `filesystem.write` | `filesystem_write` | `FileSystemTool.WriteAsync` | `path`, `content`, optional `mode` | — |
 | `filesystem.move` | `filesystem_move` | `FileSystemTool.MoveAsync` | `from`, `to` | — |
 | `filesystem.moveToBin` | `filesystem_move_to_bin` | `FileSystemTool.MoveToBinAsync` | `path` | `RecycleBin` |
 | `filesystem.rename` | `filesystem_rename` | `FileSystemTool.RenameAsync` | `path`, `newName` | — |
@@ -1212,6 +1212,11 @@ JSON, and every new-task whitelist choice starts disabled.
 | `ai.extractActionItems` | — | `ExtractActionItemsSkill` | optional `text` | — |
 | `ai.classifyEmail` | — | `ClassifyEmailSkill` | optional `text` | — |
 | `ai.prompt` | — | workflow prompt step | required `prompt`, optional `includeContext` | — |
+
+`filesystem.write` defaults to `"mode": "overwrite"` for backward compatibility. Use
+`"createNew"` to create the destination atomically and fail if it already exists, or
+`"append"` to add the supplied UTF-8 text at the end. Append creates a missing file and never
+inserts a newline; include any separator explicitly in `content`.
 
 An `ai.prompt` step always records the model response as its named output. Set
 `"includeContext": true` to append a JSON snapshot of all completed step outputs to the
@@ -1928,7 +1933,9 @@ grants. **Edit workflow text** is metadata-driven and edits long-form arguments 
 without changing step identity, structure, models, or permissions.
 # Embedded Knowledge and RAG
 
-The **Knowledge** page imports TXT, Markdown, DOCX, and text-based PDF files into private application storage below `.od-my-local-agent/data/knowledge`. OCR is not provided. Files are extracted, deterministically chunked, embedded, and searched locally through the ordinary `knowledge.search` tool. Retrieval combines tag-prefiltered exact-term FTS5 matching with exact cosine similarity, fuses ranks deterministically, and can include bounded adjacent same-section context. It has no vector server, reranker, or automatic context injection.
+The **Knowledge** page imports TXT, Markdown, HTML, DOCX, and text-based PDF files into private application storage below `.od-my-local-agent/data/knowledge`. HTML and HTM files are converted internally to safe structured Markdown before chunking; scripts, styles, forms, frames, and other non-content nodes are removed. OCR is not provided. Files are extracted, deterministically chunked, embedded, and searched locally through the ordinary `knowledge.search` tool. Retrieval combines tag-prefiltered exact-term FTS5 matching with exact cosine similarity, fuses ranks deterministically, and can include bounded adjacent same-section context. It has no vector server, reranker, or automatic context injection.
+
+The import picker accepts multiple files. Batch imports apply the same authorization tags to every file, derive each Knowledge document name from its file name without the extension, and leave descriptions empty. Progress identifies the current file and ingestion phase. A duplicate or failed file does not stop the remaining batch; the final status reports imported, skipped duplicate, and failed counts. Canceling preserves documents that completed before cancellation and commits no partial current document.
 
 Knowledge access is deny-by-default. Enabling the task or Direct Chat `knowledge` group does not grant documents until explicit tags are authorized. Task `tools` values are group names, while an `ai.prompt` step's `toolAliases` values are exact catalog aliases. A prompt step may narrow its task tags but cannot broaden them. Retrieval is tool-driven; excerpts are never injected automatically and are always untrusted data.
 

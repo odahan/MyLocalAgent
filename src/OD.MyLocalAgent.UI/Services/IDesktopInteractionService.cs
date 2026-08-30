@@ -42,6 +42,13 @@ public interface IDesktopInteractionService
     /// <summary>Lets the user select an existing file.</summary>
     string? SelectOpenFile(string title, string filter);
 
+    /// <summary>Lets the user select one or more existing files.</summary>
+    IReadOnlyList<string> SelectOpenFiles(string title, string filter)
+    {
+        var path = SelectOpenFile(title, filter);
+        return path is null ? [] : [path];
+    }
+
     /// <summary>
     /// Lets the user select an existing directory.
     /// </summary>

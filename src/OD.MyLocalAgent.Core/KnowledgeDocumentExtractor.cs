@@ -24,9 +24,10 @@ public sealed class KnowledgeDocumentExtractor : IKnowledgeDocumentExtractor
         var extracted = extension switch
         {
             ".txt" or ".md" or ".markdown" => ExtractPlainText(path),
+            ".html" or ".htm" => ExtractHtml(path),
             ".docx" => ExtractDocx(path, cancellationToken),
             ".pdf" => ExtractPdf(path, cancellationToken),
-            _ => throw new InvalidOperationException("Knowledge supports TXT, Markdown, DOCX, and text-based PDF files."),
+            _ => throw new InvalidOperationException("Knowledge supports TXT, Markdown, HTML, DOCX, and text-based PDF files."),
         };
         var text = extracted.Text;
         if (string.IsNullOrWhiteSpace(text))
@@ -51,6 +52,20 @@ public sealed class KnowledgeDocumentExtractor : IKnowledgeDocumentExtractor
                     encoderShouldEmitUTF8Identifier: false,
                     throwOnInvalidBytes: true)));
         return new KnowledgeExtractedDocument(text, [new KnowledgeExtractedBlock(0, text.Length, null, null)]);
+    }
+
+    private static KnowledgeExtractedDocument ExtractHtml(string path)
+    {
+        var html = File.ReadAllText(
+            path,
+            new UTF8Encoding(
+                encoderShouldEmitUTF8Identifier: false,
+                throwOnInvalidBytes: true));
+        var markdown = FileContentValidation.NormalizeText(
+            HtmlDocumentConverter.Convert(html, HtmlTextFormat.Markdown));
+        return new KnowledgeExtractedDocument(
+            markdown,
+            [new KnowledgeExtractedBlock(0, markdown.Length, null, null)]);
     }
 
     private static KnowledgeExtractedDocument ExtractDocx(string path, CancellationToken cancellationToken)

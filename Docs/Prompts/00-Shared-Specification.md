@@ -548,7 +548,7 @@ is invalid. Context-window configuration is never valid in task or workflow JSON
 | `dropbox.list` | `dropbox_list` | `DropboxTool.ListAsync` | `folderPath` |
 | `filesystem.list` | `filesystem_list` | `FileSystemTool.ListAsync` | `path` |
 | `filesystem.read` | `filesystem_read` | `FileSystemTool.ReadAsync` | `path` |
-| `filesystem.write` | `filesystem_write` | `FileSystemTool.WriteAsync` | `path`, `content` |
+| `filesystem.write` | `filesystem_write` | `FileSystemTool.WriteAsync` | `path`, `content`, `mode` (optional) |
 | `filesystem.move` | `filesystem_move` | `FileSystemTool.MoveAsync` | `from`, `to` |
 | `filesystem.moveToBin` ⚠ R9 | `filesystem_move_to_bin` | `FileSystemTool.MoveToBinAsync` | `path` |
 | `filesystem.delete` ⚠ R9 | `filesystem_delete` | `FileSystemTool.DeleteAsync` | `path` |
@@ -944,6 +944,9 @@ so a read-write child may be declared beneath a read-only parent.
   `fileSystemAccess` rule with sufficient access.
 - `filesystem.list` and `filesystem.read` require read access.
 - `filesystem.write` and `filesystem.createDirectory` require read-write access.
+- `filesystem.write.mode` accepts exactly `overwrite`, `createNew`, or `append` and defaults to
+  `overwrite`. `createNew` atomically fails when the destination exists. `append` creates a
+  missing file and adds the supplied UTF-8 text without inserting a newline.
 - Both source and destination of `filesystem.move` require read-write access.
 - `filesystem.moveToBin` requires read-write access plus `Safety:AllowMoveToBin`.
 - `filesystem.delete` requires read-write access plus `Safety:AllowFileDelete`.

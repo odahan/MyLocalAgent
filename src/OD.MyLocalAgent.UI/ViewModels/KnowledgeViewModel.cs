@@ -50,6 +50,10 @@ public sealed partial class KnowledgeViewModel : ObservableObject, IActivatableP
     [ObservableProperty] private string _documentsStatusText = "Knowledge has not been loaded.";
     [ObservableProperty] private string _documentProgressText = string.Empty;
     [ObservableProperty] private string _importStatusText = string.Empty;
+    [ObservableProperty] private string _importProgressText = string.Empty;
+    [ObservableProperty] private double _importProgressValue;
+    [ObservableProperty] private bool _isImporting;
+    [ObservableProperty] private bool _canEditImportMetadata = true;
     [ObservableProperty] private string _previewStatusText = string.Empty;
     [ObservableProperty] private string _maintenanceStatusText = string.Empty;
     [ObservableProperty] private string _maintenanceProgressText = string.Empty;
@@ -97,10 +101,10 @@ public sealed partial class KnowledgeViewModel : ObservableObject, IActivatableP
     [RelayCommand(IncludeCancelCommand = true)]
     private async Task ImportAsync(CancellationToken cancellationToken)
     {
-        var path = _desktop.SelectOpenFile(
+        var paths = _desktop.SelectOpenFiles(
             "Import Knowledge document",
-            "Supported documents|*.txt;*.md;*.markdown;*.docx;*.pdf");
-        if (path is null)
+            "Supported documents|*.txt;*.md;*.markdown;*.html;*.htm;*.docx;*.pdf");
+        if (paths.Count == 0)
         {
             return;
         }
@@ -111,29 +115,96 @@ public sealed partial class KnowledgeViewModel : ObservableObject, IActivatableP
             return;
         }
         IsBusy = true;
+        IsImporting = true;
+        var isBatch = paths.Count > 1;
+        CanEditImportMetadata = !isBatch;
+        ImportStatusText = string.Empty;
+        ImportProgressValue = 2;
+        ImportProgressText = isBatch ? $"Preparing {paths.Count} documents…" : "Preparing import…";
+        var imported = 0;
+        var duplicates = 0;
+        var failed = 0;
+        var failureDetails = new List<string>();
+        KnowledgeDocument? lastImported = null;
         try
         {
-            var name = string.IsNullOrWhiteSpace(ImportName) ? Path.GetFileNameWithoutExtension(path) : ImportName;
-            KnowledgeDocument document;
-            try
+            for (var index = 0; index < paths.Count; index++)
             {
-                document = await _library.ImportAsync(path, name, ImportDescription, tags, cancellationToken).ConfigureAwait(true);
-            }
-            catch (KnowledgeDuplicateException duplicate) when (_desktop.Confirm(
-                "Import duplicate content separately?",
-                $"The same content already exists as '{duplicate.ExistingDocumentName}'. Continue only if you intentionally need a separate administrative document."))
-            {
-                document = await _library.ImportAsync(path, name, ImportDescription, tags, cancellationToken, allowDuplicate: true).ConfigureAwait(true);
+                cancellationToken.ThrowIfCancellationRequested();
+                var path = paths[index];
+                var fileName = Path.GetFileName(path);
+                var name = isBatch || string.IsNullOrWhiteSpace(ImportName)
+                    ? Path.GetFileNameWithoutExtension(path)
+                    : ImportName;
+                var description = isBatch ? string.Empty : ImportDescription;
+                var fileIndex = index;
+                var progress = new Progress<KnowledgeIndexProgress>(
+                    value => UpdateImportProgress(value, fileIndex, paths.Count, fileName));
+                try
+                {
+                    KnowledgeDocument document;
+                    try
+                    {
+                        document = await _library.ImportAsync(path, name, description, tags, cancellationToken, progress: progress).ConfigureAwait(true);
+                    }
+                    catch (KnowledgeDuplicateException duplicate) when (!isBatch && _desktop.Confirm(
+                        "Import duplicate content separately?",
+                        $"The same content already exists as '{duplicate.ExistingDocumentName}'. Continue only if you intentionally need a separate administrative document."))
+                    {
+                        document = await _library.ImportAsync(path, name, description, tags, cancellationToken, allowDuplicate: true, progress: progress).ConfigureAwait(true);
+                    }
+
+                    Documents.Insert(0, document);
+                    lastImported = document;
+                    imported++;
+                }
+                catch (KnowledgeDuplicateException) when (isBatch)
+                {
+                    duplicates++;
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception exception) when (isBatch)
+                {
+                    failed++;
+                    failureDetails.Add($"{fileName}: {exception.Message}");
+                }
             }
 
-            Documents.Insert(0, document);
-            RefreshExistingTags();
-            OnPropertyChanged(nameof(FilteredDocuments));
-            SelectedDocument = document;
-            ImportName = string.Empty;
-            ImportDescription = string.Empty;
-            ImportTags = string.Empty;
-            ImportStatusText = "Document imported and indexed.";
+            if (imported > 0)
+            {
+                RefreshExistingTags();
+                OnPropertyChanged(nameof(FilteredDocuments));
+                SelectedDocument = lastImported;
+            }
+            if (imported == paths.Count)
+            {
+                if (!isBatch)
+                {
+                    ImportName = string.Empty;
+                    ImportDescription = string.Empty;
+                }
+                ImportTags = string.Empty;
+            }
+            ImportProgressValue = 100;
+            ImportProgressText = isBatch ? "Batch import complete." : "Import complete.";
+            ImportStatusText = isBatch
+                ? FormatBatchImportStatus(paths.Count, imported, duplicates, failed, failureDetails)
+                : "Document imported and indexed.";
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            if (imported > 0)
+            {
+                RefreshExistingTags();
+                OnPropertyChanged(nameof(FilteredDocuments));
+                SelectedDocument = lastImported;
+            }
+            ImportStatusText = isBatch
+                ? $"Batch import canceled after {imported} of {paths.Count} document(s); completed documents were preserved."
+                : "Import canceled; no partial document was added.";
         }
         catch (KnowledgeDuplicateException duplicate)
         {
@@ -145,6 +216,8 @@ public sealed partial class KnowledgeViewModel : ObservableObject, IActivatableP
         }
         finally
         {
+            CanEditImportMetadata = true;
+            IsImporting = false;
             IsBusy = false;
         }
     }
@@ -194,7 +267,7 @@ public sealed partial class KnowledgeViewModel : ObservableObject, IActivatableP
 
         var path = _desktop.SelectOpenFile(
             "Replace Knowledge document content",
-            "Supported documents|*.txt;*.md;*.markdown;*.docx;*.pdf");
+            "Supported documents|*.txt;*.md;*.markdown;*.html;*.htm;*.docx;*.pdf");
         if (path is null)
         {
             return;
@@ -209,7 +282,12 @@ public sealed partial class KnowledgeViewModel : ObservableObject, IActivatableP
         IsBusy = true;
         try
         {
-            var replacement = await _library.ReplaceAsync(document.Id, path, cancellationToken).ConfigureAwait(true);
+            DocumentProgressText = "Preparing replacement…";
+            var replacement = await _library.ReplaceAsync(
+                document.Id,
+                path,
+                cancellationToken,
+                new Progress<KnowledgeIndexProgress>(UpdateDocumentProgress)).ConfigureAwait(true);
             ReplaceDocument(document, replacement);
             SelectedDocument = replacement;
             DocumentsStatusText = "Document content replaced and indexed.";
@@ -474,6 +552,62 @@ public sealed partial class KnowledgeViewModel : ObservableObject, IActivatableP
     }
 
     private void UpdateDocumentProgress(KnowledgeIndexProgress value) => DocumentProgressText = FormatProgress(value);
+
+    private void UpdateImportProgress(
+        KnowledgeIndexProgress value,
+        int documentIndex,
+        int totalDocuments,
+        string fileName)
+    {
+        var documentProgress = value.Phase switch
+        {
+            "Preparing" => 5,
+            "Copying" => 15,
+            "Checking content" => 25,
+            "Extracting" => 35,
+            "Chunking" => 50,
+            "Embedding" when value.CompletedEmbeddings > 0 => 85,
+            "Embedding" => 60,
+            "Saving" => 92,
+            "Complete" => 100,
+            _ => 0,
+        };
+        ImportProgressValue = ((documentIndex + (documentProgress / 100d)) / totalDocuments) * 100d;
+        var phaseText = value.Phase == "Embedding" && value.TotalEmbeddings > 0
+            ? value.CompletedEmbeddings > 0
+                ? $"Created {value.CompletedEmbeddings} embedding(s)."
+                : $"Creating embeddings for {value.TotalEmbeddings} chunk(s)…"
+            : value.Phase == "Complete"
+                ? "Import complete."
+                : $"{value.Phase}…";
+        ImportProgressText = totalDocuments > 1
+            ? $"Document {documentIndex + 1} of {totalDocuments}: {fileName} — {phaseText}"
+            : phaseText;
+    }
+
+    private static string FormatBatchImportStatus(
+        int total,
+        int imported,
+        int duplicates,
+        int failed,
+        IReadOnlyList<string> failureDetails)
+    {
+        var status = $"{imported} of {total} documents imported and indexed.";
+        if (duplicates > 0)
+        {
+            status += $" {duplicates} duplicate(s) skipped.";
+        }
+        if (failed > 0)
+        {
+            status += $" {failed} failed.";
+            var details = string.Join(" | ", failureDetails.Take(3));
+            if (!string.IsNullOrWhiteSpace(details))
+            {
+                status += $" {details}";
+            }
+        }
+        return status;
+    }
 
     private void UpdateMaintenanceProgress(KnowledgeIndexProgress value) => MaintenanceProgressText = FormatProgress(value);
 

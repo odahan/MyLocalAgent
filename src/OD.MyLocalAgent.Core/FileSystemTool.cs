@@ -156,20 +156,34 @@ public sealed class FileSystemTool : IFileSystemTool
             });
 
     /// <inheritdoc />
+    Task<string> IFileSystemTool.WriteAsync(
+        string path,
+        string content,
+        CancellationToken cancellationToken) =>
+        WriteAsync(path, content, "overwrite", cancellationToken);
+
+    /// <inheritdoc />
     [ToolLocalPath("path", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite, PickerMode = LocalPathPickerMode.SaveFile)]
-    [Tool("filesystem.write", "Writes UTF-8 text to an authorized local file path.", 300, SupportsForEach = true)]
+    [Tool("filesystem.write", "Writes UTF-8 text to an authorized local file path, with overwrite, create-new, and append modes.", 300, SupportsForEach = true)]
     public Task<string> WriteAsync(
         [ToolArgument(WorkflowArgumentKind.String, "Relative global-root path or task-authorized absolute file path.", Example = "reports/summary.txt")] string path,
         [ToolArgument(WorkflowArgumentKind.String, "Text content to write.", Example = "Report body.")] string content,
-        CancellationToken cancellationToken) =>
+        [ToolArgument(
+            WorkflowArgumentKind.Enumeration,
+            "Write mode: overwrite replaces existing content, createNew fails if the file exists, and append adds text without inserting a newline.",
+            AllowedValues = ["overwrite", "createNew", "append"],
+            Example = "overwrite",
+            IsExcludedFromWorkflowTextEditor = true)] string mode = "overwrite",
+        CancellationToken cancellationToken = default) =>
         ToolCallLog.ExecuteAsync(
             _logger,
             _timeProvider,
             "filesystem.write",
-            new { path, contentLength = content?.Length ?? 0 },
+            new { path, mode, contentLength = content?.Length ?? 0 },
             async () =>
             {
                 ArgumentNullException.ThrowIfNull(content);
+                ValidateWriteMode(mode);
                 var absolutePath = _sandbox.Resolve(
                     path,
                     FileSystemAccessMode.ReadWrite,
@@ -180,16 +194,17 @@ public sealed class FileSystemTool : IFileSystemTool
                     Directory.CreateDirectory(parent);
                 }
 
-                await File.WriteAllTextAsync(
+                await WriteTextAsync(
                     absolutePath,
                     content,
-                    Encoding.UTF8,
+                    mode,
                     cancellationToken).ConfigureAwait(false);
                 return ToolJson.Serialize(
                     new
                     {
                         path = Normalize(path),
                         bytes = Encoding.UTF8.GetByteCount(content),
+                        mode,
                     });
             });
 
@@ -823,6 +838,41 @@ public sealed class FileSystemTool : IFileSystemTool
             """ +
             body +
             "</body></html>";
+    }
+
+    private static async Task WriteTextAsync(
+        string absolutePath,
+        string content,
+        string mode,
+        CancellationToken cancellationToken)
+    {
+        var fileMode = mode switch
+        {
+            "overwrite" => FileMode.Create,
+            "createNew" => FileMode.CreateNew,
+            "append" => FileMode.Append,
+            _ => throw new UnreachableException(),
+        };
+        await using var stream = new FileStream(
+            absolutePath,
+            fileMode,
+            FileAccess.Write,
+            FileShare.Read,
+            bufferSize: 81920,
+            options: FileOptions.Asynchronous);
+        await stream.WriteAsync(
+            Encoding.UTF8.GetBytes(content),
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private static void ValidateWriteMode(string mode)
+    {
+        if (mode is not "overwrite" and not "createNew" and not "append")
+        {
+            throw new ArgumentException(
+                "Write mode must be 'overwrite', 'createNew', or 'append'.",
+                nameof(mode));
+        }
     }
 
     private static string Normalize(string path) =>

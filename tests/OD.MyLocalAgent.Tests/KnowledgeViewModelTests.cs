@@ -197,4 +197,86 @@ public sealed class KnowledgeViewModelTests
         library.VerifyAll();
         desktop.VerifyAll();
     }
+
+    /// <summary>Verifies batch import derives names, shares tags, skips duplicates, and continues after failures.</summary>
+    [Fact]
+    public async Task BatchImportUsesFileNamesAndReportsPartialResults()
+    {
+        var paths = new[]
+        {
+            @"C:\batch\Alpha guide.html",
+            @"C:\batch\Duplicate.md",
+            @"C:\batch\Broken.pdf",
+        };
+        var importedDocument = new KnowledgeDocument(
+            "alpha",
+            "Alpha guide",
+            string.Empty,
+            ["shared", "reference"],
+            "Alpha guide.html",
+            "text/html",
+            100,
+            50,
+            1,
+            DateTimeOffset.Parse("2026-08-25T10:00:00Z"));
+        var library = new Mock<IKnowledgeLibraryService>(MockBehavior.Strict);
+        library.Setup(item => item.ImportAsync(
+                paths[0],
+                "Alpha guide",
+                string.Empty,
+                It.Is<IReadOnlyList<string>>(tags => tags.SequenceEqual(new[] { "shared", "reference" })),
+                It.IsAny<CancellationToken>(),
+                false,
+                It.IsAny<IProgress<KnowledgeIndexProgress>>()))
+            .ReturnsAsync(importedDocument);
+        library.Setup(item => item.ImportAsync(
+                paths[1],
+                "Duplicate",
+                string.Empty,
+                It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<CancellationToken>(),
+                false,
+                It.IsAny<IProgress<KnowledgeIndexProgress>>()))
+            .ThrowsAsync(new KnowledgeDuplicateException("existing", "Existing document"));
+        library.Setup(item => item.ImportAsync(
+                paths[2],
+                "Broken",
+                string.Empty,
+                It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<CancellationToken>(),
+                false,
+                It.IsAny<IProgress<KnowledgeIndexProgress>>()))
+            .ThrowsAsync(new InvalidOperationException("Unreadable document."));
+        var desktop = new Mock<IDesktopInteractionService>(MockBehavior.Strict);
+        desktop.Setup(item => item.SelectOpenFiles(
+                "Import Knowledge document",
+                "Supported documents|*.txt;*.md;*.markdown;*.html;*.htm;*.docx;*.pdf"))
+            .Returns(paths);
+        var viewModel = new KnowledgeViewModel(
+            library.Object,
+            Mock.Of<IKnowledgeSearchService>(),
+            desktop.Object)
+        {
+            ImportName = "Must not be used",
+            ImportDescription = "Must not be used",
+            ImportTags = "shared, reference",
+        };
+
+        viewModel.ImportCommand.Execute(null);
+        await (viewModel.ImportCommand.ExecutionTask ?? Task.CompletedTask);
+
+        viewModel.Documents.Should().ContainSingle().Which.Should().Be(importedDocument);
+        viewModel.SelectedDocument.Should().Be(importedDocument);
+        viewModel.ImportName.Should().Be("Must not be used");
+        viewModel.ImportDescription.Should().Be("Must not be used");
+        viewModel.ImportTags.Should().Be("shared, reference");
+        viewModel.CanEditImportMetadata.Should().BeTrue();
+        viewModel.ImportProgressValue.Should().Be(100);
+        viewModel.ImportStatusText.Should().Contain("1 of 3 documents imported and indexed.")
+            .And.Contain("1 duplicate(s) skipped.")
+            .And.Contain("1 failed.")
+            .And.Contain("Broken.pdf: Unreadable document.");
+        library.VerifyAll();
+        desktop.VerifyAll();
+    }
 }

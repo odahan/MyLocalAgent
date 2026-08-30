@@ -80,7 +80,14 @@ internal sealed class KnowledgeLibraryService : IKnowledgeLibraryService
     }
 
     /// <inheritdoc />
-    public async Task<KnowledgeDocument> ImportAsync(string sourcePath, string name, string description, IReadOnlyList<string> tags, CancellationToken cancellationToken, bool allowDuplicate = false)
+    public async Task<KnowledgeDocument> ImportAsync(
+        string sourcePath,
+        string name,
+        string description,
+        IReadOnlyList<string> tags,
+        CancellationToken cancellationToken,
+        bool allowDuplicate = false,
+        IProgress<KnowledgeIndexProgress>? progress = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
@@ -107,6 +114,7 @@ internal sealed class KnowledgeLibraryService : IKnowledgeLibraryService
         string? canonical = null;
         try
         {
+            progress?.Report(new KnowledgeIndexProgress("Preparing", 0, 1, 0, 0));
             await _store.InitializeAsync(cancellationToken).ConfigureAwait(false);
             var options = _options.CurrentValue;
             await _store.EnsureConfiguredContractAsync(options, cancellationToken).ConfigureAwait(false);
@@ -114,6 +122,7 @@ internal sealed class KnowledgeLibraryService : IKnowledgeLibraryService
             var extension = source.Extension.ToLowerInvariant();
             ValidateExtension(extension);
             staging = Path.Combine(_paths.KnowledgeStagingDirectory, $"{Guid.NewGuid():N}{extension}");
+            progress?.Report(new KnowledgeIndexProgress("Copying", 0, 1, 0, 0));
             await using (var input = source.OpenRead())
             await using (var output = new FileStream(
                 staging,
@@ -125,18 +134,23 @@ internal sealed class KnowledgeLibraryService : IKnowledgeLibraryService
             {
                 await input.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
             }
+            progress?.Report(new KnowledgeIndexProgress("Checking content", 0, 1, 0, 0));
             var sourceHash = await ComputeSha256Async(staging, cancellationToken).ConfigureAwait(false);
             var duplicate = await _store.FindActiveBySourceHashAsync(sourceHash, cancellationToken).ConfigureAwait(false);
             if (duplicate is not null && !allowDuplicate)
             {
                 throw new KnowledgeDuplicateException(duplicate.Id, duplicate.Name);
             }
+            progress?.Report(new KnowledgeIndexProgress("Extracting", 0, 1, 0, 0));
             var extracted = await _extractor.ExtractAsync(staging, cancellationToken).ConfigureAwait(false);
             var text = extracted.Text;
             var revisionId = Guid.NewGuid().ToString("N");
+            progress?.Report(new KnowledgeIndexProgress("Chunking", 0, 1, 0, 0));
             var chunks = _chunker.Chunk(extracted).Select(chunk => chunk with { Id = $"{revisionId}:{chunk.Ordinal:D8}" }).ToArray();
             var embeddingInputs = chunks.Select(chunk => string.IsNullOrWhiteSpace(chunk.Heading) ? chunk.Text : $"{chunk.Heading}\n\n{chunk.Text}").ToArray();
+            progress?.Report(new KnowledgeIndexProgress("Embedding", 0, 1, 0, chunks.Length));
             var vectors = await _embeddingService.GenerateAsync(embeddingInputs, cancellationToken).ConfigureAwait(false);
+            progress?.Report(new KnowledgeIndexProgress("Saving", 0, 1, vectors.Count, vectors.Count));
             canonical = Path.Combine(_paths.KnowledgeDocumentsDirectory, $"{documentId}{extension}");
             File.Move(staging, canonical);
             staging = null;
@@ -144,6 +158,7 @@ internal sealed class KnowledgeLibraryService : IKnowledgeLibraryService
             var textHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text))).ToLowerInvariant();
             await _store.CommitAsync(document, Path.GetFileName(canonical), chunks, vectors, options, cancellationToken, revisionId, sourceHash, textHash).ConfigureAwait(false);
             canonical = null;
+            progress?.Report(new KnowledgeIndexProgress("Complete", 1, 1, vectors.Count, vectors.Count));
             return document;
         }
         finally
@@ -218,7 +233,11 @@ internal sealed class KnowledgeLibraryService : IKnowledgeLibraryService
     }
 
     /// <inheritdoc />
-    public async Task<KnowledgeDocument> ReplaceAsync(string documentId, string sourcePath, CancellationToken cancellationToken)
+    public async Task<KnowledgeDocument> ReplaceAsync(
+        string documentId,
+        string sourcePath,
+        CancellationToken cancellationToken,
+        IProgress<KnowledgeIndexProgress>? progress = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(documentId);
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
@@ -238,6 +257,7 @@ internal sealed class KnowledgeLibraryService : IKnowledgeLibraryService
         string? newCanonicalPath = null;
         try
         {
+            progress?.Report(new KnowledgeIndexProgress("Preparing", 0, 1, 0, 0));
             await _store.InitializeAsync(cancellationToken).ConfigureAwait(false);
             await _store.EnsureConfiguredContractAsync(options, cancellationToken).ConfigureAwait(false);
             var stored = await _store.GetStoredDocumentAsync(documentId, cancellationToken).ConfigureAwait(false)
@@ -245,16 +265,19 @@ internal sealed class KnowledgeLibraryService : IKnowledgeLibraryService
             var extension = source.Extension.ToLowerInvariant();
             ValidateExtension(extension);
             staging = Path.Combine(_paths.KnowledgeStagingDirectory, $"{Guid.NewGuid():N}{extension}");
+            progress?.Report(new KnowledgeIndexProgress("Copying", 0, 1, 0, 0));
             await CopyAsync(source.FullName, staging, cancellationToken).ConfigureAwait(false);
             var canonicalName = $"{Guid.NewGuid():N}{extension}";
+            progress?.Report(new KnowledgeIndexProgress("Extracting", 0, 1, 0, 0));
             var prepared = await PrepareAsync(staging, stored.Document with
             {
                 OriginalFileName = source.Name,
                 MediaType = GetMediaType(extension),
                 SizeBytes = source.Length,
                 UpdatedUtc = _timeProvider.GetUtcNow(),
-            }, canonicalName, cancellationToken).ConfigureAwait(false);
+            }, canonicalName, cancellationToken, progress).ConfigureAwait(false);
             newCanonicalPath = Path.Combine(_paths.KnowledgeDocumentsDirectory, canonicalName);
+            progress?.Report(new KnowledgeIndexProgress("Saving", 0, 1, prepared.Vectors.Count, prepared.Vectors.Count));
             File.Move(staging, newCanonicalPath);
             staging = null;
             var oldCanonical = await _store.ReplaceAsync(prepared, options, cancellationToken).ConfigureAwait(false);
@@ -264,6 +287,7 @@ internal sealed class KnowledgeLibraryService : IKnowledgeLibraryService
                 await CleanupCanonicalAsync(oldCanonical, CancellationToken.None).ConfigureAwait(false);
             }
 
+            progress?.Report(new KnowledgeIndexProgress("Complete", 1, 1, prepared.Vectors.Count, prepared.Vectors.Count));
             return prepared.Document;
         }
         finally
@@ -362,7 +386,7 @@ internal sealed class KnowledgeLibraryService : IKnowledgeLibraryService
         }
     }
 
-    private static string GetMediaType(string extension) => extension switch { ".txt" => "text/plain", ".md" or ".markdown" => "text/markdown", ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document", ".pdf" => "application/pdf", _ => "application/octet-stream" };
+    private static string GetMediaType(string extension) => extension switch { ".txt" => "text/plain", ".md" or ".markdown" => "text/markdown", ".html" or ".htm" => "text/html", ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document", ".pdf" => "application/pdf", _ => "application/octet-stream" };
     private async Task<KnowledgePreparedIndex> PrepareAsync(string path, KnowledgeDocument document, string canonicalFileName, CancellationToken cancellationToken, IProgress<KnowledgeIndexProgress>? progress = null, int completedDocuments = 0, int totalDocuments = 1)
     {
         var extracted = await _extractor.ExtractAsync(path, cancellationToken).ConfigureAwait(false);
@@ -400,10 +424,10 @@ internal sealed class KnowledgeLibraryService : IKnowledgeLibraryService
     }
     private static void ValidateExtension(string extension)
     {
-        if (extension is not (".txt" or ".md" or ".markdown" or ".docx" or ".pdf"))
+        if (extension is not (".txt" or ".md" or ".markdown" or ".html" or ".htm" or ".docx" or ".pdf"))
         {
             throw new InvalidOperationException(
-                "Knowledge supports TXT, Markdown, DOCX, and text-based PDF files.");
+                "Knowledge supports TXT, Markdown, HTML, DOCX, and text-based PDF files.");
         }
     }
     private async Task CleanupCanonicalAsync(string canonicalFileName, CancellationToken cancellationToken)

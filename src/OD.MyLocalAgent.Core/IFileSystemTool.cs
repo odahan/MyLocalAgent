@@ -21,6 +21,15 @@ public interface IFileSystemTool
     Task<string> WriteAsync(string path, string content, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Writes a text file using the requested destination mode.
+    /// </summary>
+    Task<string> WriteAsync(
+        string path,
+        string content,
+        string mode,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Moves a file or directory.
     /// </summary>
     Task<string> MoveAsync(string from, string to, CancellationToken cancellationToken);
