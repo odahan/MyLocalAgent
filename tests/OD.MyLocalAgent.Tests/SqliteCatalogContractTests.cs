@@ -166,6 +166,19 @@ public sealed class SqliteCatalogContractTests
         first.Should().NotBeSameAs(second);
         provider.GetRequiredService<ISqliteTool>()
             .Should().BeSameAs(provider.GetRequiredService<SqliteTool>());
+
+        var registry = new ToolRegistry(
+            ToolCatalog.Default,
+            provider.GetRequiredService<IToolTargetActivator>());
+        var schemaProjection = () => registry.GetAgentTools(
+            [ToolGroups.Sqlite],
+            new ToolExecutionContext(
+                "sqlite-schema-task",
+                [],
+                [TaskCapability.SqliteWrite]));
+
+        schemaProjection.Should().NotThrow(
+            "optional SQLite object parameters must have a serializable null default");
     }
 
     private static string FindRepositoryRoot()

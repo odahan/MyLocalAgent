@@ -215,7 +215,7 @@ public sealed class SqliteTool : ISqliteTool
     public Task<string> QueryAsync(
         [ToolArgument(WorkflowArgumentKind.String, "Authorized SQLite database file path.", Example = "data/app.db")] string? databasePath,
         [ToolArgument(WorkflowArgumentKind.String, "One read-only SQLite statement.", Example = "SELECT id, name FROM items")] string sql,
-        [ToolArgument(WorkflowArgumentKind.Object, "Optional named scalar SQLite parameters.", Example = "{}")] JsonElement parameters = default,
+        [ToolArgument(WorkflowArgumentKind.Object, "Optional named scalar SQLite parameters.", Example = "{}")] JsonElement? parameters = null,
         [ToolArgument(WorkflowArgumentKind.Integer, "Optional bounded row count.", Example = "100")] int? maxRows = null,
         [ToolArgument(WorkflowArgumentKind.String, "Reserved managed storage target identifier.", Example = "research", IsExcludedFromWorkflowTextEditor = true)] string? storageSpaceId = null,
         CancellationToken cancellationToken = default) => ExecuteSanitizedAsync("sqlite.query", "read", maxRows, Task.Run(async () =>
@@ -224,7 +224,7 @@ public sealed class SqliteTool : ISqliteTool
         using var connection = OpenRead(databasePath);
         using var interrupt = RegisterInterrupt(connection, cancellationToken);
         var parameterNames = Inspect(connection, sql, readOnly: true);
-        using var command = CreateCommand(connection, sql, parameters, parameterNames);
+        using var command = CreateCommand(connection, sql, parameters ?? default, parameterNames);
         using var reader = command.ExecuteReader();
         if (reader.FieldCount == 0) throw new SqliteToolException(SqliteToolErrorCategory.InvalidStatement);
         var columns = Enumerable.Range(0, reader.FieldCount).Select(i => new { name = reader.GetName(i), ordinal = i, declaredType = reader.GetDataTypeName(i) }).ToArray();
@@ -271,7 +271,7 @@ public sealed class SqliteTool : ISqliteTool
     public Task<string> ExecuteAsync(
         [ToolArgument(WorkflowArgumentKind.String, "Authorized SQLite database file path.", Example = "data/app.db")] string databasePath,
         [ToolArgument(WorkflowArgumentKind.String, "One modifying SQLite statement.", Example = "UPDATE items SET name = @name WHERE id = @id")] string sql,
-        [ToolArgument(WorkflowArgumentKind.Object, "Optional named scalar SQLite parameters.", Example = "{}")] JsonElement parameters = default,
+        [ToolArgument(WorkflowArgumentKind.Object, "Optional named scalar SQLite parameters.", Example = "{}")] JsonElement? parameters = null,
         [ToolArgument(WorkflowArgumentKind.Boolean, "Whether a missing database file may be created.", Example = "false")] bool createIfMissing = false,
         CancellationToken cancellationToken = default) => ExecuteSanitizedAsync("sqlite.execute", createIfMissing ? "create" : "write", null, Task.Run(() =>
     {
@@ -312,7 +312,7 @@ public sealed class SqliteTool : ISqliteTool
             using var interrupt = RegisterInterrupt(connection, cancellationToken);
             var parameterNames = Inspect(connection, sql, readOnly: false);
             using var transaction = connection.BeginTransaction(IsolationLevel.Serializable);
-            using var command = CreateCommand(connection, sql, parameters, parameterNames);
+            using var command = CreateCommand(connection, sql, parameters ?? default, parameterNames);
             command.Transaction = transaction;
             using var reader = command.ExecuteReader();
             if (reader.FieldCount != 0)

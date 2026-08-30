@@ -9,6 +9,7 @@ namespace OD.MyLocalAgent.Core;
 public sealed class JsonTaskStore : ITaskStore, IDisposable
 {
     private readonly string _directoryPath;
+    private readonly string _archiveDirectoryPath;
     private readonly TimeProvider _timeProvider;
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _taskGates =
         new(StringComparer.OrdinalIgnoreCase);
@@ -20,12 +21,19 @@ public sealed class JsonTaskStore : ITaskStore, IDisposable
     /// </summary>
     /// <param name="directoryPath">The task directory.</param>
     /// <param name="timeProvider">The application clock reserved for store coordination.</param>
-    public JsonTaskStore(string directoryPath, TimeProvider? timeProvider = null)
+    /// <param name="archiveDirectoryPath">The directory that receives archived task JSON files.</param>
+    public JsonTaskStore(
+        string directoryPath,
+        TimeProvider? timeProvider = null,
+        string? archiveDirectoryPath = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(directoryPath);
         _timeProvider = timeProvider ?? TimeProvider.System;
         _directoryPath = Path.GetFullPath(directoryPath);
+        _archiveDirectoryPath = Path.GetFullPath(
+            archiveDirectoryPath ?? Path.Combine(_directoryPath, "archives"));
         Directory.CreateDirectory(_directoryPath);
+        Directory.CreateDirectory(_archiveDirectoryPath);
         _watcher = new FileSystemWatcher(_directoryPath, "*.json")
         {
             IncludeSubdirectories = false,
@@ -169,6 +177,46 @@ public sealed class JsonTaskStore : ITaskStore, IDisposable
     }
 
     /// <inheritdoc />
+    public async Task<string?> ArchiveAsync(
+        string id,
+        CancellationToken cancellationToken)
+    {
+        ValidateId(id);
+        ThrowIfDisposed();
+        var gate = GetGate(id);
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        string? archivePath = null;
+        try
+        {
+            var sourcePath = GetPath(id);
+            if (!File.Exists(sourcePath))
+            {
+                return null;
+            }
+
+            var task = await ReadTaskAsync(sourcePath, cancellationToken).ConfigureAwait(false);
+            var json = ScheduledTaskSerializer.Serialize(task);
+            Directory.CreateDirectory(_archiveDirectoryPath);
+            archivePath = GetArchivePath(id);
+            await File.WriteAllTextAsync(
+                archivePath,
+                json,
+                new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
+                cancellationToken).ConfigureAwait(false);
+            File.Delete(sourcePath);
+        }
+        finally
+        {
+            gate.Release();
+        }
+
+        TasksChanged?.Invoke(
+            this,
+            new TaskStoreChangedEventArgs(id, TaskStoreChangeKind.Deleted));
+        return archivePath;
+    }
+
+    /// <inheritdoc />
     public async Task<bool> DeleteAsync(
         string id,
         CancellationToken cancellationToken)
@@ -266,6 +314,21 @@ public sealed class JsonTaskStore : ITaskStore, IDisposable
 
     private string GetPath(string id) =>
         Path.GetFullPath(id + ".json", _directoryPath);
+
+    private string GetArchivePath(string id)
+    {
+        var timestamp = _timeProvider.GetUtcNow().ToString("yyyyMMdd'T'HHmmss.fff'Z'", System.Globalization.CultureInfo.InvariantCulture);
+        var baseName = $"{id}--archived-{timestamp}";
+        var path = Path.Combine(_archiveDirectoryPath, baseName + ".json");
+        var suffix = 1;
+        while (File.Exists(path))
+        {
+            path = Path.Combine(_archiveDirectoryPath, $"{baseName}-{suffix:D2}.json");
+            suffix++;
+        }
+
+        return path;
+    }
 
     private static void ValidateId(string id)
     {

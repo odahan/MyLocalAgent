@@ -1,0 +1,42 @@
+<Window x:Class="OD.MyLocalAgent.UI.TaskCloneDialogWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Clone task"
+        Width="460"
+        ResizeMode="NoResize"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <StackPanel>
+            <TextBlock FontSize="20"
+                       FontWeight="SemiBold"
+                       Text="Clone task" />
+            <TextBlock Margin="0,10,0,0"
+                       TextWrapping="Wrap"
+                       Text="Enter a new identifier. The last saved version of the task will be copied." />
+            <TextBox x:Name="TaskIdTextBox"
+                     Margin="0,16,0,0"
+                     TextChanged="TaskIdTextBox_TextChanged" />
+            <TextBlock x:Name="ValidationText"
+                       Margin="0,6,0,0"
+                       Foreground="{DynamicResource ErrorBrush}"
+                       TextWrapping="Wrap" />
+        </StackPanel>
+        <StackPanel Grid.Row="2"
+                    Margin="0,22,0,0"
+                    HorizontalAlignment="Right"
+                    Orientation="Horizontal">
+            <Button IsCancel="True" Content="Cancel" />
+            <Button x:Name="CloneButton"
+                    Click="CloneButton_Click"
+                    Content="Clone"
+                    IsDefault="True"
+                    Style="{StaticResource PrimaryButtonStyle}" />
+        </StackPanel>
+    </Grid>
+</Window>

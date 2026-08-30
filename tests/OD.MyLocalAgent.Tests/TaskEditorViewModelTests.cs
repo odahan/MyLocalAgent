@@ -16,6 +16,167 @@ namespace OD.MyLocalAgent.Tests;
 /// </summary>
 public sealed class TaskEditorViewModelTests
 {
+    /// <summary>
+    /// Verifies cloning persists a new identifier, preserves the source, and displays the clone.
+    /// </summary>
+    [Fact]
+    public async Task CloneCreatesAndOpensNewTaskWithoutChangingSource()
+    {
+        var source = CreatePersistedTask("source-task", "Source task");
+        var clone = source with
+        {
+            Id = "cloned-task",
+            CreatedUtc = DateTimeOffset.UtcNow,
+            UpdatedUtc = DateTimeOffset.UtcNow,
+        };
+        var store = new Mock<ITaskStore>(MockBehavior.Strict);
+        store.Setup(instance => instance.GetAsync(source.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(source);
+        store.SetupSequence(instance => instance.GetAsync(clone.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ScheduledTask?)null)
+            .ReturnsAsync(clone);
+        store.Setup(instance => instance.SaveAsync(
+                It.Is<ScheduledTask>(task => task.Id == clone.Id && task.Name == source.Name),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(clone);
+        var scheduler = new Mock<ITaskSchedulerService>(MockBehavior.Strict);
+        scheduler.Setup(instance => instance.RegisterAsync(clone, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        var cloneDialog = new Mock<ITaskCloneDialogService>(MockBehavior.Strict);
+        cloneDialog.Setup(instance => instance.Show(source.Id)).Returns(clone.Id);
+        var viewModel = new TaskEditorViewModel(
+            store.Object,
+            scheduler.Object,
+            Mock.Of<IIncidentReporter>(),
+            Mock.Of<IDesktopInteractionService>(),
+            Mock.Of<IMessenger>(),
+            TimeProvider.System,
+            cloneDialog: cloneDialog.Object);
+
+        viewModel.Open(source.Id);
+        await (viewModel.LoadCommand.ExecutionTask ?? Task.CompletedTask);
+        viewModel.CloneCommand.Execute(null);
+        await (viewModel.CloneCommand.ExecutionTask ?? Task.CompletedTask);
+        await (viewModel.LoadCommand.ExecutionTask ?? Task.CompletedTask);
+
+        viewModel.Id.Should().Be(clone.Id);
+        viewModel.EditorTitle.Should().Be($"Edit task · {clone.Name}");
+        store.VerifyAll();
+        scheduler.VerifyAll();
+        cloneDialog.VerifyAll();
+    }
+
+    /// <summary>
+    /// Verifies archiving unregisters the task, delegates durable retention to the store, and returns to the task list.
+    /// </summary>
+    [Fact]
+    public async Task ArchiveUnregistersAndNavigatesBackToTasks()
+    {
+        var source = CreatePersistedTask("archive-task", "Archive task");
+        var store = new Mock<ITaskStore>(MockBehavior.Strict);
+        store.Setup(instance => instance.GetAsync(source.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(source);
+        store.Setup(instance => instance.ArchiveAsync(source.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync("C:\\archives\\archive-task--archived-20260830T142315.482Z.json");
+        var scheduler = new Mock<ITaskSchedulerService>(MockBehavior.Strict);
+        scheduler.Setup(instance => instance.UnregisterAsync(source.Id, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        var desktop = new Mock<IDesktopInteractionService>(MockBehavior.Strict);
+        desktop.Setup(instance => instance.ConfirmDestructive(
+                "Archive task",
+                It.IsAny<string>(),
+                "Archive task"))
+            .Returns(true);
+        var messenger = new StrongReferenceMessenger();
+        var recipient = new object();
+        NavigateMessage? navigation = null;
+        messenger.Register<NavigateMessage>(recipient, (_, message) => navigation = message);
+        var viewModel = new TaskEditorViewModel(
+            store.Object,
+            scheduler.Object,
+            Mock.Of<IIncidentReporter>(),
+            desktop.Object,
+            messenger,
+            TimeProvider.System);
+
+        viewModel.Open(source.Id);
+        await (viewModel.LoadCommand.ExecutionTask ?? Task.CompletedTask);
+        viewModel.ArchiveCommand.Execute(null);
+        await (viewModel.ArchiveCommand.ExecutionTask ?? Task.CompletedTask);
+
+        navigation.Should().NotBeNull();
+        navigation!.Route.Should().Be(PageRoute.Tasks);
+        store.VerifyAll();
+        scheduler.VerifyAll();
+        desktop.VerifyAll();
+    }
+
+    /// <summary>
+    /// Verifies the combined action saves the clone before unregistering and archiving the source task.
+    /// </summary>
+    [Fact]
+    public async Task CloneAndArchiveCreatesCloneThenArchivesSource()
+    {
+        var source = CreatePersistedTask("combined-source", "Combined source");
+        var clone = source with
+        {
+            Id = "combined-clone",
+            CreatedUtc = DateTimeOffset.UtcNow,
+            UpdatedUtc = DateTimeOffset.UtcNow,
+        };
+        var operations = new List<string>();
+        var store = new Mock<ITaskStore>(MockBehavior.Strict);
+        store.Setup(instance => instance.GetAsync(source.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(source);
+        store.SetupSequence(instance => instance.GetAsync(clone.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ScheduledTask?)null)
+            .ReturnsAsync(clone);
+        store.Setup(instance => instance.SaveAsync(It.Is<ScheduledTask>(task => task.Id == clone.Id), It.IsAny<CancellationToken>()))
+            .Callback(() => operations.Add("save-clone"))
+            .ReturnsAsync(clone);
+        store.Setup(instance => instance.ArchiveAsync(source.Id, It.IsAny<CancellationToken>()))
+            .Callback(() => operations.Add("archive-source"))
+            .ReturnsAsync("C:\\archives\\combined-source--archived-20260830T142315.482Z.json");
+        var scheduler = new Mock<ITaskSchedulerService>(MockBehavior.Strict);
+        scheduler.Setup(instance => instance.RegisterAsync(clone, It.IsAny<CancellationToken>()))
+            .Callback(() => operations.Add("register-clone"))
+            .Returns(Task.CompletedTask);
+        scheduler.Setup(instance => instance.UnregisterAsync(source.Id, It.IsAny<CancellationToken>()))
+            .Callback(() => operations.Add("unregister-source"))
+            .Returns(Task.CompletedTask);
+        var cloneDialog = new Mock<ITaskCloneDialogService>(MockBehavior.Strict);
+        cloneDialog.Setup(instance => instance.Show(source.Id)).Returns(clone.Id);
+        var desktop = new Mock<IDesktopInteractionService>(MockBehavior.Strict);
+        desktop.Setup(instance => instance.ConfirmDestructive(
+                "Clone and archive task",
+                It.IsAny<string>(),
+                "Clone and archive"))
+            .Returns(true);
+        var viewModel = new TaskEditorViewModel(
+            store.Object,
+            scheduler.Object,
+            Mock.Of<IIncidentReporter>(),
+            desktop.Object,
+            Mock.Of<IMessenger>(),
+            TimeProvider.System,
+            cloneDialog: cloneDialog.Object);
+
+        viewModel.Open(source.Id);
+        await (viewModel.LoadCommand.ExecutionTask ?? Task.CompletedTask);
+        viewModel.CloneAndArchiveCommand.Execute(null);
+        await (viewModel.CloneAndArchiveCommand.ExecutionTask ?? Task.CompletedTask);
+
+        operations.Should().ContainInOrder(
+            "save-clone",
+            "register-clone",
+            "unregister-source",
+            "archive-source");
+        store.VerifyAll();
+        scheduler.VerifyAll();
+        cloneDialog.VerifyAll();
+        desktop.VerifyAll();
+    }
+
     /// <summary>Verifies the step editor receives the model configured for the active provider.</summary>
     [Fact]
     public void StepEditorReceivesConfiguredProviderModel()
@@ -718,4 +879,16 @@ public sealed class TaskEditorViewModelTests
         viewModel.ValidationText.Should().NotBeNullOrWhiteSpace();
     }
 
+    private static ScheduledTask CreatePersistedTask(string id, string name) => new()
+    {
+        Id = id,
+        Name = name,
+        Schedule = "0 7 * * *",
+        Prompt = "Test",
+        Tools = [],
+        FileSystemAccess = [],
+        Workflow = [],
+        Enabled = true,
+        ErrorPolicy = WorkflowErrorPolicy.StopOnError,
+    };
 }

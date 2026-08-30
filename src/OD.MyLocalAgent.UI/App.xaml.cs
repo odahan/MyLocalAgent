@@ -141,6 +141,7 @@ public partial class App : Application
         services.AddSingleton<IWorkflowToolCatalogDialogService, WorkflowToolCatalogDialogService>();
         services.AddSingleton<IWorkflowStepEditorDialogService, WorkflowStepEditorDialogService>();
         services.AddSingleton<IWorkflowPromptEditorDialogService, WorkflowPromptEditorDialogService>();
+        services.AddSingleton<ITaskCloneDialogService, TaskCloneDialogService>();
         services.AddSingleton<IKnowledgeMetadataEditorDialogService, KnowledgeMetadataEditorDialogService>();
         services.AddSingleton<IncidentMessengerBridge>();
 #if !DEBUG

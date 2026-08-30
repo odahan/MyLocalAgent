@@ -29,6 +29,8 @@ public sealed class WorkspacePathsTests : IDisposable
         paths.TasksDirectory.Should().Be(Path.Combine(applicationDirectory, "tasks"));
         paths.TaskBackupsDirectory.Should().Be(
             Path.Combine(applicationDirectory, "tasks", "backups"));
+        paths.TaskArchivesDirectory.Should().Be(
+            Path.Combine(applicationDirectory, "tasks", "archives"));
         paths.TaskExamplesDirectory.Should().Be(
             Path.Combine(applicationDirectory, "examples", "tasks"));
         paths.DirectChatDatabasePath.Should().Be(
@@ -65,6 +67,7 @@ public sealed class WorkspacePathsTests : IDisposable
 
         Directory.Exists(paths.TasksDirectory).Should().BeTrue();
         Directory.Exists(paths.TaskBackupsDirectory).Should().BeTrue();
+        Directory.Exists(paths.TaskArchivesDirectory).Should().BeTrue();
         Directory.Exists(paths.TaskExamplesDirectory).Should().BeTrue();
         Directory.Exists(paths.DataDirectory).Should().BeTrue();
         Directory.Exists(paths.KnowledgeDocumentsDirectory).Should().BeTrue();

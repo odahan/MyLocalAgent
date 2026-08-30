@@ -136,7 +136,8 @@ public static class HostApplicationBuilderExtensions
         builder.Services.AddSingleton<JsonTaskStore>(
             static services => new JsonTaskStore(
                 services.GetRequiredService<WorkspacePaths>().TasksDirectory,
-                services.GetRequiredService<TimeProvider>()));
+                services.GetRequiredService<TimeProvider>(),
+                services.GetRequiredService<WorkspacePaths>().TaskArchivesDirectory));
         builder.Services.AddSingleton<ITaskStore>(
             static services => services.GetRequiredService<JsonTaskStore>());
         builder.Services.AddSingleton<SqliteDirectChatStore>(

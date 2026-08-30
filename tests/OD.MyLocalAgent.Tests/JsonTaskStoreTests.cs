@@ -50,6 +50,58 @@ public sealed class JsonTaskStoreTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies archiving removes the active definition and preserves its JSON under an UTC timestamped name.
+    /// </summary>
+    [Fact]
+    public async Task ArchiveMovesTaskToTimestampedArchiveAndRemovesActiveTask()
+    {
+        var archivedAt = new DateTimeOffset(2026, 8, 30, 14, 23, 15, 482, TimeSpan.Zero);
+        var archiveDirectory = Path.Combine(_directoryPath, "retained-archives");
+        using var store = new JsonTaskStore(
+            _directoryPath,
+            new MutableTimeProvider(archivedAt),
+            archiveDirectory);
+        var task = ScheduledTaskSerializer.Deserialize(ValidMixedWorkflowJson);
+        await store.SaveAsync(task, CancellationToken.None);
+
+        var archivePath = await store.ArchiveAsync(task.Id, CancellationToken.None);
+
+        archivePath.Should().Be(Path.Combine(
+            archiveDirectory,
+            "mixed-task--archived-20260830T142315.482Z.json"));
+        File.Exists(archivePath).Should().BeTrue();
+        (await store.GetAsync(task.Id, CancellationToken.None)).Should().BeNull();
+        (await store.GetAllAsync(CancellationToken.None)).Should().BeEmpty();
+        ScheduledTaskSerializer.Deserialize(await File.ReadAllTextAsync(archivePath!))
+            .Id.Should().Be(task.Id);
+    }
+
+    /// <summary>
+    /// Verifies repeated archival of a recreated identifier retains every archived version.
+    /// </summary>
+    [Fact]
+    public async Task ArchiveAddsSuffixWhenTimestampedArchiveAlreadyExists()
+    {
+        var archivedAt = new DateTimeOffset(2026, 8, 30, 14, 23, 15, 482, TimeSpan.Zero);
+        var archiveDirectory = Path.Combine(_directoryPath, "retained-archives");
+        using var store = new JsonTaskStore(
+            _directoryPath,
+            new MutableTimeProvider(archivedAt),
+            archiveDirectory);
+        var task = ScheduledTaskSerializer.Deserialize(ValidMixedWorkflowJson);
+        await store.SaveAsync(task, CancellationToken.None);
+        var firstPath = await store.ArchiveAsync(task.Id, CancellationToken.None);
+        await store.SaveAsync(task with { Name = "Recreated task" }, CancellationToken.None);
+
+        var secondPath = await store.ArchiveAsync(task.Id, CancellationToken.None);
+
+        firstPath.Should().NotBeNull();
+        secondPath.Should().EndWith("mixed-task--archived-20260830T142315.482Z-01.json");
+        File.Exists(firstPath).Should().BeTrue();
+        File.Exists(secondPath).Should().BeTrue();
+    }
+
+    /// <summary>
     /// Verifies the store assigns timestamps, preserves creation, and advances modification.
     /// </summary>
     [Fact]

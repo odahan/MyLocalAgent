@@ -53,6 +53,7 @@ public sealed partial class TaskEditorViewModel :
     private readonly IWorkflowToolCatalogDialogService? _toolCatalogDialog;
     private readonly IWorkflowPromptEditorDialogService? _promptEditorDialog;
     private readonly IWorkflowStepEditorDialogService? _stepEditorDialog;
+    private readonly ITaskCloneDialogService? _cloneDialog;
     private readonly IToolCatalog _catalog;
     private readonly IOptionsMonitor<AIOptions>? _aiOptions;
     private readonly IOptionsMonitor<OllamaOptions>? _ollamaOptions;
@@ -227,6 +228,9 @@ public sealed partial class TaskEditorViewModel :
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CloneCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ArchiveCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CloneAndArchiveCommand))]
     private bool _isBusy;
 
     [ObservableProperty]
@@ -252,7 +256,8 @@ public sealed partial class TaskEditorViewModel :
         IWorkflowStepEditorDialogService? stepEditorDialog = null,
         IToolCatalog? catalog = null,
         IOptionsMonitor<OllamaOptions>? ollamaOptions = null,
-        IOptionsMonitor<OpenAIOptions>? openAiOptions = null)
+        IOptionsMonitor<OpenAIOptions>? openAiOptions = null,
+        ITaskCloneDialogService? cloneDialog = null)
     {
         _taskStore = taskStore;
         _scheduler = scheduler;
@@ -271,6 +276,7 @@ public sealed partial class TaskEditorViewModel :
         _catalog = catalog ?? ToolCatalog.Default;
         _ollamaOptions = ollamaOptions;
         _openAiOptions = openAiOptions;
+        _cloneDialog = cloneDialog;
         ErrorPolicies = Enum.GetValues<WorkflowErrorPolicy>();
         WorkflowAliases = ToolMap.Definitions;
         _toolGroupSelectionItems = new ObservableCollection<ToolGroupSelectionItem>(
@@ -590,6 +596,7 @@ public sealed partial class TaskEditorViewModel :
             }
 
             _originalTaskId = task?.Id;
+            NotifyTaskManagementCanExecuteChanged();
             ClearAssistedUndo();
             EditorTitle = task is null ? "New task" : $"Edit task · {task.Name}";
             UpdateTimestampDisplay(task);
@@ -723,6 +730,7 @@ public sealed partial class TaskEditorViewModel :
             await SynchronizeRegistrationAsync(persistedTask, cancellationToken)
                 .ConfigureAwait(true);
             _originalTaskId = persistedTask.Id;
+            NotifyTaskManagementCanExecuteChanged();
             ClearAssistedUndo();
             Id = persistedTask.Id;
             IsIdReadOnly = true;
@@ -782,6 +790,206 @@ public sealed partial class TaskEditorViewModel :
     private static string FormatUtcTimestamp(DateTimeOffset? timestamp) =>
         timestamp?.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture) ??
         string.Empty;
+
+    [RelayCommand(CanExecute = nameof(CanManagePersistedTask))]
+    private async Task CloneAsync(CancellationToken cancellationToken)
+    {
+        var source = await GetSourceTaskAsync(cancellationToken).ConfigureAwait(true);
+        if (source is null || _cloneDialog is null)
+        {
+            if (_cloneDialog is null)
+            {
+                ValidationText = "Task cloning is unavailable.";
+            }
+
+            return;
+        }
+
+        var cloneId = _cloneDialog.Show(source.Id);
+        if (string.IsNullOrWhiteSpace(cloneId))
+        {
+            return;
+        }
+
+        await CloneAndOpenAsync(source, cloneId, cancellationToken).ConfigureAwait(true);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManagePersistedTask))]
+    private async Task ArchiveAsync(CancellationToken cancellationToken)
+    {
+        var source = await GetSourceTaskAsync(cancellationToken).ConfigureAwait(true);
+        if (source is null ||
+            !_desktopInteraction.ConfirmDestructive(
+                "Archive task",
+                $"Archive '{source.Name}'? Its Windows scheduler registration will be removed and its saved JSON will be retained in the archives folder." +
+                (IsDirty ? " Unsaved editor changes will not be included." : string.Empty),
+                "Archive task"))
+        {
+            return;
+        }
+
+        if (await ArchiveSourceAsync(source, cancellationToken).ConfigureAwait(true))
+        {
+            IsDirty = false;
+            _messenger.Send(new NavigateMessage(PageRoute.Tasks));
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManagePersistedTask))]
+    private async Task CloneAndArchiveAsync(CancellationToken cancellationToken)
+    {
+        var source = await GetSourceTaskAsync(cancellationToken).ConfigureAwait(true);
+        if (source is null || _cloneDialog is null)
+        {
+            if (_cloneDialog is null)
+            {
+                ValidationText = "Task cloning is unavailable.";
+            }
+
+            return;
+        }
+
+        var cloneId = _cloneDialog.Show(source.Id);
+        if (string.IsNullOrWhiteSpace(cloneId) ||
+            !_desktopInteraction.ConfirmDestructive(
+                "Clone and archive task",
+                $"Create clone '{cloneId.Trim()}' and archive '{source.Name}'? Its Windows scheduler registration will be removed." +
+                (IsDirty ? " Unsaved editor changes will not be included in the clone or archive." : string.Empty),
+                "Clone and archive"))
+        {
+            return;
+        }
+
+        var clone = await CloneAndOpenAsync(source, cloneId, cancellationToken).ConfigureAwait(true);
+        if (clone is not null)
+        {
+            _ = await ArchiveSourceAsync(source, cancellationToken).ConfigureAwait(true);
+        }
+    }
+
+    private async Task<ScheduledTask?> GetSourceTaskAsync(CancellationToken cancellationToken)
+    {
+        if (_originalTaskId is null)
+        {
+            return null;
+        }
+
+        IsBusy = true;
+        try
+        {
+            var source = await _taskStore.GetAsync(_originalTaskId, cancellationToken).ConfigureAwait(true);
+            if (source is null)
+            {
+                ValidationText = $"Task '{_originalTaskId}' no longer exists.";
+            }
+
+            return source;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return null;
+        }
+        catch (Exception exception)
+        {
+            ValidationText = exception.Message;
+            await ReportAsync(exception, "Task editor source load").ConfigureAwait(true);
+            return null;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private async Task<ScheduledTask?> CloneAndOpenAsync(
+        ScheduledTask source,
+        string cloneId,
+        CancellationToken cancellationToken)
+    {
+        IsBusy = true;
+        try
+        {
+            var clone = source with
+            {
+                Id = cloneId.Trim(),
+                CreatedUtc = null,
+                UpdatedUtc = null,
+            };
+            ScheduledTaskValidator.Validate(clone);
+            if (await _taskStore.GetAsync(clone.Id, cancellationToken).ConfigureAwait(true) is not null)
+            {
+                throw new TaskValidationException($"Task id '{clone.Id}' already exists.");
+            }
+
+            var persistedClone = await _taskStore.SaveAsync(clone, cancellationToken).ConfigureAwait(true);
+            await SynchronizeRegistrationAsync(persistedClone, cancellationToken).ConfigureAwait(true);
+            _messenger.Send(new TaskSavedMessage(persistedClone.Id));
+            _messenger.Send(new SnackbarNotificationMessage($"Task '{source.Name}' cloned as '{persistedClone.Id}'."));
+            Open(persistedClone.Id);
+            return persistedClone;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return null;
+        }
+        catch (Exception exception) when (exception is TaskValidationException or WorkflowValidationException or JsonException)
+        {
+            ValidationText = exception.Message;
+            _desktopInteraction.ShowError("Task was not cloned", ValidationText);
+            return null;
+        }
+        catch (Exception exception)
+        {
+            ValidationText = exception.Message;
+            await ReportAsync(exception, "Task cloning").ConfigureAwait(true);
+            return null;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private async Task<bool> ArchiveSourceAsync(ScheduledTask source, CancellationToken cancellationToken)
+    {
+        IsBusy = true;
+        try
+        {
+            await _scheduler.UnregisterAsync(source.Id, cancellationToken).ConfigureAwait(true);
+            var archivePath = await _taskStore.ArchiveAsync(source.Id, cancellationToken).ConfigureAwait(true);
+            if (archivePath is null)
+            {
+                ValidationText = $"Task '{source.Id}' no longer exists.";
+                return false;
+            }
+
+            _messenger.Send(new SnackbarNotificationMessage($"Task '{source.Name}' archived."));
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
+        catch (Exception exception)
+        {
+            ValidationText = exception.Message;
+            await ReportAsync(exception, "Task archiving").ConfigureAwait(true);
+            return false;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanManagePersistedTask() => _originalTaskId is not null && !IsBusy;
+
+    private void NotifyTaskManagementCanExecuteChanged()
+    {
+        CloneCommand.NotifyCanExecuteChanged();
+        ArchiveCommand.NotifyCanExecuteChanged();
+        CloneAndArchiveCommand.NotifyCanExecuteChanged();
+    }
 
     [RelayCommand(CanExecute = nameof(CanOpenPrompt))]
     private void OpenPrompt()

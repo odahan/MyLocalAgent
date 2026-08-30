@@ -21,6 +21,13 @@
             <StackPanel HorizontalAlignment="Right"
                         VerticalAlignment="Top"
                         Orientation="Horizontal">
+                <Button Command="{Binding CloneCommand}"
+                        Content="Clone" />
+                <Button Command="{Binding ArchiveCommand}"
+                        Content="Archive"
+                        Style="{StaticResource DangerButtonStyle}" />
+                <Button Command="{Binding CloneAndArchiveCommand}"
+                        Content="Clone &amp; Archive" />
                 <Button Command="{Binding BackToTasksCommand}"
                         Content="Back" />
                 <Button Command="{Binding OpenPromptCommand}"

@@ -30,6 +30,7 @@ public sealed class WorkspacePaths
             ApplicationDirectoryName);
         TasksDirectory = Path.Combine(ApplicationDataDirectory, "tasks");
         TaskBackupsDirectory = Path.Combine(TasksDirectory, "backups");
+        TaskArchivesDirectory = Path.Combine(TasksDirectory, "archives");
         ExamplesDirectory = Path.Combine(ApplicationDataDirectory, "examples");
         TaskExamplesDirectory = Path.Combine(ExamplesDirectory, "tasks");
         DataDirectory = Path.Combine(ApplicationDataDirectory, "data");
@@ -58,6 +59,9 @@ public sealed class WorkspacePaths
 
     /// <summary>Gets the archived task-definition directory.</summary>
     public string TaskBackupsDirectory { get; }
+
+    /// <summary>Gets the immutable archive directory for removed task definitions.</summary>
+    public string TaskArchivesDirectory { get; }
 
     /// <summary>Gets the shipped and user-maintained examples directory.</summary>
     public string ExamplesDirectory { get; }
@@ -116,6 +120,7 @@ public sealed class WorkspacePaths
 
         Directory.CreateDirectory(TasksDirectory);
         Directory.CreateDirectory(TaskBackupsDirectory);
+        Directory.CreateDirectory(TaskArchivesDirectory);
         Directory.CreateDirectory(TaskExamplesDirectory);
         Directory.CreateDirectory(DataDirectory);
         Directory.CreateDirectory(KnowledgeDirectory);

@@ -34,6 +34,14 @@ public interface ITaskStore
     Task<ScheduledTask> SaveAsync(ScheduledTask task, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Moves a persisted task definition into the archive directory.
+    /// </summary>
+    /// <param name="id">The identifier of the task to archive.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The archive file path, or <see langword="null"/> when the task was absent.</returns>
+    Task<string?> ArchiveAsync(string id, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Deletes a task.
     /// </summary>
     /// <param name="id">The task identifier.</param>
