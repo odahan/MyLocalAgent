@@ -1,6 +1,6 @@
 # MyLocalAgent — first-run guide
 
-Application version: **2.1.0**.
+Application version: **2.5.0**.
 
 This guide summarizes the setup used to build the application, publish it, and
 configure its connectors. It does not cover creating a business task, setup
