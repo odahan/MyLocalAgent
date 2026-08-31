@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using System.Windows;
+using System.Windows.Input;
 
 namespace OD.MyLocalAgent.UI;
 
@@ -48,5 +49,13 @@ public partial class TaskCloneDialogWindow : Window
         ValidationText.Text = isValid ? string.Empty : "The id must match [a-z0-9-]+.";
         CloneButton.IsEnabled = isValid;
         return isValid;
+    }
+
+    private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ButtonState == MouseButtonState.Pressed)
+        {
+            DragMove();
+        }
     }
 }
