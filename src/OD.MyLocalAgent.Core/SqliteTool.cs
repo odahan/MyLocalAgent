@@ -370,6 +370,66 @@ public sealed class SqliteTool : ISqliteTool
             StoreProposalCoreAsync(databasePath, title, summary, sourceUrl, used, cancellationToken),
             cancellationToken);
 
+    /// <inheritdoc />
+    [ToolLocalPath("databasePath", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite)]
+    [Tool("sqlite.reserveEditorialSelection", "Validates final novelty and durably reserves approved structured editorial proposals.", 700, RequiredCapability = TaskCapability.SqliteWrite)]
+    public Task<string> ReserveEditorialSelectionAsync(
+        [ToolArgument(WorkflowArgumentKind.String, "Authorized editorial proposal-memory database file path.", Example = "data/editorial-proposals.db")] string databasePath,
+        [ToolArgument(WorkflowArgumentKind.String, "Stable workflow execution identifier.", Example = "9a6c4d8f")] string runId,
+        [ToolArgument(WorkflowArgumentKind.String, "Exact JSON output from research.discover.", Example = "{}", IsLongText = true, IsExcludedFromWorkflowTextEditor = true)] string discoveryJson,
+        [ToolArgument(WorkflowArgumentKind.String, "Schema-validated structured editorial selection JSON.", Example = "{\"proposals\":[]}", IsLongText = true, IsExcludedFromWorkflowTextEditor = true)] string selectionJson,
+        [ToolArgument(WorkflowArgumentKind.Integer, "Semantic-history lookback in months.", Example = "6")] int lookbackMonths = 6,
+        [ToolArgument(WorkflowArgumentKind.Number, "Semantic similarity threshold.", Example = "0.92")] double semanticSimilarityThreshold = 0.92,
+        CancellationToken cancellationToken = default) => ExecuteSanitizedAsync(
+            "sqlite.reserveEditorialSelection", "write", null,
+            ReserveEditorialSelectionCoreAsync(databasePath, runId, discoveryJson, selectionJson, lookbackMonths, semanticSimilarityThreshold, cancellationToken), cancellationToken);
+
+    /// <inheritdoc />
+    [ToolLocalPath("databasePath", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite)]
+    [Tool("sqlite.prepareEditorialReport", "Builds deterministic Markdown only from reserved proposals and approved draft blocks.", 800, RequiredCapability = TaskCapability.SqliteWrite)]
+    public Task<string> PrepareEditorialReportAsync(
+        [ToolArgument(WorkflowArgumentKind.String, "Authorized editorial proposal-memory database file path.", Example = "data/editorial-proposals.db")] string databasePath,
+        [ToolArgument(WorkflowArgumentKind.String, "Stable workflow execution identifier.", Example = "9a6c4d8f")] string runId,
+        [ToolArgument(WorkflowArgumentKind.String, "Schema-validated draft block JSON.", Example = "{\"subjects\":[]}", IsLongText = true, IsExcludedFromWorkflowTextEditor = true)] string draftsJson,
+        [ToolArgument(WorkflowArgumentKind.String, "Markdown report title without the heading marker.", Example = "Veille éditoriale — 05/09/2026", IsLongText = true)] string reportTitle,
+        CancellationToken cancellationToken = default) => ExecuteSanitizedAsync(
+            "sqlite.prepareEditorialReport", "write", null,
+            PrepareEditorialReportCoreAsync(databasePath, runId, draftsJson, reportTitle, cancellationToken), cancellationToken);
+
+    /// <inheritdoc />
+    [ToolLocalPath("databasePath", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite)]
+    [ToolLocalPath("reportPath", LocalPathTargetKind.File, FileSystemAccessMode.ReadOnly)]
+    [Tool("sqlite.confirmEditorialExport", "Confirms that an exported editorial report matches its prepared fingerprint.", 900, RequiredCapability = TaskCapability.SqliteWrite)]
+    public Task<string> ConfirmEditorialExportAsync(
+        [ToolArgument(WorkflowArgumentKind.String, "Authorized editorial proposal-memory database file path.", Example = "data/editorial-proposals.db")] string databasePath,
+        [ToolArgument(WorkflowArgumentKind.String, "Stable workflow execution identifier.", Example = "9a6c4d8f")] string runId,
+        [ToolArgument(WorkflowArgumentKind.String, "Authorized exported Markdown file path.", Example = "reports/run.md")] string reportPath,
+        CancellationToken cancellationToken = default) => ExecuteSanitizedAsync(
+            "sqlite.confirmEditorialExport", "write", null,
+            ConfirmEditorialExportCoreAsync(databasePath, runId, reportPath, cancellationToken), cancellationToken);
+
+    /// <inheritdoc />
+    [ToolLocalPath("databasePath", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite)]
+    [ToolLocalPath("reportsRoot", LocalPathTargetKind.Directory, FileSystemAccessMode.ReadOnly)]
+    [Tool("sqlite.importEditorialHistory", "Inventories or imports historical editorial Markdown reports with preserved dates.", 1000, RequiredCapability = TaskCapability.SqliteWrite)]
+    public Task<string> ImportEditorialHistoryAsync(
+        [ToolArgument(WorkflowArgumentKind.String, "Authorized editorial proposal-memory database file path.", Example = "data/editorial-proposals.db")] string databasePath,
+        [ToolArgument(WorkflowArgumentKind.String, "Authorized root directory containing historical Markdown reports.", Example = "reports/editorial")] string reportsRoot,
+        [ToolArgument(WorkflowArgumentKind.Boolean, "Whether to report changes without modifying the database.", Example = "true")] bool dryRun = true,
+        CancellationToken cancellationToken = default) => ExecuteSanitizedAsync(
+            "sqlite.importEditorialHistory", dryRun ? "read" : "write", null,
+            ImportEditorialHistoryCoreAsync(databasePath, reportsRoot, dryRun, cancellationToken), cancellationToken);
+
+    /// <inheritdoc />
+    [ToolLocalPath("databasePath", LocalPathTargetKind.File, FileSystemAccessMode.ReadWrite)]
+    [Tool("sqlite.rebuildEditorialEmbeddings", "Inventories or rebuilds editorial proposal embeddings with the configured local model.", 1100, RequiredCapability = TaskCapability.SqliteWrite)]
+    public Task<string> RebuildEditorialEmbeddingsAsync(
+        [ToolArgument(WorkflowArgumentKind.String, "Authorized editorial proposal-memory database file path.", Example = "data/editorial-proposals.db")] string databasePath,
+        [ToolArgument(WorkflowArgumentKind.Boolean, "Whether to report required rebuilds without modifying the database.", Example = "true")] bool dryRun = true,
+        CancellationToken cancellationToken = default) => ExecuteSanitizedAsync(
+            "sqlite.rebuildEditorialEmbeddings", dryRun ? "read" : "write", null,
+            RebuildEditorialEmbeddingsCoreAsync(databasePath, dryRun, cancellationToken), cancellationToken);
+
     private async Task<string> CreateProposalDatabaseCoreAsync(string databasePath, CancellationToken cancellationToken)
     {
         ValidateDatabasePathInput(databasePath);
@@ -417,6 +477,60 @@ public sealed class SqliteTool : ISqliteTool
             embeddingModel = result.EmbeddingModel,
             embeddingDimension = result.EmbeddingDimension,
         });
+    }
+
+    private async Task<string> ReserveEditorialSelectionCoreAsync(string databasePath, string runId, string discoveryJson, string selectionJson, int lookbackMonths, double threshold, CancellationToken cancellationToken)
+    {
+        var path = ResolveExistingProposalDatabase(databasePath);
+        var result = await _proposalMemoryService.ReserveSelectionAsync(path, runId, discoveryJson, selectionJson, lookbackMonths, threshold, cancellationToken).ConfigureAwait(false);
+        return ToolJson.Serialize(new
+        {
+            result.RunId, result.Status, result.Approved, result.Rejected, result.EmbeddingModel,
+            result.EmbeddingDimension, result.ProjectionVersion, result.IncompatibleEmbeddingCount,
+            approvedCount = result.Approved.Count, rejectedCount = result.Rejected.Count,
+        });
+    }
+
+    private async Task<string> PrepareEditorialReportCoreAsync(string databasePath, string runId, string draftsJson, string reportTitle, CancellationToken cancellationToken)
+    {
+        var path = ResolveExistingProposalDatabase(databasePath);
+        var result = await _proposalMemoryService.PrepareReportAsync(path, runId, draftsJson, reportTitle, cancellationToken).ConfigureAwait(false);
+        return ToolJson.Serialize(new { result.RunId, result.Status, result.Markdown, result.Sha256, result.SubjectCount });
+    }
+
+    private async Task<string> ConfirmEditorialExportCoreAsync(string databasePath, string runId, string reportPath, CancellationToken cancellationToken)
+    {
+        var path = ResolveExistingProposalDatabase(databasePath);
+        ValidateDatabasePathInput(reportPath);
+        var resolvedReportPath = _sandbox.Resolve(reportPath, FileSystemAccessMode.ReadOnly, _context);
+        var result = await _proposalMemoryService.ConfirmExportAsync(path, runId, resolvedReportPath, cancellationToken).ConfigureAwait(false);
+        return ToolJson.Serialize(new { result.RunId, result.Status, result.ReportPath, result.Sha256 });
+    }
+
+    private string ResolveExistingProposalDatabase(string databasePath)
+    {
+        ValidateDatabasePathInput(databasePath);
+        var path = _sandbox.Resolve(databasePath, FileSystemAccessMode.ReadWrite, _context);
+        if (!File.Exists(path)) throw new FileNotFoundException("The proposal-memory database file does not exist.");
+        if (Directory.Exists(path)) throw new InvalidOperationException("The proposal-memory database path must identify a file.");
+        return path;
+    }
+
+    private async Task<string> ImportEditorialHistoryCoreAsync(string databasePath, string reportsRoot, bool dryRun, CancellationToken cancellationToken)
+    {
+        var database = ResolveExistingProposalDatabase(databasePath);
+        ValidateDatabasePathInput(reportsRoot);
+        var root = _sandbox.Resolve(reportsRoot, FileSystemAccessMode.ReadOnly, _context);
+        if (!Directory.Exists(root)) throw new DirectoryNotFoundException("The editorial reports root does not exist.");
+        var result = await _proposalMemoryService.ImportHistoryAsync(database, root, dryRun, cancellationToken).ConfigureAwait(false);
+        return ToolJson.Serialize(result);
+    }
+
+    private async Task<string> RebuildEditorialEmbeddingsCoreAsync(string databasePath, bool dryRun, CancellationToken cancellationToken)
+    {
+        var database = ResolveExistingProposalDatabase(databasePath);
+        var result = await _proposalMemoryService.RebuildEmbeddingsAsync(database, dryRun, cancellationToken).ConfigureAwait(false);
+        return ToolJson.Serialize(result);
     }
 
     private SqliteConnection OpenRead(string databasePath)

@@ -181,6 +181,11 @@ internal static class WorkflowPlaceholderResolver
             return context.ToJson();
         }
 
+        if (string.Equals(placeholder, "workflow.runId", StringComparison.OrdinalIgnoreCase))
+        {
+            return context.RunId;
+        }
+
         const string forEachItemPrefix = "foreach.item";
         if (placeholder.StartsWith(forEachItemPrefix, StringComparison.OrdinalIgnoreCase))
         {

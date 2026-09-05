@@ -10,7 +10,7 @@ public static partial class WorkflowPlaceholderCatalog
     /// <summary>
     /// Gets the version of the placeholder contract supplied to workflow assistants.
     /// </summary>
-    public const string Version = "3";
+    public const string Version = "4";
 
     /// <summary>
     /// Gets the structured placeholder templates shared by validation, execution, and authoring.
@@ -41,6 +41,7 @@ public static partial class WorkflowPlaceholderCatalog
             SupportsStructuredSelector = true,
         },
         new("{{workflow.context}}", "ordered successful outputs before the current step"),
+        new("{{workflow.runId}}", "stable unique identifier of the current workflow execution"),
         new("{{foreach.item}}", "current item of a forEach step")
         {
             Details =
@@ -135,6 +136,7 @@ public static partial class WorkflowPlaceholderCatalog
         ArgumentNullException.ThrowIfNull(placeholder);
         if (placeholder.Equals("task.prompt", StringComparison.OrdinalIgnoreCase) ||
             placeholder.Equals("workflow.context", StringComparison.OrdinalIgnoreCase) ||
+            placeholder.Equals("workflow.runId", StringComparison.OrdinalIgnoreCase) ||
             placeholder.Equals("foreach.position", StringComparison.OrdinalIgnoreCase) ||
             placeholder.StartsWith("foreach.item", StringComparison.OrdinalIgnoreCase))
         {
@@ -176,6 +178,7 @@ public static partial class WorkflowPlaceholderCatalog
             placeholder.Equals("task.name", StringComparison.OrdinalIgnoreCase) ||
             placeholder.Equals("task.prompt", StringComparison.OrdinalIgnoreCase) ||
             placeholder.Equals("workflow.context", StringComparison.OrdinalIgnoreCase) ||
+            placeholder.Equals("workflow.runId", StringComparison.OrdinalIgnoreCase) ||
             ModelPromptPlaceholderResolver.IsSupported(placeholder))
         {
             error = null;

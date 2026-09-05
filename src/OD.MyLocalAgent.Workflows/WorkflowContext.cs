@@ -18,7 +18,11 @@ public sealed class WorkflowContext
     public WorkflowContext()
     {
         _readOnlyOutputs = new ReadOnlyDictionary<string, string>(_outputs);
+        RunId = Guid.NewGuid().ToString("N");
     }
+
+    /// <summary>Gets the stable identifier of this workflow execution.</summary>
+    public string RunId { get; }
 
     /// <summary>
     /// Gets the step outputs in insertion order.

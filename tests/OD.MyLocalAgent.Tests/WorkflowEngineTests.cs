@@ -1392,6 +1392,31 @@ public sealed class WorkflowEngineTests
         action.Should().Throw<WorkflowStructuredResponseException>().WithMessage("*category*");
     }
 
+    /// <summary>Verifies array cardinality is enforced locally for structured AI responses.</summary>
+    [Fact]
+    public void ResponseSchemaRejectsArrayBelowMinimumItems()
+    {
+        using var schema = JsonDocument.Parse("""
+            {
+              "type": "object",
+              "properties": {
+                "proposals": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 3,
+                  "items": { "type": "string" }
+                }
+              },
+              "required": ["proposals"]
+            }
+            """);
+
+        WorkflowResponseSchemaValidator.ValidateSchema(schema.RootElement);
+        var action = () => WorkflowResponseSchemaValidator.ValidateResponse("{\"proposals\":[]}", schema.RootElement);
+
+        action.Should().Throw<WorkflowStructuredResponseException>().WithMessage("*outside the allowed range*");
+    }
+
     /// <summary>Verifies Stage 29 keeps structured prompt responses separate from agentic tool loops.</summary>
     [Fact]
     public void ResponseSchemaCannotBeCombinedWithPromptTools()

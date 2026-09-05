@@ -609,7 +609,7 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
             ? new ChatOptions
             {
                 ResponseFormat = ChatResponseFormat.ForJsonSchema(
-                    schema,
+                    ProviderResponseSchemaAdapter.Adapt(providerName, schema),
                     "workflow_response",
                     "Structured workflow step response"),
             }

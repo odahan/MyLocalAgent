@@ -10,7 +10,7 @@ public static class WorkflowResponseSchemaValidator
     private static readonly HashSet<string> AllowedKeywords = new(StringComparer.Ordinal)
     {
         "type", "properties", "required", "additionalProperties", "enum", "const",
-        "minimum", "maximum", "minLength", "maxLength", "items", "description",
+        "minimum", "maximum", "minLength", "maxLength", "minItems", "maxItems", "items", "description",
     };
 
     /// <summary>Validates a persisted response schema.</summary>
@@ -107,6 +107,8 @@ public static class WorkflowResponseSchemaValidator
         ValidateOptionalKind(schema, "maximum", JsonValueKind.Number, path);
         ValidateOptionalNonNegativeInteger(schema, "minLength", path);
         ValidateOptionalNonNegativeInteger(schema, "maxLength", path);
+        ValidateOptionalNonNegativeInteger(schema, "minItems", path);
+        ValidateOptionalNonNegativeInteger(schema, "maxItems", path);
         if (schema.TryGetProperty("items", out var items))
         {
             if (items.ValueKind != JsonValueKind.Object)
@@ -178,12 +180,17 @@ public static class WorkflowResponseSchemaValidator
         {
             ValidateObject(value, schema, path, depth);
         }
-        else if (value.ValueKind == JsonValueKind.Array && schema.TryGetProperty("items", out var items))
+        else if (value.ValueKind == JsonValueKind.Array)
         {
-            var index = 0;
-            foreach (var item in value.EnumerateArray())
+            var itemsCount = value.GetArrayLength();
+            ValidateRange(itemsCount, schema, "minItems", "maxItems", path);
+            if (schema.TryGetProperty("items", out var items))
             {
-                ValidateInstance(item, items, $"{path}[{index++}]", depth + 1);
+                var index = 0;
+                foreach (var item in value.EnumerateArray())
+                {
+                    ValidateInstance(item, items, $"{path}[{index++}]", depth + 1);
+                }
             }
         }
         else if (value.ValueKind == JsonValueKind.String)

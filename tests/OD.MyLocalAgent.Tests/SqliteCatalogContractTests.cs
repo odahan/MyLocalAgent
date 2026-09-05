@@ -99,6 +99,11 @@ public sealed class SqliteCatalogContractTests
             ["sqlite.execute"] = ("sqlite_execute", "ExecuteAsync", ["databasePath", "sql", "parameters", "createIfMissing"], ["parameters", "createIfMissing"], FileSystemAccessMode.ReadWrite, TaskCapability.SqliteWrite),
             ["sqlite.createProposalDatabase"] = ("sqlite_create_proposal_database", "CreateProposalDatabaseAsync", ["databasePath"], [], FileSystemAccessMode.ReadWrite, TaskCapability.SqliteWrite),
             ["sqlite.storeProposal"] = ("sqlite_store_proposal", "StoreProposalAsync", ["databasePath", "title", "summary", "sourceUrl", "used"], ["sourceUrl", "used"], FileSystemAccessMode.ReadWrite, TaskCapability.SqliteWrite),
+            ["sqlite.reserveEditorialSelection"] = ("sqlite_reserve_editorial_selection", "ReserveEditorialSelectionAsync", ["databasePath", "runId", "discoveryJson", "selectionJson", "lookbackMonths", "semanticSimilarityThreshold"], ["lookbackMonths", "semanticSimilarityThreshold"], FileSystemAccessMode.ReadWrite, TaskCapability.SqliteWrite),
+            ["sqlite.prepareEditorialReport"] = ("sqlite_prepare_editorial_report", "PrepareEditorialReportAsync", ["databasePath", "runId", "draftsJson", "reportTitle"], [], FileSystemAccessMode.ReadWrite, TaskCapability.SqliteWrite),
+            ["sqlite.confirmEditorialExport"] = ("sqlite_confirm_editorial_export", "ConfirmEditorialExportAsync", ["databasePath", "runId", "reportPath"], [], FileSystemAccessMode.ReadWrite, TaskCapability.SqliteWrite),
+            ["sqlite.importEditorialHistory"] = ("sqlite_import_editorial_history", "ImportEditorialHistoryAsync", ["databasePath", "reportsRoot", "dryRun"], ["dryRun"], FileSystemAccessMode.ReadWrite, TaskCapability.SqliteWrite),
+            ["sqlite.rebuildEditorialEmbeddings"] = ("sqlite_rebuild_editorial_embeddings", "RebuildEditorialEmbeddingsAsync", ["databasePath", "dryRun"], ["dryRun"], FileSystemAccessMode.ReadWrite, TaskCapability.SqliteWrite),
         };
 
         var definitions = ToolMap.Definitions.Where(static definition => definition.ToolGroup == ToolGroups.Sqlite).ToArray();
@@ -111,7 +116,7 @@ public sealed class SqliteCatalogContractTests
             definition.Arguments.Should().Equal(contract.Arguments);
             definition.OptionalArguments.Should().Equal(contract.Optional);
             definition.RequiredCapability.Should().Be(contract.Capability);
-            definition.LocalPathArguments.Should().ContainSingle().Which.RequiredAccess.Should().Be(contract.Access);
+            definition.LocalPathArguments.Single(item => item.ArgumentName == "databasePath").RequiredAccess.Should().Be(contract.Access);
         }
     }
 

@@ -8,7 +8,7 @@ using Microsoft.Extensions.Options;
 namespace OD.MyLocalAgent.Core;
 
 /// <summary>Implements the task-owned editorial proposal-memory contract.</summary>
-public sealed class ProposalMemoryService : IProposalMemoryService
+public sealed partial class ProposalMemoryService : IProposalMemoryService
 {
     private const string TableName = "editorial_proposals";
     private const string CreateTableSql = """
@@ -120,6 +120,8 @@ public sealed class ProposalMemoryService : IProposalMemoryService
                 ValidateSchema(connection, transaction);
             }
 
+            EnsureEditorialSchema(connection, transaction);
+
             transaction.Commit();
             return new ProposalDatabaseResult(!existed, !tableExists, true);
         }
@@ -182,7 +184,7 @@ public sealed class ProposalMemoryService : IProposalMemoryService
                     title = excluded.title,
                     summary = excluded.summary,
                     source_url = excluded.source_url,
-                    used = excluded.used,
+                    used = MAX(editorial_proposals.used, excluded.used),
                     embedding_model = excluded.embedding_model,
                     embedding_dimension = excluded.embedding_dimension,
                     embedding = excluded.embedding

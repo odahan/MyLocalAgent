@@ -1,0 +1,32 @@
+[
+  {
+    "id": "nativeaot-same-url",
+    "expected": "Duplicate",
+    "first": {"title": ".NET 11 Preview 7 makes NativeAOT the default", "url": "https://byteiota.com/net-11-preview-7-nativeaot-default-and-faster-builds/"},
+    "second": {"title": "NativeAOT par défaut dans .NET 11 Preview 7", "url": "https://byteiota.com/net-11-preview-7-nativeaot-default-and-faster-builds/?utm_source=watch"}
+  },
+  {
+    "id": "copilot-same-announcement",
+    "expected": "Duplicate",
+    "first": {"title": "GitHub Copilot in Visual Studio August update", "url": "https://github.blog/changelog/2026-08-28-github-copilot-in-visual-studio-august-update-2/"},
+    "second": {"title": "Mise à jour d’août de Copilot pour Visual Studio", "url": "https://github.blog/changelog/2026-08-28-github-copilot-in-visual-studio-august-update-2/?utm_campaign=daily"}
+  },
+  {
+    "id": "csharp-union-types-cross-site",
+    "expected": "Duplicate",
+    "first": {"title": "C# union types proposal", "url": "https://www.theregister.com/example/csharp-union-types"},
+    "second": {"title": "Les types union arrivent en C#", "url": "https://lavx.hu/example/csharp-union-types"}
+  },
+  {
+    "id": "release-page-material-update",
+    "expected": "MaterialUpdate",
+    "first": {"title": "Product 1.0 released", "url": "https://example.com/releases", "version": "1.0"},
+    "second": {"title": "Product 2.0 fixes startup defect", "url": "https://example.com/releases", "version": "2.0", "newFacts": ["A distinct startup defect is fixed."]}
+  },
+  {
+    "id": "ambiguous-rewording",
+    "expected": "Uncertain",
+    "first": {"title": "Agent framework announcement", "url": "https://example.com/agent-one"},
+    "second": {"title": "A new angle on agent frameworks", "url": "https://example.net/agent-two"}
+  }
+]

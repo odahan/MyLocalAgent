@@ -1,6 +1,6 @@
 # What's Where
 
-Application version: **2.5.0**.
+Application version: **2.5.1**.
 
 All file and folder locations used by OD.MyLocalAgent after deployment.
 
@@ -72,14 +72,15 @@ workflow, for example
 under `.od-my-local-agent`, are not global application state, and must be covered by the task's
 ReadWrite Authorized location. Back them up or remove them with the other user-owned files in
 that directory. Only `sqlite.createProposalDatabase` may create or migrate their schema;
-`research.discover` opens them ReadOnly and `sqlite.storeProposal` records selected proposals.
+`research.discover` opens them ReadOnly. The 2.5.1 editorial workflow reserves selections,
+prepares reports, and confirms exports through dedicated deterministic SQLite aliases.
 
 | Proposal-memory implementation | Responsibility |
 |---|---|
-| `src/OD.MyLocalAgent.Core/ProposalMemoryService.cs` | Schema creation/migration, idempotent storage, normalization, local embeddings, and exact cosine filtering |
+| `src/OD.MyLocalAgent.Core/ProposalMemoryService.cs` and `ProposalMemoryService.Editorial.cs` | Schema creation/migration, deterministic reservation/export lifecycle, normalization, local embeddings, and exact cosine filtering |
 | `src/OD.MyLocalAgent.Core/ResearchDiscoverTool.cs` | Optional ReadOnly proposal-memory filtering and aggregate diagnostics |
-| `src/OD.MyLocalAgent.Core/SqliteTool.cs` | Authorized `sqlite.createProposalDatabase` and `sqlite.storeProposal` aliases |
-| `Docs/samples/editorial-watch-daily.json` | Complete scheduled editorial workflow with proposal memory |
+| `src/OD.MyLocalAgent.Core/SqliteTool.cs` | Authorized proposal-memory, reservation, report, historical-import, and embedding-rebuild aliases |
+| `Docs/samples/editorial-watch-daily-db.json` | Complete scheduled editorial workflow with deterministic anti-repetition and confirmed export |
 
 ## Configuration Layers
 

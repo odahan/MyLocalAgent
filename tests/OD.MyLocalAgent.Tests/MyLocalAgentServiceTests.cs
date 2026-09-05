@@ -135,6 +135,32 @@ public sealed class MyLocalAgentServiceTests
             .And.Contain("\"category\"");
     }
 
+    /// <summary>Removes Ollama grammar-incompatible size keywords without changing local validation.</summary>
+    [Fact]
+    public void OllamaResponseSchemaProjectionRetainsTheApplicationContractLocally()
+    {
+        using var document = JsonDocument.Parse("""
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["value"],
+              "properties": {
+                "value": { "type": "string", "minLength": 1, "maxLength": 2 },
+                "items": { "type": "array", "minItems": 1, "maxItems": 2, "items": { "type": "string" } }
+              }
+            }
+            """);
+
+        var providerSchema = ProviderResponseSchemaAdapter.Adapt(AIOptions.OllamaProvider, document.RootElement);
+
+        providerSchema.GetRawText().Should().NotContain("minLength").And.NotContain("maxLength")
+            .And.NotContain("minItems").And.NotContain("maxItems");
+        document.RootElement.GetRawText().Should().Contain("minLength").And.Contain("maxLength")
+            .And.Contain("minItems").And.Contain("maxItems");
+        var invalidResponse = () => WorkflowResponseSchemaValidator.ValidateResponse("{\"value\":\"abc\"}", document.RootElement);
+        invalidResponse.Should().Throw<WorkflowStructuredResponseException>().WithMessage("*outside the allowed range*");
+    }
+
     /// <summary>
     /// Verifies configured prompt-step instructions are appended without replacing safety rules.
     /// </summary>

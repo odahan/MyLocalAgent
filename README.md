@@ -1,6 +1,6 @@
 # OD.MyLocalAgent
 
-Current application release: **2.5.0**.
+Current application release: **2.5.1**.
 
 OD.MyLocalAgent is a native Windows desktop application for running scheduled, AI-driven
 tasks locally. It combines a WPF management UI, a headless runner, Ollama, deterministic
@@ -219,7 +219,8 @@ withheld. Disabled or failed screening still uses marked Base64—there is no ra
 `research.discover` adds deterministic multi-query discovery for editorial and technical
 watch workflows. In `sliding` mode it performs one collection with a seven-day absolute
 `after:yyyy-MM-dd` hint, then evaluates the two, four, and seven-day local-calendar windows in
-memory until `minimumDocuments` is reached. Correctness is enforced locally after HTML, Open
+memory until `minimumDocuments` is reached. This is a collection target, not an output threshold:
+when it is not reached, eligible candidates are still returned with `insufficient=true`. Correctness is enforced locally after HTML, Open
 Graph, JSON-LD, and `<time>` date extraction. Old, future, and unknown-date documents are excluded
 from sliding results; `freshnessWindow: "none"` retains undated documents. `windowHistory` reports
 each local evaluation and its stop reason.
@@ -257,10 +258,11 @@ Only aggregate memory counters are returned: `proposalMemoryEnabled`,
 `rejectedPreviousProposalSemanticCount`, and `rejectedPreviousProposalCount`. Prior titles,
 summaries, URLs, paths, keys, and vectors are never exposed in discovery output or normal logs.
 
-The bundled editorial workflows fail closed on insufficient source material. The daily LinkedIn
-sample produces no topics or posts when discovery returns zero candidates and never treats an
-empty result as an editorial trend. Web-search throttling or unavailability is reported separately
-from a verified zero-source result. The Sunday sample writes a focused article from one source,
+The bundled editorial workflows do not turn an incomplete collection into a rejection. The daily DB
+sample produces no topics or posts only when Discover delivers zero candidates or when every selected
+proposal is rejected by final deterministic anti-repetition checks. With one or more delivered
+candidates, its structured selector must produce one to three proposals. Web-search throttling or
+unavailability is reported separately from a verified zero-source result. The Sunday sample writes a focused article from one source,
 a limited cross-analysis from two, and a full multi-source article from three or more. Only zero
 candidates produce a factual collection diagnostic without a long-form article.
 
@@ -470,6 +472,11 @@ The following side effects are disabled by default:
 | `sqlite.execute` | `SqliteWrite` |
 | `sqlite.createProposalDatabase` | `SqliteWrite` |
 | `sqlite.storeProposal` | `SqliteWrite` |
+| `sqlite.reserveEditorialSelection` | `SqliteWrite` |
+| `sqlite.prepareEditorialReport` | `SqliteWrite` |
+| `sqlite.confirmEditorialExport` | `SqliteWrite` |
+| `sqlite.importEditorialHistory` | `SqliteWrite` |
+| `sqlite.rebuildEditorialEmbeddings` | `SqliteWrite` |
 | `filesystem.shellExecute` | `ShellExecute` |
 | `filesystem.powerShell` | `PowerShellExecution` |
 | archive write/extract aliases | `ArchiveWrite` |
@@ -705,7 +712,8 @@ uses optional `fallback`. Decisions are traced but do not replace `{{previous.ou
 A tool-free `ai.prompt` may declare a top-level `responseSchema`. The schema is sent through the
 active provider's structured-output contract and the returned JSON object is validated locally
 before entering workflow context. Stage 29 deliberately rejects combining `responseSchema` with
-prompt `toolAliases`.
+prompt `toolAliases`. Array cardinality can be constrained with `minItems` and `maxItems`; these
+limits are enforced locally even when a provider requires a reduced generation schema.
 
 ```json
 {
@@ -1097,9 +1105,12 @@ persisted by these dialogs; the only outbound copy is the explicit Copy placehol
 
 ### SQLite
 
-The `sqlite` group provides four general bounded operations and two proposal-memory operations
+The `sqlite` group provides four general bounded operations, two legacy proposal-memory operations,
+and five deterministic editorial operations
 against one authorized local database file: `sqlite.listObjects`, `sqlite.describeTable`,
-`sqlite.query`, `sqlite.execute`, `sqlite.createProposalDatabase`, and `sqlite.storeProposal`. Add
+`sqlite.query`, `sqlite.execute`, `sqlite.createProposalDatabase`, `sqlite.storeProposal`,
+`sqlite.reserveEditorialSelection`, `sqlite.prepareEditorialReport`, `sqlite.confirmEditorialExport`,
+`sqlite.importEditorialHistory`, and `sqlite.rebuildEditorialEmbeddings`. Add
 `"sqlite"` to the task `tools` list. Relative paths stay under `FileSystem:RootPath`; absolute
 paths need an **Authorized locations** grant. Read aliases require ReadOnly access.
 `sqlite.execute` additionally requires ReadWrite access and the `SqliteWrite` task capability.
@@ -1118,6 +1129,11 @@ statement. Transaction controls, `ATTACH`, `DETACH`, `PRAGMA`, `VACUUM`, extensi
 | `sqlite.execute` | `databasePath`, `sql` | `parameters`, `createIfMissing` | Runs one modifying statement in an application-owned transaction. |
 | `sqlite.createProposalDatabase` | `databasePath` | — | Creates or validates the application-owned proposal schema without caller SQL. |
 | `sqlite.storeProposal` | `databasePath`, `title`, `summary` | `sourceUrl`, `used` | Calculates a local embedding and atomically stores an idempotent proposal. |
+| `sqlite.reserveEditorialSelection` | `databasePath`, `runId`, `discoveryJson`, `selectionJson` | `lookbackMonths`, `semanticSimilarityThreshold` | Applies final exact/semantic novelty checks and reserves approved proposals. |
+| `sqlite.prepareEditorialReport` | `databasePath`, `runId`, `draftsJson`, `reportTitle` | — | Builds deterministic Markdown from reservations and aligned drafts. |
+| `sqlite.confirmEditorialExport` | `databasePath`, `runId`, `reportPath` | — | Confirms the exported file matches the prepared fingerprint. |
+| `sqlite.importEditorialHistory` | `databasePath`, `reportsRoot` | `dryRun` | Inventories or imports dated historical Markdown reports. |
+| `sqlite.rebuildEditorialEmbeddings` | `databasePath` | `dryRun` | Inventories or rebuilds local editorial embeddings. |
 
 Parameters are a JSON object whose keys retain the native `$`, `:`, or `@` prefix; values may be
 null, Boolean, integer, finite number, or string. Values are bound by SQLite, never concatenated
@@ -1203,6 +1219,11 @@ JSON, and every new-task whitelist choice starts disabled.
 | `sqlite.execute` | `sqlite_execute` | `SqliteTool.ExecuteAsync` | `databasePath`, `sql`, optional object `parameters`, optional `createIfMissing` | `SqliteWrite` |
 | `sqlite.createProposalDatabase` | `sqlite_create_proposal_database` | `SqliteTool.CreateProposalDatabaseAsync` | `databasePath` | `SqliteWrite` |
 | `sqlite.storeProposal` | `sqlite_store_proposal` | `SqliteTool.StoreProposalAsync` | `databasePath`, `title`, `summary`, optional `sourceUrl`, optional `used` | `SqliteWrite` |
+| `sqlite.reserveEditorialSelection` | `sqlite_reserve_editorial_selection` | `SqliteTool.ReserveEditorialSelectionAsync` | `databasePath`, `runId`, `discoveryJson`, `selectionJson`, optional lookback/threshold | `SqliteWrite` |
+| `sqlite.prepareEditorialReport` | `sqlite_prepare_editorial_report` | `SqliteTool.PrepareEditorialReportAsync` | `databasePath`, `runId`, `draftsJson`, `reportTitle` | `SqliteWrite` |
+| `sqlite.confirmEditorialExport` | `sqlite_confirm_editorial_export` | `SqliteTool.ConfirmEditorialExportAsync` | `databasePath`, `runId`, `reportPath` | `SqliteWrite` |
+| `sqlite.importEditorialHistory` | `sqlite_import_editorial_history` | `SqliteTool.ImportEditorialHistoryAsync` | `databasePath`, `reportsRoot`, optional `dryRun` | `SqliteWrite` |
+| `sqlite.rebuildEditorialEmbeddings` | `sqlite_rebuild_editorial_embeddings` | `SqliteTool.RebuildEditorialEmbeddingsAsync` | `databasePath`, optional `dryRun` | `SqliteWrite` |
 | `http.get` | `http_get` | `HttpTool.GetAsync` | `url` | — |
 | `http.post` | `http_post` | `HttpTool.PostAsync` | `url`, `body`, `contentType` | `HttpPost` |
 | `http.getText` | `http_get_text` | `HttpTool.GetTextAsync` | `url` | — |

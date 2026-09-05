@@ -17,4 +17,14 @@ public interface ISqliteTool
     Task<string> CreateProposalDatabaseAsync(string databasePath, CancellationToken cancellationToken = default);
     /// <summary>Stores one editorial proposal with a locally generated embedding.</summary>
     Task<string> StoreProposalAsync(string databasePath, string title, string summary, string? sourceUrl = null, bool used = false, CancellationToken cancellationToken = default);
+    /// <summary>Validates final structured novelty and reserves approved editorial proposals.</summary>
+    Task<string> ReserveEditorialSelectionAsync(string databasePath, string runId, string discoveryJson, string selectionJson, int lookbackMonths = 6, double semanticSimilarityThreshold = 0.92, CancellationToken cancellationToken = default);
+    /// <summary>Assembles approved draft blocks into deterministic Markdown and marks the run ready.</summary>
+    Task<string> PrepareEditorialReportAsync(string databasePath, string runId, string draftsJson, string reportTitle, CancellationToken cancellationToken = default);
+    /// <summary>Confirms that an exported report matches the prepared immutable content.</summary>
+    Task<string> ConfirmEditorialExportAsync(string databasePath, string runId, string reportPath, CancellationToken cancellationToken = default);
+    /// <summary>Inventories or imports historical editorial Markdown reports.</summary>
+    Task<string> ImportEditorialHistoryAsync(string databasePath, string reportsRoot, bool dryRun = true, CancellationToken cancellationToken = default);
+    /// <summary>Inventories or rebuilds editorial proposal embeddings.</summary>
+    Task<string> RebuildEditorialEmbeddingsAsync(string databasePath, bool dryRun = true, CancellationToken cancellationToken = default);
 }

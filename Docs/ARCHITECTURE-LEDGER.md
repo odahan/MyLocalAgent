@@ -2337,3 +2337,32 @@ compilation, freshness-window expansion, document classification, and late prote
 - No package or application-owned database changed. The bundled daily editorial workflow owns
   its database path, initializes it before discovery, and exposes only `sqlite.storeProposal`
   to its bounded agentic prompt step.
+
+# Version 2.5.1 — Discover anti-repetition and deterministic editorial delivery (2026-09-05)
+
+- `minimumDocuments` remains a bounded collection target for `research.discover`: it controls
+  fallback queries and 2→4→7-day window selection, but never suppresses eligible candidates.
+  A shortfall is observable through `insufficient=true` and `insufficientReason`.
+- Discovery filtering remains early and ReadOnly (canonical URL, normalized title, compatible
+  local cosine); a second, transactionally serialized filter is applied after structured
+  selection. This separates finding candidates from committing editorial novelty.
+- The SQLite tool group adds `sqlite.reserveEditorialSelection`,
+  `sqlite.prepareEditorialReport`, `sqlite.confirmEditorialExport`,
+  `sqlite.importEditorialHistory`, and `sqlite.rebuildEditorialEmbeddings`. All writes require
+  the existing `SqliteWrite` capability and authorized local paths; no caller supplies SQL,
+  embeddings, fingerprints, or transaction control.
+- Reservation records an idempotent run keyed by `{{workflow.runId}}`, accepts only source IDs
+  delivered by Discover, rejects exact/semantic duplicates deterministically, and makes only
+  approved proposals available to the drafting step. Report preparation requires exactly one
+  aligned draft per approved proposal; export confirmation verifies the prepared SHA-256.
+- The DB daily workflow routes `candidateCount=0` to an empty reservation. If candidates exist,
+  its local response schema requires 1–3 selections (`minItems`/`maxItems`) and retries invalid
+  model output twice. An empty report can therefore result only from no delivered candidates or
+  from final deterministic rejection of every selection.
+- `WorkflowResponseSchemaValidator` adds portable array-cardinality checks. Ollama generation
+  receives a reduced schema without size keywords because its grammar compiler rejects some
+  valid JSON Schema bounds; the original schema is enforced locally after generation.
+- Historical report import and embedding rebuild default to dry-run so operators can inspect
+  effects before mutating task-owned editorial history.
+- Verification: 838 non-integration tests passed, one expected local Ollama integration probe
+  was skipped, and `git diff --check` was clean before release publication.
