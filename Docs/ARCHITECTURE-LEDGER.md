@@ -2338,6 +2338,17 @@ compilation, freshness-window expansion, document classification, and late prote
   its database path, initializes it before discovery, and exposes only `sqlite.storeProposal`
   to its bounded agentic prompt step.
 
+# Version 2.5.3 — Preserve Gmail analysis after individual AI failures (2026-09-08)
+
+- An AI prompt repeated over Gmail messages now converts an individual provider timeout,
+  cancellation, invalid structured response, or other analysis exception into a deterministic
+  `A vérifier` record and continues with the remaining messages.
+- Explicit cancellation of the complete task still stops execution promptly.
+- The daily Gmail classification timeout is raised from 5 to 15 minutes for reasoning mode, and
+  the report formatter includes the deterministic review category.
+- Regression coverage verifies that completed classifications survive, the failing item contains
+  no protected message body, later messages are processed, and the downstream write step runs.
+
 # Version 2.5.2 — Honor explicit AI prompt reasoning (2026-09-07)
 
 - Removed the service-level override that silently disabled reasoning for every `ai.prompt` call.

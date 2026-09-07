@@ -371,6 +371,7 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                 modelContext);
             var items = ParseForEachItems(source, step.Id);
             var outputs = new List<string>(items.Count);
+            var reviewOnFailure = GmailAnalysisFallback.AppliesTo(step, task);
 
             for (var index = 0; index < items.Count; index++)
             {
@@ -401,7 +402,9 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                         outputs.Add(output);
                         break;
                     }
-                    catch (Exception exception) when (exception is not OperationCanceledException)
+                    catch (Exception exception) when (
+                        !cancellationToken.IsCancellationRequested &&
+                        (reviewOnFailure || exception is not OperationCanceledException))
                     {
                         if (policy == WorkflowErrorPolicy.Retry &&
                             iterationAttempts <= step.RetryCount)
@@ -420,6 +423,17 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                                 _timeProvider,
                                 cancellationToken).ConfigureAwait(false);
                             continue;
+                        }
+
+                        if (reviewOnFailure)
+                        {
+                            _logger.LogWarning(
+                                "Gmail analysis failed for step {StepId}, item {ForEachPosition} ({ExceptionType}); requiring human review and continuing.",
+                                step.Id,
+                                iteration.Position,
+                                exception.GetType().Name);
+                            outputs.Add(GmailAnalysisFallback.Create(iteration.Item));
+                            break;
                         }
 
                         throw new InvalidOperationException(

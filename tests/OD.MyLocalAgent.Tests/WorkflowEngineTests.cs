@@ -582,6 +582,102 @@ public sealed class WorkflowEngineTests
         agent.VerifyAll();
     }
 
+    /// <summary>Verifies failed Gmail analyses preserve the prefix, continue, and reach the write step.</summary>
+    [Theory]
+    [InlineData("timeout")]
+    [InlineData("cancellation")]
+    [InlineData("exception")]
+    [InlineData("json")]
+    public async Task GmailAnalysisFailureProducesReviewAndContinues(string failure)
+    {
+        string? saved = null;
+        var registry = new RecordingToolRegistry((alias, arguments, _) =>
+        {
+            if (alias == "gmail.readRecent")
+            {
+                return Task.FromResult("""{"messages":[{"id":"first"},{"id":"failed","receivedAt":"2026-09-07","content":"protected-secret"},{"id":"last"}]}""");
+            }
+
+            saved = arguments.GetProperty("content").GetString();
+            return Task.FromResult("saved");
+        });
+        var calls = 0;
+        var agent = new Mock<IMyLocalAgentService>(MockBehavior.Strict);
+        agent.Setup(service => service.RunPromptWithoutToolsAsync(
+                It.IsAny<string>(), It.IsAny<EffectiveGenerationPolicy>(),
+                It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns<string, EffectiveGenerationPolicy, string, CancellationToken>((prompt, policy, _, _) =>
+            {
+                policy.ReasoningEnabled.Should().BeTrue();
+                calls++;
+                if (calls == 2)
+                {
+                    throw failure switch
+                    {
+                        "timeout" => new TimeoutException("model timeout"),
+                        "cancellation" => new TaskCanceledException("provider timeout"),
+                        "json" => new JsonException("invalid response"),
+                        _ => new InvalidOperationException("model failure"),
+                    };
+                }
+
+                return Task.FromResult(new AgentRunResult(prompt, "Test"));
+            });
+        var task = CreateTask([
+            Step("gmail.readRecent", "mails", """{"daysBack":1}"""),
+            Step("ai.prompt", "reviews", """{"prompt":"{{foreach.item.id}}","thinking":true}""") with
+            {
+                ForEach = "{{mails.output.messages}}",
+            },
+            Step("filesystem.write", "saved", """{"path":"report.json","content":"{{reviews.output}}"}"""),
+        ]) with { Tools = [ToolGroups.FileSystem, ToolGroups.Gmail] };
+
+        var result = await CreateEngine(registry, agentService: agent.Object)
+            .ExecuteAsync(task, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        calls.Should().Be(3);
+        using var document = JsonDocument.Parse(saved!);
+        var records = document.RootElement;
+        records.GetArrayLength().Should().Be(3);
+        records[0].GetString().Should().Be("first");
+        records[2].GetString().Should().Be("last");
+        records[1].GetProperty("id").GetString().Should().Be("failed");
+        records[1].GetProperty("category").GetString().Should().Be("A vérifier");
+        records[1].GetProperty("reason").GetString().Should().Be("Échec d'analyse IA");
+        saved.Should().NotContain("protected-secret");
+    }
+
+    /// <summary>Verifies a caller cancellation still stops Gmail analysis without a fallback.</summary>
+    [Fact]
+    public async Task GmailAnalysisRespectsCallerCancellation()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var registry = new RecordingToolRegistry((_, _, _) =>
+            Task.FromResult("""{"messages":[{"id":"first"},{"id":"last"}]}"""));
+        var agent = new Mock<IMyLocalAgentService>(MockBehavior.Strict);
+        agent.Setup(service => service.RunPromptWithoutToolsAsync(
+                It.IsAny<string>(), It.IsAny<EffectiveGenerationPolicy>(),
+                It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                cancellation.Cancel();
+                return Task.FromException<AgentRunResult>(new OperationCanceledException(cancellation.Token));
+            });
+        var task = CreateTask([
+            Step("gmail.readRecent", "mails", """{"daysBack":1}"""),
+            Step("ai.prompt", "reviews", """{"prompt":"{{foreach.item.id}}"}""") with
+            {
+                ForEach = "{{mails.output.messages}}",
+            },
+        ]) with { Tools = [ToolGroups.FileSystem, ToolGroups.Gmail] };
+
+        var action = () => CreateEngine(registry, agentService: agent.Object)
+            .ExecuteAsync(task, cancellation.Token);
+
+        await action.Should().ThrowAsync<OperationCanceledException>();
+    }
+
     /// <summary>Verifies Retry repeats only the failing item rather than the completed prefix.</summary>
     [Fact]
     public async Task ForEachRetryRepeatsOnlyCurrentItem()
