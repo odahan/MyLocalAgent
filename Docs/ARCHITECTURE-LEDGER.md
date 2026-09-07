@@ -2338,6 +2338,13 @@ compilation, freshness-window expansion, document classification, and late prote
   its database path, initializes it before discovery, and exposes only `sqlite.storeProposal`
   to its bounded agentic prompt step.
 
+# Version 2.5.2 — Honor explicit AI prompt reasoning (2026-09-07)
+
+- Removed the service-level override that silently disabled reasoning for every `ai.prompt` call.
+- An explicit `args.thinking` value now reaches the provider and takes priority over the inherited generation policy. Omission preserves that policy, and the override does not leak into subsequent steps.
+- Regression coverage exercises enabled and disabled reasoning for plain and structured prompts with Ollama and OpenAI-compatible providers, plus workflow-to-provider precedence and inheritance.
+- The non-integration suite passes: 850 tests passed and one environment-dependent probe skipped.
+
 # Version 2.5.1 — Discover anti-repetition and deterministic editorial delivery (2026-09-05)
 
 - `minimumDocuments` remains a bounded collection target for `research.discover`: it controls

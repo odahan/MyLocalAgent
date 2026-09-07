@@ -1,6 +1,6 @@
 # OD.MyLocalAgent
 
-Current application release: **2.5.1**.
+Current application release: **2.5.2**.
 
 OD.MyLocalAgent is a native Windows desktop application for running scheduled, AI-driven
 tasks locally. It combines a WPF management UI, a headless runner, Ollama, deterministic

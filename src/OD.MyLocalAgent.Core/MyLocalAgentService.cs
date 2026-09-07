@@ -184,8 +184,7 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
                 CreateModelClient(provider.ChatClient),
                 generationPolicy,
                 provider.ProviderName,
-                logicalOperation,
-                reasoningEnabled: false);
+                logicalOperation);
             var systemPrompt = BuildPromptStepSystemPrompt(
                 _timeProvider.GetLocalNow(),
                 ResolvePromptStepSystemPrompt(useGlobalSystemPrompt));

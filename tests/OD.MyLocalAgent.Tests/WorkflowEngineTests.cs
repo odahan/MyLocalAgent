@@ -811,6 +811,49 @@ public sealed class WorkflowEngineTests
     }
 
     /// <summary>
+    /// Verifies explicit thinking overrides reach Ollama and do not leak into the next prompt step.
+    /// </summary>
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(null, false)]
+    [InlineData(null, true)]
+    public async Task PromptThinkingTakesPriorityOverTaskPolicy(bool? thinking, bool taskReasoning)
+    {
+        var client = new StubChatClient("Done");
+        var factory = new Mock<ILlmClientFactory>(MockBehavior.Strict);
+        factory.Setup(instance => instance.Create())
+            .Returns(new StubLlmClientService(client, AIOptions.OllamaProvider));
+        var registry = new RecordingToolRegistry((_, _, _) => Task.FromResult("unused"));
+        var service = new MyLocalAgentService(
+            factory.Object, registry, [], Mock.Of<IIncidentReporter>(), TimeProvider.System);
+        var arguments = new Dictionary<string, object> { ["prompt"] = "Create the report." };
+        if (thinking is { } enabled)
+        {
+            arguments["thinking"] = enabled;
+        }
+
+        var task = CreateTask(
+            [
+                Step("ai.prompt", "first", JsonSerializer.Serialize(arguments)),
+                Step("ai.prompt", "second", """{"prompt":"Write the follow-up."}"""),
+            ]) with
+        {
+            GenerationOptions = new GenerationOptions { ReasoningEnabled = taskReasoning },
+        };
+
+        var result = await CreateEngine(registry, agentService: service)
+            .ExecuteAsync(task, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        client.OptionCalls.Should().HaveCount(2);
+        client.OptionCalls[0]!.AdditionalProperties.Should().ContainKey(OllamaSharp.Models.OllamaOption.Think.Name)
+            .WhoseValue.Should().Be(thinking ?? taskReasoning);
+        client.OptionCalls[1]!.AdditionalProperties.Should().ContainKey(OllamaSharp.Models.OllamaOption.Think.Name)
+            .WhoseValue.Should().Be(taskReasoning);
+    }
+
+    /// <summary>
     /// Verifies invalid structured selectors fail before the following tool is invoked.
     /// </summary>
     [Fact]

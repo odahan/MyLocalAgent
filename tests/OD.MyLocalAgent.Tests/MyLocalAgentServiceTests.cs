@@ -50,8 +50,62 @@ public sealed class MyLocalAgentServiceTests
         provider.Client.LastOptions!.Tools.Should().BeNullOrEmpty();
         provider.Client.LastOptions.AdditionalProperties.Should()
             .ContainKey(OllamaOption.Think.Name)
-            .WhoseValue.Should().Be(false);
+            .WhoseValue.Should().Be(policy.ReasoningEnabled);
         registry.VerifyNoOtherCalls();
+    }
+
+    /// <summary>
+    /// Verifies plain and structured prompts transmit the resolved reasoning policy to each provider.
+    /// </summary>
+    [Theory]
+    [InlineData(AIOptions.OllamaProvider, false, false)]
+    [InlineData(AIOptions.OllamaProvider, false, true)]
+    [InlineData(AIOptions.OllamaProvider, true, false)]
+    [InlineData(AIOptions.OllamaProvider, true, true)]
+    [InlineData(AIOptions.OpenAIProvider, false, false)]
+    [InlineData(AIOptions.OpenAIProvider, false, true)]
+    [InlineData(AIOptions.OpenAIProvider, true, false)]
+    [InlineData(AIOptions.OpenAIProvider, true, true)]
+    public async Task PromptPassesResolvedReasoningToProvider(
+        string providerName,
+        bool reasoningEnabled,
+        bool structured)
+    {
+        var client = new StubChatClient("{\"category\":\"Important\"}");
+        var factory = new Mock<ILlmClientFactory>(MockBehavior.Strict);
+        factory.Setup(instance => instance.Create()).Returns(new StubLlmClientService(client, providerName));
+        var service = new MyLocalAgentService(
+            factory.Object,
+            Mock.Of<IToolRegistry>(),
+            [],
+            Mock.Of<IIncidentReporter>(),
+            TimeProvider.System);
+        var policy = new EffectiveGenerationPolicy(
+            0.1, 1, 8192, GenerationOptionSource.Step, GenerationOptionSource.Settings)
+        {
+            ReasoningEnabled = reasoningEnabled,
+        };
+
+        if (structured)
+        {
+            using var schema = JsonDocument.Parse("""
+                {"type":"object","properties":{"category":{"type":"string"}},"required":["category"]}
+                """);
+            _ = await service.RunPromptWithoutToolsStructuredAsync(
+                "Classify this message.", policy, "classification", false, schema.RootElement, CancellationToken.None);
+        }
+        else
+        {
+            _ = await service.RunPromptWithoutToolsAsync("Classify this message.", policy, CancellationToken.None);
+        }
+
+        client.LastOptions!.Reasoning!.Effort.Should().Be(
+            reasoningEnabled ? ReasoningEffort.Medium : ReasoningEffort.None);
+        if (providerName == AIOptions.OllamaProvider)
+        {
+            client.LastOptions.AdditionalProperties.Should().ContainKey(OllamaOption.Think.Name)
+                .WhoseValue.Should().Be(reasoningEnabled);
+        }
     }
 
     /// <summary>
