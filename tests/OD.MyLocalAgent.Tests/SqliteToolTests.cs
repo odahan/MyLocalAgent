@@ -365,6 +365,38 @@ public sealed class SqliteToolTests : IDisposable
     }
 
     /// <summary>
+    /// Preserves safe editorial contract diagnostics instead of misreporting them as SQLite failures.
+    /// </summary>
+    [Fact]
+    public async Task ReserveEditorialSelectionPreservesSafeContractFailure()
+    {
+        Directory.CreateDirectory(_root);
+        await File.WriteAllBytesAsync(Path.Combine(_root, "editorial.db"), []);
+        var proposalMemory = new Mock<IProposalMemoryService>();
+        proposalMemory
+            .Setup(service => service.ReserveSelectionAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<int>(),
+                It.IsAny<double>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new EditorialContractException("The editorial selection JSON does not satisfy its contract."));
+        var tool = CreateTool(allowWrite: true, proposalMemoryService: proposalMemory.Object);
+
+        var action = () => tool.ReserveEditorialSelectionAsync(
+            "editorial.db",
+            "run-id",
+            "{}",
+            "{}",
+            cancellationToken: CancellationToken.None);
+
+        var exception = await action.Should().ThrowAsync<InvalidOperationException>();
+        exception.Which.Message.Should().Be("The editorial selection JSON does not satisfy its contract.");
+    }
+
+    /// <summary>
     /// Withholds raw database data when requested screening is globally unavailable.
     /// </summary>
     [Fact]
@@ -598,7 +630,8 @@ public sealed class SqliteToolTests : IDisposable
         SQLiteOptions? sqliteOptions = null,
         GuardrailsOptions? guardrailsOptions = null,
         StubIncidentReporter? incidentReporter = null,
-        ILogger<SqliteTool>? logger = null)
+        ILogger<SqliteTool>? logger = null,
+        IProposalMemoryService? proposalMemoryService = null)
     {
         var fileSystem = Options.Create(new FileSystemOptions { RootPath = _root });
         return new SqliteTool(
@@ -613,7 +646,7 @@ public sealed class SqliteToolTests : IDisposable
             logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<SqliteTool>.Instance,
             TimeProvider.System,
             incidentReporter ?? new StubIncidentReporter(),
-            Mock.Of<IProposalMemoryService>());
+            proposalMemoryService ?? Mock.Of<IProposalMemoryService>());
     }
 
     private sealed class CapturingLogger : ILogger<SqliteTool>

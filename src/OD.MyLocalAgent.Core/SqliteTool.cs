@@ -675,6 +675,10 @@ public sealed class SqliteTool : ISqliteTool
         {
             throw;
         }
+        catch (EditorialContractException)
+        {
+            throw;
+        }
         catch (ArgumentException)
         {
             throw;

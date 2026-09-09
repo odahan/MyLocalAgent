@@ -87,19 +87,20 @@
                 "temporaryId": {"type": "string", "minLength": 1, "maxLength": 80},
                 "title": {"type": "string", "minLength": 1, "maxLength": 240},
                 "factualSummary": {"type": "string", "minLength": 1, "maxLength": 1200},
-                "sourceIds": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 200}},
+                "sourceIds": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1, "maxLength": 200}},
                 "entities": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 120}},
                 "eventVersion": {"type": "string", "maxLength": 80},
                 "eventDate": {"type": "string", "maxLength": 10},
                 "claimedNewFacts": {
                   "type": "array",
+                  "minItems": 1,
                   "items": {
                     "type": "object",
                     "additionalProperties": false,
                     "required": ["text", "sourceIds"],
                     "properties": {
                       "text": {"type": "string", "minLength": 1, "maxLength": 600},
-                      "sourceIds": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 200}}
+                      "sourceIds": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1, "maxLength": 200}}
                     }
                   }
                 },

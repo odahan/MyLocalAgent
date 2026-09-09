@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Microsoft.Data.Sqlite;
 
@@ -17,6 +18,7 @@ public sealed partial class ProposalMemoryService
     private static readonly JsonSerializerOptions EditorialJsonOptions = new(JsonSerializerDefaults.Web)
     {
         PropertyNameCaseInsensitive = true,
+        Converters = { new JsonStringEnumConverter<EditorialNoveltyDecision>(namingPolicy: null, allowIntegerValues: false) },
     };
 
     /// <inheritdoc />
@@ -44,7 +46,7 @@ public sealed partial class ProposalMemoryService
         var selection = ParseSelection(selectionJson);
         if (selection.Proposals.Count > 3)
         {
-            throw new InvalidOperationException("Editorial selection accepts at most three proposals.");
+            throw new EditorialContractException("Editorial selection accepts at most three proposals.");
         }
 
         ValidateSelection(selection, discovery);
@@ -493,21 +495,31 @@ public sealed partial class ProposalMemoryService
             var status = root.GetProperty("searchStatus").GetString() ?? string.Empty;
             var candidates = root.GetProperty("candidates").EnumerateArray().ToDictionary(
                 static item => item.GetProperty("hitId").GetString() ?? string.Empty,
-                static item => NormalizeUrl(item.GetProperty("canonicalUrl").GetString()) ?? throw new InvalidOperationException("A discovered candidate has no valid canonical URL."),
+                static item => NormalizeUrl(item.GetProperty("canonicalUrl").GetString()) ?? throw new EditorialContractException("A discovered candidate has no valid canonical URL."),
                 StringComparer.Ordinal);
             return new DiscoveryEnvelope(status, candidates);
         }
         catch (Exception exception) when (exception is JsonException or KeyNotFoundException or ArgumentException)
         {
-            throw new InvalidOperationException("The discovery output does not satisfy the editorial selection contract.", exception);
+            throw new EditorialContractException("The discovery output does not satisfy the editorial selection contract.", exception);
         }
     }
 
     private static SelectionEnvelope ParseSelection(string json) => Deserialize<SelectionEnvelope>(json, "selection");
     private static DraftEnvelope ParseDrafts(string json) => Deserialize<DraftEnvelope>(json, "draft");
 
-    private static T Deserialize<T>(string json, string name) where T : class =>
-        JsonSerializer.Deserialize<T>(json, EditorialJsonOptions) ?? throw new InvalidOperationException($"The editorial {name} is empty.");
+    private static T Deserialize<T>(string json, string name) where T : class
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<T>(json, EditorialJsonOptions)
+                ?? throw new EditorialContractException($"The editorial {name} is empty.");
+        }
+        catch (JsonException exception)
+        {
+            throw new EditorialContractException($"The editorial {name} JSON does not satisfy its contract.", exception);
+        }
+    }
 
     private static void ValidateSelection(SelectionEnvelope selection, DiscoveryEnvelope discovery)
     {
@@ -517,23 +529,23 @@ public sealed partial class ProposalMemoryService
             if (string.IsNullOrWhiteSpace(proposal.TemporaryId) || !ids.Add(proposal.TemporaryId) ||
                 string.IsNullOrWhiteSpace(proposal.Title) || string.IsNullOrWhiteSpace(proposal.FactualSummary) || proposal.SourceIds.Count == 0)
             {
-                throw new InvalidOperationException("Every selected proposal must have a unique temporary id, title, factual summary, and at least one source id.");
+                throw new EditorialContractException("Every selected proposal must have a unique temporary id, title, factual summary, and at least one source id.");
             }
 
             if (proposal.SourceIds.Distinct(StringComparer.Ordinal).Count() != proposal.SourceIds.Count || proposal.SourceIds.Any(id => !discovery.Candidates.ContainsKey(id)))
             {
-                throw new InvalidOperationException($"Proposal '{proposal.TemporaryId}' references an unknown or duplicate discovery source id.");
+                throw new EditorialContractException($"Proposal '{proposal.TemporaryId}' references an unknown or duplicate discovery source id.");
             }
 
             if (proposal.ClaimedNewFacts.Count == 0)
             {
-                throw new InvalidOperationException($"Proposal '{proposal.TemporaryId}' must identify at least one source-backed fact.");
+                throw new EditorialContractException($"Proposal '{proposal.TemporaryId}' must identify at least one source-backed fact.");
             }
 
             if (proposal.ClaimedNewFacts.Any(fact => string.IsNullOrWhiteSpace(fact.Text) || fact.SourceIds.Count == 0 ||
                     fact.SourceIds.Any(id => !proposal.SourceIds.Contains(id, StringComparer.Ordinal))))
             {
-                throw new InvalidOperationException($"Proposal '{proposal.TemporaryId}' contains a fact without valid supporting source ids.");
+                throw new EditorialContractException($"Proposal '{proposal.TemporaryId}' contains a fact without valid supporting source ids.");
             }
         }
     }

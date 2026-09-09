@@ -2338,6 +2338,19 @@ compilation, freshness-window expansion, document classification, and late prote
   its database path, initializes it before discovery, and exposes only `sqlite.storeProposal`
   to its bounded agentic prompt step.
 
+# Version 2.5.4 — Repair editorial selection enum handling (2026-09-09)
+
+- Editorial selection deserialization now accepts the named novelty decisions required by the
+  workflow response schema and rejects undocumented numeric enum values.
+- Safe editorial contract failures retain their actionable message and underlying local
+  diagnostic instead of being misreported as generic SQLite failures.
+- The daily editorial response schema requires non-empty proposal sources, claimed facts, and
+  fact sources before deterministic reservation begins.
+- Regression coverage uses production-shaped named enum JSON, rejects numeric decisions, checks
+  safe error propagation, and verifies the strengthened workflow schema.
+- Verification: 858 non-integration tests passed, one expected local Ollama integration probe
+  was skipped, and `git diff --check` was clean before release publication.
+
 # Version 2.5.3 — Preserve Gmail analysis after individual AI failures (2026-09-08)
 
 - An AI prompt repeated over Gmail messages now converts an individual provider timeout,

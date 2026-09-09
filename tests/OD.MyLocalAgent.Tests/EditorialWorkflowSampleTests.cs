@@ -39,6 +39,12 @@ public sealed class EditorialWorkflowSampleTests
         var proposalsSchema = selectionStep.GetProperty("responseSchema").GetProperty("properties").GetProperty("proposals");
         proposalsSchema.GetProperty("minItems").GetInt32().Should().Be(1);
         proposalsSchema.GetProperty("maxItems").GetInt32().Should().Be(3);
+        var proposalProperties = proposalsSchema.GetProperty("items").GetProperty("properties");
+        proposalProperties.GetProperty("sourceIds").GetProperty("minItems").GetInt32().Should().Be(1);
+        var claimedFacts = proposalProperties.GetProperty("claimedNewFacts");
+        claimedFacts.GetProperty("minItems").GetInt32().Should().Be(1);
+        claimedFacts.GetProperty("items").GetProperty("properties").GetProperty("sourceIds")
+            .GetProperty("minItems").GetInt32().Should().Be(1);
         selectionStep.GetProperty("onError").GetString().Should().Be("Retry");
         selectionStep.GetProperty("retryCount").GetInt32().Should().Be(2);
         selectionStep.TryGetProperty("toolAliases", out _).Should().BeFalse();

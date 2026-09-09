@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Options;
@@ -10,6 +12,7 @@ namespace OD.MyLocalAgent.Tests;
 /// <summary>Verifies the task-owned editorial proposal-memory contract.</summary>
 public sealed class ProposalMemoryServiceTests : IDisposable
 {
+    private static readonly JsonSerializerOptions SelectionJsonOptions = CreateSelectionJsonOptions();
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"od-proposal-memory-{Guid.NewGuid():N}");
     private readonly FixedTimeProvider _time = new(new DateTimeOffset(2026, 8, 30, 12, 0, 0, TimeSpan.Zero));
 
@@ -105,6 +108,39 @@ public sealed class ProposalMemoryServiceTests : IDisposable
             Selection(Proposal("p1", "Subject", "missing")), 6, 0.92, CancellationToken.None);
 
         await action.Should().ThrowAsync<InvalidOperationException>().WithMessage("*unknown*source id*");
+        (await ScalarAsync(path, "SELECT count(*) FROM editorial_runs")).Should().Be(0L);
+    }
+
+    /// <summary>Accepts the string enum representation required from workflow AI responses.</summary>
+    [Fact]
+    public async Task ReserveSelectionAcceptsWorkflowStringNoveltyDecision()
+    {
+        var (service, path) = await CreateCurrentDatabaseAsync();
+        var selection = Selection(Proposal("p1", "Subject", "source-1"));
+
+        selection.Should().Contain("\"noveltyDecision\":\"New\"");
+        var result = await service.ReserveSelectionAsync(
+            path, "string-enum", Discovery(("source-1", "https://example.com/one")),
+            selection, 6, 0.92, CancellationToken.None);
+
+        result.Approved.Should().ContainSingle();
+    }
+
+    /// <summary>Rejects numeric enum values because the workflow contract exposes named decisions.</summary>
+    [Fact]
+    public async Task ReserveSelectionRejectsNumericNoveltyDecision()
+    {
+        var (service, path) = await CreateCurrentDatabaseAsync();
+        var selection = Selection(Proposal("p1", "Subject", "source-1"))
+            .Replace("\"noveltyDecision\":\"New\"", "\"noveltyDecision\":0", StringComparison.Ordinal);
+
+        var action = () => service.ReserveSelectionAsync(
+            path, "numeric-enum", Discovery(("source-1", "https://example.com/one")),
+            selection, 6, 0.92, CancellationToken.None);
+
+        var exception = await action.Should().ThrowAsync<InvalidOperationException>();
+        exception.WithMessage("*selection JSON does not satisfy its contract*");
+        exception.Which.InnerException.Should().BeOfType<JsonException>();
         (await ScalarAsync(path, "SELECT count(*) FROM editorial_runs")).Should().Be(0L);
     }
 
@@ -595,7 +631,14 @@ public sealed class ProposalMemoryServiceTests : IDisposable
         candidates = sources.Select(static source => new { hitId = source.Id, canonicalUrl = source.Url }),
     });
 
-    private static string Selection(params TestProposal[] proposals) => System.Text.Json.JsonSerializer.Serialize(new { proposals });
+    private static string Selection(params TestProposal[] proposals) => JsonSerializer.Serialize(new { proposals }, SelectionJsonOptions);
+
+    private static JsonSerializerOptions CreateSelectionJsonOptions()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        options.Converters.Add(new JsonStringEnumConverter<EditorialNoveltyDecision>(namingPolicy: null, allowIntegerValues: false));
+        return options;
+    }
 
     private static TestProposal Proposal(string temporaryId, string title, string sourceId) => new(
         temporaryId, title, "A concise source-backed factual summary.", [sourceId], ["C#"], null, null,
