@@ -26,6 +26,11 @@ public enum WorkflowArgumentKind
     Boolean,
 
     /// <summary>
+    /// A boolean switch or an open-ended textual provider keyword.
+    /// </summary>
+    BooleanOrString,
+
+    /// <summary>
     /// A value restricted to a closed set of enumeration names.
     /// </summary>
     Enumeration,

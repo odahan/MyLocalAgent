@@ -73,6 +73,7 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
     [ObservableProperty] private string _temperature = string.Empty;
     [ObservableProperty] private string _topP = string.Empty;
     [ObservableProperty] private bool? _reasoningEnabled;
+    [ObservableProperty] private string _reasoningEffort = string.Empty;
     [ObservableProperty] private string _toolSearchText = string.Empty;
     [ObservableProperty] private WorkflowStepArgumentEditorItem? _selectedArgument;
     [ObservableProperty] private string _next = string.Empty;
@@ -99,6 +100,8 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
     public ObservableCollection<ToolDefinition> FilteredTools { get; } = [];
     /// <summary>Gets shared placeholder templates available to eligible text arguments.</summary>
     public IReadOnlyList<WorkflowPlaceholderDefinition> Placeholders => WorkflowPlaceholderCatalog.Entries;
+    /// <summary>Gets common reasoning levels while allowing provider-specific text.</summary>
+    public IReadOnlyList<string> ReasoningEffortSuggestions { get; } = ["low", "medium", "high"];
     /// <summary>Gets the available error policies.</summary>
     public IReadOnlyList<WorkflowErrorPolicy> ErrorPolicies => Enum.GetValues<WorkflowErrorPolicy>();
     /// <summary>Gets whether this is an edit with an immutable alias.</summary>
@@ -451,11 +454,14 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
         NarrowKnowledge = step?.KnowledgeAccess is not null;
         OverrideTemperature = step?.GenerationOptions?.Temperature is not null;
         OverrideTopP = step?.GenerationOptions?.TopP is not null;
-        OverrideReasoning = step?.GenerationOptions?.ReasoningEnabled is not null;
+        OverrideReasoning =
+            step?.GenerationOptions?.ReasoningEnabled is not null ||
+            step?.GenerationOptions?.ReasoningEffort is not null;
         OverrideGeneration = OverrideTemperature || OverrideTopP || OverrideReasoning;
         Temperature = step?.GenerationOptions?.Temperature?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
         TopP = step?.GenerationOptions?.TopP?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
         ReasoningEnabled = step?.GenerationOptions?.ReasoningEnabled;
+        ReasoningEffort = step?.GenerationOptions?.ReasoningEffort ?? string.Empty;
         foreach (var definition in tool.ArgumentDefinitions)
         {
             var value = default(JsonElement);
@@ -578,7 +584,13 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
     {
         double? temperature = OverrideTemperature ? ParseFinite(Temperature, "Temperature") : null;
         double? topP = OverrideTopP ? ParseFinite(TopP, "Top P") : null;
-        var options = new GenerationOptions { Temperature = temperature, TopP = topP, ReasoningEnabled = OverrideReasoning ? ReasoningEnabled : null };
+        var options = new GenerationOptions
+        {
+            Temperature = temperature,
+            TopP = topP,
+            ReasoningEnabled = OverrideReasoning ? ReasoningEnabled : null,
+            ReasoningEffort = OverrideReasoning ? NullIfWhiteSpace(ReasoningEffort) : null,
+        };
         if (GenerationPolicyValidation.ValidateOverrides(options) is { } error)
         {
             throw new FormatException(error);
@@ -609,7 +621,7 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
             return "null";
         }
 
-        return definition.Kind is WorkflowArgumentKind.String or WorkflowArgumentKind.Enumeration && value.ValueKind == JsonValueKind.String
+        return definition.Kind is WorkflowArgumentKind.String or WorkflowArgumentKind.Enumeration or WorkflowArgumentKind.BooleanOrString && value.ValueKind == JsonValueKind.String
             ? value.GetString() ?? string.Empty
             : value.GetRawText();
     }
@@ -827,6 +839,7 @@ public sealed partial class WorkflowStepArgumentEditorItem : ObservableObject
         : Definition.Kind switch
         {
             WorkflowArgumentKind.Boolean => WorkflowArgumentEditorKind.Boolean,
+            WorkflowArgumentKind.BooleanOrString => WorkflowArgumentEditorKind.Reasoning,
             WorkflowArgumentKind.Enumeration => WorkflowArgumentEditorKind.Enumeration,
             WorkflowArgumentKind.Object => WorkflowArgumentEditorKind.StructuredJson,
             WorkflowArgumentKind.String when Definition.AllowedValues.Count > 0 => WorkflowArgumentEditorKind.Enumeration,
@@ -837,6 +850,9 @@ public sealed partial class WorkflowStepArgumentEditorItem : ObservableObject
         };
     /// <summary>Gets the WPF maximum length, where zero means unlimited.</summary>
     public int EditorMaximumLength => Definition.MaximumLength ?? 0;
+    /// <summary>Gets common values suggested without restricting provider-specific input.</summary>
+    public IReadOnlyList<string> ReasoningEffortSuggestions { get; } =
+        ["true", "false", "low", "medium", "high"];
     /// <summary>Gets the effective picker inferred solely from local-path metadata.</summary>
     public LocalPathPickerMode ResolvedPickerMode => LocalPath?.PickerMode switch
     {
@@ -867,6 +883,7 @@ public sealed partial class WorkflowStepArgumentEditorItem : ObservableObject
                 WorkflowArgumentEditorKind.Integer => "Integer",
                 WorkflowArgumentEditorKind.Number => "Decimal number",
                 WorkflowArgumentEditorKind.Boolean => "True or false",
+                WorkflowArgumentEditorKind.Reasoning => "True, false, or an exact provider effort keyword",
                 WorkflowArgumentEditorKind.Enumeration => "Choose one value",
                 WorkflowArgumentEditorKind.StructuredJson => "Structured JSON",
                 WorkflowArgumentEditorKind.KnowledgeTags => "Authorized Knowledge tags",
@@ -944,6 +961,8 @@ public sealed partial class WorkflowStepArgumentEditorItem : ObservableObject
         return Definition.Kind switch
     {
         WorkflowArgumentKind.String or WorkflowArgumentKind.Enumeration => JsonSerializer.SerializeToElement(Value.Replace("\r\n", "\n", StringComparison.Ordinal).Replace("\r", "\n", StringComparison.Ordinal)),
+        WorkflowArgumentKind.BooleanOrString when bool.TryParse(Value, out var reasoningFlag) => JsonSerializer.SerializeToElement(reasoningFlag),
+        WorkflowArgumentKind.BooleanOrString when GenerationPolicyValidation.ValidateReasoningEffort(Value) is null => JsonSerializer.SerializeToElement(Value),
         WorkflowArgumentKind.Boolean when bool.TryParse(Value, out var flag) => JsonSerializer.SerializeToElement(flag),
         WorkflowArgumentKind.Integer => ParseInteger(),
         WorkflowArgumentKind.Number when double.TryParse(Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var number) && double.IsFinite(number) => JsonSerializer.SerializeToElement(ValidateRange(number)),
@@ -1006,6 +1025,8 @@ public enum WorkflowArgumentEditorKind
     Number,
     /// <summary>Boolean checkbox.</summary>
     Boolean,
+    /// <summary>Editable reasoning switch or provider effort keyword.</summary>
+    Reasoning,
     /// <summary>Constrained value selection.</summary>
     Enumeration,
     /// <summary>Structured JSON object or array.</summary>

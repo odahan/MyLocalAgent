@@ -364,6 +364,25 @@ public sealed class WorkflowStepEditorViewModelTests
         options.ReasoningEnabled.Should().BeNull();
     }
 
+    /// <summary>Verifies the AI-step editor persists an open-ended reasoning level.</summary>
+    [Fact]
+    public void GenerationOverrideAcceptsProviderSpecificReasoningEffort()
+    {
+        var viewModel = new WorkflowStepEditorViewModel();
+        viewModel.Initialize(Request());
+        viewModel.SelectedTool = ToolCatalog.Default.Find("ai.summarize");
+        viewModel.OverrideReasoning = true;
+        viewModel.ReasoningEnabled = true;
+        viewModel.ReasoningEffort = "xhigh";
+
+        viewModel.ApplyCommand.Execute(null);
+
+        var options = WorkflowDefinitionSerializer.Deserialize(viewModel.Result!.WorkflowText)
+            .Single().GenerationOptions!;
+        options.ReasoningEnabled.Should().BeTrue();
+        options.ReasoningEffort.Should().Be("xhigh");
+    }
+
     /// <summary>Verifies narrowing Knowledge requires a non-empty task-bounded selection.</summary>
     [Fact]
     public void EmptyKnowledgeNarrowingIsRejected()
@@ -394,6 +413,7 @@ public sealed class WorkflowStepEditorViewModelTests
     [InlineData(WorkflowArgumentKind.Integer, false, WorkflowArgumentEditorKind.Integer)]
     [InlineData(WorkflowArgumentKind.Number, false, WorkflowArgumentEditorKind.Number)]
     [InlineData(WorkflowArgumentKind.Boolean, false, WorkflowArgumentEditorKind.Boolean)]
+    [InlineData(WorkflowArgumentKind.BooleanOrString, false, WorkflowArgumentEditorKind.Reasoning)]
     [InlineData(WorkflowArgumentKind.Enumeration, false, WorkflowArgumentEditorKind.Enumeration)]
     [InlineData(WorkflowArgumentKind.Object, false, WorkflowArgumentEditorKind.StructuredJson)]
     public void EditorKindComesFromCatalogMetadata(WorkflowArgumentKind kind, bool longText, WorkflowArgumentEditorKind expected)

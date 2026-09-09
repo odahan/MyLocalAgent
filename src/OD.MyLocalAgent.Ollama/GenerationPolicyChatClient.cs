@@ -4,6 +4,8 @@ using System.Net;
 using Microsoft.Extensions.AI;
 using OllamaSharp;
 using OllamaSharp.Models;
+using OllamaSharp.Models.Chat;
+using OpenAIChatCompletionOptions = OpenAI.Chat.ChatCompletionOptions;
 
 namespace OD.MyLocalAgent.Ollama;
 
@@ -15,6 +17,7 @@ public sealed class GenerationPolicyChatClient : IChatClient
     private readonly IChatClient _inner;
     private readonly bool _mapsOllamaContext;
     private readonly bool _reasoningEnabled;
+    private readonly string? _reasoningEffort;
     private readonly string _operation;
 
     /// <summary>
@@ -45,6 +48,7 @@ public sealed class GenerationPolicyChatClient : IChatClient
             AIOptions.OllamaProvider,
             StringComparison.OrdinalIgnoreCase);
         _reasoningEnabled = reasoningEnabled ?? policy.ReasoningEnabled;
+        _reasoningEffort = _reasoningEnabled ? policy.ReasoningEffort : null;
         _operation = operation;
     }
 
@@ -131,9 +135,14 @@ public sealed class GenerationPolicyChatClient : IChatClient
         {
             effective.Reasoning = new ReasoningOptions
             {
-                Effort = _reasoningEnabled ? ReasoningEffort.Medium : ReasoningEffort.None,
+                Effort = ResolveStandardEffort(),
                 Output = _reasoningEnabled ? ReasoningOutput.Full : ReasoningOutput.None,
             };
+
+            if (!_mapsOllamaContext && _reasoningEffort is not null)
+            {
+                ApplyOpenAIReasoningEffort(effective, _reasoningEffort);
+            }
         }
         else
         {
@@ -148,11 +157,67 @@ public sealed class GenerationPolicyChatClient : IChatClient
                 Policy.ContextWindowTokens);
             if (applyReasoning)
             {
-                effective.AddOllamaOption(OllamaOption.Think, _reasoningEnabled);
+                if (_reasoningEffort is null)
+                {
+                    effective.AddOllamaOption(OllamaOption.Think, _reasoningEnabled);
+                }
+                else
+                {
+                    effective.AddOllamaOption(OllamaOption.Think, new ThinkValue(_reasoningEffort));
+                }
             }
         }
 
         return effective;
+    }
+
+    private ReasoningEffort? ResolveStandardEffort()
+    {
+        if (!_reasoningEnabled)
+        {
+            return ReasoningEffort.None;
+        }
+
+        if (_reasoningEffort is null)
+        {
+            return ReasoningEffort.Medium;
+        }
+
+        if (_mapsOllamaContext)
+        {
+            return null;
+        }
+
+        return _reasoningEffort.ToLowerInvariant() switch
+        {
+            "low" => ReasoningEffort.Low,
+            "medium" => ReasoningEffort.Medium,
+            "high" => ReasoningEffort.High,
+            "xhigh" => ReasoningEffort.ExtraHigh,
+            _ => null,
+        };
+    }
+
+    private static void ApplyOpenAIReasoningEffort(
+        ChatOptions options,
+        string reasoningEffort)
+    {
+        var precedingFactory = options.RawRepresentationFactory;
+        options.RawRepresentationFactory = client =>
+        {
+            var raw = precedingFactory?.Invoke(client);
+            if (raw is not null and not OpenAIChatCompletionOptions)
+            {
+                throw new InvalidOperationException(
+                    "The OpenAI reasoning-effort override requires ChatCompletionOptions raw options.");
+            }
+
+            var completionOptions = raw as OpenAIChatCompletionOptions ?? new OpenAIChatCompletionOptions();
+#pragma warning disable OPENAI001
+            completionOptions.ReasoningEffortLevel = reasoningEffort;
+#pragma warning restore OPENAI001
+            return completionOptions;
+        };
     }
 
     private async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseWithFallbackAsync(

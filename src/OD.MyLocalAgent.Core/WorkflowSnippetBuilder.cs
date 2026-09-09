@@ -123,7 +123,7 @@ public static class WorkflowSnippetBuilder
         return argument.Kind switch
         {
             WorkflowArgumentKind.Integer or WorkflowArgumentKind.Number => 0,
-            WorkflowArgumentKind.Boolean => false,
+            WorkflowArgumentKind.Boolean or WorkflowArgumentKind.BooleanOrString => false,
             WorkflowArgumentKind.Object => new Dictionary<string, object?>(),
             WorkflowArgumentKind.Enumeration => argument.AllowedValues.Count > 0
                 ? argument.AllowedValues[0]

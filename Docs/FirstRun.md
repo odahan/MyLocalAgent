@@ -126,9 +126,18 @@ OpenRouter ou un autre endpoint cloud : il ne consomme donc aucun crédit cloud.
 
 Activez ou désactivez **Reasoning** dans **Direct Chat** pour la prochaine réponse, y compris en
 mode agent. Pour une tâche agentique, utilisez **Enable reasoning for agentic task calls** dans
-l’éditeur de tâche. Le raisonnement est activé par défaut pour ces deux usages et désactivé pour
-les opérations bornées : Trust Filter, étapes `ai.prompt`, compression d’historique, skills,
-assistants internes et préchauffage.
+l’éditeur de tâche. Une valeur **Reasoning level** vide conserve le raisonnement automatique sous
+Ollama ou le mapping existant `medium` sur un endpoint compatible OpenAI. Vous pouvez aussi choisir
+une suggestion (`low`, `medium`, `high`) ou saisir le mot-clé exact documenté par le modèle, par
+exemple `xhigh` ou `max`. Le même champ éditable est
+disponible sur les étapes IA ; `ai.prompt.args.thinking` accepte soit ce texte, soit un booléen.
+
+L’application transmet la valeur telle quelle via `think` pour Ollama ou `reasoning_effort` pour
+un endpoint compatible OpenAI : il n’existe pas de vocabulaire fiable et découvrable commun à tous
+les modèles. Lors de l’enregistrement de la tâche, chaque couple explicite modèle/niveau est vérifié
+par une petite requête au fournisseur. Une valeur refusée est effacée afin d’en saisir une autre. Si
+le test est temporairement indisponible, la tâche est enregistrée avec un avertissement et le test
+pourra être retenté. Les acceptations et refus sont mis en cache.
 
 Lorsqu’un fournisseur renvoie un texte de raisonnement affichable, Direct Chat le montre dans le
 volet repliable **Model reasoning**. Ce texte ne fait pas partie de la réponse assistant et n’est

@@ -19,7 +19,20 @@ public sealed record GenerationOptions
     public bool? ReasoningEnabled { get; init; }
 
     /// <summary>
+    /// Gets the optional provider-specific reasoning-effort keyword.
+    /// </summary>
+    /// <remarks>
+    /// The value is deliberately open-ended because Ollama and OpenAI-compatible
+    /// models do not expose one shared, discoverable vocabulary.
+    /// </remarks>
+    public string? ReasoningEffort { get; init; }
+
+    /// <summary>
     /// Gets a value indicating whether neither property is overridden.
     /// </summary>
-    public bool IsEmpty => Temperature is null && TopP is null && ReasoningEnabled is null;
+    public bool IsEmpty =>
+        Temperature is null &&
+        TopP is null &&
+        ReasoningEnabled is null &&
+        ReasoningEffort is null;
 }

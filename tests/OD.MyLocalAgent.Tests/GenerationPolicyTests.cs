@@ -8,6 +8,8 @@ using OD.MyLocalAgent.Ollama;
 using OD.MyLocalAgent.Tests.TestDoubles;
 using OD.MyLocalAgent.UI.ViewModels;
 using OllamaSharp.Models;
+using ThinkValue = OllamaSharp.Models.Chat.ThinkValue;
+using OpenAIChatCompletionOptions = OpenAI.Chat.ChatCompletionOptions;
 using Xunit;
 
 namespace OD.MyLocalAgent.Tests;
@@ -201,6 +203,43 @@ public sealed class GenerationPolicyTests
         roundTrip.GenerationOptions!.ReasoningEnabled.Should().Be(reasoningEnabled);
     }
 
+    /// <summary>Verifies an open-ended reasoning effort survives canonical persistence.</summary>
+    [Fact]
+    public void TaskReasoningEffortRoundTrips()
+    {
+        var task = CreateTask() with
+        {
+            GenerationOptions = new GenerationOptions
+            {
+                ReasoningEnabled = true,
+                ReasoningEffort = "xhigh",
+            },
+        };
+
+        var json = ScheduledTaskSerializer.Serialize(task);
+        var roundTrip = ScheduledTaskSerializer.Deserialize(json);
+
+        json.Should().Contain("\"reasoningEffort\": \"xhigh\"");
+        roundTrip.GenerationOptions!.ReasoningEffort.Should().Be("xhigh");
+    }
+
+    /// <summary>Verifies a nearer reasoning switch replaces the entire inherited setting.</summary>
+    [Fact]
+    public void ResolverTreatsReasoningAsOneAtomicOverride()
+    {
+        var policy = GenerationPolicyResolver.Resolve(
+            Defaults,
+            new GenerationOptions
+            {
+                ReasoningEnabled = true,
+                ReasoningEffort = "high",
+            },
+            new GenerationOptions { ReasoningEnabled = true });
+
+        policy.ReasoningEnabled.Should().BeTrue();
+        policy.ReasoningEffort.Should().BeNull();
+    }
+
     /// <summary>
     /// Verifies every Tool Map AI alias accepts an object-form generation override.
     /// </summary>
@@ -272,6 +311,8 @@ public sealed class GenerationPolicyTests
     [InlineData("""{"temperature":null}""")]
     [InlineData("""{"topP":false}""")]
     [InlineData("""{"reasoningEnabled":"false"}""")]
+    [InlineData("""{"reasoningEnabled":false,"reasoningEffort":"high"}""")]
+    [InlineData("""{"reasoningEffort":" high "}""")]
     [InlineData("""{"contextWindowTokens":8192}""")]
     [InlineData("""{"unknown":1}""")]
     public void InvalidGenerationJsonFailsDeterministically(
@@ -380,6 +421,49 @@ public sealed class GenerationPolicyTests
         openAICapture.LastOptions.Reasoning!.Effort.Should().Be(ReasoningEffort.Medium);
         (openAICapture.LastOptions.AdditionalProperties?.ContainsKey(
             OllamaOption.NumCtx.Name) ?? false).Should().BeFalse();
+    }
+
+    /// <summary>Verifies custom effort keywords are passed verbatim to each provider protocol.</summary>
+    [Fact]
+    public async Task PolicyWrapperPassesCustomEffortVerbatim()
+    {
+        var policy = GenerationPolicyResolver.Resolve(
+            Defaults,
+            new GenerationOptions
+            {
+                ReasoningEnabled = true,
+                ReasoningEffort = "xhigh",
+            });
+        var ollamaCapture = new StubChatClient("ok");
+        var ollama = new GenerationPolicyChatClient(
+            ollamaCapture,
+            policy,
+            AIOptions.OllamaProvider);
+
+        _ = await ollama.GetResponseAsync(
+            [new ChatMessage(ChatRole.User, "test")],
+            cancellationToken: CancellationToken.None);
+
+        ollamaCapture.LastOptions!.AdditionalProperties.Should()
+            .ContainKey(OllamaOption.Think.Name)
+            .WhoseValue.Should().BeOfType<ThinkValue>()
+            .Which.ToString().Should().Be("xhigh");
+        ollamaCapture.LastOptions.Reasoning!.Effort.Should().BeNull();
+
+        var openAICapture = new StubChatClient("ok");
+        var openAI = new GenerationPolicyChatClient(
+            openAICapture,
+            policy,
+            AIOptions.OpenAIProvider);
+        _ = await openAI.GetResponseAsync(
+            [new ChatMessage(ChatRole.User, "test")],
+            cancellationToken: CancellationToken.None);
+
+        object? raw = openAICapture.LastOptions!.RawRepresentationFactory!(openAICapture);
+        var completionOptions = raw.Should().BeOfType<OpenAIChatCompletionOptions>().Subject;
+#pragma warning disable OPENAI001
+        completionOptions.ReasoningEffortLevel.ToString().Should().Be("xhigh");
+#pragma warning restore OPENAI001
     }
 
     /// <summary>Verifies unsupported reasoning controls are retried without provider options.</summary>

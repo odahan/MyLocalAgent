@@ -949,6 +949,35 @@ public sealed class WorkflowEngineTests
             .WhoseValue.Should().Be(taskReasoning);
     }
 
+    /// <summary>Verifies a prompt-level custom effort reaches Ollama unchanged.</summary>
+    [Fact]
+    public async Task PromptThinkingAcceptsCustomEffortKeyword()
+    {
+        var client = new StubChatClient("Done");
+        var factory = new Mock<ILlmClientFactory>(MockBehavior.Strict);
+        factory.Setup(instance => instance.Create())
+            .Returns(new StubLlmClientService(client, AIOptions.OllamaProvider));
+        var registry = new RecordingToolRegistry((_, _, _) => Task.FromResult("unused"));
+        var service = new MyLocalAgentService(
+            factory.Object, registry, [], Mock.Of<IIncidentReporter>(), TimeProvider.System);
+        var task = CreateTask(
+            [
+                Step(
+                    "ai.prompt",
+                    "prompt",
+                    """{ "prompt": "Create the report.", "thinking": "xhigh" }"""),
+            ]);
+
+        var result = await CreateEngine(registry, agentService: service)
+            .ExecuteAsync(task, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        client.LastOptions!.AdditionalProperties.Should()
+            .ContainKey(OllamaSharp.Models.OllamaOption.Think.Name)
+            .WhoseValue.Should().BeOfType<OllamaSharp.Models.Chat.ThinkValue>()
+            .Which.ToString().Should().Be("xhigh");
+    }
+
     /// <summary>
     /// Verifies invalid structured selectors fail before the following tool is invoked.
     /// </summary>
@@ -1047,24 +1076,24 @@ public sealed class WorkflowEngineTests
     }
 
     /// <summary>
-    /// Verifies the prompt thinking override must be a JSON boolean.
+    /// Verifies the prompt thinking override must be a boolean or a non-empty effort keyword.
     /// </summary>
     [Fact]
-    public void PromptThinkingMustBeBoolean()
+    public void PromptThinkingMustBeBooleanOrEffortKeyword()
     {
         var task = CreateTask(
             [
                 Step(
                     "ai.prompt",
                     "prompt",
-                    """{ "prompt": "Translate.", "thinking": "false" }"""),
+                    """{ "prompt": "Translate.", "thinking": 42 }"""),
             ]);
 
         var action = () => ScheduledTaskValidator.Validate(task);
 
         action.Should()
             .Throw<WorkflowValidationException>()
-            .WithMessage("*thinking*boolean*");
+            .WithMessage("*thinking*boolean or a non-empty provider-specific effort string*");
     }
 
     /// <summary>

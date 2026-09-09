@@ -17,4 +17,10 @@ public sealed record EffectiveGenerationPolicy(
 {
     /// <summary>Gets whether model reasoning is enabled for this user-directed generation.</summary>
     public bool ReasoningEnabled { get; init; } = true;
+
+    /// <summary>
+    /// Gets the exact provider-specific reasoning-effort keyword, or <see langword="null"/>
+    /// to use the application's provider-specific enabled default mapping.
+    /// </summary>
+    public string? ReasoningEffort { get; init; }
 }

@@ -49,7 +49,40 @@ public static class GenerationPolicyValidation
             return "Top P must be a finite number greater than 0 and at most 1.";
         }
 
+        if (options.ReasoningEffort is { } reasoningEffort)
+        {
+            if (ValidateReasoningEffort(reasoningEffort) is { } effortError)
+            {
+                return effortError;
+            }
+
+            if (options.ReasoningEnabled == false)
+            {
+                return "Reasoning effort cannot be set when reasoning is disabled.";
+            }
+        }
+
         return null;
+    }
+
+    /// <summary>Validates one open-ended provider reasoning-effort keyword.</summary>
+    /// <param name="reasoningEffort">The exact keyword.</param>
+    /// <returns>An English validation error, or <see langword="null"/>.</returns>
+    public static string? ValidateReasoningEffort(string? reasoningEffort)
+    {
+        if (string.IsNullOrWhiteSpace(reasoningEffort))
+        {
+            return "Reasoning effort must not be empty or whitespace.";
+        }
+
+        if (!string.Equals(reasoningEffort, reasoningEffort.Trim(), StringComparison.Ordinal))
+        {
+            return "Reasoning effort must not start or end with whitespace.";
+        }
+
+        return reasoningEffort.Length > 128
+            ? "Reasoning effort must not exceed 128 characters."
+            : null;
     }
 
     private static string? ValidateValues(

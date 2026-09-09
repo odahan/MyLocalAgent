@@ -787,6 +787,98 @@ public sealed class TaskEditorViewModelTests
         scheduler.VerifyAll();
     }
 
+    /// <summary>Verifies a provider-rejected level is removed and the task is not persisted.</summary>
+    [Fact]
+    public async Task RejectedReasoningEffortIsClearedBeforeRequestingAnotherValue()
+    {
+        var store = new Mock<ITaskStore>(MockBehavior.Strict);
+        store.Setup(instance => instance.GetAsync("reasoning-editor", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ScheduledTask?)null);
+        var validator = new Mock<IReasoningEffortValidator>(MockBehavior.Strict);
+        validator.Setup(instance => instance.ValidateAsync(
+                "gemma4:12b",
+                "xhigh",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ReasoningEffortValidationResult(
+                ReasoningEffortValidationStatus.Rejected,
+                "Rejected."));
+        var viewModel = new TaskEditorViewModel(
+            store.Object,
+            Mock.Of<ITaskSchedulerService>(),
+            Mock.Of<IIncidentReporter>(),
+            Mock.Of<IDesktopInteractionService>(),
+            Mock.Of<IMessenger>(),
+            TimeProvider.System,
+            aiOptions: new MutableOptionsMonitor<AIOptions>(
+                new AIOptions { Provider = AIOptions.OllamaProvider }),
+            ollamaOptions: new MutableOptionsMonitor<OllamaOptions>(
+                new OllamaOptions { Model = "gemma4:12b" }),
+            reasoningEffortValidator: validator.Object)
+        {
+            Id = "reasoning-editor",
+            Name = "Reasoning editor",
+            Prompt = "Test",
+            ReasoningEnabled = true,
+            ReasoningEffortText = "xhigh",
+        };
+
+        await viewModel.SaveCommand.ExecuteAsync(null);
+
+        viewModel.ReasoningEffortText.Should().BeEmpty();
+        viewModel.ValidationText.Should().Contain("rejected").And.Contain("removed");
+        store.Verify(instance => instance.SaveAsync(
+            It.IsAny<ScheduledTask>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+        store.VerifyAll();
+        validator.VerifyAll();
+    }
+
+    /// <summary>Verifies a rejected prompt argument is removed from the workflow draft.</summary>
+    [Fact]
+    public async Task RejectedPromptReasoningEffortIsClearedFromWorkflowDraft()
+    {
+        var store = new Mock<ITaskStore>(MockBehavior.Strict);
+        store.Setup(instance => instance.GetAsync("prompt-reasoning", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ScheduledTask?)null);
+        var validator = new Mock<IReasoningEffortValidator>(MockBehavior.Strict);
+        validator.Setup(instance => instance.ValidateAsync(
+                "gemma4:12b",
+                "max",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ReasoningEffortValidationResult(
+                ReasoningEffortValidationStatus.Rejected,
+                "Rejected."));
+        var viewModel = new TaskEditorViewModel(
+            store.Object,
+            Mock.Of<ITaskSchedulerService>(),
+            Mock.Of<IIncidentReporter>(),
+            Mock.Of<IDesktopInteractionService>(),
+            Mock.Of<IMessenger>(),
+            TimeProvider.System,
+            aiOptions: new MutableOptionsMonitor<AIOptions>(
+                new AIOptions { Provider = AIOptions.OllamaProvider }),
+            ollamaOptions: new MutableOptionsMonitor<OllamaOptions>(
+                new OllamaOptions { Model = "gemma4:12b" }),
+            reasoningEffortValidator: validator.Object)
+        {
+            Id = "prompt-reasoning",
+            Name = "Prompt reasoning",
+            Prompt = "Test",
+            WorkflowText =
+                """[{"step":"ai.prompt","args":{"prompt":"Test","thinking":"max"}}]""",
+        };
+
+        await viewModel.SaveCommand.ExecuteAsync(null);
+
+        var step = WorkflowDefinitionSerializer.Deserialize(viewModel.WorkflowText).Single();
+        step.Args.TryGetProperty("thinking", out _).Should().BeFalse();
+        store.Verify(instance => instance.SaveAsync(
+            It.IsAny<ScheduledTask>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+        store.VerifyAll();
+        validator.VerifyAll();
+    }
+
     /// <summary>
     /// Verifies opening Prompt editor carries the current unsaved inherit/override snapshot.
     /// </summary>

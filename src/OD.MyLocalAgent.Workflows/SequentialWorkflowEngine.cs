@@ -594,7 +594,7 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                 }
                 var prompt = ReadRequiredString(resolvedArguments, "prompt", step.Alias);
                 var timeoutMinutes = ReadOptionalInteger(resolvedArguments, "timeout");
-                var thinking = ReadOptionalBoolean(resolvedArguments, "thinking");
+                var thinking = ReadOptionalThinking(resolvedArguments, "thinking");
                 if (timeoutMinutes is < 1 or > 999)
                 {
                     throw new ArgumentOutOfRangeException(
@@ -613,9 +613,21 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                         context.ToJson());
                 }
 
-                var promptGenerationPolicy = thinking is null
-                    ? generationPolicy
-                    : generationPolicy with { ReasoningEnabled = thinking.Value };
+                var promptGenerationPolicy = thinking switch
+                {
+                    null => generationPolicy,
+                    { Effort: { } effort } => generationPolicy with
+                    {
+                        ReasoningEnabled = true,
+                        ReasoningEffort = effort,
+                    },
+                    { Enabled: { } enabled } => generationPolicy with
+                    {
+                        ReasoningEnabled = enabled,
+                        ReasoningEffort = null,
+                    },
+                    _ => generationPolicy,
+                };
                 using var modelScope = ModelExecutionScope.Push(step.Model ?? task.Model);
                 using var timeoutScope = TimeoutExecutionScope.Push(
                     timeoutMinutes is null ? null : checked(timeoutMinutes.Value * 60));
@@ -715,6 +727,30 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                 $"Workflow argument '{propertyName}' must be a boolean.");
     }
 
+    private static ThinkingOverride? ReadOptionalThinking(
+        JsonElement arguments,
+        string propertyName)
+    {
+        if (!arguments.TryGetProperty(propertyName, out var element))
+        {
+            return null;
+        }
+
+        if (element.ValueKind is JsonValueKind.True or JsonValueKind.False)
+        {
+            return new ThinkingOverride(element.GetBoolean(), null);
+        }
+
+        if (element.ValueKind == JsonValueKind.String &&
+            GenerationPolicyValidation.ValidateReasoningEffort(element.GetString()) is null)
+        {
+            return new ThinkingOverride(null, element.GetString());
+        }
+
+        throw new ArgumentException(
+            $"Workflow argument '{propertyName}' must be a boolean or a non-empty provider-specific effort string.");
+    }
+
     private static int? ReadOptionalInteger(
         JsonElement arguments,
         string propertyName)
@@ -729,6 +765,8 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
             : throw new ArgumentException(
                 $"Workflow argument '{propertyName}' must be an integer.");
     }
+
+    private readonly record struct ThinkingOverride(bool? Enabled, string? Effort);
 
     private static bool ContainsModelPlaceholder(JsonElement element)
     {

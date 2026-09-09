@@ -351,10 +351,19 @@ public static partial class ScheduledTaskValidator
 
             if (string.Equals(step.Step, ToolMap.PromptAlias, StringComparison.OrdinalIgnoreCase) &&
                 step.Args.TryGetProperty("thinking", out var thinking) &&
-                thinking.ValueKind is not JsonValueKind.True and not JsonValueKind.False)
+                thinking.ValueKind is not JsonValueKind.True and not JsonValueKind.False and not JsonValueKind.String)
             {
                 throw new WorkflowValidationException(
-                    "Workflow argument 'thinking' must be a boolean.");
+                    "Workflow argument 'thinking' must be a boolean or a non-empty provider-specific effort string.");
+            }
+
+            if (string.Equals(step.Step, ToolMap.PromptAlias, StringComparison.OrdinalIgnoreCase) &&
+                step.Args.TryGetProperty("thinking", out thinking) &&
+                thinking.ValueKind == JsonValueKind.String &&
+                GenerationPolicyValidation.ValidateReasoningEffort(thinking.GetString()) is { } thinkingError)
+            {
+                throw new WorkflowValidationException(
+                    $"Workflow argument 'thinking' is invalid. {thinkingError}");
             }
 
             ValidateArguments(step, definition);

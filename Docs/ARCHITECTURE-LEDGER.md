@@ -2338,6 +2338,24 @@ compilation, freshness-window expansion, document classification, and late prote
   its database path, initializes it before discovery, and exposes only `sqlite.storeProposal`
   to its bounded agentic prompt step.
 
+# Version 2.5.5 — Provider-specific reasoning levels (2026-09-09)
+
+- `GenerationOptions` persists an optional open-ended `reasoningEffort`; task, step, and
+  `ai.prompt.args.thinking` overrides resolve atomically so a nearer boolean does not accidentally
+  retain an inherited level.
+- The Task and workflow-step editors suggest `low`, `medium`, and `high` while retaining editable
+  text for provider-specific keywords such as `xhigh` and `max`.
+- Ollama receives the exact string through native `think`; OpenAI-compatible chat-completions
+  receive the exact `reasoning_effort` value through raw request options. Existing boolean behavior
+  and the pre-response reasoning fallback remain compatible.
+- Task save probes every explicit model/level pair once per provider endpoint. Stable accept/reject
+  results are cached, transient failures remain retryable, rejected values are removed from the
+  draft, and unavailable probes save with an explicit warning.
+- Deterministic coverage verifies JSON persistence, precedence, workflow argument typing, exact
+  provider payloads, caching, retryable unavailability, and rejected-value removal. The Release
+  gate completed with 0 warnings, 0 errors, 871 passing non-integration tests, one expected local
+  Ollama integration probe skipped, and a clean `git diff --check`.
+
 # Version 2.5.4 — Repair editorial selection enum handling (2026-09-09)
 
 - Editorial selection deserialization now accepts the named novelty decisions required by the

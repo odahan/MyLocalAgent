@@ -166,7 +166,7 @@ public sealed class ToolMapMetadataTests
         prompt.ArgumentDefinitions[1].SupportsPlaceholders.Should().BeFalse();
         prompt.ArgumentDefinitions[2].Kind.Should().Be(WorkflowArgumentKind.Integer);
         prompt.ArgumentDefinitions[2].SupportsPlaceholders.Should().BeFalse();
-        prompt.ArgumentDefinitions[3].Kind.Should().Be(WorkflowArgumentKind.Boolean);
+        prompt.ArgumentDefinitions[3].Kind.Should().Be(WorkflowArgumentKind.BooleanOrString);
         prompt.ArgumentDefinitions[3].SupportsPlaceholders.Should().BeFalse();
     }
 

@@ -99,16 +99,23 @@ completion-integrity check and may be returned even when a per-minute limit has 
 
 ## Reasoning preference and safe fallback
 
-Reasoning is controlled by the caller surface, independently of provider selection. It is enabled
-only for Direct Chat and agentic task calls. Trust Filter, workflow `ai.prompt`, history
-compression, skills, authoring helpers, AI Playground generation, and warm-up explicitly disable
-it so their bounded operations do not spend latency or cloud output budget on reasoning tokens.
+Reasoning is controlled by the caller surface, independently of provider selection. Direct Chat
+retains its on/off control. Tasks and AI workflow steps can additionally carry an open-ended
+provider-specific effort keyword; `ai.prompt.args.thinking` accepts the same string or a boolean.
+Omission inherits the resolved policy. Trust Filter, history compression, skills, authoring
+helpers, AI Playground generation, and warm-up explicitly disable reasoning so their bounded
+operations do not spend latency or cloud output budget on reasoning tokens.
 
-`GenerationPolicyChatClient` expresses the preference with the provider-neutral
-`ChatOptions.Reasoning` contract. For Ollama it also maps to the native `think` option. The
-Microsoft.Extensions.AI OpenAI adapter maps the effort to the OpenAI-compatible
-`reasoning_effort` field, which OpenRouter accepts as a shorthand for its unified reasoning
-configuration. Providers that do not support the option can ignore it.
+`GenerationPolicyChatClient` expresses standard preferences with the provider-neutral
+`ChatOptions.Reasoning` contract. Because neither protocol exposes a reliable per-model effort
+vocabulary, custom values remain exact strings: Ollama receives native string-valued `think`, and
+OpenAI-compatible chat completions receive `reasoning_effort` through raw completion options.
+The UI suggestions (`low`, `medium`, `high`) are conveniences rather than a closed enum.
+
+Task save validates each explicit provider/model/value tuple with a minimal completion request.
+Successful and rejected tuples are cached; transport or server failures remain retryable. A model
+rejection removes the value from the draft, while an unavailable probe warns without preventing
+save. Execution does not repeat this probe and retains the safe fallback below.
 
 If a provider rejects a reasoning option before it returns the first response update (HTTP 400/422
 or a reasoning-specific rejection), the wrapper makes one clean retry with the reasoning options

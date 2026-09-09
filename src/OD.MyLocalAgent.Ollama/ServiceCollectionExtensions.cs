@@ -59,6 +59,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<OpenAIClientService>();
         services.AddSingleton<IOpenAIModelCatalog>(
             static services => services.GetRequiredService<OpenAIClientService>());
+        services.AddSingleton<IReasoningEffortValidator, ReasoningEffortValidator>();
         services.AddSingleton<ILlmClientFactory, LlmClientFactory>();
         return services;
     }

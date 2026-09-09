@@ -1,6 +1,6 @@
 # OD.MyLocalAgent
 
-Current application release: **2.5.4**.
+Current application release: **2.5.5**.
 
 OD.MyLocalAgent is a native Windows desktop application for running scheduled, AI-driven
 tasks locally. It combines a WPF management UI, a headless runner, Ollama, deterministic
@@ -434,12 +434,21 @@ for that step.
 
 Reasoning is a request-level preference, not a provider selection. It is available in **Direct
 Chat** and in **agentic task calls** through their respective **Reasoning** controls. Agentic tasks
-default to enabled; legacy tasks without the setting retain that default. It is deliberately off
-for workflow `ai.prompt` steps, Trust filter screening, history compression, skills, AI helpers,
-AI Playground generation, and warm-up, where a bounded direct response is preferable.
+default to enabled; legacy tasks without the setting retain that default. A task or AI workflow
+step can additionally select a reasoning level. The editor suggests `low`, `medium`, and `high`,
+but accepts any non-empty provider-specific keyword such as `xhigh` or `max`. A blank value retains
+the existing enabled mapping: native automatic thinking for Ollama and `medium` for
+OpenAI-compatible endpoints. `ai.prompt.args.thinking` accepts the same keyword or a boolean switch,
+and omission inherits the resolved task/step policy.
 
-The application maps this preference to the active provider: Ollama receives its native `think`
-option and OpenAI-compatible endpoints receive the standard reasoning-effort request option.
+The application does not assume that Ollama models and OpenAI-compatible endpoints share one
+discoverable vocabulary. Ollama receives the exact keyword through its native string-valued
+`think` option; OpenAI-compatible endpoints receive it as `reasoning_effort`. When a task is saved,
+each explicit model/keyword pair is probed once and accepted/rejected results are cached for that
+provider endpoint. A rejected value is removed from the draft and must be replaced; an unavailable
+probe produces a warning and may be retried later. The small validation request can consume a few
+provider tokens.
+
 If a provider or a selected model rejects that option before returning any content, the request is
 retried once without it. A provider's normal default then applies; timeout, cancellation, and
 network failures are not retried as a reasoning fallback.

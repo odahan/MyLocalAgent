@@ -26,6 +26,7 @@ public static class GenerationPolicyResolver
             stepOptions?.TopP,
             taskOptions?.TopP,
             defaults.TopP);
+        var reasoning = ResolveReasoning(taskOptions, stepOptions);
         return new EffectiveGenerationPolicy(
             temperature.Value,
             topP.Value,
@@ -33,7 +34,8 @@ public static class GenerationPolicyResolver
             temperature.Source,
             topP.Source)
         {
-            ReasoningEnabled = stepOptions?.ReasoningEnabled ?? taskOptions?.ReasoningEnabled ?? true,
+            ReasoningEnabled = reasoning.Enabled,
+            ReasoningEffort = reasoning.Effort,
         };
     }
 
@@ -63,6 +65,7 @@ public static class GenerationPolicyResolver
             GenerationOptionSource.Program)
         {
             ReasoningEnabled = false,
+            ReasoningEffort = null,
         };
     }
 
@@ -106,4 +109,33 @@ public static class GenerationPolicyResolver
     private readonly record struct ResolvedValue(
         double Value,
         GenerationOptionSource Source);
+
+    private static ResolvedReasoning ResolveReasoning(
+        GenerationOptions? taskOptions,
+        GenerationOptions? stepOptions)
+    {
+        if (stepOptions?.ReasoningEffort is { } stepEffort)
+        {
+            return new ResolvedReasoning(true, stepEffort);
+        }
+
+        if (stepOptions?.ReasoningEnabled is { } stepEnabled)
+        {
+            return new ResolvedReasoning(stepEnabled, null);
+        }
+
+        if (taskOptions?.ReasoningEffort is { } taskEffort)
+        {
+            return new ResolvedReasoning(true, taskEffort);
+        }
+
+        if (taskOptions?.ReasoningEnabled is { } taskEnabled)
+        {
+            return new ResolvedReasoning(taskEnabled, null);
+        }
+
+        return new ResolvedReasoning(true, null);
+    }
+
+    private readonly record struct ResolvedReasoning(bool Enabled, string? Effort);
 }

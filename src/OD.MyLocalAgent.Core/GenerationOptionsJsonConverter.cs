@@ -27,6 +27,7 @@ internal sealed class GenerationOptionsJsonConverter :
         double? temperature = null;
         double? topP = null;
         bool? reasoningEnabled = null;
+        string? reasoningEffort = null;
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var property in document.RootElement.EnumerateObject())
         {
@@ -57,10 +58,17 @@ internal sealed class GenerationOptionsJsonConverter :
             {
                 reasoningEnabled = ReadBoolean(property);
             }
+            else if (string.Equals(
+                         property.Name,
+                         "reasoningEffort",
+                         StringComparison.OrdinalIgnoreCase))
+            {
+                reasoningEffort = ReadString(property);
+            }
             else
             {
                 throw new JsonException(
-                    $"Unknown generation option '{property.Name}'. Only 'temperature', 'topP', and 'reasoningEnabled' are supported.");
+                    $"Unknown generation option '{property.Name}'. Only 'temperature', 'topP', 'reasoningEnabled', and 'reasoningEffort' are supported.");
             }
         }
 
@@ -69,6 +77,7 @@ internal sealed class GenerationOptionsJsonConverter :
             Temperature = temperature,
             TopP = topP,
             ReasoningEnabled = reasoningEnabled,
+            ReasoningEffort = reasoningEffort,
         };
         var validation = GenerationPolicyValidation.ValidateOverrides(result);
         if (validation is not null)
@@ -100,6 +109,11 @@ internal sealed class GenerationOptionsJsonConverter :
             writer.WriteBoolean("reasoningEnabled", reasoningEnabled);
         }
 
+        if (value.ReasoningEffort is { } reasoningEffort)
+        {
+            writer.WriteString("reasoningEffort", reasoningEffort);
+        }
+
         writer.WriteEndObject();
     }
 
@@ -125,5 +139,16 @@ internal sealed class GenerationOptionsJsonConverter :
         }
 
         return property.Value.GetBoolean();
+    }
+
+    private static string ReadString(JsonProperty property)
+    {
+        if (property.Value.ValueKind != JsonValueKind.String)
+        {
+            throw new JsonException(
+                $"Generation option '{property.Name}' must be a string.");
+        }
+
+        return property.Value.GetString()!;
     }
 }

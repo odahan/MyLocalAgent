@@ -124,9 +124,17 @@ other cloud endpoint, so it does not consume cloud credits.
 ### Model reasoning
 
 Turn **Reasoning** on or off in **Direct Chat** for the next reply, including agent mode. For an
-agentic task, use **Enable reasoning for agentic task calls** in the Task editor. Reasoning is on
-by default for these two uses and off for bounded operations: Trust Filter, `ai.prompt` steps,
-history compression, skills, internal helpers, and warm-up.
+agentic task, use **Enable reasoning for agentic task calls** in the Task editor. A blank
+**Reasoning level** retains automatic Ollama thinking or the existing `medium` mapping on an
+OpenAI-compatible endpoint. You may instead choose `low`, `medium`, or `high`, or type the exact
+keyword documented by the selected model (for example `xhigh` or `max`). The same editable field is available on AI workflow steps;
+`ai.prompt.args.thinking` accepts either that string or a boolean switch.
+
+The application passes custom values verbatim as Ollama `think` or OpenAI-compatible
+`reasoning_effort`; it cannot discover one reliable vocabulary across every compatible model. On
+task save, explicit model/level pairs are checked with a small provider request. A rejected value
+is cleared so you can enter another one. If the check is temporarily unavailable, the task is saved
+with a warning and the check can run again later. Accepted and rejected pairs are cached.
 
 When a provider returns readable reasoning text, Direct Chat shows it in the expandable **Model
 reasoning** panel. It is not part of the assistant answer and is not stored in conversation history.

@@ -39,6 +39,8 @@ public sealed partial class TaskEditorViewModel :
         nameof(TemperatureOverrideText),
         nameof(UseGlobalTopP),
         nameof(TopPOverrideText),
+        nameof(ReasoningEnabled),
+        nameof(ReasoningEffortText),
         nameof(SqliteGuardrailsEnabled),
         nameof(KnowledgeTagsText),
     ];
@@ -58,6 +60,7 @@ public sealed partial class TaskEditorViewModel :
     private readonly IOptionsMonitor<AIOptions>? _aiOptions;
     private readonly IOptionsMonitor<OllamaOptions>? _ollamaOptions;
     private readonly IOptionsMonitor<OpenAIOptions>? _openAiOptions;
+    private readonly IReasoningEffortValidator? _reasoningEffortValidator;
     private readonly IOptionsMonitor<SQLiteOptions>? _sqliteOptions;
     private readonly IPathSandbox? _pathSandbox;
     private readonly IKnowledgeLibraryService? _knowledgeLibrary;
@@ -115,6 +118,10 @@ public sealed partial class TaskEditorViewModel :
 
     [ObservableProperty]
     private bool _reasoningEnabled = true;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    private string _reasoningEffortText = string.Empty;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
@@ -189,6 +196,9 @@ public sealed partial class TaskEditorViewModel :
     /// </summary>
     public bool IsTopPOverrideEnabled => !UseGlobalTopP;
 
+    /// <summary>Gets common reasoning levels while allowing provider-specific text.</summary>
+    public IReadOnlyList<string> ReasoningEffortSuggestions { get; } = ["low", "medium", "high"];
+
     /// <summary>Gets whether the task model override editor is enabled.</summary>
     public bool IsModelOverrideEnabled => !UseSettingsModel;
 
@@ -257,7 +267,8 @@ public sealed partial class TaskEditorViewModel :
         IToolCatalog? catalog = null,
         IOptionsMonitor<OllamaOptions>? ollamaOptions = null,
         IOptionsMonitor<OpenAIOptions>? openAiOptions = null,
-        ITaskCloneDialogService? cloneDialog = null)
+        ITaskCloneDialogService? cloneDialog = null,
+        IReasoningEffortValidator? reasoningEffortValidator = null)
     {
         _taskStore = taskStore;
         _scheduler = scheduler;
@@ -277,6 +288,7 @@ public sealed partial class TaskEditorViewModel :
         _ollamaOptions = ollamaOptions;
         _openAiOptions = openAiOptions;
         _cloneDialog = cloneDialog;
+        _reasoningEffortValidator = reasoningEffortValidator;
         ErrorPolicies = Enum.GetValues<WorkflowErrorPolicy>();
         WorkflowAliases = ToolMap.Definitions;
         _toolGroupSelectionItems = new ObservableCollection<ToolGroupSelectionItem>(
@@ -410,6 +422,12 @@ public sealed partial class TaskEditorViewModel :
         UpdateGenerationState();
 
     partial void OnTopPOverrideTextChanged(string value) =>
+        UpdateGenerationState();
+
+    partial void OnReasoningEnabledChanged(bool value) =>
+        UpdateGenerationState();
+
+    partial void OnReasoningEffortTextChanged(string value) =>
         UpdateGenerationState();
 
     partial void OnWorkflowTextChanged(string value)
@@ -617,6 +635,7 @@ public sealed partial class TaskEditorViewModel :
                     CultureInfo.CurrentCulture);
             UseGlobalTopP = task?.GenerationOptions?.TopP is null;
             ReasoningEnabled = task?.GenerationOptions?.ReasoningEnabled ?? true;
+            ReasoningEffortText = task?.GenerationOptions?.ReasoningEffort ?? string.Empty;
             TopPOverrideText =
                 (task?.GenerationOptions?.TopP ??
                  defaults.TopP).ToString(
@@ -724,6 +743,8 @@ public sealed partial class TaskEditorViewModel :
                     $"Task id '{task.Id}' already exists.");
             }
 
+            var reasoningValidationWarning = await ValidateReasoningEffortsAsync(task, cancellationToken)
+                .ConfigureAwait(true);
             var persistedTask = await _taskStore
                 .SaveAsync(task, cancellationToken)
                 .ConfigureAwait(true);
@@ -736,7 +757,9 @@ public sealed partial class TaskEditorViewModel :
             IsIdReadOnly = true;
             EditorTitle = $"Edit task · {persistedTask.Name}";
             UpdateTimestampDisplay(persistedTask);
-            ValidationText = "Task saved and scheduler registration synchronized.";
+            ValidationText = string.IsNullOrWhiteSpace(reasoningValidationWarning)
+                ? "Task saved and scheduler registration synchronized."
+                : $"Task saved and scheduler registration synchronized. {reasoningValidationWarning}";
             IsDirty = false;
             _messenger.Send(new TaskSavedMessage(persistedTask.Id));
             _messenger.Send(
@@ -774,6 +797,142 @@ public sealed partial class TaskEditorViewModel :
         CreatedUtcToolTip = FormatUtcTimestamp(task?.CreatedUtc);
         LastModifiedText = FormatTimestamp(task?.UpdatedUtc);
         LastModifiedUtcToolTip = FormatUtcTimestamp(task?.UpdatedUtc);
+    }
+
+    private async Task<string?> ValidateReasoningEffortsAsync(
+        ScheduledTask task,
+        CancellationToken cancellationToken)
+    {
+        if (_reasoningEffortValidator is null)
+        {
+            return null;
+        }
+
+        var provider = _aiOptions?.CurrentValue.Provider ?? AIOptions.OllamaProvider;
+        var configuredModel = string.Equals(provider, AIOptions.OllamaProvider, StringComparison.OrdinalIgnoreCase)
+            ? _ollamaOptions?.CurrentValue.Model
+            : _openAiOptions?.CurrentValue.Model;
+        var taskModel = task.Model ?? configuredModel;
+        if (string.IsNullOrWhiteSpace(taskModel))
+        {
+            return "Reasoning levels could not be validated because no effective model is configured.";
+        }
+
+        var requests = new Dictionary<string, (string Model, string Effort)>(StringComparer.Ordinal);
+        AddRequest(requests, taskModel, task.GenerationOptions?.ReasoningEffort);
+        foreach (var step in task.Workflow)
+        {
+            string? effort;
+            if (string.Equals(step.Step, ToolMap.PromptAlias, StringComparison.OrdinalIgnoreCase) &&
+                step.Args.ValueKind == JsonValueKind.Object &&
+                step.Args.TryGetProperty("thinking", out var thinking))
+            {
+                effort = thinking.ValueKind == JsonValueKind.String
+                    ? thinking.GetString()
+                    : null;
+            }
+            else
+            {
+                effort = step.GenerationOptions?.ReasoningEffort;
+            }
+
+            AddRequest(requests, step.Model ?? taskModel, effort);
+        }
+
+        var warnings = new List<string>();
+        foreach (var request in requests.Values)
+        {
+            var result = await _reasoningEffortValidator
+                .ValidateAsync(request.Model, request.Effort, cancellationToken)
+                .ConfigureAwait(true);
+            if (result.Status == ReasoningEffortValidationStatus.Rejected)
+            {
+                ClearRejectedReasoningEffort(task, request.Model, request.Effort, taskModel);
+                throw new TaskValidationException(
+                    $"Model '{request.Model}' rejected reasoning level '{request.Effort}'. The rejected value was removed; enter another level or leave it blank for automatic reasoning.");
+            }
+
+            if (result.Status == ReasoningEffortValidationStatus.Unavailable)
+            {
+                warnings.Add(result.Message);
+            }
+        }
+
+        return warnings.Count == 0
+            ? null
+            : string.Join(" ", warnings.Distinct(StringComparer.Ordinal));
+    }
+
+    private void ClearRejectedReasoningEffort(
+        ScheduledTask task,
+        string rejectedModel,
+        string rejectedEffort,
+        string taskModel)
+    {
+        if (string.Equals(taskModel, rejectedModel, StringComparison.Ordinal) &&
+            string.Equals(task.GenerationOptions?.ReasoningEffort, rejectedEffort, StringComparison.Ordinal))
+        {
+            ReasoningEffortText = string.Empty;
+        }
+
+        var changed = false;
+        var workflow = task.Workflow.Select(step =>
+        {
+            if (!string.Equals(step.Model ?? taskModel, rejectedModel, StringComparison.Ordinal))
+            {
+                return step;
+            }
+
+            if (string.Equals(step.Step, ToolMap.PromptAlias, StringComparison.OrdinalIgnoreCase) &&
+                step.Args.ValueKind == JsonValueKind.Object &&
+                step.Args.TryGetProperty("thinking", out var thinking) &&
+                thinking.ValueKind == JsonValueKind.String &&
+                string.Equals(thinking.GetString(), rejectedEffort, StringComparison.Ordinal))
+            {
+                var arguments = step.Args.EnumerateObject()
+                    .Where(static property => !string.Equals(property.Name, "thinking", StringComparison.Ordinal))
+                    .ToDictionary(
+                        static property => property.Name,
+                        static property => property.Value.Clone(),
+                        StringComparer.Ordinal);
+                changed = true;
+                return step with { Args = JsonSerializer.SerializeToElement(arguments) };
+            }
+
+            if (!string.Equals(
+                    step.GenerationOptions?.ReasoningEffort,
+                    rejectedEffort,
+                    StringComparison.Ordinal))
+            {
+                return step;
+            }
+
+            var generationOptions = step.GenerationOptions! with { ReasoningEffort = null };
+            changed = true;
+            return step with
+            {
+                GenerationOptions = generationOptions.IsEmpty ? null : generationOptions,
+            };
+        }).ToArray();
+
+        if (changed)
+        {
+            WorkflowText = WorkflowDefinitionSerializer.Serialize(workflow);
+        }
+    }
+
+    private static void AddRequest(
+        IDictionary<string, (string Model, string Effort)> requests,
+        string model,
+        string? effort)
+    {
+        if (string.IsNullOrWhiteSpace(effort))
+        {
+            return;
+        }
+
+        var key = string.Concat(model, "\0", effort);
+        requests.TryAdd(key, (model, effort));
     }
 
     private string FormatTimestamp(DateTimeOffset? timestamp)
@@ -1848,7 +2007,10 @@ public sealed partial class TaskEditorViewModel :
             topP = parsedTopP;
         }
 
-        if (temperature is null && topP is null && ReasoningEnabled)
+        var reasoningEffort = string.IsNullOrWhiteSpace(ReasoningEffortText)
+            ? null
+            : ReasoningEffortText.Trim();
+        if (temperature is null && topP is null && ReasoningEnabled && reasoningEffort is null)
         {
             return true;
         }
@@ -1858,6 +2020,7 @@ public sealed partial class TaskEditorViewModel :
             Temperature = temperature,
             TopP = topP,
             ReasoningEnabled = ReasoningEnabled ? null : false,
+            ReasoningEffort = ReasoningEnabled ? reasoningEffort : null,
         };
         var error = GenerationPolicyValidation.ValidateOverrides(candidate);
         if (error is not null)

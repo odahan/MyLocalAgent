@@ -598,14 +598,16 @@ public sealed class ToolCatalog : IToolCatalog
                 },
                 new ToolArgumentDefinition(
                     "thinking",
-                    WorkflowArgumentKind.Boolean,
+                    WorkflowArgumentKind.BooleanOrString,
                     IsRequired: false,
-                    "Optional per-step reasoning control; omitted uses the task or global generation setting.")
+                    "Optional per-step reasoning control; use true/false or an exact provider-specific effort keyword. Omitted uses the task or global generation setting.")
                 {
-                    Example = "false",
+                    Example = "high",
                     SupportsPlaceholders = false,
-                    ValueType = typeof(bool),
+                    ValueType = typeof(JsonElement),
                     AllowsNull = false,
+                    MaximumLength = 128,
+                    AllowsScalarJson = true,
                 },
             ]);
     }
@@ -750,6 +752,7 @@ public sealed class ToolCatalog : IToolCatalog
         {
             WorkflowArgumentKind.String => type == typeof(string) || type == typeof(DateTimeOffset) || type == typeof(DateTime) || type == typeof(Uri),
             WorkflowArgumentKind.Boolean => type == typeof(bool),
+            WorkflowArgumentKind.BooleanOrString => type == typeof(JsonElement),
             WorkflowArgumentKind.Integer => type == typeof(byte) || type == typeof(short) || type == typeof(int) || type == typeof(long) || type == typeof(sbyte) || type == typeof(ushort) || type == typeof(uint) || type == typeof(ulong),
             WorkflowArgumentKind.Number => type == typeof(float) || type == typeof(double) || type == typeof(decimal),
             WorkflowArgumentKind.Enumeration => type.IsEnum || type == typeof(string),
@@ -777,7 +780,7 @@ public sealed class ToolCatalog : IToolCatalog
         {
             throw new InvalidOperationException($"Argument '{argument.Name}' on tool '{alias}' has a non-positive maximum length.");
         }
-        if (argument.MaximumLength is not null && argument.Kind is not WorkflowArgumentKind.String and not WorkflowArgumentKind.Enumeration)
+        if (argument.MaximumLength is not null && argument.Kind is not WorkflowArgumentKind.String and not WorkflowArgumentKind.Enumeration and not WorkflowArgumentKind.BooleanOrString)
         {
             throw new InvalidOperationException($"Argument '{argument.Name}' on tool '{alias}' defines a maximum length for a non-string kind.");
         }
@@ -797,6 +800,7 @@ public sealed class ToolCatalog : IToolCatalog
         {
             WorkflowArgumentKind.String or WorkflowArgumentKind.Enumeration => value.ValueKind == JsonValueKind.String,
             WorkflowArgumentKind.Boolean => value.ValueKind is JsonValueKind.True or JsonValueKind.False,
+            WorkflowArgumentKind.BooleanOrString => value.ValueKind is JsonValueKind.True or JsonValueKind.False or JsonValueKind.String,
             WorkflowArgumentKind.Integer => value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out _),
             WorkflowArgumentKind.Number => value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var finite) && double.IsFinite(finite),
             WorkflowArgumentKind.Object => value.ValueKind is JsonValueKind.Object or JsonValueKind.Array,
