@@ -229,8 +229,8 @@ public sealed partial class ProposalMemoryService : IProposalMemoryService
         var retained = new List<WebDocument>(candidates.Count);
         var semanticCandidates = new List<WebDocument>(candidates.Count);
         var proposalTitles = proposals.Select(static item => item.NormalizedTitle).ToHashSet(StringComparer.Ordinal);
-        var proposalUrls = proposals.Where(static item => item.CanonicalUrl is not null)
-            .Select(static item => item.CanonicalUrl!)
+        var proposalUrls = proposals
+            .SelectMany(static item => item.CanonicalUrls)
             .ToHashSet(StringComparer.Ordinal);
         var exactCount = 0;
         foreach (var candidate in candidates)
@@ -335,7 +335,7 @@ public sealed partial class ProposalMemoryService : IProposalMemoryService
         ValidateRowValues(connection, null);
         using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT title, source_url, created_at_utc, used,
+            SELECT id, title, created_at_utc, used,
                    embedding_model, embedding_dimension, embedding
             FROM editorial_proposals
             WHERE julianday(created_at_utc) >= julianday($cutoff) OR ($useUsedTag = 1 AND used = 1)
@@ -344,7 +344,7 @@ public sealed partial class ProposalMemoryService : IProposalMemoryService
         command.Parameters.AddWithValue("$cutoff", cutoff.ToString("O", CultureInfo.InvariantCulture));
         command.Parameters.AddWithValue("$useUsedTag", useUsedTag ? 1 : 0);
         using var reader = command.ExecuteReader();
-        var output = new List<StoredProposal>();
+        var rows = new List<(long Id, string NormalizedTitle, string EmbeddingModel, int EmbeddingDimension, float[] Embedding)>();
         while (reader.Read())
         {
             if (!DateTimeOffset.TryParse(reader.GetString(2), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out _) ||
@@ -356,15 +356,21 @@ public sealed partial class ProposalMemoryService : IProposalMemoryService
 
             var dimension = reader.GetInt32(5);
             var bytes = (byte[])reader.GetValue(6);
-            output.Add(new StoredProposal(
-                NormalizeTitle(reader.GetString(0)),
-                reader.IsDBNull(1) ? null : NormalizeUrl(reader.GetString(1)),
+            rows.Add((
+                reader.GetInt64(0),
+                NormalizeTitle(reader.GetString(1)),
                 reader.GetString(4),
                 dimension,
                 DecodeVector(bytes, dimension)));
         }
 
-        return output;
+        reader.Close();
+        return rows.Select(row => new StoredProposal(
+            row.NormalizedTitle,
+            ReadSourceUrls(connection, row.Id),
+            row.EmbeddingModel,
+            row.EmbeddingDimension,
+            row.Embedding)).ToArray();
     }, cancellationToken).ConfigureAwait(false);
 
     private string GetEmbeddingModel()
@@ -640,7 +646,7 @@ public sealed partial class ProposalMemoryService : IProposalMemoryService
 
     private sealed record StoredProposal(
         string NormalizedTitle,
-        string? CanonicalUrl,
+        IReadOnlySet<string> CanonicalUrls,
         string EmbeddingModel,
         int EmbeddingDimension,
         float[] Embedding);

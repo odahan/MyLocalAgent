@@ -2338,6 +2338,17 @@ compilation, freshness-window expansion, document classification, and late prote
   its database path, initializes it before discovery, and exposes only `sqlite.storeProposal`
   to its bounded agentic prompt step.
 
+# Version 2.5.6 — Repair editorial event identity filtering (2026-09-13)
+
+- Editorial event fingerprints now hash the normalized entities and claimed facts, rather than
+  the enumerable object representations. Distinct undated events can no longer be treated as
+  the same historical event.
+- Discovery anti-repetition now compares a candidate URL against every canonical source retained
+  for a historical proposal, including supplemental sources.
+- Final editorial-reservation diagnostics identify whether a rejection was caused by an exact
+  title, event identity, or source match.
+- Regression coverage verifies distinct undated events and supplemental-source filtering.
+
 # Version 2.5.5 — Provider-specific reasoning levels (2026-09-09)
 
 - `GenerationOptions` persists an optional open-ended `reasoningEffort`; task, step, and

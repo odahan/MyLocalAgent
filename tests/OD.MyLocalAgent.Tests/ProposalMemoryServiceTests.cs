@@ -180,6 +180,46 @@ public sealed class ProposalMemoryServiceTests : IDisposable
         result.Rejected.Should().ContainSingle().Which.Decision.Should().Be(EditorialNoveltyDecision.Duplicate);
     }
 
+    /// <summary>Distinguishes undated events by their entities and facts instead of hashing enumerable type names.</summary>
+    [Fact]
+    public async Task ReserveSelectionDistinguishesDifferentUndatedEvents()
+    {
+        Directory.CreateDirectory(_root);
+        var path = Path.Combine(_root, "shared-source.db");
+        var service = new ProposalMemoryService(
+            new StubEmbeddingService(input => input.StartsWith("Distinct", StringComparison.Ordinal) ? [0f, 1f] : [1f, 0f]),
+            new MutableOptionsMonitor<KnowledgeOptions>(new KnowledgeOptions { EmbeddingModel = "proposal-model" }),
+            _time);
+        await service.CreateDatabaseAsync(path, CancellationToken.None);
+        await service.ReserveSelectionAsync(
+            path,
+            "historical",
+            Discovery(("shared", "https://example.com/shared")),
+            Selection(Proposal("historical", "Historical release", "shared")),
+            6,
+            0.92,
+            CancellationToken.None);
+        var distinct = Proposal("distinct", "Distinct EF Core fix", "new") with
+        {
+            Entities = ["EF Core"],
+            ClaimedNewFacts = [new TestFact("A distinct EF Core memory defect was fixed.", ["new"])],
+        };
+
+        var result = await service.ReserveSelectionAsync(
+            path,
+            "distinct",
+            Discovery(("new", "https://example.com/ef-core-fix")),
+            Selection(distinct),
+            6,
+            0.92,
+            CancellationToken.None);
+
+        result.Approved.Should().ContainSingle(
+            $"rejection was: {string.Join("; ", result.Rejected.Select(item => $"{item.Reason} ({item.Similarity})"))}")
+            .Which.TemporaryId.Should().Be("distinct");
+        result.Rejected.Should().BeEmpty();
+    }
+
     /// <summary>Allows a known release page only when a distinct dated/versioned material update is declared.</summary>
     [Fact]
     public async Task ReserveSelectionAllowsSupportedMaterialUpdateOnKnownReleasePage()
@@ -423,6 +463,40 @@ public sealed class ProposalMemoryServiceTests : IDisposable
         result.RejectedExactCount.Should().Be(2);
         result.RejectedSemanticCount.Should().Be(0);
         result.ConsideredCount.Should().Be(1);
+    }
+
+    /// <summary>Rejects a candidate whose URL was stored as a supplemental historical source.</summary>
+    [Fact]
+    public async Task FilterRejectsSupplementalHistoricalUrlMatch()
+    {
+        var (service, path) = await CreateCurrentDatabaseAsync();
+        var historical = Proposal("historical", "Historical multi-source release", "primary") with
+        {
+            SourceIds = ["primary", "supplemental"],
+            ClaimedNewFacts = [new TestFact("Two sources establish the historical release.", ["primary", "supplemental"])],
+        };
+        await service.ReserveSelectionAsync(
+            path,
+            "historical-sources",
+            Discovery(
+                ("primary", "https://example.com/primary"),
+                ("supplemental", "https://example.com/supplemental")),
+            Selection(historical),
+            6,
+            0.92,
+            CancellationToken.None);
+
+        var result = await service.FilterAsync(
+            path,
+            [Document("repeat", "Different title", "https://example.com/supplemental")],
+            6,
+            false,
+            0.92,
+            CancellationToken.None);
+
+        result.Candidates.Should().BeEmpty();
+        result.RejectedExactCount.Should().Be(1);
+        result.RejectedSemanticCount.Should().Be(0);
     }
 
     /// <summary>Uses exact local cosine comparison at the configured threshold.</summary>

@@ -322,13 +322,26 @@ public sealed partial class ProposalMemoryService
         }
 
         var normalizedTitle = NormalizeTitle(proposal.Title);
-        var exact = history.FirstOrDefault(item =>
-            item.NormalizedTitle == normalizedTitle ||
-            item.EventFingerprint == eventFingerprint ||
-            item.SourceUrls.Overlaps(sources.Select(static source => source.CanonicalUrl)));
+        var candidateSourceUrls = sources
+            .Select(static source => source.CanonicalUrl)
+            .ToHashSet(StringComparer.Ordinal);
+        var exactReason = "An exact normalized title already exists.";
+        var exact = history.FirstOrDefault(item => item.NormalizedTitle == normalizedTitle);
+        if (exact is null)
+        {
+            exactReason = "An exact event identity already exists.";
+            exact = history.FirstOrDefault(item => item.EventFingerprint == eventFingerprint);
+        }
+
+        if (exact is null && candidateSourceUrls.Count > 0)
+        {
+            exactReason = "A selected source already belongs to a historical proposal.";
+            exact = history.FirstOrDefault(item => item.SourceUrls.Overlaps(candidateSourceUrls));
+        }
+
         if (exact is not null && !IsSupportedMaterialUpdate(proposal, exact))
         {
-            return CandidateDecision.Reject(proposal, sources, eventFingerprint, EditorialNoveltyDecision.Duplicate, "An exact title, source, or event identity already exists.", exact.Id);
+            return CandidateDecision.Reject(proposal, sources, eventFingerprint, EditorialNoveltyDecision.Duplicate, exactReason, exact.Id);
         }
 
         HistoricalEditorialProposal? nearest = null;
@@ -561,10 +574,10 @@ public sealed partial class ProposalMemoryService
         string.Join('\n', draft.WhyNow, draft.CriticalAngle, draft.Body, draft.LinkedInPost);
 
     private static string EventFingerprint(SelectionProposal proposal) => Sha256(string.Join('\n',
-        proposal.Entities.Select(NormalizeTitle).Order(StringComparer.Ordinal),
+        string.Join('\u001f', proposal.Entities.Select(NormalizeTitle).Order(StringComparer.Ordinal)),
         NormalizeTitle(proposal.EventVersion ?? string.Empty),
         proposal.EventDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty,
-        proposal.ClaimedNewFacts.Select(static fact => NormalizeTitle(fact.Text)).Order(StringComparer.Ordinal)));
+        string.Join('\u001f', proposal.ClaimedNewFacts.Select(static fact => NormalizeTitle(fact.Text)).Order(StringComparer.Ordinal))));
 
     private static string Sha256(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
 
