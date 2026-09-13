@@ -79,6 +79,8 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="18" />
                             <ColumnDefinition Width="2*" />
+                            <ColumnDefinition Width="18" />
+                            <ColumnDefinition Width="1.2*" />
                         </Grid.ColumnDefinitions>
                         <TextBox IsReadOnly="{Binding IsIdReadOnly}"
                                  Text="{Binding Id, UpdateSourceTrigger=PropertyChanged}"
@@ -86,6 +88,22 @@
                         <TextBox Grid.Column="2"
                                  Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
                                  materialDesign:HintAssist.Hint="Name" />
+                        <StackPanel Grid.Column="4">
+                            <CheckBox Content="Use Settings thinking"
+                                      IsChecked="{Binding UseGlobalThinking, Mode=TwoWay}" />
+                            <StackPanel Margin="0,6,0,0"
+                                        IsEnabled="{Binding IsThinkingOverrideEnabled}">
+                                <CheckBox Content="Enable thinking"
+                                          IsChecked="{Binding ReasoningEnabled, Mode=TwoWay}" />
+                                <ComboBox Margin="0,6,0,0"
+                                          IsEditable="True"
+                                          IsEnabled="{Binding ReasoningEnabled}"
+                                          ItemsSource="{Binding ReasoningEffortSuggestions}"
+                                          Text="{Binding ReasoningEffortText, UpdateSourceTrigger=PropertyChanged}"
+                                          ToolTip="Leave blank to use the provider's automatic thinking level."
+                                          materialDesign:HintAssist.Hint="Thinking level · automatic" />
+                            </StackPanel>
+                        </StackPanel>
                     </Grid>
 
                     <TextBox MinHeight="104"
@@ -198,18 +216,6 @@
                                        Text="{Binding EffectiveTopPText, StringFormat=Effective: {0}}" />
                         </StackPanel>
                     </Grid>
-                    <CheckBox Margin="0,14,0,0"
-                              Content="Enable reasoning for agentic task calls"
-                              IsChecked="{Binding ReasoningEnabled, Mode=TwoWay}" />
-                    <ComboBox Margin="0,8,0,0"
-                              IsEditable="True"
-                              IsEnabled="{Binding ReasoningEnabled}"
-                              ItemsSource="{Binding ReasoningEffortSuggestions}"
-                              Text="{Binding ReasoningEffortText, UpdateSourceTrigger=PropertyChanged}"
-                              materialDesign:HintAssist.Hint="Optional provider reasoning level" />
-                    <TextBlock Margin="0,5,0,0"
-                               Style="{StaticResource CaptionTextStyle}"
-                               Text="Blank uses automatic Ollama reasoning or medium on OpenAI-compatible endpoints; you may enter the exact level accepted by the model." />
                     <StackPanel Margin="0,16,0,0">
                         <CheckBox Content="Use model from Settings"
                                   IsChecked="{Binding UseSettingsModel, Mode=TwoWay}" />

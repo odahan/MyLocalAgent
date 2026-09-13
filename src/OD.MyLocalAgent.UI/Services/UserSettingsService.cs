@@ -260,11 +260,14 @@ internal sealed class UserSettingsService : IUserSettingsService
             ["AI"] = new Dictionary<string, object>
             {
                 ["Provider"] = settings.Provider,
-                ["GenerationDefaults"] = new Dictionary<string, object>
+                ["GenerationDefaults"] = new Dictionary<string, object?>
                 {
                     ["Temperature"] = settings.GenerationTemperature,
                     ["TopP"] = settings.GenerationTopP,
                     ["ContextWindowTokens"] = settings.ContextWindowTokens,
+                    ["ReasoningEnabled"] = settings.GenerationReasoningEnabled,
+                    ["ReasoningEffort"] = settings.GenerationReasoningEffort,
+                    ["InternalThinking"] = settings.InternalThinking ?? new InternalThinkingOptions(),
                 },
                 ["AgentSystemPrompt"] = settings.AgentSystemPrompt.Trim(),
                 ["DirectChatSystemPrompt"] = settings.DirectChatSystemPrompt.Trim(),
@@ -420,6 +423,9 @@ internal sealed class UserSettingsService : IUserSettingsService
                 Temperature = settings.GenerationTemperature,
                 TopP = settings.GenerationTopP,
                 ContextWindowTokens = settings.ContextWindowTokens,
+                ReasoningEnabled = settings.GenerationReasoningEnabled,
+                ReasoningEffort = settings.GenerationReasoningEffort,
+                InternalThinking = settings.InternalThinking ?? new InternalThinkingOptions(),
             });
         if (generationError is not null)
         {

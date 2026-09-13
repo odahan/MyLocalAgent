@@ -23,10 +23,13 @@ public static class GenerationPolicyValidation
     public static string? ValidateDefaults(AIGenerationDefaults defaults)
     {
         ArgumentNullException.ThrowIfNull(defaults);
-        return ValidateValues(
+        var valuesError = ValidateValues(
             defaults.Temperature,
             defaults.TopP,
-            defaults.ContextWindowTokens);
+            defaults.ContextWindowTokens,
+            defaults.ReasoningEnabled,
+            defaults.ReasoningEffort);
+        return valuesError ?? ValidateInternalThinking(defaults.InternalThinking);
     }
 
     /// <summary>
@@ -85,16 +88,48 @@ public static class GenerationPolicyValidation
             : null;
     }
 
+    /// <summary>Validates independently configured internal thinking preferences.</summary>
+    public static string? ValidateInternalThinking(InternalThinkingOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        foreach (var category in Enum.GetValues<InternalThinkingCategory>())
+        {
+            var setting = options.Get(category);
+            if (!Enum.IsDefined(setting.Mode))
+            {
+                return $"Internal thinking mode for '{category}' is invalid.";
+            }
+
+            if (setting.Mode == InternalThinkingMode.SpecificLevel)
+            {
+                if (ValidateReasoningEffort(setting.Effort) is { } error)
+                {
+                    return $"Internal thinking level for '{category}' is invalid. {error}";
+                }
+            }
+            else if (setting.Effort is not null)
+            {
+                return $"Internal thinking level for '{category}' is valid only with SpecificLevel.";
+            }
+        }
+
+        return null;
+    }
+
     private static string? ValidateValues(
         double temperature,
         double topP,
-        int contextWindowTokens)
+        int contextWindowTokens,
+        bool reasoningEnabled,
+        string? reasoningEffort)
     {
         var overrideError = ValidateOverrides(
             new GenerationOptions
             {
                 Temperature = temperature,
                 TopP = topP,
+                ReasoningEnabled = reasoningEnabled,
+                ReasoningEffort = reasoningEffort,
             });
         if (overrideError is not null)
         {

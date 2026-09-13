@@ -9,29 +9,33 @@ public static class InternalGenerationPolicies
     /// Gets the workflow generation, refinement, and repair policy.
     /// </summary>
     public static InternalGenerationPolicy WorkflowAuthoring { get; } =
-        new("WorkflowAuthoring", 0, 1);
+        new("WorkflowAuthoring", 0, 1, InternalThinkingCategory.WorkflowAuthoring);
 
     /// <summary>
     /// Gets the workflow explanation and explanation-repair policy.
     /// </summary>
     public static InternalGenerationPolicy WorkflowExplanation { get; } =
-        new("WorkflowExplanation", 0, 1);
+        new("WorkflowExplanation", 0, 1, InternalThinkingCategory.WorkflowExplanation);
 
     /// <summary>
     /// Gets the Guardrails screening policy.
     /// </summary>
     public static InternalGenerationPolicy GuardrailScreening { get; } =
-        new("GuardrailScreening", 0, 1);
+        new("GuardrailScreening", 0, 1, InternalThinkingCategory.Guardrails);
 
     /// <summary>
     /// Gets the Guardrails reduction policy.
     /// </summary>
     public static InternalGenerationPolicy GuardrailReduction { get; } =
-        new("GuardrailReduction", 0, 1);
+        new("GuardrailReduction", 0, 1, InternalThinkingCategory.Guardrails);
 
     /// <summary>
     /// Gets the research-candidate translation policy.
     /// </summary>
     public static InternalGenerationPolicy ResearchTranslation { get; } =
-        new("ResearchTranslation", 0, 1);
+        new("ResearchTranslation", 0, 1, InternalThinkingCategory.ResearchTranslation);
+
+    /// <summary>Gets the Direct Chat history compression policy.</summary>
+    public static InternalGenerationPolicy DirectChatCompression { get; } =
+        new("DirectChatCompression", 0, 1, InternalThinkingCategory.DirectChatCompression);
 }

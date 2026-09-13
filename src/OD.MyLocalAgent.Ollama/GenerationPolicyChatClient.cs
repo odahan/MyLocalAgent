@@ -18,6 +18,7 @@ public sealed class GenerationPolicyChatClient : IChatClient
     private readonly bool _mapsOllamaContext;
     private readonly bool _reasoningEnabled;
     private readonly string? _reasoningEffort;
+    private readonly bool _useProviderReasoningDefault;
     private readonly string _operation;
 
     /// <summary>
@@ -47,6 +48,7 @@ public sealed class GenerationPolicyChatClient : IChatClient
             providerName,
             AIOptions.OllamaProvider,
             StringComparison.OrdinalIgnoreCase);
+        _useProviderReasoningDefault = reasoningEnabled is null && policy.UseProviderReasoningDefault;
         _reasoningEnabled = reasoningEnabled ?? policy.ReasoningEnabled;
         _reasoningEffort = _reasoningEnabled ? policy.ReasoningEffort : null;
         _operation = operation;
@@ -66,7 +68,14 @@ public sealed class GenerationPolicyChatClient : IChatClient
         ArgumentNullException.ThrowIfNull(messages);
         var messageList = messages as IReadOnlyList<ChatMessage> ?? messages.ToArray();
         ChatResponse response;
-        try
+        if (_useProviderReasoningDefault)
+        {
+            response = await _inner.GetResponseAsync(
+                messageList,
+                CreateOptions(options, applyReasoning: false),
+                cancellationToken).ConfigureAwait(false);
+        }
+        else try
         {
             response = await _inner.GetResponseAsync(
                 messageList,
@@ -93,7 +102,19 @@ public sealed class GenerationPolicyChatClient : IChatClient
         ArgumentNullException.ThrowIfNull(messages);
         var messageList = messages as IReadOnlyList<ChatMessage> ?? messages.ToArray();
         UsageDetails? usage = null;
-        try
+        if (_useProviderReasoningDefault)
+        {
+            await foreach (var update in _inner.GetStreamingResponseAsync(
+                messageList,
+                CreateOptions(options, applyReasoning: false),
+                cancellationToken).ConfigureAwait(false))
+            {
+                usage = update.Contents.OfType<UsageContent>()
+                    .LastOrDefault()?.Details ?? usage;
+                yield return update;
+            }
+        }
+        else try
         {
             await foreach (var update in GetStreamingResponseWithFallbackAsync(
                 messageList,

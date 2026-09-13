@@ -26,8 +26,6 @@ public sealed class DirectChatHistoryCompressor(
     ITokenEstimator tokenEstimator,
     IOptions<DirectChatOptions> directChatOptions) : IDirectChatHistoryCompressor
 {
-    private static readonly InternalGenerationPolicy CompressionPolicy =
-        new("DirectChatCompression", 0, 1);
     private readonly IDirectChatStore _store = store;
     private readonly ILlmClientFactory _llmClientFactory = llmClientFactory;
     private readonly IOptionsMonitor<AIOptions> _aiOptions = aiOptions;
@@ -79,7 +77,7 @@ public sealed class DirectChatHistoryCompressor(
         var prompt = BuildCompressionPrompt(conversation.SummaryText, candidates);
         var provider = _llmClientFactory.Create();
         var policy = GenerationPolicyResolver.ResolveInternal(
-            CompressionPolicy,
+            InternalGenerationPolicies.DirectChatCompression,
             _aiOptions.CurrentValue.GenerationDefaults);
         var client = new GenerationPolicyChatClient(
             provider.ChatClient,

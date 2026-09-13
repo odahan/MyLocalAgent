@@ -67,6 +67,23 @@
                                          Text="{Binding ContextWindowTokensText, UpdateSourceTrigger=PropertyChanged}"
                                          materialDesign:HintAssist.Hint="Context window (tokens)" />
                             </Grid>
+                            <Grid Margin="0,12,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="2*" />
+                                </Grid.ColumnDefinitions>
+                                <CheckBox VerticalAlignment="Center"
+                                          Content="Enable thinking by default"
+                                          IsChecked="{Binding GenerationReasoningEnabled, Mode=TwoWay}" />
+                                <ComboBox Grid.Column="2"
+                                          IsEditable="True"
+                                          IsEnabled="{Binding GenerationReasoningEnabled}"
+                                          ItemsSource="{Binding ReasoningEffortSuggestions}"
+                                          Text="{Binding GenerationReasoningEffortText, UpdateSourceTrigger=PropertyChanged}"
+                                          ToolTip="Leave blank to use the provider's automatic thinking level."
+                                          materialDesign:HintAssist.Hint="Default thinking level · automatic" />
+                            </Grid>
                             <TextBox Margin="0,12,0,0"
                                      Width="220"
                                      HorizontalAlignment="Left"
@@ -97,6 +114,51 @@
                                     </Style>
                                 </TextBlock.Style>
                             </TextBlock>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Margin="0,18,0,0"
+                            Padding="16"
+                            Background="{DynamicResource SurfaceBrush}"
+                            BorderBrush="{DynamicResource DividerBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6">
+                        <StackPanel>
+                            <TextBlock FontWeight="SemiBold" Text="Internal AI operations" />
+                            <TextBlock Margin="0,5,0,12"
+                                       Style="{StaticResource CaptionTextStyle}"
+                                       Text="Each category keeps its fixed sampling policy. Disabled sends an explicit no-thinking request; ProviderDefault sends no thinking instruction; SpecificLevel uses the level entered beside it."
+                                       TextWrapping="Wrap" />
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="2*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <TextBlock VerticalAlignment="Center" Text="Workflow authoring" />
+                                <ComboBox Grid.Column="1" ItemsSource="{Binding InternalThinkingModes}" SelectedItem="{Binding WorkflowAuthoringThinkingMode}" />
+                                <ComboBox Grid.Column="2" Margin="12,0,0,0" IsEditable="True" ItemsSource="{Binding ReasoningEffortSuggestions}" Text="{Binding WorkflowAuthoringThinkingEffortText, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Level" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="2*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <TextBlock VerticalAlignment="Center" Text="Workflow explanation" />
+                                <ComboBox Grid.Column="1" ItemsSource="{Binding InternalThinkingModes}" SelectedItem="{Binding WorkflowExplanationThinkingMode}" />
+                                <ComboBox Grid.Column="2" Margin="12,0,0,0" IsEditable="True" ItemsSource="{Binding ReasoningEffortSuggestions}" Text="{Binding WorkflowExplanationThinkingEffortText, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Level" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="2*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <TextBlock VerticalAlignment="Center" Text="Guardrails" />
+                                <ComboBox Grid.Column="1" ItemsSource="{Binding InternalThinkingModes}" SelectedItem="{Binding GuardrailsThinkingMode}" />
+                                <ComboBox Grid.Column="2" Margin="12,0,0,0" IsEditable="True" ItemsSource="{Binding ReasoningEffortSuggestions}" Text="{Binding GuardrailsThinkingEffortText, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Level" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="2*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <TextBlock VerticalAlignment="Center" Text="Direct Chat history compression" />
+                                <ComboBox Grid.Column="1" ItemsSource="{Binding InternalThinkingModes}" SelectedItem="{Binding DirectChatCompressionThinkingMode}" />
+                                <ComboBox Grid.Column="2" Margin="12,0,0,0" IsEditable="True" ItemsSource="{Binding ReasoningEffortSuggestions}" Text="{Binding DirectChatCompressionThinkingEffortText, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Level" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="2*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <TextBlock VerticalAlignment="Center" Text="Research translation" />
+                                <ComboBox Grid.Column="1" ItemsSource="{Binding InternalThinkingModes}" SelectedItem="{Binding ResearchTranslationThinkingMode}" />
+                                <ComboBox Grid.Column="2" Margin="12,0,0,0" IsEditable="True" ItemsSource="{Binding ReasoningEffortSuggestions}" Text="{Binding ResearchTranslationThinkingEffortText, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Level" />
+                            </Grid>
                         </StackPanel>
                     </Border>
 

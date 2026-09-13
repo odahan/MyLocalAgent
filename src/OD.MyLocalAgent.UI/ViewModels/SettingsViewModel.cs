@@ -66,6 +66,13 @@ public sealed partial class SettingsViewModel :
         nameof(GenerationTemperatureText),
         nameof(GenerationTopPText),
         nameof(ContextWindowTokensText),
+        nameof(GenerationReasoningEnabled),
+        nameof(GenerationReasoningEffortText),
+        nameof(WorkflowAuthoringThinkingMode), nameof(WorkflowAuthoringThinkingEffortText),
+        nameof(WorkflowExplanationThinkingMode), nameof(WorkflowExplanationThinkingEffortText),
+        nameof(GuardrailsThinkingMode), nameof(GuardrailsThinkingEffortText),
+        nameof(DirectChatCompressionThinkingMode), nameof(DirectChatCompressionThinkingEffortText),
+        nameof(ResearchTranslationThinkingMode), nameof(ResearchTranslationThinkingEffortText),
         nameof(LlmMaxConcurrentRequests),
         nameof(AgentSystemPrompt),
         nameof(DirectChatSystemPrompt),
@@ -236,6 +243,23 @@ public sealed partial class SettingsViewModel :
     private string _contextWindowTokensText = "8192";
 
     [ObservableProperty]
+    private bool _generationReasoningEnabled = true;
+
+    [ObservableProperty]
+    private string _generationReasoningEffortText = string.Empty;
+
+    [ObservableProperty] private InternalThinkingMode _workflowAuthoringThinkingMode;
+    [ObservableProperty] private string _workflowAuthoringThinkingEffortText = string.Empty;
+    [ObservableProperty] private InternalThinkingMode _workflowExplanationThinkingMode;
+    [ObservableProperty] private string _workflowExplanationThinkingEffortText = string.Empty;
+    [ObservableProperty] private InternalThinkingMode _guardrailsThinkingMode;
+    [ObservableProperty] private string _guardrailsThinkingEffortText = string.Empty;
+    [ObservableProperty] private InternalThinkingMode _directChatCompressionThinkingMode;
+    [ObservableProperty] private string _directChatCompressionThinkingEffortText = string.Empty;
+    [ObservableProperty] private InternalThinkingMode _researchTranslationThinkingMode;
+    [ObservableProperty] private string _researchTranslationThinkingEffortText = string.Empty;
+
+    [ObservableProperty]
     private string _agentSystemPrompt = string.Empty;
 
     [ObservableProperty]
@@ -357,6 +381,12 @@ public sealed partial class SettingsViewModel :
 
     [ObservableProperty]
     private bool _hasIncidents;
+
+    /// <summary>Gets common thinking levels while allowing provider-specific text.</summary>
+    public IReadOnlyList<string> ReasoningEffortSuggestions { get; } = ["low", "medium", "high"];
+
+    /// <summary>Gets selectable behavior for every internal operation category.</summary>
+    public IReadOnlyList<InternalThinkingMode> InternalThinkingModes { get; } = Enum.GetValues<InternalThinkingMode>();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SettingsViewModel"/> class.
@@ -608,6 +638,23 @@ public sealed partial class SettingsViewModel :
     partial void OnContextWindowTokensTextChanged(string value) =>
         UpdateGenerationValidation();
 
+    partial void OnGenerationReasoningEnabledChanged(bool value) =>
+        UpdateGenerationValidation();
+
+    partial void OnGenerationReasoningEffortTextChanged(string value) =>
+        UpdateGenerationValidation();
+
+    partial void OnWorkflowAuthoringThinkingModeChanged(InternalThinkingMode value) => UpdateGenerationValidation();
+    partial void OnWorkflowAuthoringThinkingEffortTextChanged(string value) => UpdateGenerationValidation();
+    partial void OnWorkflowExplanationThinkingModeChanged(InternalThinkingMode value) => UpdateGenerationValidation();
+    partial void OnWorkflowExplanationThinkingEffortTextChanged(string value) => UpdateGenerationValidation();
+    partial void OnGuardrailsThinkingModeChanged(InternalThinkingMode value) => UpdateGenerationValidation();
+    partial void OnGuardrailsThinkingEffortTextChanged(string value) => UpdateGenerationValidation();
+    partial void OnDirectChatCompressionThinkingModeChanged(InternalThinkingMode value) => UpdateGenerationValidation();
+    partial void OnDirectChatCompressionThinkingEffortTextChanged(string value) => UpdateGenerationValidation();
+    partial void OnResearchTranslationThinkingModeChanged(InternalThinkingMode value) => UpdateGenerationValidation();
+    partial void OnResearchTranslationThinkingEffortTextChanged(string value) => UpdateGenerationValidation();
+
     partial void OnSqliteDefaultMaxRowsChanged(int value) => UpdateSqliteValidation();
 
     partial void OnSqliteMaxRowsChanged(int value) => UpdateSqliteValidation();
@@ -674,6 +721,10 @@ public sealed partial class SettingsViewModel :
             ContextWindowTokensText =
                 ai.GenerationDefaults.ContextWindowTokens.ToString(
                     CultureInfo.CurrentCulture);
+            GenerationReasoningEnabled = ai.GenerationDefaults.ReasoningEnabled;
+            GenerationReasoningEffortText =
+                ai.GenerationDefaults.ReasoningEffort ?? string.Empty;
+            LoadInternalThinking(ai.GenerationDefaults.InternalThinking);
             LlmMaxConcurrentRequests = llmExecution.MaxConcurrentRequests;
             AgentSystemPrompt = ai.EffectiveAgentSystemPrompt;
             DirectChatSystemPrompt = ai.EffectiveDirectChatSystemPrompt;
@@ -886,7 +937,10 @@ public sealed partial class SettingsViewModel :
                 OpenAIImageModel.Trim(),
                 OpenAIAudioModel.Trim(),
                 OpenAIAudioVoice.Trim(),
-                knowledgeOptions);
+                knowledgeOptions,
+                generationDefaults.ReasoningEnabled,
+                generationDefaults.ReasoningEffort,
+                generationDefaults.InternalThinking);
             await _userSettingsService
                 .SaveAsync(
                     settings,
@@ -1338,6 +1392,11 @@ public sealed partial class SettingsViewModel :
             Temperature = temperature,
             TopP = topP,
             ContextWindowTokens = contextWindowTokens,
+            ReasoningEnabled = GenerationReasoningEnabled,
+            ReasoningEffort = string.IsNullOrWhiteSpace(GenerationReasoningEffortText)
+                ? null
+                : GenerationReasoningEffortText.Trim(),
+            InternalThinking = CreateInternalThinkingOptions(),
         };
         var error = GenerationPolicyValidation.ValidateDefaults(defaults);
         if (error is not null)
@@ -1348,6 +1407,37 @@ public sealed partial class SettingsViewModel :
 
         return true;
     }
+
+    private void LoadInternalThinking(InternalThinkingOptions options)
+    {
+        WorkflowAuthoringThinkingMode = options.WorkflowAuthoring.Mode;
+        WorkflowAuthoringThinkingEffortText = options.WorkflowAuthoring.Effort ?? string.Empty;
+        WorkflowExplanationThinkingMode = options.WorkflowExplanation.Mode;
+        WorkflowExplanationThinkingEffortText = options.WorkflowExplanation.Effort ?? string.Empty;
+        GuardrailsThinkingMode = options.Guardrails.Mode;
+        GuardrailsThinkingEffortText = options.Guardrails.Effort ?? string.Empty;
+        DirectChatCompressionThinkingMode = options.DirectChatCompression.Mode;
+        DirectChatCompressionThinkingEffortText = options.DirectChatCompression.Effort ?? string.Empty;
+        ResearchTranslationThinkingMode = options.ResearchTranslation.Mode;
+        ResearchTranslationThinkingEffortText = options.ResearchTranslation.Effort ?? string.Empty;
+    }
+
+    private InternalThinkingOptions CreateInternalThinkingOptions() => new()
+    {
+        WorkflowAuthoring = CreateInternalThinkingSetting(WorkflowAuthoringThinkingMode, WorkflowAuthoringThinkingEffortText),
+        WorkflowExplanation = CreateInternalThinkingSetting(WorkflowExplanationThinkingMode, WorkflowExplanationThinkingEffortText),
+        Guardrails = CreateInternalThinkingSetting(GuardrailsThinkingMode, GuardrailsThinkingEffortText),
+        DirectChatCompression = CreateInternalThinkingSetting(DirectChatCompressionThinkingMode, DirectChatCompressionThinkingEffortText),
+        ResearchTranslation = CreateInternalThinkingSetting(ResearchTranslationThinkingMode, ResearchTranslationThinkingEffortText),
+    };
+
+    private static InternalThinkingSetting CreateInternalThinkingSetting(InternalThinkingMode mode, string effort) => new()
+    {
+        Mode = mode,
+        Effort = mode == InternalThinkingMode.SpecificLevel && !string.IsNullOrWhiteSpace(effort)
+            ? effort.Trim()
+            : null,
+    };
 
     private void UpdateSqliteValidation()
     {

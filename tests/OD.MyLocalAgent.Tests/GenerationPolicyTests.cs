@@ -77,6 +77,41 @@ public sealed class GenerationPolicyTests
         policy.TopPSource.Should().Be(GenerationOptionSource.Program);
     }
 
+    /// <summary>Verifies internal categories independently honor their Settings thinking mode.</summary>
+    [Fact]
+    public void InternalPoliciesUseConfiguredThinkingCategory()
+    {
+        var providerDefault = GenerationPolicyResolver.ResolveInternal(
+            InternalGenerationPolicies.WorkflowAuthoring,
+            Defaults with
+            {
+                InternalThinking = new InternalThinkingOptions
+                {
+                    WorkflowAuthoring = new InternalThinkingSetting
+                    {
+                        Mode = InternalThinkingMode.ProviderDefault,
+                    },
+                },
+            });
+        var specificLevel = GenerationPolicyResolver.ResolveInternal(
+            InternalGenerationPolicies.GuardrailScreening,
+            Defaults with
+            {
+                InternalThinking = new InternalThinkingOptions
+                {
+                    Guardrails = new InternalThinkingSetting
+                    {
+                        Mode = InternalThinkingMode.SpecificLevel,
+                        Effort = "high",
+                    },
+                },
+            });
+
+        providerDefault.UseProviderReasoningDefault.Should().BeTrue();
+        specificLevel.ReasoningEnabled.Should().BeTrue();
+        specificLevel.ReasoningEffort.Should().Be("high");
+    }
+
     /// <summary>
     /// Gets all fixed program-owned policies.
     /// </summary>
@@ -234,6 +269,33 @@ public sealed class GenerationPolicyTests
                 ReasoningEnabled = true,
                 ReasoningEffort = "high",
             },
+            new GenerationOptions { ReasoningEnabled = true });
+
+        policy.ReasoningEnabled.Should().BeTrue();
+        policy.ReasoningEffort.Should().BeNull();
+    }
+
+    /// <summary>Verifies thinking inherits from Settings when a task has no override.</summary>
+    [Fact]
+    public void ResolverUsesSettingsThinkingWhenTaskDoesNotOverrideIt()
+    {
+        var policy = GenerationPolicyResolver.Resolve(
+            Defaults with
+            {
+                ReasoningEnabled = true,
+                ReasoningEffort = "high",
+            });
+
+        policy.ReasoningEnabled.Should().BeTrue();
+        policy.ReasoningEffort.Should().Be("high");
+    }
+
+    /// <summary>Verifies a task-level switch takes priority over disabled Settings thinking.</summary>
+    [Fact]
+    public void ResolverUsesTaskThinkingBeforeSettingsThinking()
+    {
+        var policy = GenerationPolicyResolver.Resolve(
+            Defaults with { ReasoningEnabled = false },
             new GenerationOptions { ReasoningEnabled = true });
 
         policy.ReasoningEnabled.Should().BeTrue();

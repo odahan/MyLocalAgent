@@ -39,6 +39,7 @@ public sealed partial class TaskEditorViewModel :
         nameof(TemperatureOverrideText),
         nameof(UseGlobalTopP),
         nameof(TopPOverrideText),
+        nameof(UseGlobalThinking),
         nameof(ReasoningEnabled),
         nameof(ReasoningEffortText),
         nameof(SqliteGuardrailsEnabled),
@@ -115,6 +116,11 @@ public sealed partial class TaskEditorViewModel :
     [NotifyPropertyChangedFor(nameof(IsTemperatureOverrideEnabled))]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     private bool _useGlobalTemperature = true;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsThinkingOverrideEnabled))]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    private bool _useGlobalThinking = true;
 
     [ObservableProperty]
     private bool _reasoningEnabled = true;
@@ -195,6 +201,9 @@ public sealed partial class TaskEditorViewModel :
     /// Gets a value indicating whether the Top P override editor is enabled.
     /// </summary>
     public bool IsTopPOverrideEnabled => !UseGlobalTopP;
+
+    /// <summary>Gets whether this task explicitly controls thinking.</summary>
+    public bool IsThinkingOverrideEnabled => !UseGlobalThinking;
 
     /// <summary>Gets common reasoning levels while allowing provider-specific text.</summary>
     public IReadOnlyList<string> ReasoningEffortSuggestions { get; } = ["low", "medium", "high"];
@@ -421,14 +430,31 @@ public sealed partial class TaskEditorViewModel :
     partial void OnUseGlobalTopPChanged(bool value) =>
         UpdateGenerationState();
 
+    partial void OnUseGlobalThinkingChanged(bool value) =>
+        UpdateGenerationState();
+
     partial void OnTopPOverrideTextChanged(string value) =>
         UpdateGenerationState();
 
-    partial void OnReasoningEnabledChanged(bool value) =>
-        UpdateGenerationState();
+    partial void OnReasoningEnabledChanged(bool value)
+    {
+        if (!_isLoading)
+        {
+            UseGlobalThinking = false;
+        }
 
-    partial void OnReasoningEffortTextChanged(string value) =>
         UpdateGenerationState();
+    }
+
+    partial void OnReasoningEffortTextChanged(string value)
+    {
+        if (!_isLoading && !string.IsNullOrWhiteSpace(value))
+        {
+            UseGlobalThinking = false;
+        }
+
+        UpdateGenerationState();
+    }
 
     partial void OnWorkflowTextChanged(string value)
     {
@@ -634,6 +660,8 @@ public sealed partial class TaskEditorViewModel :
                     "G",
                     CultureInfo.CurrentCulture);
             UseGlobalTopP = task?.GenerationOptions?.TopP is null;
+            UseGlobalThinking = task?.GenerationOptions?.ReasoningEnabled is null &&
+                task?.GenerationOptions?.ReasoningEffort is null;
             ReasoningEnabled = task?.GenerationOptions?.ReasoningEnabled ?? true;
             ReasoningEffortText = task?.GenerationOptions?.ReasoningEffort ?? string.Empty;
             TopPOverrideText =
@@ -2010,7 +2038,7 @@ public sealed partial class TaskEditorViewModel :
         var reasoningEffort = string.IsNullOrWhiteSpace(ReasoningEffortText)
             ? null
             : ReasoningEffortText.Trim();
-        if (temperature is null && topP is null && ReasoningEnabled && reasoningEffort is null)
+        if (temperature is null && topP is null && UseGlobalThinking)
         {
             return true;
         }
@@ -2019,7 +2047,7 @@ public sealed partial class TaskEditorViewModel :
         {
             Temperature = temperature,
             TopP = topP,
-            ReasoningEnabled = ReasoningEnabled ? null : false,
+            ReasoningEnabled = ReasoningEnabled,
             ReasoningEffort = ReasoningEnabled ? reasoningEffort : null,
         };
         var error = GenerationPolicyValidation.ValidateOverrides(candidate);

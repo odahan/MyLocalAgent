@@ -1,4 +1,5 @@
 using OD.MyLocalAgent.Core;
+using OD.MyLocalAgent.Ollama;
 
 namespace OD.MyLocalAgent.UI.Services;
 
@@ -63,6 +64,9 @@ namespace OD.MyLocalAgent.UI.Services;
 /// <param name="OpenAIAudioModel">The dedicated speech-generation model.</param>
 /// <param name="OpenAIAudioVoice">The dedicated speech voice.</param>
 /// <param name="Knowledge">The independent Knowledge embedding and retrieval settings.</param>
+/// <param name="GenerationReasoningEnabled">Whether thinking is enabled by default.</param>
+/// <param name="GenerationReasoningEffort">The optional global provider thinking level.</param>
+/// <param name="InternalThinking">The independent thinking settings for application-owned operations.</param>
 public sealed record UserSettingsData(
     string Provider,
     string OllamaEndpoint,
@@ -121,4 +125,7 @@ public sealed record UserSettingsData(
     string OpenAIImageModel = "gpt-image-2",
     string OpenAIAudioModel = "gpt-4o-mini-tts",
     string OpenAIAudioVoice = "coral",
-    KnowledgeOptions? Knowledge = null);
+    KnowledgeOptions? Knowledge = null,
+    bool GenerationReasoningEnabled = true,
+    string? GenerationReasoningEffort = null,
+    InternalThinkingOptions? InternalThinking = null);

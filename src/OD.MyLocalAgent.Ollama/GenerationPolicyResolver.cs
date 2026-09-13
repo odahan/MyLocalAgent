@@ -26,7 +26,7 @@ public static class GenerationPolicyResolver
             stepOptions?.TopP,
             taskOptions?.TopP,
             defaults.TopP);
-        var reasoning = ResolveReasoning(taskOptions, stepOptions);
+        var reasoning = ResolveReasoning(defaults, taskOptions, stepOptions);
         return new EffectiveGenerationPolicy(
             temperature.Value,
             topP.Value,
@@ -43,7 +43,7 @@ public static class GenerationPolicyResolver
     /// Resolves a fixed internal policy with the current global context declaration.
     /// </summary>
     /// <param name="policy">The program-owned temperature and Top P values.</param>
-    /// <param name="defaults">The validated global defaults supplying only context.</param>
+    /// <param name="defaults">The validated global defaults and internal reasoning preferences.</param>
     /// <returns>The fully resolved internal policy.</returns>
     public static EffectiveGenerationPolicy ResolveInternal(
         InternalGenerationPolicy policy,
@@ -57,6 +57,14 @@ public static class GenerationPolicyResolver
                 $"AI:GenerationDefaults is invalid. {defaultsError}");
         }
 
+        var thinking = defaults.InternalThinking.Get(policy.ThinkingCategory);
+        var reasoning = thinking.Mode switch
+        {
+            InternalThinkingMode.Disabled => new ResolvedReasoning(false, null, false),
+            InternalThinkingMode.ProviderDefault => new ResolvedReasoning(false, null, true),
+            InternalThinkingMode.SpecificLevel => new ResolvedReasoning(true, thinking.Effort, false),
+            _ => throw new LlmConfigurationException("Internal thinking mode is invalid."),
+        };
         return new EffectiveGenerationPolicy(
             policy.Temperature,
             policy.TopP,
@@ -64,8 +72,9 @@ public static class GenerationPolicyResolver
             GenerationOptionSource.Program,
             GenerationOptionSource.Program)
         {
-            ReasoningEnabled = false,
-            ReasoningEffort = null,
+            ReasoningEnabled = reasoning.Enabled,
+            ReasoningEffort = reasoning.Effort,
+            UseProviderReasoningDefault = reasoning.UseProviderDefault,
         };
     }
 
@@ -111,31 +120,37 @@ public static class GenerationPolicyResolver
         GenerationOptionSource Source);
 
     private static ResolvedReasoning ResolveReasoning(
+        AIGenerationDefaults defaults,
         GenerationOptions? taskOptions,
         GenerationOptions? stepOptions)
     {
         if (stepOptions?.ReasoningEffort is { } stepEffort)
         {
-            return new ResolvedReasoning(true, stepEffort);
+            return new ResolvedReasoning(true, stepEffort, false);
         }
 
         if (stepOptions?.ReasoningEnabled is { } stepEnabled)
         {
-            return new ResolvedReasoning(stepEnabled, null);
+            return new ResolvedReasoning(stepEnabled, null, false);
         }
 
         if (taskOptions?.ReasoningEffort is { } taskEffort)
         {
-            return new ResolvedReasoning(true, taskEffort);
+            return new ResolvedReasoning(true, taskEffort, false);
         }
 
         if (taskOptions?.ReasoningEnabled is { } taskEnabled)
         {
-            return new ResolvedReasoning(taskEnabled, null);
+            return new ResolvedReasoning(taskEnabled, null, false);
         }
 
-        return new ResolvedReasoning(true, null);
+        return defaults.ReasoningEffort is { } defaultEffort
+            ? new ResolvedReasoning(true, defaultEffort, false)
+            : new ResolvedReasoning(defaults.ReasoningEnabled, null, false);
     }
 
-    private readonly record struct ResolvedReasoning(bool Enabled, string? Effort);
+    private readonly record struct ResolvedReasoning(
+        bool Enabled,
+        string? Effort,
+        bool UseProviderDefault);
 }

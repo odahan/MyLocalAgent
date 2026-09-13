@@ -23,4 +23,7 @@ public sealed record EffectiveGenerationPolicy(
     /// to use the application's provider-specific enabled default mapping.
     /// </summary>
     public string? ReasoningEffort { get; init; }
+
+    /// <summary>Gets whether the provider must receive no reasoning instruction.</summary>
+    public bool UseProviderReasoningDefault { get; init; }
 }

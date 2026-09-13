@@ -6,7 +6,9 @@ namespace OD.MyLocalAgent.Ollama;
 /// <param name="Name">The stable policy name.</param>
 /// <param name="Temperature">The fixed sampling temperature.</param>
 /// <param name="TopP">The fixed nucleus-sampling probability mass.</param>
+/// <param name="ThinkingCategory">The independent Settings category for reasoning.</param>
 public sealed record InternalGenerationPolicy(
     string Name,
     double Temperature,
-    double TopP);
+    double TopP,
+    InternalThinkingCategory ThinkingCategory);

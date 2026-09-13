@@ -190,7 +190,14 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
     private bool _supportsImageInput;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsThinkingOverrideEnabled))]
+    private bool _useSettingsThinking = true;
+
+    [ObservableProperty]
     private bool _reasoningEnabled = true;
+
+    [ObservableProperty]
+    private string _reasoningEffortText = string.Empty;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasReasoning))]
@@ -199,8 +206,24 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
     /// <summary>Gets whether the active response exposed visible reasoning text.</summary>
     public bool HasReasoning => !string.IsNullOrWhiteSpace(ReasoningText);
 
+    /// <summary>Gets whether Direct Chat explicitly controls thinking.</summary>
+    public bool IsThinkingOverrideEnabled => !UseSettingsThinking;
+
+    /// <summary>Gets common thinking levels while allowing provider-specific text.</summary>
+    public IReadOnlyList<string> ReasoningEffortSuggestions { get; } = ["low", "medium", "high"];
+
     partial void OnAgentEnabledChanged(bool value) => RefreshAgentSummary();
     partial void OnKnowledgeTagsTextChanged(string value) => OnPropertyChanged(nameof(KnowledgeScopeWarning));
+
+    partial void OnReasoningEnabledChanged(bool value) => UseSettingsThinking = false;
+
+    partial void OnReasoningEffortTextChanged(string value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            UseSettingsThinking = false;
+        }
+    }
 
     /// <inheritdoc />
     public void Activate()
@@ -637,16 +660,36 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
             Capabilities = CapabilitySelections.Where(static item => item.IsSelected).Select(static item => item.Capability).ToArray(),
             FileSystemAccess = AuthorizedLocations.Select(static item => item.ToRule()).ToArray(),
             KnowledgeAccess = GetKnowledgeTags().Count == 0 ? null : new KnowledgeAccessDefinition { AllowedTags = GetKnowledgeTags() },
-            GenerationOptions = new GenerationOptions
-            {
-                ReasoningEnabled = ReasoningEnabled,
-            },
+            GenerationOptions = CreateGenerationOptions(),
             Enabled = false,
         };
         var persistedTask = await _taskStore
             .SaveAsync(task, cancellationToken)
             .ConfigureAwait(true);
         _messenger.Send(new EditTaskMessage(persistedTask.Id));
+    }
+
+    private GenerationOptions? CreateGenerationOptions()
+    {
+        if (UseSettingsThinking)
+        {
+            return null;
+        }
+
+        var reasoningEffort = string.IsNullOrWhiteSpace(ReasoningEffortText)
+            ? null
+            : ReasoningEffortText.Trim();
+        var options = new GenerationOptions
+        {
+            ReasoningEnabled = ReasoningEnabled,
+            ReasoningEffort = ReasoningEnabled ? reasoningEffort : null,
+        };
+        if (GenerationPolicyValidation.ValidateOverrides(options) is { } error)
+        {
+            throw new InvalidOperationException(error);
+        }
+
+        return options;
     }
 
     [RelayCommand(
@@ -772,10 +815,8 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
             var provider = _llmClientFactory.Create();
             ProviderBadge = $"{provider.ProviderName} · {provider.ModelName}";
             var policy = GenerationPolicyResolver.Resolve(
-                _aiOptions.CurrentValue.GenerationDefaults) with
-            {
-                ReasoningEnabled = ReasoningEnabled,
-            };
+                _aiOptions.CurrentValue.GenerationDefaults,
+                CreateGenerationOptions());
             var client = new GenerationPolicyChatClient(
                 provider.ChatClient,
                 policy,
