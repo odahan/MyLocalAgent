@@ -187,7 +187,48 @@ public sealed class JsonTaskStoreTests : IDisposable
 
         var action = () => store.GetAllAsync(CancellationToken.None);
 
-        await action.Should().ThrowAsync<TaskValidationException>();
+        await action.Should().ThrowAsync<TaskValidationException>()
+            .WithMessage("*Task 'Bad' (bad.json) cannot be loaded*Task 'id'*");
+    }
+
+    /// <summary>
+    /// Verifies loading identifies every invalid task file, rather than reporting only
+    /// the first file encountered in directory order.
+    /// </summary>
+    [Fact]
+    public async Task MultipleInvalidTasksReportEachTaskNameAndReason()
+    {
+        Directory.CreateDirectory(_directoryPath);
+        await File.WriteAllTextAsync(
+            Path.Combine(_directoryPath, "first-invalid.json"),
+            """
+            {
+              "id": "First Invalid",
+              "name": "First invalid task",
+              "schedule": "0 8 * * *",
+              "tools": [],
+              "workflow": []
+            }
+            """);
+        await File.WriteAllTextAsync(
+            Path.Combine(_directoryPath, "second-invalid.json"),
+            """
+            {
+              "id": "Second Invalid",
+              "name": "Second invalid task",
+              "schedule": "0 8 * * *",
+              "tools": [],
+              "workflow": []
+            }
+            """);
+        using var store = new JsonTaskStore(_directoryPath, TimeProvider.System);
+
+        var action = () => store.GetAllAsync(CancellationToken.None);
+
+        await action.Should().ThrowAsync<TaskValidationException>()
+            .WithMessage("*2 tasks cannot be loaded*")
+            .WithMessage("*First invalid task*first-invalid.json*Task 'id'*")
+            .WithMessage("*Second invalid task*second-invalid.json*Task 'id'*");
     }
 
     /// <summary>

@@ -57,7 +57,7 @@ internal sealed class SchedulerStartupService : BackgroundService
                 .ConfigureAwait(false);
             _messenger.Send(
                 new SnackbarNotificationMessage(
-                    "Tasks could not be loaded. Open Tasks to review the invalid task-file error."));
+                    "One or more tasks can't be loaded. Open Tasks for the name and reason."));
         }
     }
 }

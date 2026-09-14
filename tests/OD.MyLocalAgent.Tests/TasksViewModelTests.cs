@@ -250,6 +250,7 @@ public sealed class TasksViewModelTests
         viewModel.Tasks.Should().BeEmpty();
         viewModel.TaskLoadErrorText.Should()
             .Contain("No task files were deleted")
+            .And.Contain("affected task and the reason")
             .And.Contain("backup.json")
             .And.Contain("Open the Tasks folder")
             .And.Contain("Refresh");

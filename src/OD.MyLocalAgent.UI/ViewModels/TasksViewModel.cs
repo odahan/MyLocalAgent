@@ -195,7 +195,7 @@ public sealed partial class TasksViewModel :
         catch (Exception exception)
         {
             TaskLoadErrorText =
-                "No task files were deleted. One or more task files could not be loaded." +
+                "No task files were deleted. The affected task and the reason are shown below." +
                 Environment.NewLine + Environment.NewLine +
                 exception.Message +
                 Environment.NewLine + Environment.NewLine +
@@ -203,7 +203,7 @@ public sealed partial class TasksViewModel :
             StatusText = "Task loading failed. Review the error shown above the task list.";
             _messenger.Send(
                 new SnackbarNotificationMessage(
-                    "Tasks could not be loaded. The task files are still present."));
+                    "One or more tasks can't be loaded. Open Tasks for the name and reason."));
             await ReportAsync(exception, "Tasks refresh").ConfigureAwait(true);
         }
         finally

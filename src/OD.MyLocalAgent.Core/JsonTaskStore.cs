@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text;
+using System.Text.Json;
 
 namespace OD.MyLocalAgent.Core;
 
@@ -86,6 +87,7 @@ public sealed class JsonTaskStore : ITaskStore, IDisposable
             .Order(StringComparer.OrdinalIgnoreCase)
             .ToArray();
         var tasks = new List<ScheduledTask>(paths.Length);
+        var validationErrors = new List<TaskValidationException>();
         foreach (var path in paths)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -96,13 +98,31 @@ public sealed class JsonTaskStore : ITaskStore, IDisposable
             {
                 if (File.Exists(path))
                 {
-                    tasks.Add(await ReadTaskAsync(path, cancellationToken).ConfigureAwait(false));
+                    try
+                    {
+                        tasks.Add(await ReadTaskAsync(path, cancellationToken).ConfigureAwait(false));
+                    }
+                    catch (TaskValidationException exception)
+                    {
+                        validationErrors.Add(exception);
+                    }
                 }
             }
             finally
             {
                 gate.Release();
             }
+        }
+
+        if (validationErrors.Count > 0)
+        {
+            var taskCount = validationErrors.Count == 1 ? "One task" : $"{validationErrors.Count} tasks";
+            throw new TaskValidationException(
+                $"{taskCount} cannot be loaded:" +
+                Environment.NewLine +
+                string.Join(
+                    Environment.NewLine + Environment.NewLine,
+                    validationErrors.Select(static error => error.Message)));
         }
 
         return tasks;
@@ -279,25 +299,61 @@ public sealed class JsonTaskStore : ITaskStore, IDisposable
         CancellationToken cancellationToken)
     {
         var json = await File.ReadAllTextAsync(path, cancellationToken).ConfigureAwait(false);
-        var task = ScheduledTaskSerializer.Deserialize(json);
-        var fileId = Path.GetFileNameWithoutExtension(path);
-        if (!string.Equals(fileId, task.Id, StringComparison.OrdinalIgnoreCase))
+        var fileName = Path.GetFileName(path);
+        var taskName = ReadDisplayName(json, Path.GetFileNameWithoutExtension(path));
+        try
+        {
+            var task = ScheduledTaskSerializer.Deserialize(json);
+            var fileId = Path.GetFileNameWithoutExtension(path);
+            if (!string.Equals(fileId, task.Id, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new TaskValidationException(
+                    $"The file name and task id must match; the file contains id '{task.Id}'.");
+            }
+
+            var file = new FileInfo(path);
+            var fileCreatedUtc = new DateTimeOffset(file.CreationTimeUtc);
+            var fileUpdatedUtc = new DateTimeOffset(file.LastWriteTimeUtc);
+            var createdUtc = task.CreatedUtc ??
+                (fileCreatedUtc <= fileUpdatedUtc ? fileCreatedUtc : fileUpdatedUtc);
+            var updatedUtc = Latest(fileUpdatedUtc, createdUtc, task.UpdatedUtc);
+            return task with
+            {
+                CreatedUtc = createdUtc,
+                UpdatedUtc = updatedUtc,
+            };
+        }
+        catch (TaskValidationException exception)
         {
             throw new TaskValidationException(
-                $"Task file '{Path.GetFileName(path)}' contains id '{task.Id}'. File name and id must match.");
+                $"Task '{taskName}' ({fileName}) cannot be loaded: {exception.Message}",
+                exception);
+        }
+    }
+
+    private static string ReadDisplayName(string json, string fallback)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            if (document.RootElement.ValueKind == JsonValueKind.Object &&
+                document.RootElement.TryGetProperty("name", out var nameProperty) &&
+                nameProperty.ValueKind == JsonValueKind.String &&
+                nameProperty.GetString() is { } name &&
+                !string.IsNullOrWhiteSpace(name))
+            {
+                var normalizedName = name.Trim().ReplaceLineEndings(" ");
+                return normalizedName.Length <= 160
+                    ? normalizedName
+                    : normalizedName[..157] + "...";
+            }
+        }
+        catch (JsonException)
+        {
+            // A malformed JSON file has no trustworthy display name.
         }
 
-        var file = new FileInfo(path);
-        var fileCreatedUtc = new DateTimeOffset(file.CreationTimeUtc);
-        var fileUpdatedUtc = new DateTimeOffset(file.LastWriteTimeUtc);
-        var createdUtc = task.CreatedUtc ??
-            (fileCreatedUtc <= fileUpdatedUtc ? fileCreatedUtc : fileUpdatedUtc);
-        var updatedUtc = Latest(fileUpdatedUtc, createdUtc, task.UpdatedUtc);
-        return task with
-        {
-            CreatedUtc = createdUtc,
-            UpdatedUtc = updatedUtc,
-        };
+        return fallback;
     }
 
     private static DateTimeOffset Latest(
