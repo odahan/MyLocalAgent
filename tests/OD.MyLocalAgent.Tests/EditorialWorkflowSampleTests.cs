@@ -37,7 +37,7 @@ public sealed class EditorialWorkflowSampleTests
         emptyReservation.GetProperty("args").GetProperty("selectionJson").GetString().Should().Be("{\"proposals\":[]}");
         emptyReservation.GetProperty("next").GetString().Should().Be("prepareEmptyReport");
         var proposalsSchema = selectionStep.GetProperty("responseSchema").GetProperty("properties").GetProperty("proposals");
-        proposalsSchema.GetProperty("minItems").GetInt32().Should().Be(1);
+        proposalsSchema.GetProperty("minItems").GetInt32().Should().Be(0);
         proposalsSchema.GetProperty("maxItems").GetInt32().Should().Be(3);
         var proposalProperties = proposalsSchema.GetProperty("items").GetProperty("properties");
         proposalProperties.GetProperty("sourceIds").GetProperty("minItems").GetInt32().Should().Be(1);
@@ -47,6 +47,7 @@ public sealed class EditorialWorkflowSampleTests
             .GetProperty("minItems").GetInt32().Should().Be(1);
         selectionStep.GetProperty("onError").GetString().Should().Be("Retry");
         selectionStep.GetProperty("retryCount").GetInt32().Should().Be(2);
+        selectionStep.GetProperty("fallbackOutput").GetProperty("proposals").GetArrayLength().Should().Be(0);
         selectionStep.TryGetProperty("toolAliases", out _).Should().BeFalse();
         workflow[5].GetProperty("step").GetString().Should().Be("sqlite.reserveEditorialSelection");
         workflow[6].GetProperty("step").GetString().Should().Be("flow.decision");

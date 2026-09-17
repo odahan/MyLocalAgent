@@ -311,6 +311,33 @@ public static partial class ScheduledTaskValidator
                     $"Workflow step '{step.Step}' has a negative retry backoff.");
             }
 
+            if (step.FallbackOutput is not null &&
+                !string.Equals(step.Step, ToolMap.PromptAlias, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new WorkflowValidationException(
+                    $"Workflow step '{step.EffectiveId}' can define 'fallbackOutput' only for alias '{ToolMap.PromptAlias}'.");
+            }
+
+            if (step.FallbackOutput is not null && step.ResponseSchema is null)
+            {
+                throw new WorkflowValidationException(
+                    $"Workflow step '{step.EffectiveId}' requires 'responseSchema' when defining 'fallbackOutput'.");
+            }
+
+            if (step.FallbackOutput is { } fallbackOutput && step.ResponseSchema is { } fallbackSchema)
+            {
+                try
+                {
+                    WorkflowResponseSchemaValidator.ValidateResponse(fallbackOutput.GetRawText(), fallbackSchema);
+                }
+                catch (WorkflowStructuredResponseException exception)
+                {
+                    throw new WorkflowValidationException(
+                        $"Workflow step '{step.EffectiveId}' has an invalid 'fallbackOutput'. {exception.Message}",
+                        exception);
+                }
+            }
+
             ValidateForEach(step, definition, identifiers);
 
             if (string.Equals(step.Step, ToolMap.PromptAlias, StringComparison.OrdinalIgnoreCase))

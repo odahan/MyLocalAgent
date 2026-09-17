@@ -212,6 +212,7 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
             generationPolicy ?? GenerationPolicyResolver.Resolve(
                 generationDefaults,
                 task.GenerationOptions));
+        WorkflowStructuredResponseException? priorStructuredResponseError = null;
 
         _logger.LogInformation(
             "Workflow step {StepId} ({StepAlias}) started.",
@@ -258,6 +259,13 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                         step.Id,
                         _timeProvider,
                         modelContext);
+                    if (priorStructuredResponseError is not null)
+                    {
+                        resolvedArguments = AddStructuredResponseRepairInstruction(
+                            resolvedArguments,
+                            step,
+                            priorStructuredResponseError);
+                    }
                 }
                 catch (Exception exception) when (step is DecisionStep && exception is WorkflowPlaceholderException or JsonException or FormatException)
                 {
@@ -305,6 +313,10 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
             catch (Exception exception) when (
                 exception is not OperationCanceledException)
             {
+                if (exception is WorkflowStructuredResponseException structuredResponseError)
+                {
+                    priorStructuredResponseError = structuredResponseError;
+                }
                 var retryNumber = attempts;
                 if (policy == WorkflowErrorPolicy.Retry &&
                     retryNumber <= step.RetryCount)
@@ -322,6 +334,28 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                         _timeProvider,
                         cancellationToken).ConfigureAwait(false);
                     continue;
+                }
+
+                if (step.FallbackOutput is { } fallbackOutput &&
+                    exception is WorkflowStructuredResponseException)
+                {
+                    var fallbackDuration = _timeProvider.GetElapsedTime(startedTimestamp);
+                    var output = fallbackOutput.GetRawText();
+                    _logger.LogWarning(
+                        exception,
+                        "Workflow step {StepId} ({StepAlias}) exhausted its attempts and used its configured safe fallback output.",
+                        step.Id,
+                        step.Alias);
+                    return new WorkflowStepResult(
+                        step.Id,
+                        step.Alias,
+                        WorkflowStepStatus.Success,
+                        output,
+                        null,
+                        null,
+                        startedUtc,
+                        fallbackDuration,
+                        attempts);
                 }
 
                 var duration = _timeProvider.GetElapsedTime(startedTimestamp);
@@ -346,6 +380,31 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                     attempts);
             }
         }
+    }
+
+    private static JsonElement AddStructuredResponseRepairInstruction(
+        JsonElement arguments,
+        WorkflowStep step,
+        WorkflowStructuredResponseException exception)
+    {
+        if (step is not PromptStep ||
+            !arguments.TryGetProperty("prompt", out var promptElement) ||
+            promptElement.ValueKind != JsonValueKind.String)
+        {
+            return arguments;
+        }
+
+        var prompt = string.Concat(
+            promptElement.GetString(),
+            Environment.NewLine,
+            Environment.NewLine,
+            "Your previous response was rejected by the required JSON schema: ",
+            exception.Message,
+            " Correct only that issue. Return JSON only; if no valid item can be produced, return the schema-valid empty result.");
+        var values = arguments.EnumerateObject()
+            .ToDictionary(static property => property.Name, static property => property.Value.Clone(), StringComparer.Ordinal);
+        values["prompt"] = JsonSerializer.SerializeToElement(prompt);
+        return JsonSerializer.SerializeToElement(values);
     }
 
     private async Task<WorkflowStepResult> ExecuteForEachAsync(

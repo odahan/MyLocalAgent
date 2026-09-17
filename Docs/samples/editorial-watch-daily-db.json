@@ -77,7 +77,7 @@
         "properties": {
           "proposals": {
             "type": "array",
-            "minItems": 1,
+            "minItems": 0,
             "maxItems": 3,
             "items": {
               "type": "object",
@@ -114,7 +114,8 @@
       "generationOptions": {"temperature": 0.1, "topP": 0.8},
       "onError": "Retry",
       "retryCount": 2,
-      "retryBackoffSeconds": 1
+      "retryBackoffSeconds": 1,
+      "fallbackOutput": {"proposals": []}
     },
     {
       "step": "sqlite.reserveEditorialSelection",

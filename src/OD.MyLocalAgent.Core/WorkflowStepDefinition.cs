@@ -41,6 +41,13 @@ public sealed record WorkflowStepDefinition
     public int? RetryBackoffSeconds { get; init; }
 
     /// <summary>
+    /// Gets the optional schema-valid JSON output to use after all attempts fail.
+    /// This permits a workflow to complete safely when an AI model cannot produce
+    /// a valid structured response.
+    /// </summary>
+    public JsonElement? FallbackOutput { get; init; }
+
+    /// <summary>
     /// Gets the optional AI-step Temperature and Top P overrides.
     /// </summary>
     public GenerationOptions? GenerationOptions { get; init; }

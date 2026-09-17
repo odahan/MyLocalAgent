@@ -35,6 +35,7 @@ public abstract class WorkflowStep
         RetryCount = definition.RetryCount ?? DefaultRetryCount;
         RetryBackoffSeconds =
             definition.RetryBackoffSeconds ?? DefaultRetryBackoffSeconds;
+        FallbackOutput = definition.FallbackOutput?.Clone();
         IsStringForm = definition.IsStringForm;
         GenerationOptions = definition.GenerationOptions;
         Model = definition.Model;
@@ -74,6 +75,9 @@ public abstract class WorkflowStep
     /// Gets the initial retry backoff in seconds.
     /// </summary>
     public int RetryBackoffSeconds { get; }
+
+    /// <summary>Gets the optional safe output used after all attempts fail.</summary>
+    public JsonElement? FallbackOutput { get; }
 
     /// <summary>
     /// Gets a value indicating whether the persisted definition used string form.

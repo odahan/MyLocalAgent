@@ -1543,6 +1543,62 @@ public sealed class WorkflowEngineTests
         agent.VerifyAll();
     }
 
+    /// <summary>
+    /// Verifies a schema-valid prompt fallback completes a workflow after a model exhausts its retries.
+    /// </summary>
+    [Fact]
+    public async Task PromptResponseSchemaUsesSafeFallbackAfterRetries()
+    {
+        using var schemaDocument = JsonDocument.Parse("""
+            {
+              "type": "object",
+              "properties": { "proposals": { "type": "array" } },
+              "required": ["proposals"],
+              "additionalProperties": false
+            }
+            """);
+        using var fallbackDocument = JsonDocument.Parse("""{"proposals":[]}""");
+        var agent = new Mock<IMyLocalAgentService>(MockBehavior.Strict);
+        agent.Setup(service => service.RunPromptWithoutToolsStructuredAsync(
+                It.IsAny<string>(),
+                It.IsAny<EffectiveGenerationPolicy>(),
+                "selection",
+                true,
+                It.IsAny<JsonElement>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AgentRunResult("{}", "Test"));
+        var definition = Step(
+            "ai.prompt",
+            "selection",
+            """{ "prompt": "Select." }""",
+            WorkflowErrorPolicy.Retry,
+            retryCount: 1,
+            retryBackoffSeconds: 0) with
+        {
+            ResponseSchema = schemaDocument.RootElement.Clone(),
+            FallbackOutput = fallbackDocument.RootElement.Clone(),
+        };
+        var task = CreateTask([definition]);
+
+        ScheduledTaskValidator.Validate(task);
+        var result = await CreateEngine(
+                new RecordingToolRegistry((_, _, _) => Task.FromResult(string.Empty)),
+                agentService: agent.Object)
+            .ExecuteAsync(task, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        result.Steps.Should().ContainSingle();
+        result.Steps[0].Attempts.Should().Be(2);
+        result.FinalText.Should().Be("{\"proposals\":[]}");
+        agent.Verify(service => service.RunPromptWithoutToolsStructuredAsync(
+            It.IsAny<string>(),
+            It.IsAny<EffectiveGenerationPolicy>(),
+            "selection",
+            true,
+            It.IsAny<JsonElement>(),
+            It.IsAny<CancellationToken>()), Times.Exactly(2));
+    }
+
     /// <summary>Verifies invalid structured model output fails the prompt step.</summary>
     [Fact]
     public void ResponseSchemaRejectsMissingRequiredProperty()

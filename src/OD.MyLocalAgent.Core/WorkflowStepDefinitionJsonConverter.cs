@@ -52,6 +52,7 @@ internal sealed class WorkflowStepDefinitionJsonConverter : JsonConverter<Workfl
             OnError = ReadOptionalPolicy(root),
             RetryCount = ReadOptionalInt32(root, "retryCount"),
             RetryBackoffSeconds = ReadOptionalInt32(root, "retryBackoffSeconds"),
+            FallbackOutput = ReadOptionalValue(root, "fallbackOutput"),
             GenerationOptions = ReadGenerationOptions(root, options),
             Model = ReadOptionalString(root, "model"),
             ToolAliases = ReadToolAliases(root, options),
@@ -73,6 +74,7 @@ internal sealed class WorkflowStepDefinitionJsonConverter : JsonConverter<Workfl
             value.OnError is null &&
             value.RetryCount is null &&
             value.RetryBackoffSeconds is null &&
+            value.FallbackOutput is null &&
             (value.GenerationOptions is null || value.GenerationOptions.IsEmpty) &&
             value.Model is null &&
             value.ToolAliases.Count == 0 &&
@@ -111,6 +113,12 @@ internal sealed class WorkflowStepDefinitionJsonConverter : JsonConverter<Workfl
         if (value.RetryBackoffSeconds is not null)
         {
             writer.WriteNumber("retryBackoffSeconds", value.RetryBackoffSeconds.Value);
+        }
+
+        if (value.FallbackOutput is { } fallbackOutput)
+        {
+            writer.WritePropertyName("fallbackOutput");
+            fallbackOutput.WriteTo(writer);
         }
 
         if (value.GenerationOptions is { IsEmpty: false } generationOptions)
@@ -165,6 +173,7 @@ internal sealed class WorkflowStepDefinitionJsonConverter : JsonConverter<Workfl
             "onError",
             "retryCount",
             "retryBackoffSeconds",
+            "fallbackOutput",
             "generationOptions",
             "model",
             "toolAliases",
@@ -206,6 +215,9 @@ internal sealed class WorkflowStepDefinitionJsonConverter : JsonConverter<Workfl
 
         return element.Clone();
     }
+
+    private static JsonElement? ReadOptionalValue(JsonElement root, string propertyName) =>
+        root.TryGetProperty(propertyName, out var element) ? element.Clone() : null;
 
     private static IReadOnlyList<string> ReadToolAliases(JsonElement root, JsonSerializerOptions options)
     {
