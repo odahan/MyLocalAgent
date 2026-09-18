@@ -81,27 +81,29 @@ public sealed class DirectChatContextBuilder(
     {
         ArgumentNullException.ThrowIfNull(conversation);
         ArgumentNullException.ThrowIfNull(messages);
-        var providerMessages = new List<ChatMessage>
+        var systemInstructions = new List<string>
         {
-            new(ChatRole.System, DirectChatSystemPrompt),
+            DirectChatSystemPrompt,
         };
         var options = _aiOptions.CurrentValue;
         if (!string.IsNullOrWhiteSpace(options.EffectiveDirectChatSystemPrompt))
         {
-            providerMessages.Add(
-                new ChatMessage(
-                    ChatRole.System,
-                    options.EffectiveDirectChatSystemPrompt.Trim()));
+            systemInstructions.Add(options.EffectiveDirectChatSystemPrompt.Trim());
         }
 
         if (!string.IsNullOrWhiteSpace(conversation.SummaryText))
         {
-            providerMessages.Add(
-                new ChatMessage(
-                    ChatRole.System,
-                    "Conversation memory summarizing older messages:\n" +
-                    conversation.SummaryText.Trim()));
+            systemInstructions.Add(
+                "Conversation memory summarizing older messages:\n" +
+                conversation.SummaryText.Trim());
         }
+
+        // Some Ollama chat templates accept exactly one system message, and require it
+        // to be the first message. Consolidate all Direct Chat system context here.
+        var providerMessages = new List<ChatMessage>
+        {
+            new(ChatRole.System, string.Join("\n\n", systemInstructions)),
+        };
 
         var summarizedThrough = conversation.SummaryThroughSequence ?? 0;
         foreach (var message in messages.Where(message =>

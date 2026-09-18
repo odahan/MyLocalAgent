@@ -48,9 +48,10 @@ public sealed class DirectChatContextTests
         plan.Messages.Should().Contain(message => message.Text == "recent user");
         plan.Messages.Should().NotContain(message => message.Text == "old user");
         plan.Messages.Should().NotContain(message => message.Text == "old assistant");
-        plan.Messages.Should().Contain(message => message.Text == "Direct Chat instruction");
+        plan.Messages.Should().Contain(message => message.Text!.Contains("Direct Chat instruction"));
         plan.Messages.Should().NotContain(message => message.Text == "Agent instruction");
         plan.Messages.Should().NotContain(message => message.Text == "Prompt step instruction");
+        plan.Messages.Count(message => message.Role == ChatRole.System).Should().Be(1);
     }
 
     /// <summary>Verifies the former global setting remains a fallback during migration.</summary>
