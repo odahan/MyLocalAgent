@@ -1,17 +1,16 @@
 using FluentAssertions;
 using OD.MyLocalAgent.Core;
-using OD.MyLocalAgent.UI.Services;
 using OD.MyLocalAgent.UI.ViewModels;
 using Xunit;
 
 namespace OD.MyLocalAgent.Tests;
 
-/// <summary>Verifies completed Direct Chat messages remain safely text-rendered.</summary>
+/// <summary>Verifies Direct Chat Markdown display state.</summary>
 public sealed class DirectChatMessageItemTests
 {
-    /// <summary>Verifies completion keeps the response content without a scrolling WebView2 host.</summary>
+    /// <summary>Verifies completed responses render by default and can return to source mode.</summary>
     [Fact]
-    public void CompletedAssistantMessageDoesNotUseMarkdownWebView()
+    public void CompletedAssistantMessageCanToggleNativeMarkdownRendering()
     {
         var message = new DirectChatMessage
         {
@@ -23,17 +22,16 @@ public sealed class DirectChatMessageItemTests
             State = DirectChatMessageState.Streaming,
             CreatedUtc = DateTimeOffset.UtcNow,
         };
-        var item = new DirectChatMessageItem(
-            message,
-            new MarkdownRenderingService(),
-            isMarkdownAvailable: true);
+        var item = new DirectChatMessageItem(message);
 
         item.Update("**Rendered answer**", DirectChatMessageState.Completed);
 
-        item.ShowsRenderedMarkdown.Should().BeFalse();
-        item.RenderedHtml.Should().BeEmpty();
-        item.RenderHeight.Should().BeGreaterThan(0);
+        item.ShowsRenderedMarkdown.Should().BeTrue();
         item.Contents.Should().ContainSingle();
         item.Contents[0].Text.Should().Be("**Rendered answer**");
+
+        item.ToggleMarkdownRenderingCommand.Execute(null);
+
+        item.ShowsRenderedMarkdown.Should().BeFalse();
     }
 }

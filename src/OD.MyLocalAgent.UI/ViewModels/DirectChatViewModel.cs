@@ -34,11 +34,9 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
     private readonly IOptionsMonitor<AIOptions> _aiOptions;
     private readonly IIncidentReporter _incidentReporter;
     private readonly IDesktopInteractionService _desktopInteraction;
-    private readonly IMarkdownRenderingService _markdown;
     private readonly IDirectChatMediaFileService _mediaFileService;
     private readonly IPathSandbox? _pathSandbox;
     private readonly IKnowledgeLibraryService? _knowledgeLibrary;
-    private readonly bool _isMarkdownAvailable;
     private bool _loaded;
     private bool _selectingConversation;
     private DirectChatConversationItem? _lastSelectedConversation;
@@ -74,11 +72,11 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
         _aiOptions = aiOptions;
         _incidentReporter = incidentReporter;
         _desktopInteraction = desktopInteraction;
-        _markdown = markdown;
+        _ = markdown;
         _mediaFileService = mediaFileService;
         _pathSandbox = pathSandbox;
         _knowledgeLibrary = knowledgeLibrary;
-        _isMarkdownAvailable = webViewAvailability.IsAvailable();
+        _ = webViewAvailability.IsAvailable();
         foreach (var selection in ToolSelections)
             selection.PropertyChanged += (_, _) =>
             {
@@ -1468,7 +1466,7 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
     }
 
     private DirectChatMessageItem CreateMessageItem(DirectChatMessage message) =>
-        new(message, _markdown, _isMarkdownAvailable);
+        new(message);
 
     private static string CreateTitle(string firstMessage)
     {

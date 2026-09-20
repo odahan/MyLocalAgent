@@ -11,6 +11,7 @@ namespace OD.MyLocalAgent.UI.Pages;
 public partial class DirectChatPage : UserControl
 {
     private DirectChatViewModel? _viewModel;
+    private bool _followLatestMessage = true;
 
     /// <summary>Initializes the Direct Chat page.</summary>
     public DirectChatPage()
@@ -31,6 +32,7 @@ public partial class DirectChatPage : UserControl
             return;
         }
 
+        _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         _viewModel.Messages.CollectionChanged += OnMessagesChanged;
         foreach (var message in _viewModel.Messages)
         {
@@ -70,10 +72,39 @@ public partial class DirectChatPage : UserControl
         }
     }
 
-    private void QueueScrollToEnd() =>
-        _ = Dispatcher.BeginInvoke(
-            MessagesScrollViewer.ScrollToEnd,
-            DispatcherPriority.Background);
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(DirectChatViewModel.SelectedConversation))
+        {
+            _followLatestMessage = true;
+            QueueScrollToEnd();
+        }
+    }
+
+    private void QueueScrollToEnd()
+    {
+        if (_followLatestMessage)
+        {
+            _ = Dispatcher.BeginInvoke(
+                MessagesScrollViewer.ScrollToEnd,
+                DispatcherPriority.Background);
+        }
+    }
+
+    private void OnMessagesScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (e.VerticalChange < 0)
+        {
+            _followLatestMessage = false;
+            return;
+        }
+
+        if (e.VerticalChange > 0 &&
+            e.VerticalOffset >= e.ExtentHeight - e.ViewportHeight - 2)
+        {
+            _followLatestMessage = true;
+        }
+    }
 
     private void OnDraftPreviewKeyDown(object sender, KeyEventArgs e)
     {
@@ -115,6 +146,7 @@ public partial class DirectChatPage : UserControl
             return;
         }
 
+        _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
         _viewModel.Messages.CollectionChanged -= OnMessagesChanged;
         foreach (var message in _viewModel.Messages)
         {

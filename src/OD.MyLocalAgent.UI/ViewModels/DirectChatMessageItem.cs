@@ -1,25 +1,17 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
 using OD.MyLocalAgent.Core;
-using OD.MyLocalAgent.UI.Services;
 
 namespace OD.MyLocalAgent.UI.ViewModels;
 
 /// <summary>Represents one Direct Chat message displayed in the conversation.</summary>
 public sealed partial class DirectChatMessageItem : ObservableObject
 {
-    private readonly IMarkdownRenderingService _markdown;
-    private readonly bool _isMarkdownAvailable;
-
     /// <summary>Initializes an item from a persisted message.</summary>
-    public DirectChatMessageItem(
-        DirectChatMessage message,
-        IMarkdownRenderingService markdown,
-        bool isMarkdownAvailable)
+    public DirectChatMessageItem(DirectChatMessage message)
     {
         ArgumentNullException.ThrowIfNull(message);
-        _markdown = markdown;
-        _isMarkdownAvailable = isMarkdownAvailable;
         Id = message.Id;
         ConversationId = message.ConversationId;
         Sequence = message.Sequence;
@@ -58,22 +50,19 @@ public sealed partial class DirectChatMessageItem : ObservableObject
     private DirectChatMessageState _state;
 
     [ObservableProperty]
-    private string _renderedHtml = string.Empty;
+    private bool _prefersRenderedMarkdown = true;
 
     /// <summary>Gets a value indicating whether this is a user message.</summary>
     public bool IsUser => Role == DirectChatMessageRole.User;
 
     /// <summary>
-    /// Gets a value indicating whether completed assistant Markdown can be rendered.
-    /// WebView2 cannot be hosted safely inside the WPF scrolling message list.
+    /// Gets a value indicating whether completed assistant Markdown is rendered.
     /// </summary>
-    public bool ShowsRenderedMarkdown => false;
-
-    /// <summary>Gets a height estimate for the isolated Markdown browser.</summary>
-    public double RenderHeight => Math.Clamp(
-        70 + Content.Count(static character => character == '\n') * 20,
-        90,
-        420);
+    public bool ShowsRenderedMarkdown =>
+        !IsUser &&
+        PrefersRenderedMarkdown &&
+        State == DirectChatMessageState.Completed &&
+        !string.IsNullOrWhiteSpace(Content);
 
     /// <summary>Gets a human-facing state suffix.</summary>
     public string StateText => State switch
@@ -110,13 +99,22 @@ public sealed partial class DirectChatMessageItem : ObservableObject
 
     partial void OnStateChanged(DirectChatMessageState value) => RefreshProjection();
 
+    partial void OnPrefersRenderedMarkdownChanged(bool value) =>
+        OnPropertyChanged(nameof(ShowsRenderedMarkdown));
+
+    /// <summary>Switches this response between rendered Markdown and its source.</summary>
+    [RelayCommand]
+    private void ToggleMarkdownRendering()
+    {
+        if (!IsUser && State == DirectChatMessageState.Completed)
+        {
+            PrefersRenderedMarkdown = !PrefersRenderedMarkdown;
+        }
+    }
+
     private void RefreshProjection()
     {
-        RenderedHtml = ShowsRenderedMarkdown
-            ? _markdown.ToRestrictedHtml(Content)
-            : string.Empty;
         OnPropertyChanged(nameof(ShowsRenderedMarkdown));
-        OnPropertyChanged(nameof(RenderHeight));
         OnPropertyChanged(nameof(StateText));
     }
 
