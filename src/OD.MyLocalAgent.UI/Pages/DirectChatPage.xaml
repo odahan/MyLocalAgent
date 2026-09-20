@@ -460,6 +460,27 @@
                                                     </Button>
                                                     <Button Margin="4,0,0,0"
                                                             Padding="4"
+                                                            AutomationProperties.Name="Save Markdown response"
+                                                            Command="{Binding DataContext.SaveMessageAsMarkdownCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                            CommandParameter="{Binding}"
+                                                            ToolTip="Save Markdown response">
+                                                        <Button.Style>
+                                                            <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignToolButton}">
+                                                                <Setter Property="Foreground" Value="{DynamicResource OnSurfaceBrush}" />
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsUser}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Button.Style>
+                                                        <materialDesign:PackIcon Width="16"
+                                                                                 Height="16"
+                                                                                 Kind="Download" />
+                                                    </Button>
+                                                    <Button Margin="4,0,0,0"
+                                                            Padding="4"
                                                             AutomationProperties.Name="Copy message to clipboard"
                                                             Command="{Binding DataContext.CopyMessageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                             CommandParameter="{Binding}"

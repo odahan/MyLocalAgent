@@ -381,7 +381,50 @@ public sealed class DirectChatViewModelTests
         persisted[1].Content.Should().Be(assistant.Content);
     }
 
-    private static async Task<ViewModelContext> CreateViewModelAsync(ILlmClientService provider)
+    /// <summary>Verifies a completed assistant response can be saved as its original Markdown.</summary>
+    [Fact]
+    public async Task SaveMessageAsMarkdownWritesSelectedFile()
+    {
+        var destination = Path.Combine(
+            Path.GetTempPath(),
+            "OD.MyLocalAgent.Tests",
+            $"{Guid.NewGuid():N}.md");
+        var desktop = new Mock<IDesktopInteractionService>(MockBehavior.Strict);
+        desktop.Setup(instance => instance.SelectSavePath(
+                "Save Markdown response",
+                "Markdown files|*.md|All files|*.*",
+                ".md",
+                "direct-chat-response-2.md"))
+            .Returns(destination);
+        Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+
+        try
+        {
+            await using var context = await CreateViewModelAsync(
+                new StubLlmClientService(new StubChatClient(["# Saved response\n\n**Markdown**"]), "Stub"),
+                desktop.Object);
+            context.ViewModel.DraftMessage = "Save this";
+            await context.ViewModel.SendCommand.ExecuteAsync(null);
+            var assistant = context.ViewModel.Messages[^1];
+
+            await context.ViewModel.SaveMessageAsMarkdownCommand.ExecuteAsync(assistant);
+
+            (await File.ReadAllTextAsync(destination)).Should().Be("# Saved response\n\n**Markdown**");
+            context.ViewModel.StatusText.Should().Be("Markdown response saved locally.");
+            desktop.VerifyAll();
+        }
+        finally
+        {
+            if (File.Exists(destination))
+            {
+                File.Delete(destination);
+            }
+        }
+    }
+
+    private static async Task<ViewModelContext> CreateViewModelAsync(
+        ILlmClientService provider,
+        IDesktopInteractionService? desktopInteraction = null)
     {
         var directory = Path.Combine(Path.GetTempPath(), "OD.MyLocalAgent.Tests", Guid.NewGuid().ToString("N"));
         var store = new SqliteDirectChatStore(Path.Combine(directory, "direct-chat.db"));
@@ -407,7 +450,7 @@ public sealed class DirectChatViewModelTests
             WeakReferenceMessenger.Default,
             aiOptions,
             reporter,
-            Mock.Of<IDesktopInteractionService>(),
+            desktopInteraction ?? Mock.Of<IDesktopInteractionService>(),
             new MarkdownRenderingService(),
             webView.Object,
             new DirectChatMediaFileService());

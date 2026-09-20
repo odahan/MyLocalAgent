@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
@@ -23,6 +24,7 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
     private const string AllFilesFilter = "All files|*.*";
     private const string EmptyResponseMessage =
         "The AI provider completed the request without returning response text. Try again or select a different model.";
+    private const string MarkdownResponseFileFilter = "Markdown files|*.md|All files|*.*";
     private readonly IDirectChatStore _store;
     private readonly IDirectChatContextBuilder _contextBuilder;
     private readonly IDirectChatHistoryCompressor _compressor;
@@ -594,6 +596,44 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
         _desktopInteraction.CopyText(message.Content);
         StatusText = "Message copied to the clipboard.";
     }
+
+    [RelayCommand(CanExecute = nameof(CanSaveMarkdownResponse))]
+    private async Task SaveMessageAsMarkdownAsync(DirectChatMessageItem? message)
+    {
+        if (message is null)
+        {
+            return;
+        }
+
+        var path = _desktopInteraction.SelectSavePath(
+            "Save Markdown response",
+            MarkdownResponseFileFilter,
+            ".md",
+            $"direct-chat-response-{message.Sequence}.md");
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        try
+        {
+            await File.WriteAllTextAsync(path, message.Content, Encoding.UTF8)
+                .ConfigureAwait(true);
+            StatusText = "Markdown response saved locally.";
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            _desktopInteraction.ShowError("Unable to save Markdown response", exception.Message);
+        }
+    }
+
+    private static bool CanSaveMarkdownResponse(DirectChatMessageItem? message) =>
+        message is
+        {
+            IsUser: false,
+            State: DirectChatMessageState.Completed,
+            Content.Length: > 0,
+        };
 
     [RelayCommand]
     private void CancelGeneration()
