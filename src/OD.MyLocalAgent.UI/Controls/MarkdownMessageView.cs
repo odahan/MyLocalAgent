@@ -51,6 +51,8 @@ public sealed class MarkdownMessageView : RichTextBox
         BorderThickness = new Thickness(0);
         Padding = new Thickness(0);
         Background = Brushes.Transparent;
+        SetResourceReference(ForegroundProperty, "OnSurfaceBrush");
+        SetResourceReference(CaretBrushProperty, "OnSurfaceBrush");
         HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
         VerticalScrollBarVisibility = ScrollBarVisibility.Disabled;
         ContextMenu = CreateContextMenu();
