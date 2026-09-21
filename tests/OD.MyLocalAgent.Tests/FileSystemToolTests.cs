@@ -104,6 +104,62 @@ public sealed class FileSystemToolTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies batch moves remain beneath one root, avoid collisions, and report skipped files.
+    /// </summary>
+    [Fact]
+    public async Task BatchMoveMovesDirectFilesAndReturnsItemizedResults()
+    {
+        Directory.CreateDirectory(Path.Combine(_rootPath, "installers"));
+        await File.WriteAllTextAsync(Path.Combine(_rootPath, "setup.exe"), "new");
+        await File.WriteAllTextAsync(Path.Combine(_rootPath, "installers", "setup.exe"), "old");
+        var moves = JsonDocument.Parse(
+            """
+            [
+              { "sourceFileName": "setup.exe", "destinationFolder": "installers" },
+              { "sourceFileName": "missing.exe", "destinationFolder": "installers" }
+            ]
+            """).RootElement.Clone();
+        var tool = CreateTool(
+            allowDelete: false,
+            context: CreateContext("batch-move", _rootPath));
+
+        using var result = JsonDocument.Parse(
+            await tool.BatchMoveAsync(_rootPath, moves, CancellationToken.None));
+
+        result.RootElement.GetProperty("requested").GetInt32().Should().Be(2);
+        result.RootElement.GetProperty("moved").GetInt32().Should().Be(1);
+        result.RootElement.GetProperty("skipped").GetInt32().Should().Be(1);
+        result.RootElement.GetProperty("errors").GetInt32().Should().Be(0);
+        result.RootElement.GetProperty("results")[0].GetProperty("destinationFileName").GetString()
+            .Should().Be("setup_2.exe");
+        result.RootElement.GetProperty("reportMarkdown").GetString()
+            .Should().Contain("## Déplacés").And.Contain("`setup.exe` → `installers/setup_2.exe`");
+        File.Exists(Path.Combine(_rootPath, "setup.exe")).Should().BeFalse();
+        File.Exists(Path.Combine(_rootPath, "installers", "setup_2.exe")).Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Verifies batch move rejects traversal before any file is moved.
+    /// </summary>
+    [Fact]
+    public async Task BatchMoveRejectsTraversalInDestinationFolder()
+    {
+        Directory.CreateDirectory(Path.Combine(_rootPath, "installers"));
+        await File.WriteAllTextAsync(Path.Combine(_rootPath, "setup.exe"), "new");
+        var moves = JsonDocument.Parse(
+            """[{ "sourceFileName": "setup.exe", "destinationFolder": "../outside" }]""").RootElement.Clone();
+        var tool = CreateTool(
+            allowDelete: false,
+            context: CreateContext("batch-move", _rootPath));
+
+        var action = () => tool.BatchMoveAsync(_rootPath, moves, CancellationToken.None);
+
+        await action.Should().ThrowAsync<ArgumentException>()
+            .WithMessage("*relative path*");
+        File.Exists(Path.Combine(_rootPath, "setup.exe")).Should().BeTrue();
+    }
+
+    /// <summary>
     /// Verifies overwrite, atomic create-new, and exact append semantics.
     /// </summary>
     [Fact]

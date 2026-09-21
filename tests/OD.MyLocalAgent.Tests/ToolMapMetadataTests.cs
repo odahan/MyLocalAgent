@@ -212,6 +212,7 @@ public sealed class ToolMapMetadataTests
             ["filesystem.read"] = (["path"], []),
             ["filesystem.write"] = (["path", "content", "mode"], ["mode"]),
             ["filesystem.move"] = (["from", "to"], []),
+            ["filesystem.batchMove"] = (["rootPath", "moves"], []),
             ["filesystem.moveToBin"] = (["path"], []),
             ["filesystem.rename"] = (["path", "newName"], []),
             ["filesystem.setExtension"] = (["path", "extension"], []),

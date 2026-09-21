@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Markdig;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -267,6 +268,95 @@ public sealed class FileSystemTool : IFileSystemTool
                     cancellationToken).ConfigureAwait(false);
                 return ToolJson.Serialize(
                     new { from = Normalize(from), to = Normalize(to), moved = true });
+            });
+
+    /// <inheritdoc />
+    [ToolLocalPath("rootPath", LocalPathTargetKind.Directory, FileSystemAccessMode.ReadWrite)]
+    [Tool("filesystem.batchMove", "Moves a validated batch of direct-child files into existing subdirectories of one authorized root and returns an itemized result.", 425)]
+    public Task<string> BatchMoveAsync(
+        [ToolArgument(WorkflowArgumentKind.String, "Task-authorized root directory containing the source files and destination subdirectories.", Example = "C:\\Users\\odaha\\Downloads")]
+        string rootPath,
+        [ToolArgument(WorkflowArgumentKind.Object, "Array of move objects with sourceFileName and destinationFolder. Source names must refer to direct files beneath rootPath; destination folders must be existing relative subdirectories.", Example = "[{\"sourceFileName\":\"setup.exe\",\"destinationFolder\":\"01_INSTALLATEURS_LOGICIELS\"}]", EditorHint = WorkflowArgumentEditorHint.StructuredJson)]
+        JsonElement moves,
+        CancellationToken cancellationToken) =>
+        ToolCallLog.ExecuteAsync(
+            _logger,
+            _timeProvider,
+            "filesystem.batchMove",
+            new { rootPath, moveCount = moves.ValueKind == JsonValueKind.Array ? moves.GetArrayLength() : 0 },
+            async () =>
+            {
+                var absoluteRoot = _sandbox.Resolve(
+                    rootPath,
+                    FileSystemAccessMode.ReadOnly,
+                    _executionContext);
+                if (!Directory.Exists(absoluteRoot))
+                {
+                    throw new DirectoryNotFoundException($"Directory '{rootPath}' does not exist.");
+                }
+
+                var requestedMoves = ParseBatchMoves(moves);
+                var results = new List<BatchMoveResult>(requestedMoves.Count);
+                foreach (var move in requestedMoves)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var sourcePath = _sandbox.Resolve(
+                        Path.Combine(rootPath, move.SourceFileName),
+                        FileSystemAccessMode.ReadWrite,
+                        _executionContext);
+                    var destinationDirectory = ResolveBatchDestinationDirectory(
+                        rootPath,
+                        absoluteRoot,
+                        move.DestinationFolder);
+                    var destinationPath = CreateAvailableDestinationPath(
+                        destinationDirectory,
+                        move.SourceFileName);
+
+                    if (!File.Exists(sourcePath))
+                    {
+                        results.Add(new BatchMoveResult(
+                            move.SourceFileName,
+                            Normalize(move.DestinationFolder),
+                            null,
+                            "skipped",
+                            "Source file does not exist at the root path."));
+                        continue;
+                    }
+
+                    try
+                    {
+                        await Task.Run(
+                            () => File.Move(sourcePath, destinationPath),
+                            cancellationToken).ConfigureAwait(false);
+                        results.Add(new BatchMoveResult(
+                            move.SourceFileName,
+                            Normalize(move.DestinationFolder),
+                            Path.GetFileName(destinationPath),
+                            "moved",
+                            null));
+                    }
+                    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                    {
+                        results.Add(new BatchMoveResult(
+                            move.SourceFileName,
+                            Normalize(move.DestinationFolder),
+                            null,
+                            "error",
+                            exception.Message));
+                    }
+                }
+
+                return ToolJson.Serialize(
+                    new
+                    {
+                        rootPath = Normalize(rootPath),
+                        requested = requestedMoves.Count,
+                        moved = results.Count(static result => result.Status == "moved"),
+                        skipped = results.Count(static result => result.Status == "skipped"),
+                        errors = results.Count(static result => result.Status == "error"),
+                        results,
+                        reportMarkdown = CreateBatchMoveReport(results),
+                    });
             });
 
     /// <inheritdoc />
@@ -877,6 +967,164 @@ public sealed class FileSystemTool : IFileSystemTool
 
     private static string Normalize(string path) =>
         path.Replace('\\', '/');
+
+    private static IReadOnlyList<BatchMoveRequest> ParseBatchMoves(JsonElement moves)
+    {
+        if (moves.ValueKind != JsonValueKind.Array)
+        {
+            throw new ArgumentException("Moves must be a JSON array.", nameof(moves));
+        }
+
+        var parsed = new List<BatchMoveRequest>();
+        foreach (var item in moves.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object ||
+                !item.TryGetProperty("sourceFileName", out var source) ||
+                source.ValueKind != JsonValueKind.String ||
+                !item.TryGetProperty("destinationFolder", out var destination) ||
+                destination.ValueKind != JsonValueKind.String)
+            {
+                throw new ArgumentException(
+                    "Each move must contain string sourceFileName and destinationFolder properties.",
+                    nameof(moves));
+            }
+
+            var sourceFileName = source.GetString()!;
+            var destinationFolder = destination.GetString()!;
+            ValidateFileName(sourceFileName, "sourceFileName");
+            ValidateRelativeDirectoryPath(destinationFolder, "destinationFolder");
+            parsed.Add(new BatchMoveRequest(sourceFileName, destinationFolder));
+        }
+
+        return parsed;
+    }
+
+    private string ResolveBatchDestinationDirectory(
+        string rootPath,
+        string absoluteRoot,
+        string destinationFolder)
+    {
+        var absoluteDestination = _sandbox.Resolve(
+            Path.Combine(rootPath, destinationFolder),
+            FileSystemAccessMode.ReadWrite,
+            _executionContext);
+        var relativeDestination = Path.GetRelativePath(absoluteRoot, absoluteDestination);
+        if (relativeDestination == ".." || relativeDestination.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+        {
+            throw new ArgumentException("Destination folder must be beneath rootPath.", nameof(destinationFolder));
+        }
+
+        if (!Directory.Exists(absoluteDestination))
+        {
+            throw new DirectoryNotFoundException(
+                $"Destination folder '{destinationFolder}' does not exist beneath '{rootPath}'.");
+        }
+
+        return absoluteDestination;
+    }
+
+    private static string CreateAvailableDestinationPath(string destinationDirectory, string sourceFileName)
+    {
+        var extension = Path.GetExtension(sourceFileName);
+        var baseName = Path.GetFileNameWithoutExtension(sourceFileName);
+        var candidate = Path.Combine(destinationDirectory, sourceFileName);
+        var suffix = 2;
+        while (File.Exists(candidate) || Directory.Exists(candidate))
+        {
+            candidate = Path.Combine(destinationDirectory, $"{baseName}_{suffix}{extension}");
+            suffix++;
+        }
+
+        return candidate;
+    }
+
+    private static string CreateBatchMoveReport(IReadOnlyList<BatchMoveResult> results)
+    {
+        var builder = new StringBuilder();
+        AppendReportSection(
+            builder,
+            "Déplacés",
+            results.Where(static result =>
+                result.Status == "moved" &&
+                !string.Equals(result.DestinationFolder, "90_DOUBLONS_POTENTIELS", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(result.DestinationFolder, "00_A_VERIFIER", StringComparison.OrdinalIgnoreCase)),
+            static result => $"- `{result.SourceFileName}` → `{result.DestinationFolder}/{result.DestinationFileName}`",
+            "Aucun fichier déplacé.");
+        AppendReportSection(
+            builder,
+            "Doublons",
+            results.Where(static result =>
+                result.Status == "moved" &&
+                string.Equals(result.DestinationFolder, "90_DOUBLONS_POTENTIELS", StringComparison.OrdinalIgnoreCase)),
+            static result => $"- `{result.SourceFileName}` → `{result.DestinationFolder}/{result.DestinationFileName}`",
+            "Aucun doublon traité.");
+        AppendReportSection(
+            builder,
+            "À vérifier",
+            results.Where(static result =>
+                result.Status == "moved" &&
+                string.Equals(result.DestinationFolder, "00_A_VERIFIER", StringComparison.OrdinalIgnoreCase)),
+            static result => $"- `{result.SourceFileName}` → `{result.DestinationFolder}/{result.DestinationFileName}`",
+            "Aucun fichier à vérifier.");
+        AppendReportSection(
+            builder,
+            "Non traités",
+            results.Where(static result => result.Status == "skipped"),
+            static result => $"- `{result.SourceFileName}` : {result.Reason}",
+            "Aucun fichier non traité.");
+        AppendReportSection(
+            builder,
+            "Erreur(s)",
+            results.Where(static result => result.Status == "error"),
+            static result => $"- `{result.SourceFileName}` : {result.Reason}",
+            "- Aucune erreur.");
+        return builder.ToString();
+    }
+
+    private static void AppendReportSection(
+        StringBuilder builder,
+        string title,
+        IEnumerable<BatchMoveResult> results,
+        Func<BatchMoveResult, string> format,
+        string emptyMessage)
+    {
+        builder.Append("## ").AppendLine(title);
+        var hasResult = false;
+        foreach (var result in results)
+        {
+            builder.AppendLine(format(result));
+            hasResult = true;
+        }
+
+        if (!hasResult)
+        {
+            builder.AppendLine(emptyMessage);
+        }
+
+        builder.AppendLine();
+    }
+
+    private static void ValidateRelativeDirectoryPath(string path, string parameterName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path, parameterName);
+        if (Path.IsPathRooted(path) ||
+            path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                .Any(static segment => segment is "." or ".." or ""))
+        {
+            throw new ArgumentException(
+                "The destination folder must be a non-empty relative path without '.' or '..' segments.",
+                parameterName);
+        }
+    }
+
+    private sealed record BatchMoveRequest(string SourceFileName, string DestinationFolder);
+
+    private sealed record BatchMoveResult(
+        string SourceFileName,
+        string DestinationFolder,
+        string? DestinationFileName,
+        string Status,
+        string? Reason);
 
     private static void ValidateFileName(string fileName, string parameterName)
     {

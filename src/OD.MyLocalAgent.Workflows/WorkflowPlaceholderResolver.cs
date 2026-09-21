@@ -116,9 +116,23 @@ internal static class WorkflowPlaceholderResolver
                 break;
 
             case JsonValueKind.String:
+                var template = element.GetString() ?? string.Empty;
+                if (TryWriteResolvedJsonPlaceholder(
+                        writer,
+                        template,
+                        task,
+                        context,
+                        stepId,
+                        localNow,
+                        modelContext,
+                        forEachContext))
+                {
+                    break;
+                }
+
                 writer.WriteStringValue(
                     ResolveText(
-                        element.GetString() ?? string.Empty,
+                        template,
                         task,
                         context,
                         stepId,
@@ -130,6 +144,45 @@ internal static class WorkflowPlaceholderResolver
             default:
                 element.WriteTo(writer);
                 break;
+        }
+    }
+
+    private static bool TryWriteResolvedJsonPlaceholder(
+        Utf8JsonWriter writer,
+        string template,
+        ScheduledTask task,
+        WorkflowContext context,
+        string stepId,
+        DateTimeOffset localNow,
+        ModelPromptPlaceholderContext modelContext,
+        WorkflowForEachContext? forEachContext)
+    {
+        var trimmedTemplate = template.Trim();
+        var placeholders = WorkflowPlaceholderCatalog.Extract(trimmedTemplate);
+        if (placeholders.Count != 1 ||
+            !trimmedTemplate.StartsWith("{{", StringComparison.Ordinal) ||
+            !trimmedTemplate.EndsWith("}}", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var resolved = ResolvePlaceholder(
+            placeholders[0],
+            task,
+            context,
+            stepId,
+            localNow,
+            modelContext,
+            forEachContext);
+        try
+        {
+            using var document = JsonDocument.Parse(resolved);
+            document.RootElement.WriteTo(writer);
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
         }
     }
 

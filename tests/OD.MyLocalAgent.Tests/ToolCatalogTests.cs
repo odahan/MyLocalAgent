@@ -66,6 +66,7 @@ public sealed class ToolCatalogTests
         catalog.Find("filesystem.read").Should().NotBeNull();
         catalog.Find("filesystem.write").Should().NotBeNull();
         catalog.Find("filesystem.move").Should().NotBeNull();
+        catalog.Find("filesystem.batchMove").Should().NotBeNull();
         catalog.Find("filesystem.moveToBin").Should().NotBeNull();
         catalog.Find("filesystem.rename").Should().NotBeNull();
         catalog.Find("filesystem.setExtension").Should().NotBeNull();
@@ -132,6 +133,7 @@ public sealed class ToolCatalogTests
         ToolCatalog.DeriveAgentFunctionName("filesystem.read").Should().Be("filesystem_read");
         ToolCatalog.DeriveAgentFunctionName("filesystem.write").Should().Be("filesystem_write");
         ToolCatalog.DeriveAgentFunctionName("filesystem.move").Should().Be("filesystem_move");
+        ToolCatalog.DeriveAgentFunctionName("filesystem.batchMove").Should().Be("filesystem_batch_move");
         ToolCatalog.DeriveAgentFunctionName("filesystem.moveToBin").Should().Be("filesystem_move_to_bin");
         ToolCatalog.DeriveAgentFunctionName("filesystem.rename").Should().Be("filesystem_rename");
         ToolCatalog.DeriveAgentFunctionName("filesystem.setExtension").Should().Be("filesystem_set_extension");

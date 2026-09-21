@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace OD.MyLocalAgent.Core;
 
 /// <summary>
@@ -33,6 +35,15 @@ public interface IFileSystemTool
     /// Moves a file or directory.
     /// </summary>
     Task<string> MoveAsync(string from, string to, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Moves a batch of files from the direct children of an authorized root to existing
+    /// subdirectories of that same root.
+    /// </summary>
+    Task<string> BatchMoveAsync(
+        string rootPath,
+        JsonElement moves,
+        CancellationToken cancellationToken);
 
     /// <summary>
     /// Moves a file or directory to the Windows Recycle Bin.

@@ -65,6 +65,38 @@ public sealed class WorkflowEngineTests
     }
 
     /// <summary>
+    /// Verifies a whole structured-output placeholder remains a JSON array for a following tool.
+    /// </summary>
+    [Fact]
+    public async Task PreservesWholeStructuredOutputPlaceholderAsJson()
+    {
+        var registry = new RecordingToolRegistry(
+            (alias, arguments, _) =>
+            {
+                if (alias == "filesystem.list")
+                {
+                    return Task.FromResult("{\"moves\":[{\"sourceFileName\":\"setup.exe\",\"destinationFolder\":\"01_INSTALLATEURS\"}]}");
+                }
+
+                arguments.GetProperty("moves").ValueKind.Should().Be(JsonValueKind.Array);
+                arguments.GetProperty("moves")[0].GetProperty("sourceFileName").GetString()
+                    .Should().Be("setup.exe");
+                return Task.FromResult("batch complete");
+            });
+        var engine = CreateEngine(registry);
+        var task = CreateTask(
+            [
+                Step("filesystem.list", "plan", "{}"),
+                Step("filesystem.batchMove", "move", """{ "moves": "{{plan.output.moves}}" }"""),
+            ]);
+
+        var result = await engine.ExecuteAsync(task, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        registry.Aliases.Should().Equal("filesystem.list", "filesystem.batchMove");
+    }
+
+    /// <summary>
     /// Verifies the observable workflow context is refreshed after every successful step.
     /// </summary>
     [Fact]
