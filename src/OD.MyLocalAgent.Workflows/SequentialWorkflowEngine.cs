@@ -193,7 +193,7 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
         var startedUtc = _timeProvider.GetUtcNow();
         var startedTimestamp = _timeProvider.GetTimestamp();
         var attempts = 0;
-        var definition = ToolMap.Find(step.Alias);
+        _toolRegistry.TryGetDefinition(step.Alias, out var definition);
         var generationDefaults =
             _aiOptions?.CurrentValue.GenerationDefaults ??
             new AIGenerationDefaults();
@@ -254,6 +254,7 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                 {
                     resolvedArguments = WorkflowPlaceholderResolver.ResolveArguments(
                         step.Args,
+                        definition?.ArgumentDefinitions ?? [],
                         task,
                         context,
                         step.Id,
@@ -419,6 +420,7 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
         CancellationToken cancellationToken)
     {
         var attempts = 0;
+        _toolRegistry.TryGetDefinition(step.Alias, out var definition);
         try
         {
             var source = WorkflowPlaceholderResolver.ResolveText(
@@ -445,6 +447,7 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                     {
                         var resolvedArguments = WorkflowPlaceholderResolver.ResolveArguments(
                             step.Args,
+                            definition?.ArgumentDefinitions ?? [],
                             task,
                             context,
                             step.Id,

@@ -12,6 +12,7 @@ internal static class WorkflowPlaceholderResolver
 {
     public static JsonElement ResolveArguments(
         JsonElement arguments,
+        IReadOnlyList<ToolArgumentDefinition> argumentDefinitions,
         ScheduledTask task,
         WorkflowContext context,
         string stepId,
@@ -32,6 +33,7 @@ internal static class WorkflowPlaceholderResolver
             WriteResolvedElement(
                 writer,
                 arguments,
+                argumentDefinitions,
                 task,
                 context,
                 stepId,
@@ -69,12 +71,14 @@ internal static class WorkflowPlaceholderResolver
     private static void WriteResolvedElement(
         Utf8JsonWriter writer,
         JsonElement element,
+        IReadOnlyList<ToolArgumentDefinition> argumentDefinitions,
         ScheduledTask task,
         WorkflowContext context,
         string stepId,
         DateTimeOffset localNow,
         ModelPromptPlaceholderContext modelContext,
-        WorkflowForEachContext? forEachContext)
+        WorkflowForEachContext? forEachContext,
+        bool allowTypedPlaceholderValues = false)
     {
         switch (element.ValueKind)
         {
@@ -83,15 +87,23 @@ internal static class WorkflowPlaceholderResolver
                 foreach (var property in element.EnumerateObject())
                 {
                     writer.WritePropertyName(property.Name);
+                    var argumentDefinition = argumentDefinitions.FirstOrDefault(
+                        argument => string.Equals(
+                            argument.Name,
+                            property.Name,
+                            StringComparison.OrdinalIgnoreCase));
                     WriteResolvedElement(
                         writer,
                         property.Value,
+                        argumentDefinitions,
                         task,
                         context,
                         stepId,
                         localNow,
                         modelContext,
-                        forEachContext);
+                        forEachContext,
+                        allowTypedPlaceholderValues ||
+                        SupportsTypedPlaceholderValues(argumentDefinition?.Kind));
                 }
 
                 writer.WriteEndObject();
@@ -104,12 +116,14 @@ internal static class WorkflowPlaceholderResolver
                     WriteResolvedElement(
                         writer,
                         item,
+                        argumentDefinitions,
                         task,
                         context,
                         stepId,
                         localNow,
                         modelContext,
-                        forEachContext);
+                        forEachContext,
+                        allowTypedPlaceholderValues);
                 }
 
                 writer.WriteEndArray();
@@ -117,7 +131,8 @@ internal static class WorkflowPlaceholderResolver
 
             case JsonValueKind.String:
                 var template = element.GetString() ?? string.Empty;
-                if (TryWriteResolvedJsonPlaceholder(
+                if (allowTypedPlaceholderValues &&
+                    TryWriteResolvedJsonPlaceholder(
                         writer,
                         template,
                         task,
@@ -146,6 +161,13 @@ internal static class WorkflowPlaceholderResolver
                 break;
         }
     }
+
+    private static bool SupportsTypedPlaceholderValues(WorkflowArgumentKind? kind) =>
+        kind is WorkflowArgumentKind.Integer or
+            WorkflowArgumentKind.Number or
+            WorkflowArgumentKind.Boolean or
+            WorkflowArgumentKind.BooleanOrString or
+            WorkflowArgumentKind.Object;
 
     private static bool TryWriteResolvedJsonPlaceholder(
         Utf8JsonWriter writer,

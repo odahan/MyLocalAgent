@@ -97,6 +97,40 @@ public sealed class WorkflowEngineTests
     }
 
     /// <summary>
+    /// Verifies a JSON-looking output remains text when substituted into a string argument.
+    /// </summary>
+    [Fact]
+    public async Task PreservesWholeStructuredOutputPlaceholderAsTextForStringArgument()
+    {
+        const string structuredOutput = "{\"candidateCount\":5}";
+        var registry = new RecordingToolRegistry(
+            (alias, arguments, _) =>
+            {
+                if (alias == "filesystem.list")
+                {
+                    return Task.FromResult(structuredOutput);
+                }
+
+                arguments.GetProperty("content").ValueKind.Should().Be(JsonValueKind.String);
+                arguments.GetProperty("content").GetString().Should().Be(structuredOutput);
+                return Task.FromResult("written");
+            });
+        var task = CreateTask(
+        [
+            Step("filesystem.list", "discover", "{}"),
+            Step(
+                "filesystem.write",
+                "export",
+                """{ "path": "report.json", "content": "{{discover.output}}" }"""),
+        ]);
+
+        var result = await CreateEngine(registry).ExecuteAsync(task, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        registry.Aliases.Should().Equal("filesystem.list", "filesystem.write");
+    }
+
+    /// <summary>
     /// Verifies the observable workflow context is refreshed after every successful step.
     /// </summary>
     [Fact]
