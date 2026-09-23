@@ -356,6 +356,44 @@ public sealed class DirectChatViewModelTests
         context.ViewModel.AttachFileCommand.CanExecute(null).Should().BeTrue();
     }
 
+    /// <summary>Verifies a vision model receives an attached image without accompanying text.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ImageOnlyPromptReachesVisionModel(bool agentEnabled)
+    {
+        var path = Path.Combine(Path.GetTempPath(), "OD.MyLocalAgent.Tests", $"{Guid.NewGuid():N}.png");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        await File.WriteAllBytesAsync(path, PngBytes);
+        try
+        {
+            var desktop = new Mock<IDesktopInteractionService>();
+            desktop.Setup(instance => instance.SelectOpenFile(
+                    "Attach file",
+                    It.Is<string>(filter => filter.Contains("Image files"))))
+                .Returns(path);
+            var chatClient = new StubChatClient("I can see the image.");
+            var provider = new StubLlmClientService(chatClient, "Stub")
+            {
+                Capabilities = ProviderCapabilities.TextChat | ProviderCapabilities.ImageInput,
+            };
+            await using var context = await CreateViewModelAsync(provider, desktop.Object);
+            context.ViewModel.AgentEnabled = agentEnabled;
+
+            await context.ViewModel.AttachFileCommand.ExecuteAsync(null);
+            context.ViewModel.PendingAttachments.Should().ContainSingle();
+            await context.ViewModel.SendCommand.ExecuteAsync(null);
+
+            chatClient.LastMessages.Last().Contents.OfType<Microsoft.Extensions.AI.DataContent>()
+                .Should().ContainSingle().Which.MediaType.Should().Be("image/png");
+            context.ViewModel.Messages.Last().Content.Should().Be("I can see the image.");
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     /// <summary>Verifies a provider completion without text is visible, durable, and reported.</summary>
     [Fact]
     public async Task EmptyProviderResponseIsPersistedAsFailure()

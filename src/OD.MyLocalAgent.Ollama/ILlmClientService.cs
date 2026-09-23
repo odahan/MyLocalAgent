@@ -25,6 +25,10 @@ public interface ILlmClientService
     /// <summary>Gets capabilities explicitly declared by this provider.</summary>
     ProviderCapabilities Capabilities => ProviderCapabilities.TextChat;
 
+    /// <summary>Checks whether the currently selected model accepts image input.</summary>
+    Task<bool> SupportsImageInputAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(Capabilities.HasFlag(ProviderCapabilities.ImageInput));
+
     /// <summary>Generates provider-specific media through a dedicated endpoint.</summary>
     Task<MultimodalGenerationResult> GenerateMediaAsync(
         MultimodalGenerationRequest request,

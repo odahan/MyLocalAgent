@@ -496,17 +496,21 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
     {
         var path = _desktopInteraction.SelectOpenFile(
             "Attach file",
-            SupportsImageInput
-                ? $"{TextFileFilter}|{ImageFileFilter}|{OfficeFileFilter}|{AllFilesFilter}"
-                : $"{TextFileFilter}|{OfficeFileFilter}|{AllFilesFilter}");
+            $"{TextFileFilter}|{ImageFileFilter}|{OfficeFileFilter}|{AllFilesFilter}");
         if (string.IsNullOrWhiteSpace(path)) return;
         try
         {
             var attachment = await DirectChatAttachmentLoader.LoadAsync(path).ConfigureAwait(true);
-            if (attachment.Kind == DirectChatAttachmentKind.Image && !SupportsImageInput)
+            if (attachment.Kind == DirectChatAttachmentKind.Image)
             {
-                throw new DirectChatAttachmentException(
-                    "Current LLM does not support images. Select an image-capable model to attach this file.");
+                var provider = _llmClientFactory.Create();
+                SupportsImageInput = await provider.SupportsImageInputAsync(CancellationToken.None)
+                    .ConfigureAwait(true);
+                if (!SupportsImageInput)
+                {
+                    throw new DirectChatAttachmentException(
+                        "Current LLM does not support images. Select an image-capable model to attach this file.");
+                }
             }
             PendingAttachments.Add(new DirectChatAttachmentItem(attachment));
             SendCommand.NotifyCanExecuteChanged();
@@ -862,7 +866,14 @@ public sealed partial class DirectChatViewModel : ObservableObject, IActivatable
                 "direct-chat");
             var response = new System.Text.StringBuilder();
             var checkpoint = Stopwatch.StartNew();
-            var chunks = agentEnabledSnapshot
+            var hasImageInput = attachments.Any(static attachment =>
+                attachment.Kind == DirectChatAttachmentKind.Image);
+            if (agentEnabledSnapshot && hasImageInput)
+            {
+                StatusText = "Generating image response without agent tools…";
+            }
+
+            var chunks = agentEnabledSnapshot && !hasImageInput
                 ? _agentService.RunPromptStreamingUpdatesAsync(
                     BuildAgentPrompt(plan.Messages),
                     toolGroupsSnapshot,

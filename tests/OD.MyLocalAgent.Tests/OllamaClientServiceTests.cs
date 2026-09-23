@@ -197,6 +197,31 @@ public sealed class OllamaClientServiceTests
         models.Should().Equal("alpha:7b", "zeta:latest");
     }
 
+    /// <summary>Verifies image support comes from the selected model's Ollama metadata.</summary>
+    [Theory]
+    [InlineData("completion", false)]
+    [InlineData("completion,vision,thinking", true)]
+    public async Task SupportsImageInputAsyncReadsModelCapabilities(string capabilities, bool expected)
+    {
+        string? requestedModel = null;
+        var handler = new StubHttpMessageHandler(async (request, _) =>
+        {
+            request.RequestUri!.AbsolutePath.Should().Be("/api/show");
+            using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
+            requestedModel = body.RootElement.GetProperty("model").GetString();
+            return JsonResponse(JsonSerializer.Serialize(new
+            {
+                capabilities = capabilities.Split(','),
+            }));
+        });
+        var service = CreateService(handler);
+
+        var supported = await service.SupportsImageInputAsync(CancellationToken.None);
+
+        supported.Should().Be(expected);
+        requestedModel.Should().Be(Model);
+    }
+
     private static OllamaClientService CreateService(
         HttpMessageHandler handler,
         int timeoutSeconds = 10)

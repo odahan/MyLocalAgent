@@ -54,6 +54,37 @@ public sealed class DirectChatContextTests
         plan.Messages.Count(message => message.Role == ChatRole.System).Should().Be(1);
     }
 
+    /// <summary>Verifies an image-only user turn reaches the provider context.</summary>
+    [Fact]
+    public void ContextBuilderKeepsImageOnlyMessage()
+    {
+        var directOptions = Options.Create(new DirectChatOptions());
+        var builder = new DirectChatContextBuilder(
+            new ConservativeTokenEstimator(directOptions),
+            new MutableOptionsMonitor<AIOptions>(new AIOptions()),
+            directOptions);
+        var image = new byte[] { 1, 2, 3 };
+        var message = Message(1, DirectChatMessageRole.User, string.Empty) with
+        {
+            Attachments =
+            [
+                new DirectChatAttachment
+                {
+                    FileName = "image.png",
+                    Kind = DirectChatAttachmentKind.Image,
+                    MediaType = "image/png",
+                    Data = image,
+                },
+            ],
+        };
+
+        var plan = builder.Build(Conversation(), [message]);
+
+        plan.Messages.Should().HaveCount(2);
+        plan.Messages[1].Contents.OfType<DataContent>().Should().ContainSingle()
+            .Which.MediaType.Should().Be("image/png");
+    }
+
     /// <summary>Verifies the former global setting remains a fallback during migration.</summary>
     [Fact]
     public void SpecializedPromptsFallBackToLegacyGlobalInstructions()

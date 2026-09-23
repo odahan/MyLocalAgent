@@ -4,6 +4,8 @@ using Microsoft.Extensions.Options;
 using OllamaSharp;
 using OllamaSharp.Models;
 using System.Runtime.CompilerServices;
+using System.Net.Http.Json;
+using System.Text.Json;
 
 namespace OD.MyLocalAgent.Ollama;
 
@@ -61,6 +63,37 @@ public sealed class OllamaClientService : ILlmClientService, IOllamaModelCatalog
 
     /// <inheritdoc />
     public ProviderCapabilities Capabilities => ProviderCapabilities.TextChat;
+
+    /// <inheritdoc />
+    public async Task<bool> SupportsImageInputAsync(CancellationToken cancellationToken)
+    {
+        var current = _options.CurrentValue;
+        var validation = LlmOptionsValidation.ValidateOllama(current);
+        if (validation is not null)
+        {
+            throw new LlmConfigurationException(validation);
+        }
+
+        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutSource.CancelAfter(TimeSpan.FromSeconds(current.TimeoutSeconds));
+        var httpClient = _httpClientFactory.CreateClient(LlmHttpClientNames.Ollama);
+        httpClient.BaseAddress = LlmOptionsValidation.ParseEndpoint(current.Endpoint, OllamaOptions.SectionName);
+        httpClient.Timeout = Timeout.InfiniteTimeSpan;
+
+        using var response = await httpClient.PostAsJsonAsync(
+            "api/show",
+            new { model = current.Model },
+            timeoutSource.Token).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        using var document = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(timeoutSource.Token).ConfigureAwait(false),
+            cancellationToken: timeoutSource.Token).ConfigureAwait(false);
+        return document.RootElement.TryGetProperty("capabilities", out var capabilities) &&
+               capabilities.ValueKind == JsonValueKind.Array &&
+               capabilities.EnumerateArray().Any(capability =>
+                   capability.ValueKind == JsonValueKind.String &&
+                   string.Equals(capability.GetString(), "vision", StringComparison.OrdinalIgnoreCase));
+    }
 
     /// <inheritdoc />
     public string ModelName => _options.CurrentValue.Model;

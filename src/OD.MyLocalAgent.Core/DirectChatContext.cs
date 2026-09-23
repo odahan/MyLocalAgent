@@ -108,7 +108,7 @@ public sealed class DirectChatContextBuilder(
         var summarizedThrough = conversation.SummaryThroughSequence ?? 0;
         foreach (var message in messages.Where(message =>
                      message.Sequence > summarizedThrough &&
-                     !string.IsNullOrWhiteSpace(message.Content) &&
+                     (!string.IsNullOrWhiteSpace(message.Content) || message.Attachments.Count > 0) &&
                      message.State is not DirectChatMessageState.Failed))
         {
             var contents = new List<AIContent> { new TextContent(message.Content) };
