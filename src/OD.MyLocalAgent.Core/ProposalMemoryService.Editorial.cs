@@ -50,6 +50,10 @@ public sealed partial class ProposalMemoryService
         }
 
         ValidateSelection(selection, discovery);
+        if (discovery.Candidates.Count > 0 && selection.Proposals.Count == 0)
+        {
+            throw new EditorialContractException("Editorial selection cannot be empty when discovery supplied candidates.");
+        }
         await using var reservationLock = await AcquireReservationLockAsync(databasePath, cancellationToken).ConfigureAwait(false);
         var priorReservation = await Task.Run(() => ReadReservationFromDatabase(databasePath, runId.Trim(), cancellationToken), cancellationToken).ConfigureAwait(false);
         if (priorReservation is not null)
@@ -339,6 +343,12 @@ public sealed partial class ProposalMemoryService
             exact = history.FirstOrDefault(item => item.SourceUrls.Overlaps(candidateSourceUrls));
         }
 
+        if (exact is null)
+        {
+            exactReason = "A historical proposal describes the same named event or product version.";
+            exact = history.FirstOrDefault(item => IsSameNamedEvent(proposal, item));
+        }
+
         if (exact is not null && !IsSupportedMaterialUpdate(proposal, exact))
         {
             return CandidateDecision.Reject(proposal, sources, eventFingerprint, EditorialNoveltyDecision.Duplicate, exactReason, exact.Id);
@@ -380,11 +390,34 @@ public sealed partial class ProposalMemoryService
         return CandidateDecision.Accept(proposal, sources, eventFingerprint, finalDecision, finalDecision == EditorialNoveltyDecision.New ? "No duplicate event was found." : "A distinct version, date, and material fact support this update.", nearest?.Id, double.IsFinite(best) ? best : null);
     }
 
+    /// <summary>Matches a named release or incident across different publishers.</summary>
+    private static bool IsSameNamedEvent(SelectionProposal proposal, HistoricalEditorialProposal history)
+    {
+        var entities = proposal.Entities.Select(NormalizeTitle).ToHashSet(StringComparer.Ordinal);
+        var sharedEntities = history.Entities.Where(entities.Contains).ToArray();
+        if (sharedEntities.Length == 0)
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(proposal.EventVersion) &&
+            string.Equals(proposal.EventVersion.Trim(), history.EventVersion, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return sharedEntities.Any(entity => entity.Length >= 8 &&
+            !entity.Contains(' ') && entity.Any(char.IsLetter) && entity.Any(char.IsDigit) &&
+            NormalizeTitle(proposal.Title).Contains(entity, StringComparison.Ordinal) &&
+            history.NormalizedTitle.Contains(entity, StringComparison.Ordinal));
+    }
+
     private static bool IsSupportedMaterialUpdate(SelectionProposal proposal, HistoricalEditorialProposal history) =>
         proposal.NoveltyDecision == EditorialNoveltyDecision.MaterialUpdate &&
         proposal.ClaimedNewFacts.Count > 0 &&
         (!string.IsNullOrWhiteSpace(proposal.EventVersion) || proposal.EventDate is not null) &&
-        (!string.Equals(proposal.EventVersion?.Trim(), history.EventVersion, StringComparison.OrdinalIgnoreCase) || proposal.EventDate != history.EventDate);
+        (!string.Equals(proposal.EventVersion?.Trim(), history.EventVersion, StringComparison.OrdinalIgnoreCase) ||
+         string.IsNullOrWhiteSpace(proposal.EventVersion) && proposal.EventDate != history.EventDate);
 
     private long InsertReservedProposal(SqliteConnection connection, SqliteTransaction transaction, CandidateDecision decision, string model, int dimension, float[] vector)
     {
@@ -614,11 +647,11 @@ public sealed partial class ProposalMemoryService
         using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT p.id, p.title, p.created_at_utc, p.embedding_model, p.embedding_dimension, p.embedding,
-                   m.event_version, m.event_date, m.event_fingerprint
+                   m.event_version, m.event_date, m.event_fingerprint, m.entities_json
             FROM editorial_proposals p LEFT JOIN editorial_proposal_metadata m ON m.proposal_id = p.id ORDER BY p.id
             """;
         using var reader = command.ExecuteReader();
-        var rows = new List<(long Id, string Title, DateTimeOffset Created, string Model, int Dimension, float[] Vector, string? Version, DateOnly? Date, string? Fingerprint)>();
+        var rows = new List<(long Id, string Title, DateTimeOffset Created, string Model, int Dimension, float[] Vector, string? Version, DateOnly? Date, string? Fingerprint, HashSet<string> Entities)>();
         while (reader.Read())
         {
             var id = reader.GetInt64(0);
@@ -631,12 +664,16 @@ public sealed partial class ProposalMemoryService
                 DecodeVector((byte[])reader.GetValue(5), reader.GetInt32(4)),
                 reader.IsDBNull(6) ? null : reader.GetString(6),
                 reader.IsDBNull(7) ? null : DateOnly.Parse(reader.GetString(7), CultureInfo.InvariantCulture),
-                reader.IsDBNull(8) ? null : reader.GetString(8)));
+                reader.IsDBNull(8) ? null : reader.GetString(8),
+                reader.IsDBNull(9)
+                    ? []
+                    : JsonSerializer.Deserialize<string[]>(reader.GetString(9), EditorialJsonOptions)!
+                        .Select(NormalizeTitle).ToHashSet(StringComparer.Ordinal)));
         }
         reader.Close();
         return rows.Select(row => new HistoricalEditorialProposal(
             row.Id, row.Title, row.Created, row.Model, row.Dimension, row.Vector,
-            row.Version, row.Date, row.Fingerprint, ReadSourceUrls(connection, row.Id))).ToArray();
+            row.Version, row.Date, row.Fingerprint, ReadSourceUrls(connection, row.Id), row.Entities)).ToArray();
     }
 
     private static HashSet<string> ReadSourceUrls(SqliteConnection connection, long proposalId)
@@ -789,7 +826,7 @@ public sealed partial class ProposalMemoryService
     private sealed record ClaimedFact(string Text, IReadOnlyList<string> SourceIds);
     private sealed record DraftEnvelope(IReadOnlyList<DraftSubject> Subjects);
     private sealed record DraftSubject(string TemporaryId, string WhyNow, string CriticalAngle, string Body, string LinkedInPost);
-    private sealed record HistoricalEditorialProposal(long Id, string NormalizedTitle, DateTimeOffset CreatedAtUtc, string EmbeddingModel, int EmbeddingDimension, float[] Embedding, string? EventVersion, DateOnly? EventDate, string? EventFingerprint, HashSet<string> SourceUrls);
+    private sealed record HistoricalEditorialProposal(long Id, string NormalizedTitle, DateTimeOffset CreatedAtUtc, string EmbeddingModel, int EmbeddingDimension, float[] Embedding, string? EventVersion, DateOnly? EventDate, string? EventFingerprint, HashSet<string> SourceUrls, HashSet<string> Entities);
     private sealed record ReportProposal(string TemporaryId, long ProposalId, string Title, string Summary, EditorialNoveltyDecision Decision, IReadOnlyList<EditorialSource> Sources, string EmbeddingModel, float[] Embedding);
     private sealed record CandidateDecision(SelectionProposal Proposal, IReadOnlyList<EditorialSource> Sources, string EventFingerprint, bool Approved, EditorialNoveltyDecision Decision, string Reason, long? HistoricalProposalId, double? Similarity)
     {

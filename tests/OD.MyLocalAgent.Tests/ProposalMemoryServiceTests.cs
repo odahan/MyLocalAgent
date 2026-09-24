@@ -180,6 +180,58 @@ public sealed class ProposalMemoryServiceTests : IDisposable
         result.Rejected.Should().ContainSingle().Which.Decision.Should().Be(EditorialNoveltyDecision.Duplicate);
     }
 
+    /// <summary>Rejects the same product release when another publisher uses a different title and date.</summary>
+    [Fact]
+    public async Task ReserveSelectionRejectsRepeatedProductVersionAcrossPublishers()
+    {
+        var (service, path) = await CreateCurrentDatabaseAsync();
+        var first = Proposal("first", "Claude Code 2.1.277 adds AGENTS.md support", "publisher-a") with
+        {
+            Entities = ["Claude Code", "AGENTS.md"],
+            EventVersion = "2.1.277",
+            EventDate = new DateOnly(2026, 9, 18),
+        };
+        await service.ReserveSelectionAsync(path, "first", Discovery(("publisher-a", "https://example.com/first")),
+            Selection(first), 6, 0.92, CancellationToken.None);
+
+        var repeat = Proposal("repeat", "AGENTS.md now works in Claude Code 2.1.277", "publisher-b") with
+        {
+            Entities = ["Claude Code", "AGENTS.md"],
+            EventVersion = "2.1.277",
+            EventDate = new DateOnly(2026, 9, 19),
+            NoveltyDecision = EditorialNoveltyDecision.MaterialUpdate,
+        };
+        var result = await service.ReserveSelectionAsync(path, "repeat", Discovery(("publisher-b", "https://example.org/second")),
+            Selection(repeat), 6, 0.92, CancellationToken.None);
+
+        result.Approved.Should().BeEmpty();
+        result.Rejected.Should().ContainSingle().Which.Decision.Should().Be(EditorialNoveltyDecision.Duplicate);
+    }
+
+    /// <summary>Rejects an unversioned named incident reported by another site.</summary>
+    [Fact]
+    public async Task ReserveSelectionRejectsRepeatedNamedIncidentAcrossPublishers()
+    {
+        var (service, path) = await CreateCurrentDatabaseAsync();
+        var first = Proposal("first", "Plugin4Shell affects coding agents", "publisher-a") with
+        {
+            Entities = ["Plugin4Shell"],
+            EventDate = new DateOnly(2026, 9, 17),
+        };
+        await service.ReserveSelectionAsync(path, "first", Discovery(("publisher-a", "https://example.com/incident")),
+            Selection(first), 6, 0.92, CancellationToken.None);
+
+        var repeat = Proposal("repeat", "Security warning: Plugin4Shell in AI agents", "publisher-b") with
+        {
+            Entities = ["Plugin4Shell", "AI agents"],
+        };
+        var result = await service.ReserveSelectionAsync(path, "repeat", Discovery(("publisher-b", "https://example.org/coverage")),
+            Selection(repeat), 6, 0.92, CancellationToken.None);
+
+        result.Approved.Should().BeEmpty();
+        result.Rejected.Should().ContainSingle().Which.Decision.Should().Be(EditorialNoveltyDecision.Duplicate);
+    }
+
     /// <summary>Distinguishes undated events by their entities and facts instead of hashing enumerable type names.</summary>
     [Fact]
     public async Task ReserveSelectionDistinguishesDifferentUndatedEvents()
@@ -266,7 +318,7 @@ public sealed class ProposalMemoryServiceTests : IDisposable
         await service.StoreAsync(path, "Stored", "History", "https://example.com/history", false, CancellationToken.None);
 
         var result = await service.ReserveSelectionAsync(
-            path, "empty", Discovery(("candidate", "https://example.com/candidate")),
+            path, "empty", Discovery(),
             Selection(), 6, 0.92, CancellationToken.None);
 
         result.Approved.Should().BeEmpty();
@@ -288,6 +340,19 @@ public sealed class ProposalMemoryServiceTests : IDisposable
         result.Approved.Should().BeEmpty();
         result.Rejected.Should().BeEmpty();
         (await ScalarAsync(path, "SELECT count(*) FROM editorial_runs")).Should().Be(1L);
+    }
+
+    /// <summary>Fails visibly when a selector discards every delivered candidate.</summary>
+    [Fact]
+    public async Task EmptySelectionWithCandidatesIsRejected()
+    {
+        var (service, path) = await CreateCurrentDatabaseAsync();
+
+        var action = () => service.ReserveSelectionAsync(path, "empty-with-candidates",
+            Discovery(("candidate", "https://example.com/candidate")), Selection(), 6, 0.92, CancellationToken.None);
+
+        await action.Should().ThrowAsync<EditorialContractException>();
+        (await ScalarAsync(path, "SELECT count(*) FROM editorial_runs")).Should().Be(0L);
     }
 
     /// <summary>Allows verified delivered candidates to proceed when the overall search was only partial.</summary>

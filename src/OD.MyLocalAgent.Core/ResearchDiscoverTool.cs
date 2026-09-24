@@ -22,7 +22,11 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
 {
     private const string TruncationMarker = "[truncated by OD.MyLocalAgent]";
     private const int MaximumSearchRequestsPerRun = 8;
+    private const int MaximumExpandedSearchRequestsPerRun = 12;
     private const int MaximumThemesPerRun = 8;
+    private const int ExpandedWindowDays = 14;
+    private const int ExpandedCandidateTarget = 6;
+    private const int ExpandedRetrievalReserve = 10;
     private static readonly int[] SlidingWindows = [2, 4, 7];
     private static readonly TimeSpan FutureDateTolerance = TimeSpan.FromMinutes(5);
 
@@ -87,7 +91,7 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
     [Tool("research.discover", "Discovers web documents matching search themes with bounded search and retrieval.", 100)]
     public Task<string> DiscoverAsync(
         [ToolArgument(WorkflowArgumentKind.String, "JSON array of search themes.", Example = "[{\"terms\":[\".NET\",\"C#\"],\"includeTerms\":[\"release\"]}]", IsLongText = true)] string themes,
-        [ToolArgument(WorkflowArgumentKind.Enumeration, "Freshness window mode: 'sliding' for 2→4→7 day expansion, 'none' for no date filter.", AllowedValues = ["sliding", "none"], Example = "sliding")] string freshnessWindow = "sliding",
+        [ToolArgument(WorkflowArgumentKind.Enumeration, "Freshness window mode: 'sliding' for 2→4→7 day expansion and a sparse-result 14-day pass with proposal memory, 'none' for no date filter.", AllowedValues = ["sliding", "none"], Example = "sliding")] string freshnessWindow = "sliding",
         [ToolArgument(WorkflowArgumentKind.String, "BCP-47 source language tag for search filtering.", Example = "en", IsExcludedFromWorkflowTextEditor = true, MaximumLength = 35)] string sourceLanguage = "en",
         [ToolArgument(WorkflowArgumentKind.String, "BCP-47 target language for translation, or empty for original language.", Example = "fr", IsExcludedFromWorkflowTextEditor = true, MaximumLength = 35)] string language = "",
         [ToolArgument(WorkflowArgumentKind.String, "JSON array of preferred domains for ranking.", Example = "[\"learn.microsoft.com\"]", IsLongText = true)] string preferredDomains = "[]",
@@ -191,6 +195,9 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
         CancellationToken cancellationToken)
     {
         var state = new DiscoveryCollectionState();
+        var initialRetrievalLimit = proposalMemory.Enabled
+            ? Math.Max(1, maxRetrievalsPerRun - Math.Min(ExpandedRetrievalReserve, maxRetrievalsPerRun / 4))
+            : maxRetrievalsPerRun;
         var nowUtc = localNow.ToUniversalTime();
         var oldestWindowDays = SlidingWindows[^1];
         var earliestLocalDate = DateOnly.FromDateTime(localNow.DateTime).AddDays(-oldestWindowDays);
@@ -209,7 +216,7 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
         await RetrieveRoundRobinAsync(
                 state,
                 primaryResults,
-                maxRetrievalsPerRun,
+                initialRetrievalLimit,
                 cancellationToken)
             .ConfigureAwait(false);
 
@@ -219,7 +226,7 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
             {
                 if (state.SearchStopped ||
                     RemainingSearchRequests(state) == 0 ||
-                    state.RetrievalsUsed >= maxRetrievalsPerRun)
+                    state.RetrievalsUsed >= initialRetrievalLimit)
                 {
                     break;
                 }
@@ -240,7 +247,7 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
                     await RetrieveRoundRobinAsync(
                             state,
                             [fallbackResult],
-                            maxRetrievalsPerRun,
+                            initialRetrievalLimit,
                             cancellationToken)
                         .ConfigureAwait(false);
                 }
@@ -252,10 +259,49 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
             }
         }
 
+        if (proposalMemory.Enabled && !state.SearchStopped)
+        {
+            var initialEligible = state.Documents.Values
+                .Where(document => IsEligibleForWindow(document, oldestWindowStartUtc, nowUtc))
+                .ToArray();
+            var filtered = await _proposalMemoryService.FilterAsync(
+                    proposalMemory.DatabasePath!,
+                    initialEligible,
+                    proposalMemory.LookbackMonths,
+                    proposalMemory.UseUsedTag,
+                    proposalMemory.SemanticSimilarityThreshold,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            state.EligibleAfterMemoryBeforeExpansion = filtered.Candidates.Count;
+            if (filtered.Candidates.Count < ExpandedCandidateTarget)
+            {
+                state.ExpandedSearchTriggered = true;
+                state.SearchRequestLimit = MaximumExpandedSearchRequestsPerRun;
+                var expandedDate = DateOnly.FromDateTime(localNow.DateTime).AddDays(-ExpandedWindowDays);
+                var expandedQueries = QueryCompiler.CompileExpanded(
+                    themes, sourceLanguage, expandedDate, RemainingSearchRequests(state));
+                var expandedResults = await ExecuteQueriesAsync(
+                        state, expandedQueries, maxResultsPerQuery, cancellationToken)
+                    .ConfigureAwait(false);
+                await RetrieveRoundRobinAsync(
+                        state, expandedResults, maxRetrievalsPerRun, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            else if (state.RetrievalsUsed < maxRetrievalsPerRun)
+            {
+                await RetrieveRoundRobinAsync(
+                        state, primaryResults, maxRetrievalsPerRun, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+        }
+
         var effectiveWindowDays = oldestWindowDays;
         var windowStartUtc = oldestWindowStartUtc;
         IReadOnlyList<WebDocument> eligible = [];
-        foreach (var windowDays in SlidingWindows)
+        var windows = state.ExpandedSearchTriggered
+            ? SlidingWindows.Append(ExpandedWindowDays)
+            : SlidingWindows.AsEnumerable();
+        foreach (var windowDays in windows)
         {
             windowStartUtc = GetStartOfLocalDateUtc(
                 DateOnly.FromDateTime(localNow.DateTime).AddDays(-windowDays));
@@ -264,7 +310,7 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
                 .ToArray();
             effectiveWindowDays = windowDays;
             var minimumReached = eligible.Count >= minimumDocuments;
-            var isFinalWindow = windowDays == oldestWindowDays;
+            var isFinalWindow = windowDays == (state.ExpandedSearchTriggered ? ExpandedWindowDays : oldestWindowDays);
             state.WindowHistory.Add(new
             {
                 windowDays,
@@ -272,7 +318,7 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
                 eligibleCandidateCount = eligible.Count,
                 stopReason = state.SearchRateLimited
                     ? "searchRateLimited"
-                    : minimumReached
+                    : minimumReached && (!state.ExpandedSearchTriggered || isFinalWindow)
                         ? "minimumReached"
                         : !isFinalWindow
                             ? "broaderWindowRequired"
@@ -282,7 +328,7 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
                                     ? "searchRequestLimitReached"
                                     : "queriesExhausted",
             });
-            if (minimumReached || state.SearchRateLimited)
+            if ((minimumReached && !state.ExpandedSearchTriggered) || isFinalWindow || state.SearchRateLimited)
             {
                 break;
             }
@@ -554,7 +600,7 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
     }
 
     private static int RemainingSearchRequests(DiscoveryCollectionState state) =>
-        Math.Max(0, MaximumSearchRequestsPerRun - state.GeneratedQueries.Count);
+        Math.Max(0, state.SearchRequestLimit - state.GeneratedQueries.Count);
 
     private static bool HasDocumentForQuery(DiscoveryCollectionState state, string query) =>
         state.Documents.Values.Any(document =>
@@ -763,7 +809,9 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
             ["windowStartUtc"] = windowStartUtc?.ToString("O"),
             ["queries"] = state.GeneratedQueries,
             ["queryCount"] = state.GeneratedQueries.Count,
-            ["searchRequestLimit"] = MaximumSearchRequestsPerRun,
+            ["searchRequestLimit"] = state.SearchRequestLimit,
+            ["expandedSearchTriggered"] = state.ExpandedSearchTriggered,
+            ["eligibleAfterMemoryBeforeExpansion"] = state.EligibleAfterMemoryBeforeExpansion,
             ["successfulSearchQueryCount"] = state.SuccessfulSearchQueryCount,
             ["searchFailureCount"] = state.SearchFailureCount,
             ["searchStatus"] = searchStatus,
@@ -1429,6 +1477,12 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
 
     private sealed class DiscoveryCollectionState
     {
+        public int SearchRequestLimit { get; set; } = MaximumSearchRequestsPerRun;
+
+        public bool ExpandedSearchTriggered { get; set; }
+
+        public int? EligibleAfterMemoryBeforeExpansion { get; set; }
+
         public Dictionary<string, WebDocument> Documents { get; } =
             new(StringComparer.OrdinalIgnoreCase);
 

@@ -77,6 +77,39 @@ internal static class QueryCompiler
             QueryIntent.Fallback);
     }
 
+    /// <summary>Compiles a small set of broader, dated queries for sparse editorial results.</summary>
+    public static IReadOnlyList<CompiledQuery> CompileExpanded(
+        IReadOnlyList<Theme> themes,
+        string sourceLanguage,
+        DateOnly earliestPublicationDate,
+        int budgetRemaining)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceLanguage);
+        if (themes.Count == 0 || budgetRemaining <= 0)
+        {
+            return [];
+        }
+
+        var count = Math.Min(themes.Count, budgetRemaining);
+        var queries = new List<CompiledQuery>(count);
+        for (var index = 0; index < count; index++)
+        {
+            var themeIndex = index * themes.Count / count;
+            var term = themes[themeIndex].Terms.FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(term))
+            {
+                continue;
+            }
+
+            queries.Add(new CompiledQuery(
+                $"{term} release OR update OR security lang:{sourceLanguage} after:{earliestPublicationDate:yyyy-MM-dd}",
+                themeIndex,
+                QueryIntent.Expanded));
+        }
+
+        return queries;
+    }
+
     private static string BuildQuery(
         Theme theme,
         string intentLabel,
@@ -128,4 +161,7 @@ internal enum QueryIntent
 
     /// <summary>The optional practical-engineering query for a theme.</summary>
     Fallback,
+
+    /// <summary>A broader query issued when proposal memory leaves too few candidates.</summary>
+    Expanded,
 }

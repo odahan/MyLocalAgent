@@ -153,6 +153,66 @@ public sealed class ResearchDiscoverToolTests
                 "retrievalBudgetExhausted");
     }
 
+    /// <summary>Expands dated search after proposal memory removes the first-pass results.</summary>
+    [Fact]
+    public async Task SlidingModeRunsExpandedSearchWhenProposalMemoryLeavesTooFewCandidates()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"od-research-expanded-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        var databasePath = Path.Combine(root, "memory.db");
+        await File.WriteAllBytesAsync(databasePath, []);
+        try
+        {
+            var connector = CreateConnector(query => query.Contains("after:2026-08-02", StringComparison.Ordinal)
+                ? ["https://example.test/expanded"]
+                : ["https://example.test/prior"]);
+            var pages = new Dictionary<string, string>
+            {
+                ["/prior"] = Html("Prior event", "2026-08-15T09:00:00Z", "Already proposed"),
+                ["/expanded"] = Html("Fresh alternative", "2026-08-05T09:00:00Z", "New sourced event"),
+            };
+            var memory = new Mock<IProposalMemoryService>(MockBehavior.Strict);
+            memory.Setup(instance => instance.FilterAsync(
+                    databasePath,
+                    It.IsAny<IReadOnlyList<WebDocument>>(),
+                    6,
+                    false,
+                    0.92,
+                    It.IsAny<CancellationToken>()))
+                .Returns((string _, IReadOnlyList<WebDocument> items, int _, bool _, double _, CancellationToken _) =>
+                    Task.FromResult(new ProposalFilterResult(
+                        items.Where(item => item.Title != "Prior event").ToArray(), 1, 0,
+                        items.Count(item => item.Title == "Prior event"), 0)));
+            var tool = CreateTool(connector.Object, pages, new StubContentTrustService(),
+                new StubResearchTranslationService(), proposalMemoryService: memory.Object, fileSystemRoot: root);
+
+            var themes = JsonSerializer.Serialize(Enumerable.Range(1, 8).Select(index => new
+            {
+                terms = new[] { $"AI agents {index}" },
+            }));
+            var json = await tool.DiscoverAsync(themes,
+                minimumDocuments: 8, maxRetrievalsPerRun: 20,
+                previousProposalsDatabasePath: "memory.db");
+
+            using var document = JsonDocument.Parse(json);
+            var output = document.RootElement;
+            output.GetProperty("expandedSearchTriggered").GetBoolean().Should().BeTrue();
+            output.GetProperty("eligibleAfterMemoryBeforeExpansion").GetInt32().Should().Be(0);
+            output.GetProperty("searchRequestLimit").GetInt32().Should().Be(12);
+            output.GetProperty("queryCount").GetInt32().Should().Be(12);
+            output.GetProperty("effectiveWindowDays").GetInt32().Should().Be(14);
+            output.GetProperty("candidateCount").GetInt32().Should().Be(1);
+            output.GetProperty("protectedResults").GetString().Should().Contain("Fresh alternative").And.NotContain("Prior event");
+            output.GetProperty("queries").EnumerateArray()
+                .Should().Contain(item => item.GetProperty("intent").GetString() == "Expanded" &&
+                    item.GetProperty("query").GetString()!.Contains("after:2026-08-02", StringComparison.Ordinal));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     /// <summary>
     /// Verifies provider throttling is reported explicitly and stops additional queries.
     /// </summary>
