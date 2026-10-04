@@ -27,14 +27,19 @@ public static class GenerationPolicyResolver
             taskOptions?.TopP,
             defaults.TopP);
         var reasoning = ResolveReasoning(defaults, taskOptions, stepOptions);
+        var contextWindow = ResolveValue(
+            stepOptions?.ContextWindowTokens,
+            taskOptions?.ContextWindowTokens,
+            defaults.ContextWindowTokens);
         return new EffectiveGenerationPolicy(
             temperature.Value,
             topP.Value,
-            defaults.ContextWindowTokens,
+            (int)contextWindow.Value,
             temperature.Source,
             topP.Source)
         {
             ReasoningEnabled = reasoning.Enabled,
+            ContextWindowSource = contextWindow.Source,
             ReasoningEffort = reasoning.Effort,
         };
     }

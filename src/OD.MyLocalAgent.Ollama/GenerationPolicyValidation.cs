@@ -40,6 +40,11 @@ public static class GenerationPolicyValidation
     public static string? ValidateOverrides(GenerationOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
+        if (options.ContextWindowTokens is { } contextWindow &&
+            contextWindow is < MinimumContextWindowTokens or > MaximumContextWindowTokens)
+        {
+            return $"Context window must be from {MinimumContextWindowTokens:N0} through {MaximumContextWindowTokens:N0} tokens.";
+        }
         if (options.Temperature is { } temperature &&
             (!double.IsFinite(temperature) || temperature is < 0 or > 2))
         {

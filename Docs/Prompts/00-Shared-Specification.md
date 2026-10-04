@@ -214,7 +214,7 @@ client id/secret from configuration. OAuth consent is an interactive, UI-side op
   incident (R7) before surfacing a user-friendly error.
   Stage 14 additionally passes an immutable effective generation policy into each task-owned
   execution. A per-execution `IChatClient` wrapper or equivalent explicit mechanism applies
-  Temperature, Top P, and the global context-window declaration to every agent round without
+  Temperature, Top P, and the task-effective context-window declaration to every agent round without
   mutating the shared provider client or using ambient current-task state (§17).
 - **`ToolRegistry`** — the single runtime view of the **Tool Map** (§8.3): maps workflow aliases
   and agent function names to `AITool` instances (built with `AIFunctionFactory.Create`,
@@ -378,7 +378,7 @@ generators only**:
      restart** (next run/test uses it; already-running executions are not interrupted).
      The same section contains §17 **AI generation defaults** for Temperature, Top P, and the
      one global model-dependent Context window. Temperature and Top P are task/AI-step
-     overridable; Context window is global only.
+     overridable; Context window also inherits through step → task → Settings.
    - **General** — `FileSystem:RootPath`, HTTP defaults, scheduler options (incl.
      `RunWhenLoggedOff` with its S4U warning), `Safety` toggles (R9) each with an explanatory
      label, Serilog minimum level, tasks/reports folders; validated settings object, Save
@@ -1223,12 +1223,12 @@ internal AI policies.
 
 - **D1:** Settings owns global Temperature, Top P, and Context window values for the one
   currently selected provider/model.
-- **D2:** A task may override Temperature and/or Top P. An object-form Tool Map AI step may
-  independently override either value again.
+- **D2:** A task may override Temperature, Top P, and/or Context window. An object-form Tool Map AI step may
+  independently override each value again.
 - **D3:** Effective user-workflow values resolve per property as AI step → task → Settings.
   An absent property means inherit; it never resets the complete options object.
-- **D4:** Context window is global only. It cannot appear in task or step JSON and is not an
-  output-token limit.
+- **D4:** Context window inherits through step → task → Settings. Task and AI-step JSON may
+  contain integer `generationOptions.contextWindowTokens`; this is not an output-token limit.
 - **D5:** AI Workflow Helper generation/refinement/repair, AI Explain/repair, Guardrails
   screening, and Guardrails reduction use named program-owned policies with Temperature 0
   and Top P 1. User settings and task/step overrides cannot change them.
@@ -1280,11 +1280,13 @@ A task's optional override is:
 ```json
 "generationOptions": {
   "temperature": 0.1,
-  "topP": 0.9
+  "topP": 0.9,
+  "contextWindowTokens": 32768
 }
 ```
 
-Both properties are optional. JSON null, non-numeric values, non-finite values, invalid
+All properties are optional. Context windows must be integer token counts from 1024 through
+2000000 and inherit independently through step → task → Settings. JSON null, non-numeric values, non-finite values, invalid
 ranges, and unknown properties fail validation. An empty object is accepted on input but
 omitted from canonical output.
 
@@ -1308,18 +1310,18 @@ a tool. Eligibility comes only from `ToolMap.Definition.IsAiStep`, including `ai
 built-in AI skills. A non-AI step with `generationOptions` fails validation. String-form AI
 steps remain valid and inherit all values; adding an override requires object form.
 
-`contextWindowTokens`, provider, model, endpoint, credentials, and internal policy names are
+Provider, model, endpoint, credentials, and internal policy names are
 invalid in task/step generation options.
 
 ### 17.4 Resolution and runtime propagation
 
 One pure resolver returns a fully populated immutable policy and independent provenance for
-Temperature and Top P:
+Temperature, Top P, and the context window:
 
 ```text
 temperature = step.temperature ?? task.temperature ?? settings.temperature
 topP        = step.topP        ?? task.topP        ?? settings.topP
-context     = settings.contextWindowTokens
+context     = step.contextWindowTokens ?? task.contextWindowTokens ?? settings.contextWindowTokens
 ```
 
 Normal call coverage:
@@ -1366,7 +1368,7 @@ still receiving the current global Context window.
 
 ### 17.6 Context-window semantics
 
-`ContextWindowTokens` is the application's global declaration for the active model's total
+`ContextWindowTokens` is the effective step/task/Settings declaration for the active model's total
 request budget:
 
 ```text
@@ -1390,14 +1392,16 @@ window controls, concise explanations, culture-safe decimal editing, inline vali
 disabled Save while invalid. It recommends tuning Temperature or Top P rather than both and
 states that context capacity is model-dependent.
 
-Task editor adds optional **AI generation override** controls for Temperature and Top P.
-Each has an independent **Use global default** state and displays its effective value and
-provenance. There is no task context-window field. All changes participate in dirty state,
-save, reload, and validation.
+Task editor adds optional **AI generation override** controls for Temperature, Top P, and
+**Context window (tokens)**. Each inherits independently and displays its effective value
+and provenance. Context has a **Use global default for context window** checkbox. The step
+editor offers **Override context window** and shows its step/task/Settings origin. Blank
+context editor values inherit; JSON inheritance requires omission rather than null. All
+changes participate in dirty state, save, reload, and validation.
 
 Guided workflow authoring exposes `generationOptions` only for Tool Map AI steps. Stage 13
 deterministic descriptions preserve exact overrides and inherited properties; generation and
-refinement know the schema but never invent provider/model/context properties. AI Explain
+refinement know `generationOptions.contextWindowTokens` but never invent provider/model properties. AI Explain
 describes configured overrides and deterministic provenance while its own call retains the
 fixed explanation policy. Apply and Undo continue to transfer the canonical workflow JSON
 atomically.
@@ -1667,7 +1671,7 @@ only on request, in Tool Map order. Placeholder values are `""`, `0`, `false`, o
 accepted enumeration value; `ai.prompt` keeps the editor's default prompt sentence and
 `includeContext` default. An optional error-policy block carries the task's current policy with
 `retryCount` 1 and `retryBackoffSeconds` 2; optional `generationOptions` apply to AI steps only
-and never contain context-window properties (§17).
+and may contain `contextWindowTokens` inside `generationOptions` (§17).
 
 Insertion maps the caret character offset to a byte offset over the array's top-level element
 spans, computed with `Utf8JsonReader`. The caret is first clamped to the text length and moved

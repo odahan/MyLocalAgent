@@ -26,6 +26,7 @@ internal sealed class GenerationOptionsJsonConverter :
         using var document = JsonDocument.ParseValue(ref reader);
         double? temperature = null;
         double? topP = null;
+        int? contextWindowTokens = null;
         bool? reasoningEnabled = null;
         string? reasoningEffort = null;
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -43,6 +44,14 @@ internal sealed class GenerationOptionsJsonConverter :
                     StringComparison.OrdinalIgnoreCase))
             {
                 temperature = ReadNumber(property);
+            }
+            else if (string.Equals(property.Name, "contextWindowTokens", StringComparison.OrdinalIgnoreCase))
+            {
+                if (property.Value.ValueKind != JsonValueKind.Number || !property.Value.TryGetInt32(out var contextWindow))
+                {
+                    throw new JsonException("Generation option 'contextWindowTokens' must be a non-null JSON integer.");
+                }
+                contextWindowTokens = contextWindow;
             }
             else if (string.Equals(
                          property.Name,
@@ -68,7 +77,7 @@ internal sealed class GenerationOptionsJsonConverter :
             else
             {
                 throw new JsonException(
-                    $"Unknown generation option '{property.Name}'. Only 'temperature', 'topP', 'reasoningEnabled', and 'reasoningEffort' are supported.");
+                    $"Unknown generation option '{property.Name}'. Only 'temperature', 'topP', 'contextWindowTokens', 'reasoningEnabled', and 'reasoningEffort' are supported.");
             }
         }
 
@@ -76,6 +85,7 @@ internal sealed class GenerationOptionsJsonConverter :
         {
             Temperature = temperature,
             TopP = topP,
+            ContextWindowTokens = contextWindowTokens,
             ReasoningEnabled = reasoningEnabled,
             ReasoningEffort = reasoningEffort,
         };
@@ -112,6 +122,11 @@ internal sealed class GenerationOptionsJsonConverter :
         if (value.ReasoningEffort is { } reasoningEffort)
         {
             writer.WriteString("reasoningEffort", reasoningEffort);
+        }
+
+        if (value.ContextWindowTokens is { } contextWindowTokens)
+        {
+            writer.WriteNumber("contextWindowTokens", contextWindowTokens);
         }
 
         writer.WriteEndObject();

@@ -15,6 +15,9 @@ public sealed record GenerationOptions
     /// </summary>
     public double? TopP { get; init; }
 
+    /// <summary>Gets the optional total context-window budget in tokens.</summary>
+    public int? ContextWindowTokens { get; init; }
+
     /// <summary>Gets the optional override controlling model reasoning for agentic generation.</summary>
     public bool? ReasoningEnabled { get; init; }
 
@@ -28,11 +31,12 @@ public sealed record GenerationOptions
     public string? ReasoningEffort { get; init; }
 
     /// <summary>
-    /// Gets a value indicating whether neither property is overridden.
+    /// Gets a value indicating whether no generation property is overridden.
     /// </summary>
     public bool IsEmpty =>
         Temperature is null &&
         TopP is null &&
+        ContextWindowTokens is null &&
         ReasoningEnabled is null &&
         ReasoningEffort is null;
 }

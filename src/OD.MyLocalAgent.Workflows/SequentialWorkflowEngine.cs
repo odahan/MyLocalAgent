@@ -221,13 +221,14 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
         if (generationPolicy is not null)
         {
             _logger.LogInformation(
-                "Workflow AI step {StepId} uses Temperature {Temperature} from {TemperatureSource}, Top P {TopP} from {TopPSource}, and declared context window {ContextWindowTokens}.",
+                "Workflow AI step {StepId} uses Temperature {Temperature} from {TemperatureSource}, Top P {TopP} from {TopPSource}, and declared context window {ContextWindowTokens} from {ContextWindowSource}.",
                 step.Id,
                 generationPolicy.Temperature,
                 generationPolicy.TemperatureSource,
                 generationPolicy.TopP,
                 generationPolicy.TopPSource,
-                generationPolicy.ContextWindowTokens);
+                generationPolicy.ContextWindowTokens,
+                generationPolicy.ContextWindowSource);
         }
 
         if (step.ForEach is not null)

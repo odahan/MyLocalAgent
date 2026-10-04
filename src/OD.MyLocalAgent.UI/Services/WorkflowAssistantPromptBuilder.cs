@@ -11,7 +11,7 @@ public static class WorkflowAssistantPromptBuilder
     /// <summary>
     /// Gets the generation prompt version.
     /// </summary>
-    public const string GenerationVersion = "workflow-generation-v6-foreach";
+    public const string GenerationVersion = "workflow-generation-v7-context";
 
     /// <summary>
     /// Gets the explanation prompt version.
@@ -29,8 +29,8 @@ public static class WorkflowAssistantPromptBuilder
         builder.AppendLine("You create OD.MyLocalAgent workflows with optional Stage 29 deterministic routing.");
         builder.AppendLine("Return exactly one pure JSON array and nothing else. Do not use Markdown fences.");
         builder.AppendLine("A step is either an alias string or an object with step, optional id, optional args, optional next, optional onError, optional retryCount, optional retryBackoffSeconds, optional forEach only when the Tool Map entry declares foreach=true, optional responseSchema only for tool-free ai.prompt, and generationOptions only when the Tool Map entry has AI=true.");
-        builder.AppendLine("For AI object steps only, generationOptions may contain optional numeric temperature (0 through 2) and optional numeric topP (greater than 0 through 1). Each omitted value inherits from the task and then Settings. Never add generationOptions to a non-AI step.");
-        builder.AppendLine("Never add contextWindowTokens, provider, model, endpoint, credentials, internal policy names, MaxOutputTokens, or other generation fields to task or workflow JSON.");
+        builder.AppendLine("For AI object steps only, generationOptions may contain optional numeric temperature (0 through 2), numeric topP (greater than 0 through 1), and integer contextWindowTokens (1024 through 2000000). Each omitted value inherits from the task and then Settings. Never add generationOptions to a non-AI step.");
+        builder.AppendLine("contextWindowTokens belongs only inside generationOptions, never args or the step root. It controls Ollama's requested context; it cannot change a model's physical capacity or OpenAI's fixed model context. Never add provider, model, endpoint, credentials, internal policy names, MaxOutputTokens, or other generation fields to task or workflow JSON.");
         builder.AppendLine("Object args must preserve JSON value kinds. Valid error policies are StopOnError, ContinueOnError, and Retry.");
         builder.AppendLine("Steps follow next when supplied, otherwise declaration order. @end terminates. Effective id is explicit id or alias. flow.decision routes a true condition to target, false to next/following, and an indeterminate condition to optional fallback. Cycles and unreachable steps are invalid. Decisions do not replace previous.output.");
         builder.AppendLine("forEach must be exactly one prior-output placeholder resolving to a JSON array. Items execute sequentially in source order. Use {{foreach.item}} with optional structured selectors and one-based {{foreach.position}} in step arguments. The step publishes one ordered JSON array after every item succeeds; an empty source publishes an empty array. Retry applies to the current item only, and the first final item failure fails the step without publishing partial output.");

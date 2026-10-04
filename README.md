@@ -348,15 +348,16 @@ model's physical capacity and does not silently truncate, summarize, or discard 
 Changes are reloadable: a new call sees the saved values, while an already-running call keeps
 the immutable snapshot with which it started.
 
-A task may override Temperature and Top P independently:
+A task may override Temperature, Top P, and the context window independently:
 
 ```json
 "generationOptions": {
-  "temperature": 0.1
+  "temperature": 0.1,
+  "contextWindowTokens": 32768
 }
 ```
 
-An object-form AI workflow step may override either value again:
+An object-form AI workflow step may override each value again:
 
 ```json
 {
@@ -366,7 +367,8 @@ An object-form AI workflow step may override either value again:
     "prompt": "Draft three titles from {{source.output}}."
   },
   "generationOptions": {
-    "topP": 0.9
+    "topP": 0.9,
+    "contextWindowTokens": 16384
   }
 }
 ```
@@ -378,7 +380,12 @@ AI step override → task override → Settings default
 ```
 
 In the example, the step uses task Temperature `0.1` and step Top P `0.9`. Missing properties
-inherit; they do not reset the other property. Context is global only. `generationOptions`
+inherit; they do not reset the other properties. The example uses a 16,384-token step
+context instead of the task's 32,768 tokens. In the Task editor, use **Context window
+(tokens)** and **Use global default for context window**. In the step editor, use
+**Override context window**. A blank editor value inherits; omit the JSON property to inherit.
+Context must be an integer from 1,024 through 2,000,000 tokens. Editors show the effective
+context and its source; workflow execution logs record the same provenance. `generationOptions`
 is valid only at task level and on object-form `ai.*` steps; unknown fields, nulls, invalid
 ranges, and use on non-AI steps are rejected. Existing tasks without this object remain valid,
 and empty objects are omitted when a task is saved.
@@ -919,7 +926,7 @@ AI Playground in both raw and agent modes.
 
 Temperature and Top P are the effective values applied to the call: a workflow AI-step override
 wins over its task, and a task override wins over Settings. Playground and other taskless calls
-use Settings. Context is the configured declared context window in tokens—not current token usage,
+use Settings. Context is the step/task/Settings-effective declared context window in tokens—not current token usage,
 remaining capacity, or an output limit. Values use invariant formatting and substitution is
 single-pass; inserted model text is never scanned again.
 

@@ -2426,3 +2426,24 @@ compilation, freshness-window expansion, document classification, and late prote
   effects before mutating task-owned editorial history.
 - Verification: 838 non-integration tests passed, one expected local Ollama integration probe
   was skipped, and `git diff --check` was clean before release publication.
+
+## Task and AI-step context-window overrides — 2026-10-05
+
+- Supersedes the Stage 14 global-only context restriction for user-directed calls.
+  `GenerationOptions.ContextWindowTokens` is an optional integer from 1024 through 2000000.
+  Each call resolves context independently through step → task → Settings, with provenance
+  in `EffectiveGenerationPolicy.ContextWindowSource` and workflow execution logs.
+- Task editor exposes **Context window (tokens)** with global inheritance. AI-step editor
+  exposes **Override context window**. Both display the effective value and its origin;
+  blank editor values inherit. JSON inheritance uses omission, not null.
+- Context-only overrides survive canonical task/workflow serialization without changing
+  reasoning or sampling. Existing tasks inherit their previous defaults.
+- Ollama receives the resolved value through `num_ctx`, including tool-enabled prompt
+  rounds. OpenAI retains its model-defined capacity; no context request field is invented.
+  Internal helper, screening, and reduction calls retain the global context declaration.
+- Updated README, bilingual user manuals, technical manual, shared and related authoring
+  specifications. Older installed versions reject the new JSON option, so deployment must
+  precede editing production task files.
+- Verification: 903 non-integration tests passed, zero failed, and one expected probe skipped.
+  Deployment is handled separately by the user; production editorial workflows still inherit
+  the global context until explicitly changed.

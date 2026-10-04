@@ -514,3 +514,14 @@ Date: 2026-08-25
 | Authoring surfaces expose the limited feature. | ✅ | Editor, catalog, AI Helper, formatter, placeholder, round-trip, and same-path overwrite-warning tests cover the new contract. |
 | Documentation and sample are complete. | ✅ | README, bilingual user and first-run guides, bilingual technical manual, architecture ledger, location map, shared specification, Stage 30 prompt, and `foreach-mail-analysis.json` describe the same semantics. |
 | Deterministic gate is clean. | ✅ | `dotnet test OD.MyLocalAgent.sln -m:1 --no-restore --filter "Category!=Integration"` completed with 797 passed, 0 failed, and 1 expected Ollama probe skipped. `git diff --check` passed. |
+
+## Context-window overrides — 2026-10-05
+
+| Acceptance item | Status | Executed evidence |
+|---|---:|---|
+| Context inherits independently through step → task → Settings. | ✅ | Precedence tests cover all three sources without changing sampling or reasoning. |
+| Context-only task and AI-step options persist. | ✅ | Canonical round trips retain context-only overrides; invalid types, bounds, nulls, and root-level fields are rejected. |
+| Editors preserve inheritance and effective values. | ✅ | Tests cover task load, unsaved prompt-test snapshots, dirty state, blank inheritance, and step edit/clear. |
+| Ollama receives the resolved context. | ✅ | Captured requests verify the native `num_ctx` value. OpenAI model capacity remains provider-defined. |
+| Regression gate is clean. | ✅ | Non-integration suite: 903 passed, 0 failed, 1 expected probe skipped. UI compilation passed. |
+| Production deployment and editorial context tuning. | Pending | User deploys the new version; daily and sunday production files still inherit the global context. |

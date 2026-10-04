@@ -38,6 +38,8 @@ public sealed partial class TaskEditorViewModel :
         nameof(UseGlobalTemperature),
         nameof(TemperatureOverrideText),
         nameof(UseGlobalTopP),
+        nameof(UseGlobalContextWindow),
+        nameof(ContextWindowOverrideText),
         nameof(TopPOverrideText),
         nameof(UseGlobalThinking),
         nameof(ReasoningEnabled),
@@ -147,6 +149,19 @@ public sealed partial class TaskEditorViewModel :
 
     [ObservableProperty]
     private string _effectiveTopPText = "1 (Settings)";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsContextWindowOverrideEnabled))]
+    private bool _useGlobalContextWindow = true;
+
+    [ObservableProperty]
+    private string _contextWindowOverrideText = string.Empty;
+
+    [ObservableProperty]
+    private string _effectiveContextWindowText = string.Empty;
+
+    /// <summary>Gets whether the task context-window override can be edited.</summary>
+    public bool IsContextWindowOverrideEnabled => !UseGlobalContextWindow;
 
     [ObservableProperty]
     private string _generationValidationText =
@@ -427,6 +442,10 @@ public sealed partial class TaskEditorViewModel :
     partial void OnTemperatureOverrideTextChanged(string value) =>
         UpdateGenerationState();
 
+    partial void OnUseGlobalContextWindowChanged(bool value) => UpdateGenerationState();
+
+    partial void OnContextWindowOverrideTextChanged(string value) => UpdateGenerationState();
+
     partial void OnUseGlobalTopPChanged(bool value) =>
         UpdateGenerationState();
 
@@ -544,6 +563,8 @@ public sealed partial class TaskEditorViewModel :
             var result = _stepEditorDialog.Show(new WorkflowStepEditorRequest(WorkflowText, WorkflowCaretIndex, mode, GetSelectedToolGroups(), AuthorizedLocations.Select(static item => item.ToRule()).ToArray(), GetSelectedCapabilities(), CreateKnowledgeAccess()?.AllowedTags ?? [], SelectedErrorPolicy, effective.Temperature, effective.TopP)
             {
                 ConfiguredModel = GetConfiguredProviderModel(),
+                ContextWindowTokens = effective.ContextWindowTokens,
+                ContextWindowSource = effective.ContextWindowSource,
                 TaskModel = UseSettingsModel ? null : ModelOverride.Trim(),
                 DraftTask = CreateWorkflowPreviewTask(workflow),
             });
@@ -660,6 +681,9 @@ public sealed partial class TaskEditorViewModel :
                     "G",
                     CultureInfo.CurrentCulture);
             UseGlobalTopP = task?.GenerationOptions?.TopP is null;
+            UseGlobalContextWindow = task?.GenerationOptions?.ContextWindowTokens is null;
+            ContextWindowOverrideText = (task?.GenerationOptions?.ContextWindowTokens ?? defaults.ContextWindowTokens)
+                .ToString(CultureInfo.InvariantCulture);
             UseGlobalThinking = task?.GenerationOptions?.ReasoningEnabled is null &&
                 task?.GenerationOptions?.ReasoningEffort is null;
             ReasoningEnabled = task?.GenerationOptions?.ReasoningEnabled ?? true;
@@ -2005,6 +2029,16 @@ public sealed partial class TaskEditorViewModel :
         options = null;
         double? temperature = null;
         double? topP = null;
+        int? contextWindowTokens = null;
+        if (!UseGlobalContextWindow && !string.IsNullOrWhiteSpace(ContextWindowOverrideText))
+        {
+            if (!int.TryParse(ContextWindowOverrideText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedContext))
+            {
+                GenerationValidationText = "Task context window must be an integer number of tokens.";
+                return false;
+            }
+            contextWindowTokens = parsedContext;
+        }
         if (!UseGlobalTemperature)
         {
             if (!SettingsViewModel.TryParseCultureSafeDouble(
@@ -2038,7 +2072,7 @@ public sealed partial class TaskEditorViewModel :
         var reasoningEffort = string.IsNullOrWhiteSpace(ReasoningEffortText)
             ? null
             : ReasoningEffortText.Trim();
-        if (temperature is null && topP is null && UseGlobalThinking)
+        if (temperature is null && topP is null && contextWindowTokens is null && UseGlobalThinking)
         {
             return true;
         }
@@ -2047,8 +2081,9 @@ public sealed partial class TaskEditorViewModel :
         {
             Temperature = temperature,
             TopP = topP,
-            ReasoningEnabled = ReasoningEnabled,
-            ReasoningEffort = ReasoningEnabled ? reasoningEffort : null,
+            ContextWindowTokens = contextWindowTokens,
+            ReasoningEnabled = UseGlobalThinking ? null : ReasoningEnabled,
+            ReasoningEffort = !UseGlobalThinking && ReasoningEnabled ? reasoningEffort : null,
         };
         var error = GenerationPolicyValidation.ValidateOverrides(candidate);
         if (error is not null)
@@ -2075,6 +2110,7 @@ public sealed partial class TaskEditorViewModel :
                 FormatEffective(effective.Temperature, effective.TemperatureSource);
             EffectiveTopPText =
                 FormatEffective(effective.TopP, effective.TopPSource);
+            EffectiveContextWindowText = $"{effective.ContextWindowTokens:N0} tokens ({effective.ContextWindowSource})";
         }
         else
         {

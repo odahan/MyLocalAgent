@@ -15,6 +15,12 @@ public sealed record WorkflowStepEditorRequest(
     double Temperature,
     double TopP)
 {
+    /// <summary>Gets the inherited context-window budget for prompt steps.</summary>
+    public int ContextWindowTokens { get; init; } = 8192;
+
+    /// <summary>Gets the origin of the inherited context-window budget.</summary>
+    public OD.MyLocalAgent.Ollama.GenerationOptionSource ContextWindowSource { get; init; } = OD.MyLocalAgent.Ollama.GenerationOptionSource.Settings;
+
     /// <summary>Gets the configured provider/default model offered without a network request.</summary>
     public string? ConfiguredModel { get; init; }
 

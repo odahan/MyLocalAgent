@@ -365,7 +365,7 @@ public sealed class GenerationPolicyTests
     }
 
     /// <summary>
-    /// Verifies nulls, unknown properties, invalid JSON types, and context-window overrides fail.
+    /// Verifies nulls, unknown properties, invalid JSON types, and invalid context windows fail.
     /// </summary>
     [Theory]
     [InlineData("""null""")]
@@ -375,7 +375,11 @@ public sealed class GenerationPolicyTests
     [InlineData("""{"reasoningEnabled":"false"}""")]
     [InlineData("""{"reasoningEnabled":false,"reasoningEffort":"high"}""")]
     [InlineData("""{"reasoningEffort":" high "}""")]
-    [InlineData("""{"contextWindowTokens":8192}""")]
+    [InlineData("""{"contextWindowTokens":1023}""")]
+    [InlineData("""{"contextWindowTokens":2000001}""")]
+    [InlineData("""{"contextWindowTokens":8192.5}""")]
+    [InlineData("""{"contextWindowTokens":null}""")]
+    [InlineData("""{"contextWindowTokens":"8192"}""")]
     [InlineData("""{"unknown":1}""")]
     public void InvalidGenerationJsonFailsDeterministically(
         string generationOptions)
@@ -391,11 +395,9 @@ public sealed class GenerationPolicyTests
     }
 
     /// <summary>
-    /// Verifies task and workflow context-window properties cannot enter persistence.
+    /// Verifies context-window properties outside generationOptions cannot enter persistence.
     /// </summary>
     [Theory]
-    [InlineData(
-        """{"step":"ai.prompt","args":{"prompt":"x"},"generationOptions":{"contextWindowTokens":4096}}""")]
     [InlineData(
         """{"step":"ai.prompt","args":{"prompt":"x"},"contextWindowTokens":4096}""")]
     public void WorkflowContextWindowPropertiesAreRejected(string step)

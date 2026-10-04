@@ -2098,11 +2098,11 @@ ollama list</code></pre>
                     according to its error policy.
                 </div><h3 id="generation-settings">Hierarchical generation settings</h3><p>
                     Settings defines Temperature, Top P, and Context window for every new
-                    call. A task can independently override Temperature and/or Top P through
+                    call. A task can independently override Temperature, Top P, and Context window through
                     <span class="ui-label">AI generation override</span>. An object-form AI
                     step can override each property again. Resolution is independent:
-                    AI step → task → Settings. Context window remains global and never
-                    appears in task or step JSON.
+                    AI step → task → Settings. Context window uses this same hierarchy through
+                    <code>generationOptions.contextWindowTokens</code>.
                 </p><div class="code-block">
 <pre><code>{
   "generationOptions": {
@@ -2125,9 +2125,25 @@ ollama list</code></pre>
                     and show the effective value and provenance. Invalid input disables save.
                     Prompt editor displays and uses these effective values—including unsaved
                     changes—when running <span class="ui-label">Test</span>.
-                </p><div class="callout warning">
+                </p><p>In Task editor, use <span class="ui-label">Context window (tokens)</span> and
+<span class="ui-label">Use global default for context window</span>. In the AI step editor,
+use <span class="ui-label">Override context window</span>. A blank context field inherits.
+The effective value and its origin are displayed; valid values are integers from 1,024
+through 2,000,000. Context and thinking are independent. Ollama receives the chosen context
+as <code>num_ctx</code>; OpenAI's model capacity is unchanged.</p>
+<div class="code-block"><pre><code>{
+  "generationOptions": { "contextWindowTokens": 32768 },
+  "workflow": [{
+    "step": "ai.prompt", "id": "draft", "args": { "prompt": "Write an article." },
+    "generationOptions": { "contextWindowTokens": 16384, "reasoningEnabled": false }
+  }]
+}</code></pre></div>
+<p>This step uses 16,384 tokens; other AI steps inherit the task's 32,768 tokens.
+Omit the JSON field to inherit; JSON null is invalid. Install a compatible application version
+before adding the field to production tasks: older versions reject this option.</p>
+<div class="callout warning">
 <code>generationOptions</code> is rejected on non-AI steps. Unknown fields,
-                    null or out-of-range values, and context/provider/endpoint/credential
+                    null or out-of-range values, and provider/endpoint/credential
                     fields are rejected. Existing tasks without overrides remain valid; an
                     empty object is omitted by canonical save.
                 </div><h3>Global model execution queue</h3><p>
@@ -3572,7 +3588,7 @@ capabilities start unrestricted local processes and must remain limited to trust
       <p>Place the caret in valid workflow JSON, then choose <strong>Insert before</strong>, <strong>Insert after</strong>, <strong>Edit step</strong>, or <strong>Delete step</strong>. The form is generated from the Tool Map. An existing step cannot be converted to another tool: delete it and insert a replacement.</p>
       <p>For <code>ai.prompt</code> and <code>filesystem.write</code>, <strong>Repeat for each item</strong> adds a selector for an earlier array. The editor also warns when a repeated write path has no <code>{{foreach.*}}</code> placeholder and would therefore replace the same file each time.</p>
       <p>Delete warns when a later step uses that step’s output placeholder. Tool groups and sensitive capabilities are proposed unchecked and are changed only when you explicitly accept them. Changes affect the task draft; choose <strong>Save task</strong> to persist them.</p>
-      <p>In an <code>ai.prompt</code> step, select exact prompt tools from the catalog list. Model, Temperature, Top P, and reasoning can inherit independently. Knowledge scope appears only when <code>knowledge.search</code> is selected: inherit the task scope or narrow it to one or more currently authorized tags. Absolute local paths may create unchecked directory proposals and root, UNC, or broader-scope warnings. Cancel or close discards the complete working copy after confirmation; Apply validates the complete provisional task and never runs a tool.</p>
+      <p>In an <code>ai.prompt</code> step, select exact prompt tools from the catalog list. Model, Temperature, Top P, context window, and reasoning can inherit independently. Knowledge scope appears only when <code>knowledge.search</code> is selected: inherit the task scope or narrow it to one or more currently authorized tags. Absolute local paths may create unchecked directory proposals and root, UNC, or broader-scope warnings. Cancel or close discards the complete working copy after confirmation; Apply validates the complete provisional task and never runs a tool.</p>
     </section>
 </body>
 </html>

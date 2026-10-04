@@ -321,7 +321,7 @@ public sealed partial class PromptEditorViewModel : ObservableObject
         GenerationPolicyText =
             $"Temperature {policy.Temperature.ToString("G", CultureInfo.CurrentCulture)} ({policy.TemperatureSource}) · " +
             $"Top P {policy.TopP.ToString("G", CultureInfo.CurrentCulture)} ({policy.TopPSource}) · " +
-            $"Context {policy.ContextWindowTokens.ToString("N0", CultureInfo.CurrentCulture)} tokens (Settings)";
+            $"Context {policy.ContextWindowTokens.ToString("N0", CultureInfo.CurrentCulture)} tokens ({policy.ContextWindowSource})";
     }
 
     partial void OnPromptChanged(string value)

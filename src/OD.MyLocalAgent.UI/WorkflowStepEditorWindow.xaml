@@ -54,6 +54,9 @@
                 <TextBox Text="{Binding Temperature, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding OverrideTemperature, Converter={StaticResource BooleanToVisibilityConverter}}" materialDesign:HintAssist.Hint="Temperature" />
                 <CheckBox Content="Override Top P" Visibility="{Binding IsAiSelected, Converter={StaticResource BooleanToVisibilityConverter}}" IsChecked="{Binding OverrideTopP}" />
                 <TextBox Text="{Binding TopP, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding OverrideTopP, Converter={StaticResource BooleanToVisibilityConverter}}" materialDesign:HintAssist.Hint="Top P" />
+                <CheckBox Content="Override context window" Visibility="{Binding IsAiSelected, Converter={StaticResource BooleanToVisibilityConverter}}" IsChecked="{Binding OverrideContextWindow}" />
+                <TextBox Text="{Binding ContextWindowTokens, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding OverrideContextWindow, Converter={StaticResource BooleanToVisibilityConverter}}" materialDesign:HintAssist.Hint="Context window (tokens)" />
+                <TextBlock Margin="0,7,0,10" Text="{Binding EffectiveContextWindowText, StringFormat=Effective: {0}}" Visibility="{Binding IsAiSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 <CheckBox Content="Override reasoning" Visibility="{Binding IsAiSelected, Converter={StaticResource BooleanToVisibilityConverter}}" IsChecked="{Binding OverrideReasoning}" />
                 <StackPanel Visibility="{Binding OverrideReasoning, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <CheckBox Content="Reasoning enabled" IsChecked="{Binding ReasoningEnabled}" />

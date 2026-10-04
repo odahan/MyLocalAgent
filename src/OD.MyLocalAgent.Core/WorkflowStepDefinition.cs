@@ -48,7 +48,7 @@ public sealed record WorkflowStepDefinition
     public JsonElement? FallbackOutput { get; init; }
 
     /// <summary>
-    /// Gets the optional AI-step Temperature and Top P overrides.
+    /// Gets the optional AI-step sampling, context-window, and reasoning overrides.
     /// </summary>
     public GenerationOptions? GenerationOptions { get; init; }
 

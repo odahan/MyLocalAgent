@@ -2151,11 +2151,10 @@ ollama list</code></pre>
                 </div><h3 id="generation-settings">Réglages de génération hiérarchiques</h3><p>
                     Settings définit Temperature, Top P et Context window pour tous les
                     nouveaux appels. Une tâche peut remplacer indépendamment Temperature
-                    et/ou Top P avec <span class="ui-label">AI generation override</span>.
+                    et/ou Top P ainsi que Context window avec <span class="ui-label">AI generation override</span>.
                     Une étape IA en forme objet peut à nouveau remplacer chaque propriété.
                     La résolution est indépendante : étape IA → tâche → Settings. Context
-                    window reste global et n’apparaît jamais dans le JSON d’une tâche ou
-                    d’une étape.
+                    window suit cette même hiérarchie via <code>generationOptions.contextWindowTokens</code>.
                 </p><div class="code-block">
 <pre><code>{
   "generationOptions": {
@@ -2179,9 +2178,25 @@ ollama list</code></pre>
                     Une valeur invalide désactive la sauvegarde. L’éditeur de prompt affiche
                     et utilise ces valeurs effectives, y compris les modifications non encore
                     sauvegardées, lorsqu’il exécute <span class="ui-label">Test</span>.
-                </p><div class="callout warning">
+                </p><p>Dans l’éditeur de tâche, utilisez <span class="ui-label">Context window (tokens)</span>
+et <span class="ui-label">Use global default for context window</span>. Dans l’éditeur d’étape IA,
+utilisez <span class="ui-label">Override context window</span>. Un champ de contexte vide hérite.
+La valeur effective et son origine sont affichées ; les valeurs valides sont des entiers de
+1 024 à 2 000 000. Le contexte et le thinking restent indépendants. Ollama reçoit le contexte
+choisi via <code>num_ctx</code> ; la capacité du modèle OpenAI ne change pas.</p>
+<div class="code-block"><pre><code>{
+  "generationOptions": { "contextWindowTokens": 32768 },
+  "workflow": [{
+    "step": "ai.prompt", "id": "draft", "args": { "prompt": "Write an article." },
+    "generationOptions": { "contextWindowTokens": 16384, "reasoningEnabled": false }
+  }]
+}</code></pre></div>
+<p>Cette étape utilise 16 384 tokens ; les autres étapes IA héritent des 32 768 tokens de la tâche.
+Omettez le champ JSON pour hériter ; une valeur JSON null est invalide. Installez une version
+compatible avant d’ajouter ce champ aux tâches de production : les anciennes versions le refusent.</p>
+<div class="callout warning">
 <code>generationOptions</code> est refusé sur une étape non IA. Les champs
-                    inconnus, les valeurs nulles ou hors plage, ainsi que context, fournisseur,
+                    inconnus, les valeurs nulles ou hors plage, ainsi que fournisseur,
                     endpoint et secrets sont refusés. Une tâche ancienne sans override
                     reste valide ; un objet vide est supprimé lors de la sauvegarde canonique.
                 </div><h3>File globale d’exécution du modèle</h3><p>

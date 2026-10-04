@@ -68,6 +68,12 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
     [ObservableProperty] private bool _overrideGeneration;
     [ObservableProperty] private bool _overrideTemperature;
     [ObservableProperty] private bool _overrideTopP;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EffectiveContextWindowText))]
+    private bool _overrideContextWindow;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EffectiveContextWindowText))]
+    private string _contextWindowTokens = string.Empty;
     [ObservableProperty] private bool _overrideReasoning;
     [ObservableProperty] private bool _narrowKnowledge;
     [ObservableProperty] private string _temperature = string.Empty;
@@ -102,6 +108,11 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
     public IReadOnlyList<WorkflowPlaceholderDefinition> Placeholders => WorkflowPlaceholderCatalog.Entries;
     /// <summary>Gets common reasoning levels while allowing provider-specific text.</summary>
     public IReadOnlyList<string> ReasoningEffortSuggestions { get; } = ["low", "medium", "high"];
+
+    /// <summary>Gets the current context-window value and its inheritance source.</summary>
+    public string EffectiveContextWindowText => OverrideContextWindow && !string.IsNullOrWhiteSpace(ContextWindowTokens)
+        ? $"{ContextWindowTokens} tokens (Step)"
+        : $"{_request?.ContextWindowTokens ?? 8192:N0} tokens ({_request?.ContextWindowSource ?? GenerationOptionSource.Settings})";
     /// <summary>Gets the available error policies.</summary>
     public IReadOnlyList<WorkflowErrorPolicy> ErrorPolicies => Enum.GetValues<WorkflowErrorPolicy>();
     /// <summary>Gets whether this is an edit with an immutable alias.</summary>
@@ -150,6 +161,7 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
         try
         {
         _request = request;
+        OnPropertyChanged(nameof(EffectiveContextWindowText));
         ReplaceModelChoices([]);
         var located = WorkflowStepEditingService.Locate(request.WorkflowText, request.CaretIndex);
         if (located.Error is not null)
@@ -243,9 +255,13 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
         foreach (var item in KnowledgeTagSelections) item.IsSelected = tags.Contains(item.Tag);
     }
 
-    partial void OnOverrideTemperatureChanged(bool value) => OverrideGeneration = OverrideTemperature || OverrideTopP || OverrideReasoning;
-    partial void OnOverrideTopPChanged(bool value) => OverrideGeneration = OverrideTemperature || OverrideTopP || OverrideReasoning;
-    partial void OnOverrideReasoningChanged(bool value) => OverrideGeneration = OverrideTemperature || OverrideTopP || OverrideReasoning;
+    partial void OnOverrideTemperatureChanged(bool value) => UpdateGenerationOverrides();
+    partial void OnOverrideTopPChanged(bool value) => UpdateGenerationOverrides();
+    partial void OnOverrideReasoningChanged(bool value) => UpdateGenerationOverrides();
+    partial void OnOverrideContextWindowChanged(bool value) => UpdateGenerationOverrides();
+
+    private void UpdateGenerationOverrides() =>
+        OverrideGeneration = OverrideTemperature || OverrideTopP || OverrideReasoning || OverrideContextWindow;
 
     /// <summary>Loads model identifiers from the provider currently selected in Settings.</summary>
     public async Task LoadModelChoicesAsync(CancellationToken cancellationToken)
@@ -454,10 +470,12 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
         NarrowKnowledge = step?.KnowledgeAccess is not null;
         OverrideTemperature = step?.GenerationOptions?.Temperature is not null;
         OverrideTopP = step?.GenerationOptions?.TopP is not null;
+        OverrideContextWindow = step?.GenerationOptions?.ContextWindowTokens is not null;
+        ContextWindowTokens = step?.GenerationOptions?.ContextWindowTokens?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
         OverrideReasoning =
             step?.GenerationOptions?.ReasoningEnabled is not null ||
             step?.GenerationOptions?.ReasoningEffort is not null;
-        OverrideGeneration = OverrideTemperature || OverrideTopP || OverrideReasoning;
+        UpdateGenerationOverrides();
         Temperature = step?.GenerationOptions?.Temperature?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
         TopP = step?.GenerationOptions?.TopP?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
         ReasoningEnabled = step?.GenerationOptions?.ReasoningEnabled;
@@ -588,6 +606,7 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
         {
             Temperature = temperature,
             TopP = topP,
+            ContextWindowTokens = OverrideContextWindow ? ParseContextWindow(ContextWindowTokens) : null,
             ReasoningEnabled = OverrideReasoning ? ReasoningEnabled : null,
             ReasoningEffort = OverrideReasoning ? NullIfWhiteSpace(ReasoningEffort) : null,
         };
@@ -597,6 +616,19 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
         }
         return options.IsEmpty ? null : options;
     }
+    private static int? ParseContextWindow(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+        if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value))
+        {
+            throw new FormatException("Context window must be an integer number of tokens.");
+        }
+        return value;
+    }
+
     private static double? ParseFinite(string text, string label) => string.IsNullOrWhiteSpace(text) ? null : double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var number) && double.IsFinite(number) ? number : throw new FormatException($"{label} must be a finite invariant number.");
     private static string? NullIfWhiteSpace(string value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     private string? ParseModel()

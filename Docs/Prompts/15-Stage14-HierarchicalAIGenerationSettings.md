@@ -23,8 +23,8 @@ Add:
 - global default `Temperature` and `TopP` values in Settings;
 - optional task-level overrides for those two values;
 - optional step-level overrides for every workflow step that performs an AI call;
-- one global `ContextWindowTokens` setting for the currently selected model, shared by every
-  LLM call and not overridable by a task or step;
+- a global `ContextWindowTokens` default with optional task/AI-step context overrides for every
+  user-directed LLM call, while internal calls retain the global default;
 - fixed program-owned generation policies for internal operations such as AI Workflow Helper,
   AI Explain, their repair calls, and Guardrails screening/reduction.
 
@@ -42,10 +42,10 @@ An omitted property means **inherit**, not reset. For example, a step that overr
 | # | Decision |
 |---|---|
 | D1 | **Global defaults**: Settings owns the default `Temperature` and `TopP` used by normal user-directed AI calls. Changes are reloadable and apply to the next model call without restarting the UI or runner. |
-| D2 | **Task override**: a task may persist an optional `generationOptions` object containing optional `temperature` and/or `topP`. Missing object or properties inherit from Settings. |
+| D2 | **Task override**: a task may persist an optional `generationOptions` object containing optional `temperature`, `topP`, and/or integer `contextWindowTokens`. Missing object or properties inherit from Settings. |
 | D3 | **AI-step override**: an object-form workflow step whose Tool Map definition is an AI step may persist the same optional `generationOptions`. Each property inherits independently from the task and then Settings. |
 | D4 | **No non-AI override**: `generationOptions` on a deterministic tool step is a validation error. A string-form AI step has no override and inherits; users may convert it to object form to customize it. |
-| D5 | **One global context window**: `ContextWindowTokens` is configured only in Settings because the application currently uses one active provider/model at a time. It is visible to every LLM path and cannot appear in task or workflow JSON. |
+| D5 | **Hierarchical context window**: Settings supplies the default `ContextWindowTokens`; optional task and AI-step `generationOptions.contextWindowTokens` override it independently through step → task → Settings. Internal calls retain the global default. |
 | D6 | **Context is not output length**: `ContextWindowTokens` describes the model's total request context budget. It must not be presented or implemented as `MaxOutputTokens`. Output-token control is outside this stage. |
 | D7 | **Field-wise resolution**: resolving an override is a merge per property, never replacement of the complete object. Resolution returns both effective values and provenance (`Step`, `Task`, or `Settings`) for UI and tests. |
 | D8 | **Normal call coverage**: task options apply to prompt-only tasks, the task agent, Prompt editor tests, direct `ai.prompt` calls, and built-in AI skill steps. AI Playground has no task and uses the global defaults. |
@@ -141,7 +141,7 @@ The optional task JSON shape is:
 }
 ```
 
-`generationOptions`, `temperature`, and `topP` are individually optional. An explicitly empty
+`generationOptions`, `temperature`, `topP`, and `contextWindowTokens` are individually optional. An explicitly empty
 object is accepted on input but canonical serialization omits it. The same numeric validation
 as §5.1 applies. JSON `null`, strings, `NaN`, infinities, and unknown generation-option
 properties fail deterministically rather than being treated as inheritance.
@@ -191,7 +191,7 @@ The resolver performs:
 ```text
 temperature = step.temperature ?? task.temperature ?? settings.temperature
 topP        = step.topP        ?? task.topP        ?? settings.topP
-context     = settings.contextWindowTokens
+context     = step.contextWindowTokens ?? task.contextWindowTokens ?? settings.contextWindowTokens
 ```
 
 It validates before any provider call. It must be a pure, deterministic service that can be
@@ -264,7 +264,7 @@ Do not expose these constants in Settings, task JSON, helper UI, or workflow JSO
 
 ### 6.5 Context-window handling
 
-`ContextWindowTokens` is one global declaration for the active model:
+`ContextWindowTokens` is the effective declaration for the call, inherited through step → task → Settings:
 
 - every normal and internal LLM request receives the same current value;
 - Ollama provider integration maps it to the supported native context-window request option;
@@ -311,7 +311,8 @@ Add a compact **AI generation override** section:
 - separate **Use global default** controls for Temperature and Top P;
 - numeric fields enabled only when their override is active;
 - read-only effective values and provenance;
-- no task-level context-window field;
+- a **Context window (tokens)** field with independent global inheritance, blank-as-inherit behavior,
+  integer validation, effective-value display, and provenance;
 - changes participate in dirty state, Save validation, reload, and existing task editor
   cancellation/navigation behavior.
 
@@ -324,8 +325,8 @@ Extend the existing guided JSON support and Stage 13 AI Workflow Helper:
 
 - the object-form step schema exposes `generationOptions` only for Tool Map AI steps;
 - generated descriptions preserve exact overrides and state which properties inherit;
-- generation/refinement prompts know the allowed schema and must not add context-window,
-  provider, model, or credential properties;
+- generation/refinement prompts know integer `generationOptions.contextWindowTokens` and must
+  not add provider, model, or credential properties;
 - deterministic validation rejects overrides on non-AI steps;
 - AI Explain describes configured overrides and deterministic effective provenance, but its
   own explanation call continues to use the fixed internal policy;
@@ -345,7 +346,8 @@ Add deterministic tests, without a live Ollama or cloud call, for at least:
 6. AI-step override round-trip for `ai.prompt` and every built-in skill alias;
 7. string-form AI steps inherit all values;
 8. `generationOptions` on every non-AI Tool Map alias fails validation;
-9. context-window properties in task or step JSON fail as unknown properties;
+9. context-window overrides round-trip inside `generationOptions`; null, fractional, out-of-range,
+   and root/args context-window properties fail validation;
 10. field-wise precedence for every combination of step, task, and Settings values;
 11. provenance reports `Step`, `Task`, or `Settings` independently per property;
 12. prompt-only Runner execution receives task-effective values;
@@ -361,7 +363,8 @@ Add deterministic tests, without a live Ollama or cloud call, for at least:
 21. AI Explain and explanation repair always use its fixed policy;
 22. Guardrails screening/reduction always use their fixed policies;
 23. changing user defaults does not affect any fixed internal Temperature or Top P;
-24. all normal and internal paths receive the same global context-window value;
+24. normal calls receive their step/task/Settings-effective context window; internal calls retain
+    the global default;
 25. Ollama receives the native context-window option and both generation options;
 26. OpenAI-compatible calls receive Temperature and Top P but no invented context API field;
 27. provider rejection is surfaced without silent truncation or fallback;
@@ -420,14 +423,14 @@ Document these residual risks honestly:
 - [ ] A task can override either or both generation values independently.
 - [ ] An object-form AI step can override either or both values independently.
 - [ ] Effective values resolve per property as Step > Task > Settings and show their source.
-- [ ] Non-AI steps and task/step context-window properties reject generation overrides
-      clearly.
+- [ ] Non-AI steps reject generation overrides; context-window overrides are accepted only
+      inside task/AI-step `generationOptions`.
 - [ ] Prompt-only tasks, workflow AI steps, built-in skills, Prompt editor tests, and AI
       Playground use the intended policy.
 - [ ] AI Workflow Helper, AI Explain, repair calls, and Guardrails retain fixed program-owned
       Temperature and Top P.
-- [ ] The same global context-window value reaches every LLM path without silent content
-      truncation.
+- [ ] Each user-directed call receives its effective context window, while internal calls
+      inherit Settings; no silent content truncation is introduced.
 - [ ] Concurrent tasks cannot leak generation settings.
 - [ ] Existing tool, authorization, Safety, Guardrails, privacy, streaming, cancellation, and
       scheduling behavior remains intact.

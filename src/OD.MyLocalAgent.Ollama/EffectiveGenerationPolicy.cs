@@ -15,6 +15,9 @@ public sealed record EffectiveGenerationPolicy(
     GenerationOptionSource TemperatureSource,
     GenerationOptionSource TopPSource)
 {
+    /// <summary>Gets the source of the effective context-window budget.</summary>
+    public GenerationOptionSource ContextWindowSource { get; init; } = GenerationOptionSource.Settings;
+
     /// <summary>Gets whether model reasoning is enabled for this user-directed generation.</summary>
     public bool ReasoningEnabled { get; init; } = true;
 

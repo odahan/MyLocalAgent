@@ -46,7 +46,7 @@ public sealed record ScheduledTask
     public bool UseGlobalSystemPrompt { get; init; } = true;
 
     /// <summary>
-    /// Gets the optional task-level Temperature and Top P overrides.
+    /// Gets the optional task-level sampling, context-window, and reasoning overrides.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public GenerationOptions? GenerationOptions { get; init; }

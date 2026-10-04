@@ -203,7 +203,7 @@ Rules:
 - Include error policy block emits onError equal to the current task policy, retryCount 1, and
   retryBackoffSeconds 2;
 - Include generation options is enabled only for IsAiStep entries and emits the current
-  effective task Temperature and Top P, never context-window or provider properties.
+  effective task Temperature, Top P, and context window inside `generationOptions`; never provider properties.
 
 Refactor the existing TaskEditorViewModel AddWorkflowStep command to call this builder and append
 the result. It keeps its current user-visible purpose but no longer owns a duplicate id,
