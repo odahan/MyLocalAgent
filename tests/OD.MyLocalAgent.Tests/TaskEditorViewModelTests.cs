@@ -787,6 +787,60 @@ public sealed class TaskEditorViewModelTests
         scheduler.VerifyAll();
     }
 
+    /// <summary>Verifies a schedule edit persists without awaiting provider reasoning probes.</summary>
+    [Fact]
+    public async Task ScheduleEditSavesWithoutContactingProvider()
+    {
+        var task = CreatePersistedTask("schedule-editor", "Schedule editor") with
+        {
+            GenerationOptions = new GenerationOptions { ReasoningEnabled = true, ReasoningEffort = "high" },
+            Workflow = WorkflowDefinitionSerializer.Deserialize(
+                """[{"step":"ai.prompt","args":{"prompt":"Test","thinking":"max"}}]"""),
+        };
+        var store = new Mock<ITaskStore>(MockBehavior.Strict);
+        store.Setup(instance => instance.GetAsync(task.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(task);
+        ScheduledTask? saved = null;
+        store.Setup(instance => instance.SaveAsync(It.IsAny<ScheduledTask>(), It.IsAny<CancellationToken>()))
+            .Callback<ScheduledTask, CancellationToken>((value, _) => saved = value)
+            .ReturnsAsync((ScheduledTask value, CancellationToken _) => value);
+        var scheduler = new Mock<ITaskSchedulerService>(MockBehavior.Strict);
+        scheduler.Setup(instance => instance.RegisterAsync(It.IsAny<ScheduledTask>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        var validator = new Mock<IReasoningEffortValidator>(MockBehavior.Strict);
+        validator.Setup(instance => instance.ValidateCached("gemma4:12b", It.IsAny<string>()))
+            .Returns(new ReasoningEffortValidationResult(
+                ReasoningEffortValidationStatus.Unavailable, "Compatibility has not been verified."));
+        var messenger = new StrongReferenceMessenger();
+        var viewModel = new TaskEditorViewModel(
+            store.Object,
+            scheduler.Object,
+            Mock.Of<IIncidentReporter>(),
+            Mock.Of<IDesktopInteractionService>(),
+            messenger,
+            TimeProvider.System,
+            ollamaOptions: new MutableOptionsMonitor<OllamaOptions>(new OllamaOptions { Model = "gemma4:12b" }),
+            reasoningEffortValidator: validator.Object);
+        viewModel.Open(task.Id);
+        await (viewModel.LoadCommand.ExecutionTask ?? Task.CompletedTask);
+        viewModel.Schedule = "0 9 * * *";
+
+        await viewModel.SaveCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(5));
+
+        saved.Should().NotBeNull();
+        saved!.Schedule.Should().Be("0 9 * * *");
+        saved.GenerationOptions!.ReasoningEffort.Should().Be("high");
+        viewModel.IsDirty.Should().BeFalse();
+        viewModel.IsBusy.Should().BeFalse();
+        viewModel.ValidationText.Should().Contain("Task saved").And.Contain("not been verified");
+        validator.Verify(instance => instance.ValidateCached("gemma4:12b", "high"), Times.Once);
+        validator.Verify(instance => instance.ValidateCached("gemma4:12b", "max"), Times.Once);
+        validator.Verify(instance => instance.ValidateAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        store.VerifyAll();
+        scheduler.VerifyAll();
+    }
+
     /// <summary>Verifies a provider-rejected level is removed and the task is not persisted.</summary>
     [Fact]
     public async Task RejectedReasoningEffortIsClearedBeforeRequestingAnotherValue()
@@ -795,11 +849,10 @@ public sealed class TaskEditorViewModelTests
         store.Setup(instance => instance.GetAsync("reasoning-editor", It.IsAny<CancellationToken>()))
             .ReturnsAsync((ScheduledTask?)null);
         var validator = new Mock<IReasoningEffortValidator>(MockBehavior.Strict);
-        validator.Setup(instance => instance.ValidateAsync(
+        validator.Setup(instance => instance.ValidateCached(
                 "gemma4:12b",
-                "xhigh",
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ReasoningEffortValidationResult(
+                "xhigh"))
+            .Returns(new ReasoningEffortValidationResult(
                 ReasoningEffortValidationStatus.Rejected,
                 "Rejected."));
         var viewModel = new TaskEditorViewModel(
@@ -841,11 +894,10 @@ public sealed class TaskEditorViewModelTests
         store.Setup(instance => instance.GetAsync("prompt-reasoning", It.IsAny<CancellationToken>()))
             .ReturnsAsync((ScheduledTask?)null);
         var validator = new Mock<IReasoningEffortValidator>(MockBehavior.Strict);
-        validator.Setup(instance => instance.ValidateAsync(
+        validator.Setup(instance => instance.ValidateCached(
                 "gemma4:12b",
-                "max",
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ReasoningEffortValidationResult(
+                "max"))
+            .Returns(new ReasoningEffortValidationResult(
                 ReasoningEffortValidationStatus.Rejected,
                 "Rejected."));
         var viewModel = new TaskEditorViewModel(

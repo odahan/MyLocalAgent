@@ -81,6 +81,7 @@ public sealed class RunLogCatalog : IRunLogCatalog
         var lines = new List<RunLogLine>();
         DateTimeOffset? endedUtc = null;
         int? exitCode = null;
+        var hasWarnings = false;
         foreach (var rawLine in Encoding.UTF8
                      .GetString(pending, 0, consumed)
                      .Split('\n', StringSplitOptions.RemoveEmptyEntries))
@@ -99,13 +100,14 @@ public sealed class RunLogCatalog : IRunLogCatalog
                 case "end":
                     endedUtc = GetDateTime(record.Value, "endedUtc");
                     exitCode = GetInt(record.Value, "exitCode");
+                    hasWarnings = GetWarnings(record.Value);
                     break;
                 default:
                     break;
             }
         }
 
-        return new RunLogReadResult(lines, offset + consumed, endedUtc, exitCode);
+        return new RunLogReadResult(lines, offset + consumed, endedUtc, exitCode) { HasWarnings = hasWarnings };
     }
 
     private static RunLogRunInfo? TryReadRunInfo(string filePath, string fallbackTaskId)
@@ -126,13 +128,13 @@ public sealed class RunLogCatalog : IRunLogCatalog
                 return null;
             }
 
-            var (endedUtc, exitCode) = ReadTailEnd(stream);
+            var (endedUtc, exitCode, hasWarnings) = ReadTailEnd(stream);
             return new RunLogRunInfo(
                 filePath,
                 GetString(start.Value, "taskId") ?? fallbackTaskId,
                 startedUtc.Value,
                 endedUtc,
-                exitCode);
+                exitCode) { HasWarnings = hasWarnings };
         }
         catch (Exception exception) when (
             exception is IOException or UnauthorizedAccessException)
@@ -141,7 +143,7 @@ public sealed class RunLogCatalog : IRunLogCatalog
         }
     }
 
-    private static (DateTimeOffset? EndedUtc, int? ExitCode) ReadTailEnd(
+    private static (DateTimeOffset? EndedUtc, int? ExitCode, bool HasWarnings) ReadTailEnd(
         FileStream stream)
     {
         var probeLength = (int)Math.Min(TailProbeBytes, stream.Length);
@@ -160,11 +162,11 @@ public sealed class RunLogCatalog : IRunLogCatalog
             }
 
             return GetKind(record.Value) == "end"
-                ? (GetDateTime(record.Value, "endedUtc"), GetInt(record.Value, "exitCode"))
-                : (null, null);
+                ? (GetDateTime(record.Value, "endedUtc"), GetInt(record.Value, "exitCode"), GetWarnings(record.Value))
+                : (null, null, false);
         }
 
-        return (null, null);
+        return (null, null, false);
     }
 
     private static FileStream OpenShared(string filePath) =>
@@ -215,6 +217,9 @@ public sealed class RunLogCatalog : IRunLogCatalog
 
     private static string GetKind(JsonElement record) =>
         GetString(record, "kind") ?? string.Empty;
+
+    private static bool GetWarnings(JsonElement record) =>
+        record.TryGetProperty("hasWarnings", out var value) && value.ValueKind == JsonValueKind.True;
 
     private static string? GetString(JsonElement record, string name) =>
         record.TryGetProperty(name, out var value) &&

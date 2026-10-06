@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Collections.Concurrent;
 using FluentAssertions;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -1726,13 +1727,74 @@ public sealed class WorkflowEngineTests
         action.Should().Throw<WorkflowValidationException>().WithMessage("*cannot combine*responseSchema*toolAliases*");
     }
 
+    /// <summary>Prevents an empty AI report from being written and reported as a successful workflow.</summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData(" \n\t")]
+    public async Task EmptyPromptReportStopsBeforeFileWrite(string response)
+    {
+        var registry = new RecordingToolRegistry((_, _, _) => throw new InvalidOperationException("No file should be written."));
+        var agent = new Mock<IMyLocalAgentService>(MockBehavior.Strict);
+        agent.Setup(service => service.RunPromptWithoutToolsAsync(
+            It.IsAny<string>(), It.IsAny<EffectiveGenerationPolicy>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AgentRunResult(response, "Test"));
+        var task = CreateTask([
+            Step("ai.prompt", "report", """{"prompt":"Format the report."}"""),
+            Step("filesystem.write", "save", """{"path":"report.md","content":"{{report.output}}"}"""),
+        ]);
+
+        var result = await CreateEngine(registry, agentService: agent.Object).ExecuteAsync(task, CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("empty text response");
+        result.Steps.Should().ContainSingle().Which.Id.Should().Be("report");
+    }
+
+    /// <summary>Correlates invalid Gmail classifications with their item and exposes degraded quality.</summary>
+    [Fact]
+    public async Task GmailSchemaFailuresIncludeDiagnosticsAndQualityWarning()
+    {
+        var logger = new RecordingLogger<SequentialWorkflowEngine>();
+        var registry = new RecordingToolRegistry((_, _, _) => Task.FromResult(
+            """{"messages":[{"id":"mail-1","requiresHumanReview":true,"content":"private source"},{"id":"mail-2"}]}"""));
+        var agent = new Mock<IMyLocalAgentService>(MockBehavior.Strict);
+        agent.Setup(service => service.RunPromptWithoutToolsStructuredAsync(
+            It.IsAny<string>(), It.IsAny<EffectiveGenerationPolicy>(), It.IsAny<string>(),
+            true, It.IsAny<JsonElement>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AgentRunResult("{\"category\":\"invalid\"}", "Test"));
+        using var schema = JsonDocument.Parse(
+            """{"type":"object","properties":{"category":{"type":"string","enum":["Important"]}},"required":["category"]}""");
+        var task = CreateTask([
+            Step("gmail.readRecent", "messages", """{"daysBack":1}"""),
+            Step("ai.prompt", "classification", """{"prompt":"Classify {{foreach.item}}"}""") with
+            {
+                ForEach = "{{messages.output.messages}}",
+                ResponseSchema = schema.RootElement.Clone(),
+            },
+        ]) with { Tools = [ToolGroups.Gmail] };
+
+        var result = await CreateEngine(registry, agentService: agent.Object, logger: logger)
+            .ExecuteAsync(task, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        result.Warnings.Should().ContainSingle().Which.OccurrenceCount.Should().Be(2);
+        result.Warnings[0].Message.Should().Contain("classified 0 of 2");
+        var logs = string.Join("\n", logger.Messages);
+        logs.Should().Contain("mail-1").And.Contain("item 1/2").And.Contain("attempt 1")
+            .And.Contain("SchemaMismatch").And.Contain("$.category")
+            .And.Contain("responseSha256").And.Contain("responseHead")
+            .And.Contain("failed classifications requiring human review 2").And.Contain("analysis is degraded");
+        logs.Should().NotContain("private source");
+    }
+
     private static SequentialWorkflowEngine CreateEngine(
         IToolRegistry registry,
         IEnumerable<ISkill>? skills = null,
         IMyLocalAgentService? agentService = null,
         TimeProvider? timeProvider = null,
         IOptionsMonitor<AIOptions>? aiOptions = null,
-        ILlmClientFactory? llmClientFactory = null)
+        ILlmClientFactory? llmClientFactory = null,
+        ILogger<SequentialWorkflowEngine>? logger = null)
     {
         var agent = agentService ?? Mock.Of<IMyLocalAgentService>();
         return new SequentialWorkflowEngine(
@@ -1740,7 +1802,7 @@ public sealed class WorkflowEngineTests
             skills ?? [],
             agent,
             timeProvider ?? TimeProvider.System,
-            NullLogger<SequentialWorkflowEngine>.Instance,
+            logger ?? NullLogger<SequentialWorkflowEngine>.Instance,
             aiOptions,
             llmClientFactory);
     }

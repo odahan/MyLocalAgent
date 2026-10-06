@@ -394,6 +394,7 @@ public static partial class ScheduledTaskValidator
             }
 
             ValidateArguments(step, definition);
+            if (step.Step == "gmailDecision.readClassify") GmailDecisionContractValidator.Validate(step.Args);
             if (definition.IsControlFlowStep)
             {
                 _ = WorkflowDecisionDefinition.Parse(step.Args);

@@ -119,7 +119,7 @@ public sealed class ToolRegistry : IToolRegistry
         ArgumentNullException.ThrowIfNull(executionContext);
         var definition = _catalog.Find(alias)
             ?? throw new WorkflowValidationException($"Unknown Tool Map alias '{alias}'.");
-        if (!definition.IsAgentTool)
+        if (definition.Method is null)
         {
             throw new WorkflowValidationException(
                 $"Alias '{alias}' is an AI workflow step, not an invocable tool.");
@@ -155,7 +155,8 @@ public sealed class ToolRegistry : IToolRegistry
                         nameof(arguments));
                 }
 
-                suppliedArguments[property.Name] = property.Value.Clone();
+                if (!suppliedArguments.TryAdd(property.Name, property.Value.Clone()))
+                    throw new ArgumentException("Duplicate tool argument names are not allowed.", nameof(arguments));
             }
         }
 
@@ -173,7 +174,7 @@ public sealed class ToolRegistry : IToolRegistry
                 nameof(arguments));
         }
 
-        var functions = CreateFunctions(whitelist, executionContext);
+        var functions = CreateFunctions([definition], executionContext);
         var result = await functions[definition.Alias]
             .InvokeAsync(new AIFunctionArguments(suppliedArguments), cancellationToken)
             .ConfigureAwait(false);
@@ -247,7 +248,7 @@ public sealed class ToolRegistry : IToolRegistry
                 ?? throw new InvalidOperationException($"Tool method for '{definition.Alias}' is unavailable.");
             functions.Add(
                 definition.Alias,
-                AIFunctionFactory.Create(method, target, definition.AgentFunctionName!, definition.Description, ToolJson.Options));
+                AIFunctionFactory.Create(method, target, definition.AgentFunctionName ?? ToolCatalog.DeriveAgentFunctionName(definition.Alias), definition.Description, ToolJson.Options));
         }
 
         return functions;
@@ -295,6 +296,13 @@ public sealed class ToolRegistry : IToolRegistry
         ToolDefinition definition,
         ToolExecutionContext context)
     {
+        if (definition.WorkflowOnly &&
+            (string.IsNullOrWhiteSpace(context.TaskId) ||
+             context.Surface is not (ToolInvocationSurface.Workflow or ToolInvocationSurface.WorkflowTest)))
+        {
+            throw new WorkflowValidationException($"Alias '{definition.Alias}' requires an authorized workflow context.");
+        }
+
         if (definition.RequiredCapability is { } capability &&
             !context.Capabilities.Contains(capability))
         {

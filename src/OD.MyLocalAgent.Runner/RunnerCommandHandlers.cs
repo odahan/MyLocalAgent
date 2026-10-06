@@ -322,11 +322,10 @@ internal static class RunnerCommandHandlers
 
         TaskTimingCollector.Current.Value = new TaskTimingCollector();
 
-        await WarmUpOllamaModelAsync(
-            services,
-            task,
-            output,
-            cancellationToken).ConfigureAwait(false);
+        var decisionOnlyWorkflow = executeWorkflow && task.Workflow.Any(s => s.Step == "gmailDecision.readClassify") &&
+            !task.Workflow.Any(s => ToolMap.Definitions.Any(d => d.Alias == s.Step && d.IsAiStep));
+        if (!decisionOnlyWorkflow)
+            await WarmUpOllamaModelAsync(services, task, output, cancellationToken).ConfigureAwait(false);
 
         if (executeWorkflow)
         {
@@ -339,6 +338,8 @@ internal static class RunnerCommandHandlers
                 .LastOrDefault(
                     static step => step.Status == WorkflowStepStatus.Failure)
                 ?.Error;
+            if (result.Warnings.Count > 0)
+                services.GetService<RunLogSessionHolder>()?.Session?.MarkWarnings();
         }
         else
         {

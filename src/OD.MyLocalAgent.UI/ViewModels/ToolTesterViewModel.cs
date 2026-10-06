@@ -47,6 +47,9 @@ public sealed partial class ToolTesterViewModel :
     [ObservableProperty]
     private bool _isBusy;
 
+    [ObservableProperty]
+    private bool _authorizedWorkflowTest;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="ToolTesterViewModel"/> class.
     /// </summary>
@@ -59,7 +62,7 @@ public sealed partial class ToolTesterViewModel :
         _incidentReporter = incidentReporter;
         _taskStore = taskStore;
         Aliases = toolRegistry.Definitions
-            .Where(static definition => definition.IsAgentTool)
+            .Where(static definition => definition.Method is not null)
             .OrderBy(static definition => ToolGroups.GetDisplayOrder(definition.ToolGroup))
             .ThenBy(static definition => definition.Alias)
             .Select(
@@ -163,7 +166,8 @@ public sealed partial class ToolTesterViewModel :
                     SelectedAlias.Alias,
                     document.RootElement.Clone(),
                     task?.Tools ?? [SelectedAlias.Group],
-                    task is null ? ToolExecutionContext.Taskless : ToolExecutionContext.FromTask(task),
+                    task is null ? ToolExecutionContext.Taskless : ToolExecutionContext.FromTask(task,
+                        AuthorizedWorkflowTest ? ToolInvocationSurface.WorkflowTest : ToolInvocationSurface.Agent),
                     cancellationToken)
                 .ConfigureAwait(true);
             stopwatch.Stop();

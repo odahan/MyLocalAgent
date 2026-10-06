@@ -51,6 +51,8 @@
                               ItemsSource="{Binding Tasks}"
                               SelectedItem="{Binding SelectedTask}"
                               materialDesign:HintAssist.Hint="Task context (required for Knowledge)" />
+                    <CheckBox Margin="0,12,0,0" Content="Authorized workflow test (requires a task and its tool grants)"
+                              IsChecked="{Binding AuthorizedWorkflowTest, Mode=TwoWay}" />
                     <ComboBox Margin="0,14,0,0"
                               DisplayMemberPath="Alias"
                               ItemsSource="{Binding Source={StaticResource GroupedAliases}}"

@@ -2259,3 +2259,26 @@ path access and `SqliteWrite`. The former exclusively owns validated idempotent 
 migration; the latter creates the local embedding and atomically upserts a deterministic proposal
 key. Workflows never provide schema SQL, vectors, or creation timestamps. Discovery reads the file
 only and returns aggregate diagnostics without prior proposal content, paths, keys, or vectors.
+
+## Stage 31 addendum — Scoped local Gmail classification exception
+
+The opt-in `gmailDecision` group exposes workflow-only `readClassify` and `renderReport`, never
+agent functions. Authorization carries an explicit invocation surface, workflow run and step
+correlation; a task id alone cannot grant workflow-only access. Existing tools keep their previous
+surface defaults. Strict prompt alias validation, agent/Direct Chat discovery and the explicit
+workflow test surface consume the same declarative metadata.
+
+Stage 18's mandatory external-content screening and summary-only Gmail contract has one scoped
+exception: bounded mail source may enter isolated, tool-free local SystemOne, second-opinion and
+lightweight fallback requests inside this reader. The source never becomes a workflow output or
+agent context. No tools, RAG, task prompts, accumulated workflow context or cloud switching enter
+these classifiers. Existing Gmail/HTTP Guardrails and legacy persisted tasks remain unchanged.
+
+Questions, policy math, coverage validation and report rendering are deterministic. Installed
+identities protect shared primary models from unload. OS-owned cross-process request boundaries
+coordinate reader intent and embedding priority, with short keep-alive and bounded cancellation
+cleanup. A versioned, source-free result retains every collected row and surfaces explicit
+provisional/unresolved coverage and execution warnings. Settings defaults remain disabled.
+
+See `Docs/Gmail-Decision-Reader.en.md`, its French counterpart and the disabled starter task for
+configuration, conservative context budgeting and the separate live-quality acceptance procedure.

@@ -23,6 +23,9 @@ public sealed record ReasoningEffortValidationResult(
 /// <summary>Validates exact reasoning-effort keywords against the active provider and model.</summary>
 public interface IReasoningEffortValidator
 {
+    /// <summary>Checks local syntax and cached provider results without sending a network request.</summary>
+    ReasoningEffortValidationResult ValidateCached(string model, string reasoningEffort);
+
     /// <summary>Validates an exact provider keyword, using a cached result when available.</summary>
     Task<ReasoningEffortValidationResult> ValidateAsync(
         string model,

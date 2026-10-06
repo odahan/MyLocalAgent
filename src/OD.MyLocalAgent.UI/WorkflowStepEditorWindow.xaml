@@ -67,6 +67,44 @@
                     <ItemsControl.ItemTemplate><DataTemplate><CheckBox Margin="0,2" IsChecked="{Binding IsAccepted}" Content="{Binding Description}" /></DataTemplate></ItemsControl.ItemTemplate>
                 </ItemsControl>
                 <ItemsControl ItemsSource="{Binding ExecutionWarnings}"><ItemsControl.ItemTemplate><DataTemplate><TextBlock Margin="0,2" Text="{Binding}" TextWrapping="Wrap" AutomationProperties.Name="Execution warning" /></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+                <Expander Margin="0,14,0,6" Header="Gmail decision questions" IsExpanded="True" Visibility="{Binding IsGmailDecisionSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <StackPanel>
+                        <TextBlock Margin="0,6" TextWrapping="Wrap" Text="Edit named questions, answer descriptions and ordered rubric levels below. Report mappings and acceptance overrides remain in the structured JSON arguments. Reload fields after editing questions JSON; Apply also commits pending field edits." />
+                        <WrapPanel>
+                            <Button Content="Load triage example" Command="{Binding LoadTriageExampleCommand}" />
+                            <Button Content="Reload fields from JSON" Command="{Binding LoadDecisionQuestionFieldsCommand}" />
+                            <Button Content="Add question" Command="{Binding AddDecisionQuestionCommand}" />
+                            <Button Content="Apply question fields" Command="{Binding ApplyDecisionQuestionFieldsCommand}" />
+                        </WrapPanel>
+                        <ItemsControl ItemsSource="{Binding DecisionQuestions}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Expander Margin="0,8" Header="{Binding Name}" IsExpanded="True">
+                                        <StackPanel>
+                                            <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Literal question name" MaxLength="64" />
+                                            <ComboBox ItemsSource="{Binding Types}" SelectedItem="{Binding Type}" materialDesign:HintAssist.Hint="Question type" />
+                                            <TextBox Text="{Binding Instructions, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="60" MaxLength="1000" materialDesign:HintAssist.Hint="Classification instructions (English or French)" />
+                                            <TextBlock Margin="0,8,0,4" Text="Answers / rubric levels (lowest first; zero-based)" />
+                                            <DataGrid ItemsSource="{Binding Criteria}" SelectedItem="{Binding SelectedCriterion}" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False" MinHeight="90" MaxHeight="280">
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="Choice key / level" Binding="{Binding Key, UpdateSourceTrigger=PropertyChanged}" Width="150" />
+                                                    <DataGridTextColumn Header="Description" Binding="{Binding Description, UpdateSourceTrigger=PropertyChanged}" Width="*" />
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                            <WrapPanel>
+                                                <Button Content="Add answer" Command="{Binding AddAnswerCommand}" />
+                                                <Button Content="Remove answer" Command="{Binding RemoveAnswerCommand}" />
+                                                <Button Content="Move up" Command="{Binding MoveAnswerUpCommand}" />
+                                                <Button Content="Move down" Command="{Binding MoveAnswerDownCommand}" />
+                                                <Button Content="Remove question" Command="{Binding DataContext.RemoveDecisionQuestionCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
+                                            </WrapPanel>
+                                        </StackPanel>
+                                    </Expander>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Expander>
                 <TextBlock Margin="0,18,0,6" Style="{StaticResource SectionTitleStyle}" Text="Arguments" />
                 <ListBox ItemsSource="{Binding Arguments}" SelectedItem="{Binding SelectedArgument}" ScrollViewer.VerticalScrollBarVisibility="Auto">
                     <ListBox.ItemTemplate>

@@ -144,7 +144,27 @@ public sealed class GmailConnector : IGmailConnector
             cancellationToken);
     }
 
-    private Task<IReadOnlyList<EmailMessageDto>> GetMessagesAsync(
+    /// <inheritdoc />
+    public Task<GmailReadBatch> GetDecisionBatchAsync(string selection, int daysBack, int maxMessages, CancellationToken cancellationToken)
+    {
+        if (maxMessages is < 1 or > 500 || daysBack is < 0 or > 3650)
+            throw new ArgumentOutOfRangeException(nameof(maxMessages));
+        var today = DateOnly.FromDateTime(_timeProvider.GetLocalNow().DateTime);
+        var query = selection switch
+        {
+            "Unread" => "is:unread",
+            "Today" => $"after:{GetStartOfLocalDay(today).ToUnixTimeSeconds()}",
+            "Recent" => $"after:{GetStartOfLocalDay(today.AddDays(-daysBack)).ToUnixTimeSeconds()}",
+            _ => throw new ArgumentException("Unknown Gmail selection.", nameof(selection)),
+        };
+        return GetMessageBatchAsync(query, "GetDecisionBatch", maxMessages, cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<EmailMessageDto>> GetMessagesAsync(
+        string query, string operation, int? maxMessages, CancellationToken cancellationToken) =>
+        (await GetMessageBatchAsync(query, operation, maxMessages, cancellationToken).ConfigureAwait(false)).Messages;
+
+    private Task<GmailReadBatch> GetMessageBatchAsync(
         string query,
         string operation,
         int? maxMessages,
@@ -192,7 +212,7 @@ public sealed class GmailConnector : IGmailConnector
                 while (!string.IsNullOrWhiteSpace(pageToken) &&
                        (maxMessages is null || messages.Count < maxMessages.Value));
 
-                return (IReadOnlyList<EmailMessageDto>)messages;
+                return new GmailReadBatch(messages, !string.IsNullOrWhiteSpace(pageToken));
             },
             cancellationToken);
     }

@@ -73,4 +73,7 @@ public sealed record ToolDefinition(
 
     /// <summary>Gets whether workflow steps may repeat this operation for an array.</summary>
     public bool SupportsForEach { get; init; }
+
+    /// <summary>Gets whether invocation requires a workflow surface and a task.</summary>
+    public bool WorkflowOnly { get; init; }
 }

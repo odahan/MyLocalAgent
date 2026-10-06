@@ -1,6 +1,6 @@
 # What's Where
 
-Application version: **2.5.1**.
+Application version: **2.6.6**.
 
 All file and folder locations used by OD.MyLocalAgent after deployment.
 
@@ -184,3 +184,17 @@ Existing aliases are immutable during edit. Delete and insert a new step to choo
 
 Only `ai.prompt` and `filesystem.write` currently opt in. Repetition remains a property of one
 step: it does not create nested workflows, branches, parallel execution, or rollback semantics.
+
+## Stage 31 — Gmail decision reader
+
+| Area | Owner |
+| --- | --- |
+| Questions, acceptance, mapping and strict authoring | `Core/DecisionQuestionSet`, `DecisionAcceptancePolicy`, `GmailDecisionContractValidator` |
+| Opt-in settings, collection orchestration and bounded source-free coverage | `Core/GmailDecisionOptions`, `GmailDecisionTool`, `GmailDecisionProjection`, `GmailDecisionResult` |
+| Local SystemOne/chat HTTP, DNS/redirect protection, gate and memory leases | `Ollama/OllamaLocalDecisionClient`, `LocalDecisionEndpoint`, `DecisionModelResidencyCoordinator` |
+| Embedding handoff at request boundaries | `Core/KnowledgeEmbeddingService` |
+| Deterministic report validation and escaping | `Core/GmailDecisionReportRenderer` |
+| Immutable workflow surface and correlation | `Core/ToolExecutionContext`, `ToolInvocationSurface`, `ToolRegistry`; workflow engine |
+| Settings and named question/ordered answer fields | UI Settings and WorkflowStepEditor partial ViewModels; `DecisionQuestionEditorItem` |
+| End-to-end warning display | Workflow execution warnings, Runner end record, RunLogCatalog and Runs ViewModels |
+| User instructions and disabled starter | `Docs/Gmail-Decision-Reader.en.md`, `.fr.md`, `Docs/samples/gmail-decision-watch.json` |

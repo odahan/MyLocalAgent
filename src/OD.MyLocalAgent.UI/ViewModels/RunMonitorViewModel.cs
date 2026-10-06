@@ -257,7 +257,7 @@ public sealed partial class RunMonitorViewModel :
         TrimToLimit();
         if (result.ExitCode is not null)
         {
-            SelectedRun.MarkEnded(result.ExitCode.Value);
+            SelectedRun.MarkEnded(result.ExitCode.Value, result.HasWarnings);
         }
     }
 

@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace OD.MyLocalAgent.Core;
 
@@ -41,10 +43,14 @@ public static class WorkflowResponseSchemaValidator
         }
         catch (JsonException exception)
         {
-            throw new WorkflowStructuredResponseException("The AI response is not valid JSON.", exception);
+            var failure = new WorkflowStructuredResponseException(
+                $"The AI response is not valid JSON. {exception.Message}", exception);
+            failure.CaptureResponse(response, string.IsNullOrWhiteSpace(response) ? "EmptyResponse" : "InvalidJson");
+            throw failure;
         }
-        catch (WorkflowStructuredResponseException)
+        catch (WorkflowStructuredResponseException exception)
         {
+            exception.CaptureResponse(response, "SchemaMismatch");
             throw;
         }
     }
@@ -269,9 +275,29 @@ public static class WorkflowResponseSchemaValidator
 /// <summary>Represents an AI response that does not satisfy its declared workflow schema.</summary>
 public sealed class WorkflowStructuredResponseException : Exception
 {
+    /// <summary>Gets bounded, single-line JSON diagnostics for a rejected response, when available.</summary>
+    public string? ResponseDiagnostics { get; private set; }
+
     /// <summary>Initializes the exception.</summary>
     public WorkflowStructuredResponseException(string message, Exception? innerException = null)
         : base(message, innerException)
     {
+    }
+
+    internal void CaptureResponse(string response, string failureKind)
+    {
+        const int maximumHeadCharacters = 1536;
+        const int maximumTailCharacters = 512;
+        var headLength = Math.Min(response.Length, maximumHeadCharacters);
+        var tailLength = Math.Min(response.Length - headLength, maximumTailCharacters);
+        ResponseDiagnostics = JsonSerializer.Serialize(new
+        {
+            failureKind,
+            responseCharacters = response.Length,
+            responseSha256 = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(response))),
+            excerptTruncated = response.Length > headLength + tailLength,
+            responseHead = response[..headLength],
+            responseTail = tailLength == 0 ? string.Empty : response[^tailLength..],
+        });
     }
 }

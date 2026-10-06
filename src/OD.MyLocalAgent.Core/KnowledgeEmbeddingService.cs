@@ -1,5 +1,6 @@
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
+using OD.MyLocalAgent.Ollama;
 
 namespace OD.MyLocalAgent.Core;
 
@@ -8,14 +9,29 @@ public sealed class KnowledgeEmbeddingService : IKnowledgeEmbeddingService
 {
     private readonly IOptionsMonitor<KnowledgeOptions> _knowledgeOptions;
     private readonly IKnowledgeEmbeddingGeneratorFactory _generatorFactory;
+    private readonly IOptionsMonitor<GmailDecisionOptions>? _decisionOptions;
+    private readonly IOptionsMonitor<OllamaOptions>? _ollamaOptions;
+    private readonly ILocalDecisionClient? _decisionClient;
+    private readonly DecisionModelResidencyCoordinator? _residency;
+    private readonly GlobalLlmExecutionGate? _gate;
 
     /// <summary>Initializes the embedding service.</summary>
     public KnowledgeEmbeddingService(
         IOptionsMonitor<KnowledgeOptions> knowledgeOptions,
-        IKnowledgeEmbeddingGeneratorFactory generatorFactory)
+        IKnowledgeEmbeddingGeneratorFactory generatorFactory,
+        IOptionsMonitor<GmailDecisionOptions>? decisionOptions = null,
+        IOptionsMonitor<OllamaOptions>? ollamaOptions = null,
+        ILocalDecisionClient? decisionClient = null,
+        DecisionModelResidencyCoordinator? residency = null,
+        GlobalLlmExecutionGate? gate = null)
     {
         _knowledgeOptions = knowledgeOptions;
         _generatorFactory = generatorFactory;
+        _decisionOptions = decisionOptions;
+        _ollamaOptions = ollamaOptions;
+        _decisionClient = decisionClient;
+        _residency = residency;
+        _gate = gate;
     }
 
     /// <inheritdoc />
@@ -37,6 +53,32 @@ public sealed class KnowledgeEmbeddingService : IKnowledgeEmbeddingService
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(options.EmbeddingTimeoutSeconds));
+        if (_residency is not null && _ollamaOptions is not null && options.EmbeddingProvider == "Ollama")
+        {
+            var local = _ollamaOptions.CurrentValue;
+            return await _residency.EmbeddingAsync(local.Endpoint, async () =>
+            {
+                var decision = _decisionOptions?.CurrentValue;
+                if (decision?.Enabled == true && _decisionClient is { } client &&
+                    GmailDecisionOptions.IsValid(decision) && LocalDecisionEndpoint.IsValid(local.Endpoint) &&
+                    GmailDecisionTool.SameEndpoint(decision.DecisionEndpoint ?? local.Endpoint, local.Endpoint))
+                {
+                    var identities = await client.GetModelIdentitiesAsync(local.Endpoint, timeout.Token).ConfigureAwait(false);
+                    if (GmailDecisionTool.TryIdentity(identities, decision.DecisionModel, out var dedicated) &&
+                        new[] { local.Model, decision.ArbitrationModel ?? local.Model,
+                            decision.FallbackModel ?? decision.ArbitrationModel ?? local.Model, options.EmbeddingModel }
+                        .All(model => !GmailDecisionTool.TryIdentity(identities, model, out var identity) || identity != dedicated))
+                        await client.ReleaseForEmbeddingAsync(local.Endpoint, decision.DecisionModel, timeout.Token).ConfigureAwait(false);
+                }
+                using var gate = _gate is null ? null : await _gate.EnterAsync(timeout.Token).ConfigureAwait(false);
+                return await GenerateCoreAsync(inputs, options, timeout.Token, cancellationToken).ConfigureAwait(false);
+            }, timeout.Token).ConfigureAwait(false);
+        }
+        return await GenerateCoreAsync(inputs, options, timeout.Token, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<IReadOnlyList<float[]>> GenerateCoreAsync(IReadOnlyList<string> inputs, KnowledgeOptions options, CancellationToken cancellationToken, CancellationToken callerToken)
+    {
         using var generator = _generatorFactory.Create(options);
         var output = new List<float[]>(inputs.Count);
         try
@@ -44,7 +86,7 @@ public sealed class KnowledgeEmbeddingService : IKnowledgeEmbeddingService
             for (var offset = 0; offset < inputs.Count; offset += options.EmbeddingBatchSize)
             {
                 var batch = inputs.Skip(offset).Take(options.EmbeddingBatchSize).ToArray();
-                var generated = await generator.GenerateAsync(batch, cancellationToken: timeout.Token).ConfigureAwait(false);
+                var generated = await generator.GenerateAsync(batch, cancellationToken: cancellationToken).ConfigureAwait(false);
                 if (generated.Count != batch.Length)
                 {
                     throw new InvalidOperationException("The embedding provider returned an unexpected result count.");
@@ -58,7 +100,7 @@ public sealed class KnowledgeEmbeddingService : IKnowledgeEmbeddingService
                 }
             }
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && timeout.IsCancellationRequested)
+        catch (OperationCanceledException) when (!callerToken.IsCancellationRequested)
         {
             throw new TimeoutException(
                 $"The Knowledge embedding provider did not respond within {options.EmbeddingTimeoutSeconds} seconds.");

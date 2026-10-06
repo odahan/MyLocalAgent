@@ -65,6 +65,7 @@ public static class WorkflowAssistantPromptBuilder
                 .Append(" | AI=").Append(definition.IsAiStep)
                 .Append(" | control=").Append(definition.IsControlFlowStep)
                 .Append(" | foreach=").Append(definition.SupportsForEach)
+                .Append(" | workflowOnly=").Append(definition.WorkflowOnly)
                 .Append(" | required=").Append(required.Length == 0 ? "<none>" : string.Join(",", required))
                 .Append(" | optional=").Append(definition.OptionalArguments.Count == 0 ? "<none>" : string.Join(",", definition.OptionalArguments))
                 .Append(" | ordered=").Append(definition.Arguments.Count == 0 ? "<none>" : string.Join(",", definition.Arguments))
@@ -74,6 +75,7 @@ public static class WorkflowAssistantPromptBuilder
         }
 
         builder.AppendLine("SQLite rules:");
+        builder.AppendLine("Gmail decision rules: gmailDecision is a separate opt-in group. Its readClassify and renderReport tools are workflow-only, never ai.prompt.toolAliases or forEach. readClassify takes literal named choice/noul/score questions, acceptance, and reportMapping; it returns source-free classification coverage, with isolated local fallback. renderReport consumes that JSON and renders Markdown in code. Persist only through filesystem.write and existing task path grants. Never add an LLM formatting or Guardrails pass, change existing Gmail workflows, or override models/endpoints in reader arguments. Do not use Retry in the starter reader workflow; it repeats collection and classification.");
         builder.AppendLine("The sqlite group has exactly four aliases: sqlite.listObjects, sqlite.describeTable, sqlite.query, and sqlite.execute.");
         builder.AppendLine("Every SQLite alias takes databasePath, never a connection string, URI filename, :memory:, or provider option. Relative paths resolve under the configured filesystem root; absolute paths require an existing task directory grant.");
         builder.AppendLine("sqlite.query and sqlite.execute accept exactly one SQL statement with at most one trailing semicolon. Never emit multi-statement batches or transaction-control statements.");

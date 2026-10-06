@@ -71,6 +71,7 @@ public static class HostApplicationBuilderExtensions
         builder.Services.AddHttpClient(HttpTool.HttpClientName);
 
         builder.Services.AddSingleton<IPathSandbox, PathSandbox>();
+        builder.Services.AddSingleton<ILightweightMailClassifier, LightweightMailClassifier>();
         builder.Services.AddSingleton<IRecycleBinService, WindowsRecycleBinService>();
         builder.Services.AddSingleton<IResearchTranslationService, ResearchTranslationService>();
         builder.Services.AddSingleton<SqliteKnowledgeStore>();
@@ -169,6 +170,9 @@ public static class HostApplicationBuilderExtensions
 
     private static void RegisterOptions(IHostApplicationBuilder builder)
     {
+        builder.Services.AddOptions<GmailDecisionOptions>()
+            .Bind(builder.Configuration.GetSection(GmailDecisionOptions.SectionName))
+            .Validate(GmailDecisionOptions.IsValid, "Gmail decision settings are invalid.");
         builder.Services
             .AddOptions<KnowledgeOptions>()
             .Bind(builder.Configuration.GetSection(KnowledgeOptions.SectionName))

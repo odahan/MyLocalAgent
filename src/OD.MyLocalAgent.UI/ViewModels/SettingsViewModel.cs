@@ -419,10 +419,16 @@ public sealed partial class SettingsViewModel :
         IOptionsMonitor<KnowledgeOptions>? knowledgeOptions = null,
         IKnowledgeEmbeddingService? knowledgeEmbeddingService = null,
         IKnowledgeLibraryService? knowledgeLibraryService = null,
-        IOptionsMonitor<LlmExecutionOptions>? llmExecutionOptions = null)
+        IOptionsMonitor<LlmExecutionOptions>? llmExecutionOptions = null,
+        IOptionsMonitor<GmailDecisionOptions>? gmailDecisionOptions = null,
+        ILocalDecisionClient? localDecisionClient = null,
+        DecisionModelResidencyCoordinator? decisionResidency = null)
         : base(messenger)
     {
         _aiOptions = aiOptions;
+        _gmailDecisionOptions = gmailDecisionOptions;
+        _localDecisionClient = localDecisionClient;
+        _decisionResidency = decisionResidency;
         _ollamaOptions = ollamaOptions;
         _openAIOptions = openAIOptions;
         _llmExecutionOptions = llmExecutionOptions;
@@ -706,6 +712,7 @@ public sealed partial class SettingsViewModel :
             var sqlite = _sqliteOptions?.CurrentValue ?? new SQLiteOptions();
             var fileContent = _fileContentOptions?.CurrentValue ?? new FileContentOptions();
             var knowledge = _knowledgeOptions?.CurrentValue ?? new KnowledgeOptions();
+            LoadGmailDecision(_gmailDecisionOptions?.CurrentValue ?? new GmailDecisionOptions());
 
             IsOllamaProvider = string.Equals(
                 ai.Provider,
@@ -940,7 +947,8 @@ public sealed partial class SettingsViewModel :
                 knowledgeOptions,
                 generationDefaults.ReasoningEnabled,
                 generationDefaults.ReasoningEffort,
-                generationDefaults.InternalThinking);
+                generationDefaults.InternalThinking,
+                GetGmailDecisionOptions());
             await _userSettingsService
                 .SaveAsync(
                     settings,
@@ -1297,9 +1305,16 @@ public sealed partial class SettingsViewModel :
         if (!_isLoading &&
             !_isUpdatingModelCatalog &&
             e.PropertyName is not null &&
-            EditablePropertyNames.Contains(e.PropertyName))
+            (EditablePropertyNames.Contains(e.PropertyName) || e.PropertyName.StartsWith("GmailDecision", StringComparison.Ordinal)))
         {
             IsDirty = true;
+            if (e.PropertyName.StartsWith("GmailDecision", StringComparison.Ordinal))
+            {
+                DecisionSettingsValidationText = GmailDecisionOptions.IsValid(GetGmailDecisionOptions())
+                    ? "Local decision settings are valid. Scores are not accuracy guarantees."
+                    : "Check the local endpoint, model, timeout, percentage and batch limits. Unload after batch must remain enabled.";
+                SaveCommand.NotifyCanExecuteChanged();
+            }
             SaveStatus = HasGenerationValidationError || HasSqliteValidationError || HasKnowledgeValidationError
                 ? "Fix the validation errors before saving."
                 : "Unsaved changes.";
@@ -1308,7 +1323,7 @@ public sealed partial class SettingsViewModel :
 
     private bool CanSave() =>
         IsDirty && !IsBusy && TryGetGenerationDefaults(out _) &&
-        TryGetSqliteOptions(out _) && TryGetKnowledgeOptions(out _);
+        TryGetSqliteOptions(out _) && TryGetKnowledgeOptions(out _) && GmailDecisionOptions.IsValid(GetGmailDecisionOptions());
 
     private bool CanDiscardChanges() => IsDirty && !IsBusy;
 

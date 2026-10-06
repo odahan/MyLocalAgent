@@ -10,6 +10,52 @@ namespace OD.MyLocalAgent.Tests;
 /// <summary>Verifies provider-aware reasoning-effort probes and stable-result caching.</summary>
 public sealed class ReasoningEffortValidatorTests
 {
+    /// <summary>Verifies save-time validation never queues a request on a busy provider.</summary>
+    [Fact]
+    public void CachedValidationDoesNotContactProvider()
+    {
+        var calls = 0;
+        var handler = new StubHttpMessageHandler((_, _) =>
+        {
+            calls++;
+            throw new InvalidOperationException("The provider is busy.");
+        });
+        var validator = CreateValidator(handler, AIOptions.OllamaProvider);
+
+        var result = validator.ValidateCached("model", "high");
+
+        result.Status.Should().Be(ReasoningEffortValidationStatus.Unavailable);
+        result.Message.Should().Contain("has not been verified");
+        validator.ValidateCached("model", " high ").Status.Should().Be(ReasoningEffortValidationStatus.Rejected);
+        calls.Should().Be(0);
+    }
+
+    /// <summary>Verifies save-time validation preserves cached results for the exact model and effort.</summary>
+    [Theory]
+    [InlineData(HttpStatusCode.OK, ReasoningEffortValidationStatus.Accepted)]
+    [InlineData(HttpStatusCode.BadRequest, ReasoningEffortValidationStatus.Rejected)]
+    public async Task CachedValidationUsesKnownProviderResult(
+        HttpStatusCode status,
+        ReasoningEffortValidationStatus expected)
+    {
+        var calls = 0;
+        var handler = new StubHttpMessageHandler((_, _) =>
+        {
+            calls++;
+            return Task.FromResult(new HttpResponseMessage(status)
+            {
+                Content = new StringContent("reasoning effort diagnostic"),
+            });
+        });
+        var validator = CreateValidator(handler, AIOptions.OllamaProvider);
+        await validator.ValidateAsync("model", "high", CancellationToken.None);
+
+        validator.ValidateCached("model", "high").Status.Should().Be(expected);
+        validator.ValidateCached("other-model", "high").Status.Should().Be(ReasoningEffortValidationStatus.Unavailable);
+        validator.ValidateCached("model", "low").Status.Should().Be(ReasoningEffortValidationStatus.Unavailable);
+        calls.Should().Be(1);
+    }
+
     /// <summary>Verifies Ollama receives its native string-valued think parameter.</summary>
     [Fact]
     public async Task OllamaProbeSendsNativeThinkValueAndCachesAcceptance()

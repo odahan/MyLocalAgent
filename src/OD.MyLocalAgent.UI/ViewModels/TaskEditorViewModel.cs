@@ -795,8 +795,7 @@ public sealed partial class TaskEditorViewModel :
                     $"Task id '{task.Id}' already exists.");
             }
 
-            var reasoningValidationWarning = await ValidateReasoningEffortsAsync(task, cancellationToken)
-                .ConfigureAwait(true);
+            var reasoningValidationWarning = ValidateReasoningEfforts(task);
             var persistedTask = await _taskStore
                 .SaveAsync(task, cancellationToken)
                 .ConfigureAwait(true);
@@ -851,9 +850,7 @@ public sealed partial class TaskEditorViewModel :
         LastModifiedUtcToolTip = FormatUtcTimestamp(task?.UpdatedUtc);
     }
 
-    private async Task<string?> ValidateReasoningEffortsAsync(
-        ScheduledTask task,
-        CancellationToken cancellationToken)
+    private string? ValidateReasoningEfforts(ScheduledTask task)
     {
         if (_reasoningEffortValidator is null)
         {
@@ -894,9 +891,8 @@ public sealed partial class TaskEditorViewModel :
         var warnings = new List<string>();
         foreach (var request in requests.Values)
         {
-            var result = await _reasoningEffortValidator
-                .ValidateAsync(request.Model, request.Effort, cancellationToken)
-                .ConfigureAwait(true);
+            var result = _reasoningEffortValidator
+                .ValidateCached(request.Model, request.Effort);
             if (result.Status == ReasoningEffortValidationStatus.Rejected)
             {
                 ClearRejectedReasoningEffort(task, request.Model, request.Effort, taskModel);

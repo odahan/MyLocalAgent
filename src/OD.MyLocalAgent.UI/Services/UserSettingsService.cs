@@ -253,6 +253,7 @@ internal sealed class UserSettingsService : IUserSettingsService
         string googleClientSecret) =>
         new(StringComparer.Ordinal)
         {
+            [GmailDecisionOptions.SectionName] = settings.GmailDecision ?? new GmailDecisionOptions(),
             ["Appearance"] = new Dictionary<string, object>
             {
                 ["Theme"] = settings.Theme,
@@ -395,6 +396,10 @@ internal sealed class UserSettingsService : IUserSettingsService
 
     private static void Validate(UserSettingsData settings)
     {
+        var decision = settings.GmailDecision ?? new GmailDecisionOptions();
+        if (!GmailDecisionOptions.IsValid(decision) ||
+            (decision.Enabled && !LocalDecisionEndpoint.IsValid(settings.OllamaEndpoint)))
+            throw new InvalidOperationException("Local decision model settings require bounded policies and loopback endpoints.");
         if (!KnowledgeOptions.IsValid(settings.Knowledge ?? new KnowledgeOptions()))
         {
             throw new InvalidOperationException("Knowledge embedding settings are invalid.");

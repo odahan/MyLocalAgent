@@ -214,6 +214,7 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
             HasChanges = true;
         }
         OnPropertyChanged(nameof(IsPromptSelected));
+        OnPropertyChanged(nameof(IsGmailDecisionSelected));
         OnPropertyChanged(nameof(IsAiSelected));
         OnPropertyChanged(nameof(SupportsForEach));
         OnPropertyChanged(nameof(ShowForEachSource));
@@ -388,6 +389,7 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
         }
         try
         {
+            if (_decisionQuestionsDirty) CommitDecisionQuestionFields();
             var replacement = CreateStep();
             if (IsEdit && !AuthorizationProposals.Any(static item => item.IsAccepted) &&
                 string.Equals(WorkflowDefinitionSerializer.Serialize([replacement]), WorkflowDefinitionSerializer.Serialize([_workflow[_location!.Index]]), StringComparison.Ordinal))
@@ -494,6 +496,8 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
             item.PropertyChanged += OnArgumentPropertyChanged;
             Arguments.Add(item);
         }
+        _decisionQuestionsDirty = false;
+        LoadDecisionQuestionFields();
         if (!tool.IsAiStep && !tool.IsControlFlowStep && !_request!.ToolGroups.Contains(tool.ToolGroup, StringComparer.OrdinalIgnoreCase))
         {
             AuthorizationProposals.Add(new WorkflowProposalItem("Tool group", tool.ToolGroup, $"Allow the '{tool.ToolGroup}' tool group for this task."));

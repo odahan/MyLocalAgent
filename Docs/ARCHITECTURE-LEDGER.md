@@ -2447,3 +2447,45 @@ compilation, freshness-window expansion, document classification, and late prote
 - Verification: 903 non-integration tests passed, zero failed, and one expected probe skipped.
   Deployment is handled separately by the user; production editorial workflows still inherit
   the global context until explicitly changed.
+
+## Stage 31 — Workflow-only local Gmail decisions — 2026-10-06
+
+Application version: **2.6.6** (incremented from 2.6.5).
+
+- Introduces the opt-in `GmailDecision` settings contract and contextual `gmailDecision`
+  group. `readClassify` collects once and returns versioned coverage; `renderReport`
+  validates that coverage and renders Markdown deterministically. `WorkflowOnly` and
+  explicit invocation surfaces exclude agent tools, taskless calls and prompt tool aliases.
+- Ollama owns the dedicated `ILocalDecisionClient` boundary: loopback-only endpoints,
+  pinned localhost, no redirects/proxy, bounded `/v1/systemone` calls and fixed structured
+  `/api/chat` second opinions/fallback. This is the scoped Stage 18 exception: these calls
+  use the shared global LLM gate but do not enter agent tools, RAG, Guardrails or summarization.
+  Existing Gmail tools and their protection contracts remain unchanged.
+- Ordered named questions support choice, noul and score answers. Deterministic acceptance
+  validates native distributions and applies settings → workflow → question → choice rules,
+  typed conflicts and floor-rounded second-opinion budgets. Independent conventional calls
+  receive the projected source and question contract, never the native answer or scores.
+  Provisional and unresolved rows remain visible; downgrade disagreements preserve attention.
+- The effective native context budget is 2,050 tokens, rather than advertised large-context
+  metadata. A conservative UTF-8-byte upper bound reserves question/protocol space and
+  routes current-content truncation to second opinion. This can increase arbitration rates;
+  synthetic technical probes do not establish real-mail quality or latency acceptance.
+- Cross-process OS file handles own endpoint request boundaries, operation intent and
+  embedding priority. Rendezvous files contain no persistent ownership. Endpoint aliases
+  are coalesced conservatively; another reader prevents end-of-batch unload. Embeddings
+  hand off at request boundaries and unload only a verified dedicated decision identity.
+  Cancellation and process death release ownership; cleanup has an independent short deadline.
+- Public compatibility additions include `ToolInvocationSurface`, optional execution
+  correlation, `WorkflowOnly`, `GlobalLlmExecutionGate`, local decision contracts and
+  additive run-warning fields. No package dependency or production task migration is added.
+- Settings provide explicit synthetic tests and model refresh; Save never probes models.
+  Workflow authoring preserves ordered question descriptions, exposes policy JSON and a
+  triage starter. Runs surface completed-with-warnings coverage. Documentation is bilingual;
+  `Docs/samples/gmail-decision-watch.json` is deliberately disabled and uses StopOnError.
+- Automated validation covers runtime authorization, provider recording fakes, typed answers,
+  thresholds/conflicts/budgets, fallback/circuit/retry limits, deadlines, output bounds,
+  report escaping, settings persistence, actual workflow execution and residency/process death.
+  Release build: zero warnings/errors. Release non-integration suite: 980 passed, zero
+  failures, one expected Ollama probe skipped; every command used `-m:1`.
+  `git diff --check` passed. Live Gmail quality/latency evaluation, integration tests,
+  deployment and production schedule changes remain separately authorized operations.

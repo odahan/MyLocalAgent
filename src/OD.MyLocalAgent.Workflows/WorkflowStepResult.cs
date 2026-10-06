@@ -23,6 +23,9 @@ public sealed record WorkflowStepResult(
     TimeSpan Duration,
     int Attempts)
 {
+    /// <summary>Gets content-free quality warnings produced by this step.</summary>
+    public IReadOnlyList<ExecutionWarning> Warnings { get; init; } = [];
+
     /// <summary>
     /// Gets the UTF-8 output size in bytes.
     /// </summary>

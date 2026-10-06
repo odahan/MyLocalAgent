@@ -613,6 +613,11 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
                     "Structured workflow step response"),
             }
             : null;
+        _logger?.LogInformation(
+            "AI prompt request: operation {Operation}, provider {Provider}, model {Model}, structured {Structured}, input characters {InputCharacters}, context window {ContextWindowTokens}, reasoning enabled {ReasoningEnabled}, reasoning effort {ReasoningEffort}, timeout override seconds {TimeoutSeconds}.",
+            logicalOperation, providerName, modelName, responseSchema is not null,
+            messages.Sum(static message => message.Text?.Length ?? 0), client.Policy.ContextWindowTokens,
+            client.Policy.ReasoningEnabled, client.Policy.ReasoningEffort, TimeoutExecutionScope.TimeoutSeconds);
         if (string.Equals(
                 providerName,
                 AIOptions.OpenAIProvider,
@@ -629,9 +634,29 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
                 .ConfigureAwait(false);
         }
 
+        var started = Stopwatch.StartNew();
         var response = await client
             .GetResponseAsync(messages, options, cancellationToken)
             .ConfigureAwait(false);
+        var reasoningCharacters = response.Messages
+            .SelectMany(static message => message.Contents)
+            .OfType<TextReasoningContent>()
+            .Sum(static content => content.Text?.Length ?? 0);
+        _logger?.LogInformation(
+            "AI prompt response: operation {Operation}, provider {Provider}, model {Model}, finish reason {FinishReason}, input tokens {InputTokens}, output tokens {OutputTokens}, total tokens {TotalTokens}, text characters {TextCharacters}, reasoning characters {ReasoningCharacters}, content types {ContentTypes}, total {DurationMs} ms.",
+            logicalOperation, providerName, response.ModelId ?? modelName, response.FinishReason,
+            response.Usage?.InputTokenCount, response.Usage?.OutputTokenCount, response.Usage?.TotalTokenCount,
+            response.Text.Length, reasoningCharacters,
+            string.Join(",", response.Messages.SelectMany(static message => message.Contents)
+                .Select(static content => content.GetType().Name).Distinct()), started.ElapsedMilliseconds);
+        if (response.Usage?.TotalTokenCount >= client.Policy.ContextWindowTokens ||
+            response.FinishReason == ChatFinishReason.Length || string.IsNullOrWhiteSpace(response.Text))
+        {
+            _logger?.LogWarning(
+                "AI prompt produced an empty or budget-limited response: operation {Operation}, model {Model}, finish reason {FinishReason}, total tokens {TotalTokens}, context window {ContextWindowTokens}, text characters {TextCharacters}, reasoning characters {ReasoningCharacters}.",
+                logicalOperation, response.ModelId ?? modelName, response.FinishReason,
+                response.Usage?.TotalTokenCount, client.Policy.ContextWindowTokens, response.Text.Length, reasoningCharacters);
+        }
         return response.Text;
     }
 
@@ -650,6 +675,9 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
         var firstContentMilliseconds = -1L;
         var contentFragments = 0;
         var completed = false;
+        ChatFinishReason? finishReason = null;
+        UsageDetails? usage = null;
+        var reasoningCharacters = 0;
         try
         {
             await foreach (var update in client
@@ -659,6 +687,10 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
                                    cancellationToken: cancellationToken)
                                .ConfigureAwait(false))
             {
+                finishReason = update.FinishReason ?? finishReason;
+                usage = update.Contents.OfType<UsageContent>().LastOrDefault()?.Details ?? usage;
+                reasoningCharacters += update.Contents.OfType<TextReasoningContent>()
+                    .Sum(static content => content.Text?.Length ?? 0);
                 if (string.IsNullOrEmpty(update.Text))
                 {
                     continue;
@@ -679,7 +711,7 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
         finally
         {
             _logger?.LogInformation(
-                "AI prompt streaming metrics: operation {Operation}, provider {Provider}, model {Model}, input characters {InputCharacters}, first content {FirstContentMilliseconds} ms, content fragments {ContentFragments}, output characters {OutputCharacters}, completed {Completed}, total {TotalMilliseconds} ms.",
+                "AI prompt streaming metrics: operation {Operation}, provider {Provider}, model {Model}, input characters {InputCharacters}, first content {FirstContentMilliseconds} ms, content fragments {ContentFragments}, output characters {OutputCharacters}, completed {Completed}, total {TotalMilliseconds} ms, finish reason {FinishReason}, input tokens {InputTokens}, output tokens {OutputTokens}, total tokens {TotalTokens}, reasoning characters {ReasoningCharacters}.",
                 logicalOperation,
                 providerName,
                 modelName,
@@ -688,7 +720,8 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
                 contentFragments,
                 response.Length,
                 completed,
-                started.ElapsedMilliseconds);
+                started.ElapsedMilliseconds,
+                finishReason, usage?.InputTokenCount, usage?.OutputTokenCount, usage?.TotalTokenCount, reasoningCharacters);
         }
     }
 

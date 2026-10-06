@@ -5,7 +5,7 @@ namespace OD.MyLocalAgent.Ollama;
 /// <summary>
 /// Limits simultaneous model requests across all application and Runner processes.
 /// </summary>
-internal sealed class GlobalLlmExecutionGate
+public sealed class GlobalLlmExecutionGate
 {
     private const string SemaphoreName = "Global\\OD.MyLocalAgent.LlmExecution";
     private readonly IOptionsMonitor<LlmExecutionOptions>? _options;

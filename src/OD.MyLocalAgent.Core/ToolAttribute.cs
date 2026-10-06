@@ -45,4 +45,7 @@ public sealed class ToolAttribute : DescriptionAttribute
     /// Gets or sets a value indicating whether workflow steps may repeat this tool for an array.
     /// </summary>
     public bool SupportsForEach { get; set; }
+
+    /// <summary>Gets or sets whether this tool is restricted to authorized workflows.</summary>
+    public bool WorkflowOnly { get; set; }
 }

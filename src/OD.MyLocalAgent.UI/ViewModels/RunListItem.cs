@@ -62,15 +62,16 @@ public sealed partial class RunListItem : ObservableObject
     /// Marks the run as ended from tail-read end-record data.
     /// </summary>
     /// <param name="exitCode">The runner exit code.</param>
-    public void MarkEnded(int exitCode)
+    /// <param name="hasWarnings">Whether the runner surfaced execution warnings.</param>
+    public void MarkEnded(int exitCode, bool hasWarnings = false)
     {
-        Status = FormatStatus(exitCode);
+        Status = exitCode == 0 && hasWarnings ? "Completed with warnings" : FormatStatus(exitCode);
     }
 
     private static string FormatStatus(RunLogRunInfo info) =>
         info.EndedUtc is null || info.ExitCode is null
             ? "In progress"
-            : FormatStatus(info.ExitCode.Value);
+            : info.ExitCode == 0 && info.HasWarnings ? "Completed with warnings" : FormatStatus(info.ExitCode.Value);
 
     private static string FormatStatus(int exitCode) =>
         exitCode == 0

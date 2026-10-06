@@ -50,6 +50,11 @@ public static class ServiceCollectionExtensions
         services.AddLogging();
         services.AddHttpClient(LlmHttpClientNames.Ollama);
         services.AddHttpClient(LlmHttpClientNames.OpenAI);
+        services.AddHttpClient(OllamaLocalDecisionClient.HttpClientName)
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false, UseProxy = false });
+        services.AddSingleton<DecisionModelResidencyCoordinator>();
+        services.AddSingleton<GlobalLlmExecutionGate>();
+        services.AddSingleton<ILocalDecisionClient, OllamaLocalDecisionClient>();
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<OllamaClientService>();
         services.AddSingleton<ILlmModelWarmup>(

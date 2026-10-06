@@ -31,6 +31,22 @@ public sealed class ReasoningEffortValidator : IReasoningEffortValidator
     }
 
     /// <inheritdoc />
+    public ReasoningEffortValidationResult ValidateCached(string model, string reasoningEffort)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(model);
+        if (GenerationPolicyValidation.ValidateReasoningEffort(reasoningEffort) is { } error)
+        {
+            return new ReasoningEffortValidationResult(ReasoningEffortValidationStatus.Rejected, error);
+        }
+
+        return _cache.TryGetValue(CreateValidationKey(model, reasoningEffort), out var cached)
+            ? cached
+            : new ReasoningEffortValidationResult(
+                ReasoningEffortValidationStatus.Unavailable,
+                $"Reasoning level '{reasoningEffort}' has not been verified with model '{model}'. Compatibility will be determined when the task runs.");
+    }
+
+    /// <inheritdoc />
     public async Task<ReasoningEffortValidationResult> ValidateAsync(
         string model,
         string reasoningEffort,
@@ -43,10 +59,7 @@ public sealed class ReasoningEffortValidator : IReasoningEffortValidator
         }
 
         var provider = _aiOptions.CurrentValue.Provider;
-        var endpoint = string.Equals(provider, AIOptions.OllamaProvider, StringComparison.OrdinalIgnoreCase)
-            ? _ollamaOptions.CurrentValue.Endpoint
-            : _openAIOptions.CurrentValue.Endpoint;
-        var key = new ValidationKey(provider, endpoint, model, reasoningEffort);
+        var key = CreateValidationKey(model, reasoningEffort);
         if (_cache.TryGetValue(key, out var cached))
         {
             return cached;
@@ -55,14 +68,21 @@ public sealed class ReasoningEffortValidator : IReasoningEffortValidator
         var result = string.Equals(provider, AIOptions.OllamaProvider, StringComparison.OrdinalIgnoreCase)
             ? await ValidateOllamaAsync(model, reasoningEffort, cancellationToken).ConfigureAwait(false)
             : await ValidateOpenAIAsync(model, reasoningEffort, cancellationToken).ConfigureAwait(false);
-        // Do not cache transient connection or server failures. A later save should retry the
-        // provider probe instead of preserving an inconclusive result for the whole process.
         if (result.Status != ReasoningEffortValidationStatus.Unavailable)
         {
             _cache.TryAdd(key, result);
         }
 
         return result;
+    }
+
+    private ValidationKey CreateValidationKey(string model, string reasoningEffort)
+    {
+        var provider = _aiOptions.CurrentValue.Provider;
+        var endpoint = string.Equals(provider, AIOptions.OllamaProvider, StringComparison.OrdinalIgnoreCase)
+            ? _ollamaOptions.CurrentValue.Endpoint
+            : _openAIOptions.CurrentValue.Endpoint;
+        return new ValidationKey(provider, endpoint, model, reasoningEffort);
     }
 
     private async Task<ReasoningEffortValidationResult> ValidateOllamaAsync(

@@ -140,10 +140,19 @@ public sealed class RunLogSession : IDisposable
                         kind = "end",
                         endedUtc = _timeProvider.GetUtcNow(),
                         exitCode,
+                        hasWarnings = _hasWarnings,
                     },
                     JsonOptions));
             _writer.Flush();
         }
+    }
+
+    private bool _hasWarnings;
+
+    /// <summary>Marks successful execution as completed with warnings in the persisted end record.</summary>
+    public void MarkWarnings()
+    {
+        lock (_gate) _hasWarnings = true;
     }
 
     /// <inheritdoc />

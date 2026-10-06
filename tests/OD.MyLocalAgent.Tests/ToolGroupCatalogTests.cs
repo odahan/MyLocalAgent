@@ -120,7 +120,7 @@ public sealed class ToolGroupCatalogTests
             .Where(
                 static group => ToolMap.Definitions.Any(
                     definition =>
-                        definition.IsAgentTool &&
+                        definition.Method is not null &&
                         string.Equals(
                             definition.ToolGroup,
                             group.Name,

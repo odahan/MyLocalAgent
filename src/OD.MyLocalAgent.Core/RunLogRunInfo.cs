@@ -13,4 +13,8 @@ public sealed record RunLogRunInfo(
     string TaskId,
     DateTimeOffset StartedUtc,
     DateTimeOffset? EndedUtc,
-    int? ExitCode);
+    int? ExitCode)
+{
+    /// <summary>Gets whether the completed run surfaced execution warnings.</summary>
+    public bool HasWarnings { get; init; }
+}

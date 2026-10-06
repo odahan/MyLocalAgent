@@ -12,6 +12,9 @@ public static class ToolGroups
     /// </summary>
     public const string Gmail = "gmail";
 
+    /// <summary>Gets the independent workflow-only Gmail decision group.</summary>
+    public const string GmailDecision = "gmailDecision";
+
     /// <summary>
     /// Gets the Calendar tool-group name.
     /// </summary>

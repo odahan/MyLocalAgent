@@ -104,6 +104,7 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                 context,
                 cancellationToken).ConfigureAwait(false);
             results.Add(result);
+            warnings.AddRange(result.Warnings);
 
             if (result.Status == WorkflowStepStatus.Success)
             {
@@ -310,7 +311,10 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                     null,
                     startedUtc,
                     duration,
-                    attempts);
+                    attempts)
+                {
+                    Warnings = ReadDecisionWarnings(step.Alias, output),
+                };
             }
             catch (Exception exception) when (
                 exception is not OperationCanceledException)
@@ -434,6 +438,7 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
             var items = ParseForEachItems(source, step.Id);
             var outputs = new List<string>(items.Count);
             var reviewOnFailure = GmailAnalysisFallback.AppliesTo(step, task);
+            var failedItems = 0;
 
             for (var index = 0; index < items.Count; index++)
             {
@@ -444,6 +449,10 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                 {
                     attempts++;
                     iterationAttempts++;
+                    var itemStarted = _timeProvider.GetTimestamp();
+                    _logger.LogInformation(
+                        "Workflow step {StepId} item {ItemPosition}/{ItemCount} attempt {Attempt} started; item metadata {ItemMetadata}.",
+                        step.Id, iteration.Position, items.Count, iterationAttempts, DescribeItem(iteration.Item));
                     try
                     {
                         var resolvedArguments = WorkflowPlaceholderResolver.ResolveArguments(
@@ -463,12 +472,23 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                             generationPolicy,
                             cancellationToken).ConfigureAwait(false);
                         outputs.Add(output);
+                        _logger.LogInformation(
+                            "Workflow step {StepId} item {ItemPosition}/{ItemCount} attempt {Attempt} succeeded in {DurationMs} ms; output characters {OutputCharacters}.",
+                            step.Id, iteration.Position, items.Count, iterationAttempts,
+                            _timeProvider.GetElapsedTime(itemStarted).TotalMilliseconds, output.Length);
                         break;
                     }
                     catch (Exception exception) when (
                         !cancellationToken.IsCancellationRequested &&
                         (reviewOnFailure || exception is not OperationCanceledException))
                     {
+                        _logger.LogWarning(
+                            exception,
+                            "Workflow step {StepId} item {ItemPosition}/{ItemCount} attempt {Attempt} failed in {DurationMs} ms; item metadata {ItemMetadata}; response diagnostics {ResponseDiagnostics}.",
+                            step.Id, iteration.Position, items.Count, iterationAttempts,
+                            _timeProvider.GetElapsedTime(itemStarted).TotalMilliseconds,
+                            DescribeItem(iteration.Item),
+                            (exception as WorkflowStructuredResponseException)?.ResponseDiagnostics ?? "unavailable");
                         if (policy == WorkflowErrorPolicy.Retry &&
                             iterationAttempts <= step.RetryCount)
                         {
@@ -490,6 +510,7 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
 
                         if (reviewOnFailure)
                         {
+                            failedItems++;
                             _logger.LogWarning(
                                 "Gmail analysis failed for step {StepId}, item {ForEachPosition} ({ExceptionType}); requiring human review and continuing.",
                                 step.Id,
@@ -507,6 +528,18 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
             }
 
             var aggregatedOutput = AggregateOutputs(outputs);
+            if (reviewOnFailure)
+            {
+                _logger.LogInformation(
+                    "Gmail analysis quality for step {StepId}: total {ItemCount}, successful classifications {SuccessfulCount}, failed classifications requiring human review {FailedCount}.",
+                    step.Id, items.Count, items.Count - failedItems, failedItems);
+                if (failedItems * 2 > items.Count)
+                {
+                    _logger.LogWarning(
+                        "Gmail analysis is degraded: step {StepId} failed to classify {FailedCount} of {ItemCount} messages. Most messages require human review.",
+                        step.Id, failedItems, items.Count);
+                }
+            }
             var duration = _timeProvider.GetElapsedTime(startedTimestamp);
             var outputSize = System.Text.Encoding.UTF8.GetByteCount(aggregatedOutput);
             _logger.LogInformation(
@@ -527,7 +560,15 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                 null,
                 startedUtc,
                 duration,
-                attempts);
+                attempts)
+            {
+                Warnings = failedItems == 0
+                    ? []
+                    : [new ExecutionWarning(
+                        "GmailClassificationFailed",
+                        $"Gmail analysis classified {items.Count - failedItems} of {items.Count} messages; {failedItems} require human review because AI classification failed.",
+                        failedItems)],
+            };
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -550,6 +591,22 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                 duration,
                 attempts);
         }
+    }
+
+    private static string DescribeItem(JsonElement item)
+    {
+        var id = item.ValueKind == JsonValueKind.Object &&
+            item.TryGetProperty("id", out var idValue) && idValue.ValueKind == JsonValueKind.String
+                ? idValue.GetString()
+                : null;
+        var requiresHumanReview = item.ValueKind == JsonValueKind.Object &&
+            item.TryGetProperty("requiresHumanReview", out var reviewValue) &&
+            reviewValue.ValueKind == JsonValueKind.True;
+        return JsonSerializer.Serialize(new
+        {
+            id = id is { Length: > 256 } ? id[..256] : id,
+            requiresHumanReview,
+        });
     }
 
     private static IReadOnlyList<JsonElement> ParseForEachItems(
@@ -609,6 +666,15 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
         return System.Text.Encoding.UTF8.GetString(stream.ToArray());
     }
 
+    private static IReadOnlyList<ExecutionWarning> ReadDecisionWarnings(string alias, string output)
+    {
+        if (alias != "gmailDecision.readClassify") return [];
+        using var json = JsonDocument.Parse(output);
+        return json.RootElement.GetProperty("warnings").EnumerateArray()
+            .Select(w => new ExecutionWarning("GmailDecision." + w.GetString(),
+                "Gmail decision reader completed with warnings: " + w.GetString() + ". Review classification coverage and the report.", 1)).ToArray();
+    }
+
     private async Task<string> ExecuteStepAsync(
         WorkflowStep step,
         JsonElement resolvedArguments,
@@ -624,7 +690,7 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                     step.Alias,
                     resolvedArguments,
                     task.Tools,
-                    ToolExecutionContext.FromTask(task),
+                    ToolExecutionContext.FromTask(task, ToolInvocationSurface.Workflow) with { RunId = context.RunId, StepId = step.Id },
                     cancellationToken).ConfigureAwait(false);
 
             case SkillStep skillStep:
@@ -728,9 +794,30 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                         task.UseGlobalSystemPrompt,
                         cancellationToken).ConfigureAwait(false);
                 }
-                return step.ResponseSchema is { } validationSchema
-                    ? WorkflowResponseSchemaValidator.ValidateResponse(agentResult.Text, validationSchema)
-                    : agentResult.Text;
+                if (step.ResponseSchema is { } validationSchema)
+                {
+                    try
+                    {
+                        return WorkflowResponseSchemaValidator.ValidateResponse(agentResult.Text, validationSchema);
+                    }
+                    catch (WorkflowStructuredResponseException exception)
+                    {
+                        _logger.LogWarning(
+                            exception,
+                            "Workflow AI step {StepId} rejected its structured response; provider {Provider}, model {Model}, response diagnostics {ResponseDiagnostics}.",
+                            step.Id, agentResult.ProviderName, step.Model ?? task.Model ?? "configured default",
+                            exception.ResponseDiagnostics);
+                        throw;
+                    }
+                }
+
+                if (string.IsNullOrWhiteSpace(agentResult.Text))
+                {
+                    throw new InvalidOperationException(
+                        $"Workflow AI step '{step.Id}' returned an empty text response from provider '{agentResult.ProviderName}'. No usable output was produced.");
+                }
+
+                return agentResult.Text;
             }
 
             case DecisionStep:

@@ -290,6 +290,27 @@ public sealed class UserSettingsServiceTests : IDisposable
         }
     }
 
+    /// <summary>Missing decision sections acquire disabled defaults; explicit settings persist without any model service.</summary>
+    [Fact]
+    public async Task DecisionSettingsMigrateAndPersistLocally()
+    {
+        Directory.CreateDirectory(_directoryPath);
+        var path = Path.Combine(_directoryPath, "settings.json");
+        await File.WriteAllTextAsync(path, "{}");
+        var configuration = new ConfigurationBuilder().AddJsonFile(path).Build();
+        var service = new UserSettingsService(configuration, Mock.Of<ISecretStore>(), path);
+        await service.SaveAsync(ValidSettings(), null, default);
+        using (var json = JsonDocument.Parse(await File.ReadAllTextAsync(path)))
+            json.RootElement.GetProperty("GmailDecision").GetProperty("Enabled").GetBoolean().Should().BeFalse();
+        var decision = new GmailDecisionOptions { Enabled = true, KeepAliveSeconds = 0, MaxArbitrationPercent = 0, FallbackModel = "small:latest" };
+        await service.SaveAsync(ValidSettings() with { GmailDecision = decision }, null, default);
+        using var document = JsonDocument.Parse(await File.ReadAllTextAsync(path));
+        document.RootElement.GetProperty("GmailDecision").GetProperty("KeepAliveSeconds").GetInt32().Should().Be(0);
+        document.RootElement.GetProperty("GmailDecision").GetProperty("FallbackModel").GetString().Should().Be("small:latest");
+        await FluentActions.Awaiting(() => service.SaveAsync(ValidSettings() with { GmailDecision = decision with { DecisionEndpoint = "https://remote.example.test" } }, null, default))
+            .Should().ThrowAsync<InvalidOperationException>();
+    }
+
     private static UserSettingsData ValidSettings() =>
         new(
             AIOptions.OllamaProvider,

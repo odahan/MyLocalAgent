@@ -15,6 +15,40 @@ namespace OD.MyLocalAgent.Tests;
 /// </summary>
 public sealed class MyLocalAgentServiceTests
 {
+    /// <summary>Exposes reasoning-only exhaustion without logging the source prompt or reasoning text.</summary>
+    [Fact]
+    public async Task PromptDiagnosticsIdentifyReasoningOnlyBudgetExhaustion()
+    {
+        var client = new StubChatClient("")
+        {
+            ResponseFactory = _ => new ChatResponse(new ChatMessage(
+                ChatRole.Assistant, [new TextReasoningContent("private reasoning")]))
+            {
+                ModelId = "test-model",
+                FinishReason = ChatFinishReason.Length,
+                Usage = new UsageDetails { InputTokenCount = 2000, OutputTokenCount = 14384, TotalTokenCount = 16384 },
+            },
+        };
+        var factory = new Mock<ILlmClientFactory>();
+        factory.Setup(instance => instance.Create()).Returns(new StubLlmClientService(client, AIOptions.OllamaProvider));
+        var logger = new RecordingLogger<MyLocalAgentService>();
+        var service = new MyLocalAgentService(factory.Object, Mock.Of<IToolRegistry>(), [],
+            Mock.Of<IIncidentReporter>(), TimeProvider.System, logger: logger);
+        var policy = new EffectiveGenerationPolicy(0.1, 1, 16384,
+            GenerationOptionSource.Task, GenerationOptionSource.Settings) { ReasoningEffort = "medium" };
+
+        var result = await service.RunPromptWithoutToolsAsync(
+            "private mail content", policy, "classification", CancellationToken.None);
+
+        result.Text.Should().BeEmpty();
+        var logs = string.Join("\n", logger.Messages);
+        logs.Should().Contain("operation classification").And.Contain("test-model")
+            .And.Contain("total tokens 16384").And.Contain("text characters 0")
+            .And.Contain("reasoning characters 17").And.Contain("TextReasoningContent")
+            .And.Contain("empty or budget-limited");
+        logs.Should().NotContain("private mail content").And.NotContain("private reasoning");
+    }
+
     /// <summary>
     /// Verifies direct prompt generation never exposes task tools.
     /// </summary>

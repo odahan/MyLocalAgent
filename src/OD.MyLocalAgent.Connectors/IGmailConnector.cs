@@ -5,6 +5,19 @@ namespace OD.MyLocalAgent.Connectors;
 /// </summary>
 public interface IGmailConnector
 {
+    /// <summary>Collects one bounded batch for a decision reader, retaining pagination coverage.</summary>
+    async Task<GmailReadBatch> GetDecisionBatchAsync(string selection, int daysBack, int maxMessages, CancellationToken cancellationToken)
+    {
+        var messages = selection switch
+        {
+            "Today" => await GetTodaysMessagesAsync(maxMessages, cancellationToken).ConfigureAwait(false),
+            "Unread" => await GetUnreadMessagesAsync(maxMessages, cancellationToken).ConfigureAwait(false),
+            "Recent" => await GetRecentMessagesAsync(daysBack, maxMessages, cancellationToken).ConfigureAwait(false),
+            _ => throw new ArgumentException("Unknown Gmail selection.", nameof(selection)),
+        };
+        return new GmailReadBatch(messages, messages.Count >= maxMessages);
+    }
+
     /// <summary>
     /// Verifies that the current Google credential can read Gmail metadata.
     /// </summary>

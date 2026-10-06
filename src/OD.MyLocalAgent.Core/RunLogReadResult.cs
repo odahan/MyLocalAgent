@@ -11,4 +11,8 @@ public sealed record RunLogReadResult(
     IReadOnlyList<RunLogLine> Lines,
     long NewOffset,
     DateTimeOffset? EndedUtc,
-    int? ExitCode);
+    int? ExitCode)
+{
+    /// <summary>Gets whether the end record reports execution warnings.</summary>
+    public bool HasWarnings { get; init; }
+}

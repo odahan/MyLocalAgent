@@ -1,6 +1,6 @@
 # OD.MyLocalAgent
 
-Current application release: **2.5.6**.
+Current application release: **2.6.6**.
 
 OD.MyLocalAgent is a native Windows desktop application for running scheduled, AI-driven
 tasks locally. It combines a WPF management UI, a headless runner, Ollama, deterministic
@@ -450,11 +450,11 @@ and omission inherits the resolved task/step policy.
 
 The application does not assume that Ollama models and OpenAI-compatible endpoints share one
 discoverable vocabulary. Ollama receives the exact keyword through its native string-valued
-`think` option; OpenAI-compatible endpoints receive it as `reasoning_effort`. When a task is saved,
-each explicit model/keyword pair is probed once and accepted/rejected results are cached for that
-provider endpoint. A rejected value is removed from the draft and must be replaced; an unavailable
-probe produces a warning and may be retried later. The small validation request can consume a few
-provider tokens.
+`think` option; OpenAI-compatible endpoints receive it as `reasoning_effort`. Saving a task checks
+local syntax and any cached validation result for the exact provider endpoint, model, and keyword.
+Save never sends a provider request, so editing a schedule does not wait for an ongoing LLM call.
+A cached rejected value is removed from the draft and must be replaced. An unverified pair produces
+a warning while allowing the task to be saved; provider compatibility is determined during execution.
 
 If a provider or a selected model rejects that option before returning any content, the request is
 retried once without it. A provider's normal default then applies; timeout, cancellation, and
@@ -934,6 +934,15 @@ The first visible line of each retained task run log is the task-level `{{ModelI
 workflow AI step may still use different step-level Temperature or Top P overrides. This header
 contains model configuration only and does not add prompt text, tool data, paths, external content,
 endpoints, secrets, or model output to the log.
+
+Prompt diagnostics record the logical step, provider/model, reasoning settings, response finish
+reason, available token counts, and text/reasoning character counts. Repeated steps also log item
+ids, attempt numbers, and durations. Rejected structured responses include the exact validation
+error plus single-line JSON diagnostics: failure kind, response length, SHA-256, and at most 2048
+characters from the response's beginning and end. These excerpts may contain generated email
+content; source email bodies and reasoning text are not added by these diagnostics. Gmail fallback
+records produce aggregate quality warnings. Empty text responses fail an AI workflow step instead
+of flowing into a report file as a successful result.
 
 String form is for steps without explicit arguments:
 
@@ -1988,3 +1997,16 @@ Knowledge access is deny-by-default. Enabling the task or Direct Chat `knowledge
 ```
 
 Configure the independent embedding provider and model in **Settings → Knowledge embeddings**. Ollama defaults to the pinned multilingual model `embeddinggemma:300m`; OpenAI-compatible embeddings reuse the configured endpoint and DPAPI-protected API key. The card tests the embedding endpoint separately from chat and reports the active index contract. Changing the embedding model or chunking contract marks the library as requiring reindex; **Knowledge → Reindex library** builds every replacement revision first and activates the complete new contract atomically. Knowledge data is not encrypted at rest and private workspace storage is an application-tool boundary, not an operating-system security boundary.
+
+## Gmail decision reader (Stage 31)
+
+The opt-in **Gmail decision reader** has its own task group `gmailDecision` and two workflow-only
+aliases: `gmailDecision.readClassify` collects once and classifies locally; `gmailDecision.renderReport`
+creates Markdown by code. Settings includes independent model selectors, explicit synthetic testing,
+short residency, fixed local fallback and bounded acceptance/deadline controls. Existing Gmail
+workflows retain their behavior. Agents, Direct Chat, prompt tool aliases and forEach cannot invoke
+these tools. No production task or schedule is migrated automatically.
+
+See the [English guide](Docs/Gmail-Decision-Reader.en.md), [French guide](Docs/Gmail-Decision-Reader.fr.md)
+and [disabled example task](Docs/samples/gmail-decision-watch.json). Model scores are not accuracy
+guarantees. Live quality/latency benchmarking and deployment are separate authorized operations.

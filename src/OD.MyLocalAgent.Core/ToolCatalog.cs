@@ -255,12 +255,16 @@ public sealed class ToolCatalog : IToolCatalog
 
                 // Derive agent function name
                 var agentFunctionName = toolAttr.AgentFunctionName;
-                if (string.IsNullOrWhiteSpace(agentFunctionName))
+                if (!toolAttr.WorkflowOnly && string.IsNullOrWhiteSpace(agentFunctionName))
                 {
                     agentFunctionName = DeriveAgentFunctionName(toolAttr.Alias);
                 }
 
-                if (!discoveredAgentFunctions.Add(agentFunctionName))
+                if (toolAttr.WorkflowOnly)
+                {
+                    agentFunctionName = null;
+                }
+                else if (!discoveredAgentFunctions.Add(agentFunctionName!))
                 {
                     throw new InvalidOperationException($"Duplicate agent function name '{agentFunctionName}' for tool alias '{toolAttr.Alias}'.");
                 }
@@ -445,6 +449,7 @@ public sealed class ToolCatalog : IToolCatalog
                     Activation = groupAttr.Activation,
                     Method = method,
                     SupportsForEach = toolAttr.SupportsForEach,
+                    WorkflowOnly = toolAttr.WorkflowOnly,
                 };
 
                 toolDefs.Add(toolDef);

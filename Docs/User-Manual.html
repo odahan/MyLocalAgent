@@ -6,8 +6,8 @@
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
 <meta content="#08111f" name="theme-color"/>
-<meta content="Manuel utilisateur complet de l’application Windows OD.MyLocalAgent 2.5.1." name="description"/>
-<title>Manuel utilisateur 2.5.1 · OD.MyLocalAgent</title>
+<meta content="Manuel utilisateur complet de l’application Windows OD.MyLocalAgent 2.6.6." name="description"/>
+<title>Manuel utilisateur 2.6.6 · OD.MyLocalAgent</title>
 <style>
         :root {
             color-scheme: dark;
@@ -1281,7 +1281,7 @@
 </div>
 <nav>
 <div class="nav-group"><p class="nav-heading">Conversation</p><ul class="nav-list"><li><a href="#scenario-direct-chat">Direct Chat</a></li></ul></div>
-<div class="nav-group"><p class="nav-heading">Application et exploitation</p><ul class="nav-list"><li><a href="#navigation">Pages de l’application</a></li><li><a href="#garde-fous-ia">Filtre de confiance</a></li><li><a href="#securite">Sécurité</a></li><li><a href="#rapports-journaux">Rapports et journaux</a></li><li><a href="#diagnostics">Diagnostics et incidents</a></li><li><a href="#depannage">Dépannage</a></li><li><a href="#reference">Emplacements et CLI</a></li></ul></div><div class="nav-group"><p class="nav-heading">Outils et données</p><ul class="nav-list"><li><a href="#tools-reference">Catalogue des outils</a><ul class="nav-list subnav"><li><a href="#tool-map">Groupes et alias</a></li><li><a href="#document-conversions">Conversions de documents</a></li><li><a href="#tools-sqlite">SQLite</a></li></ul></li><li><a href="#placeholders">Placeholders et sorties</a><ul class="nav-list subnav"><li><a href="#agent-prompt-placeholders">Prompts sans workflow</a></li><li><a href="#model-placeholders">Informations du modèle</a></li><li><a href="#workflow-placeholders">Sorties de workflow</a></li></ul></li><li><a href="#workflow-reference">Référence des workflows</a><ul class="nav-list subnav"><li><a href="#workflow-error-policies">Politiques d’erreur</a></li><li><a href="#workflow-arguments">Arguments et exemples</a></li><li><a href="#workflow-foreach">Répéter chaque élément</a></li><li><a href="#filesystem-rename-extension">Fichiers et extensions</a></li><li><a href="#ai-extraction-classification">Extraction et classification</a></li></ul></li></ul></div><div class="nav-group"><p class="nav-heading">Automatiser</p><ul class="nav-list"><li><a href="#taches-workflows">Tâches et workflows</a><ul class="nav-list subnav"><li><a href="#prompt-only-mode">Prompt seul</a></li><li><a href="#workflow-mode">Workflow</a></li><li><a href="#generation-settings">Réglages de génération</a></li><li><a href="#workflow-helper">AI Workflow Helper</a></li><li><a href="#workflow-tool-catalog">Tool catalog</a></li><li><a href="#workflow-prompt-editor">Éditeur de prompts</a></li></ul></li><li><a href="#task-reference">Structure d’une tâche</a><ul class="nav-list subnav"><li><a href="#task-shape">Format JSON</a></li><li><a href="#task-rules">Règles importantes</a></li><li><a href="#authorized-locations">Emplacements autorisés</a></li></ul></li><li><a href="#planification">Planification et cron</a></li></ul></div><div class="nav-group"><p class="nav-heading">Connecter et explorer</p><ul class="nav-list"><li><a href="#scenario-google">Google</a></li><li><a href="#scenario-dropbox">Dropbox</a></li><li><a href="#scenario-web-search">Recherche Web</a></li><li><a href="#scenario-openai">OpenAI-compatible</a></li><li><a href="#scenario-playground">AI playground</a></li><li><a href="#scenario-outil">Tester un outil</a></li></ul></div><div class="nav-group"><p class="nav-heading">Démarrer</p><ul class="nav-list"><li><a href="#accueil">Vue d’ensemble</a></li><li><a href="#vue-rapide">Parcours recommandé</a></li><li><a href="#installation">Installation</a></li><li><a href="#premier-demarrage">Premier démarrage</a></li><li><a href="#scenario-ollama">Configurer Ollama</a></li><li><a href="#scenario-tache-locale">Créer une première tâche</a></li><li><a href="#scenario-prompt-run">Tester puis exécuter</a></li></ul></div></nav>
+<div class="nav-group"><p class="nav-heading">Application et exploitation</p><ul class="nav-list"><li><a href="#navigation">Pages de l’application</a></li><li><a href="#garde-fous-ia">Filtre de confiance</a></li><li><a href="#securite">Sécurité</a></li><li><a href="#rapports-journaux">Rapports et journaux</a></li><li><a href="#diagnostics">Diagnostics et incidents</a></li><li><a href="#depannage">Dépannage</a></li><li><a href="#reference">Emplacements et CLI</a></li></ul></div><div class="nav-group"><p class="nav-heading">Outils et données</p><ul class="nav-list"><li><a href="#tools-reference">Catalogue des outils</a><ul class="nav-list subnav"><li><a href="#tool-map">Groupes et alias</a></li><li><a href="#document-conversions">Conversions de documents</a></li><li><a href="#tools-sqlite">SQLite</a></li></ul></li><li><a href="#placeholders">Placeholders et sorties</a><ul class="nav-list subnav"><li><a href="#agent-prompt-placeholders">Prompts sans workflow</a></li><li><a href="#model-placeholders">Informations du modèle</a></li><li><a href="#workflow-placeholders">Sorties de workflow</a></li></ul></li><li><a href="#workflow-reference">Référence des workflows</a><ul class="nav-list subnav"><li><a href="#workflow-error-policies">Politiques d’erreur</a></li><li><a href="#workflow-arguments">Arguments et exemples</a></li><li><a href="#workflow-foreach">Répéter chaque élément</a></li><li><a href="#filesystem-rename-extension">Fichiers et extensions</a></li><li><a href="#ai-extraction-classification">Extraction et classification</a></li></ul></li></ul></div><div class="nav-group"><p class="nav-heading">Automatiser</p><ul class="nav-list"><li><a href="#taches-workflows">Tâches et workflows</a><ul class="nav-list subnav"><li><a href="#prompt-only-mode">Prompt seul</a></li><li><a href="#workflow-mode">Workflow</a></li><li><a href="#generation-settings">Réglages de génération</a></li><li><a href="#workflow-helper">AI Workflow Helper</a></li><li><a href="#workflow-tool-catalog">Tool catalog</a></li><li><a href="#workflow-prompt-editor">Éditeur de prompts</a></li></ul></li><li><a href="#task-reference">Structure d’une tâche</a><ul class="nav-list subnav"><li><a href="#task-shape">Format JSON</a></li><li><a href="#task-rules">Règles importantes</a></li><li><a href="#authorized-locations">Emplacements autorisés</a></li></ul></li><li><a href="#planification">Planification et cron</a></li></ul></div><div class="nav-group"><p class="nav-heading">Connecter et explorer</p><ul class="nav-list"><li><a href="#scenario-google">Google</a></li><li><a href="#gmail-decision-reader">Lecteur de décision Gmail</a></li><li><a href="#scenario-dropbox">Dropbox</a></li><li><a href="#scenario-web-search">Recherche Web</a></li><li><a href="#scenario-openai">OpenAI-compatible</a></li><li><a href="#scenario-playground">AI playground</a></li><li><a href="#scenario-outil">Tester un outil</a></li></ul></div><div class="nav-group"><p class="nav-heading">Démarrer</p><ul class="nav-list"><li><a href="#accueil">Vue d’ensemble</a></li><li><a href="#vue-rapide">Parcours recommandé</a></li><li><a href="#installation">Installation</a></li><li><a href="#premier-demarrage">Premier démarrage</a></li><li><a href="#scenario-ollama">Configurer Ollama</a></li><li><a href="#scenario-tache-locale">Créer une première tâche</a></li><li><a href="#scenario-prompt-run">Tester puis exécuter</a></li></ul></div></nav>
 <div class="sidebar-foot">
 <strong>Conseil</strong><br/>
                 Les libellés anglais affichés dans l’application sont conservés dans ce manuel
@@ -1292,7 +1292,7 @@
 <main class="content" id="contenu">
 <div class="content-inner">
 <section class="hero" data-title="Vue d’ensemble" id="accueil">
-<span class="eyebrow">Version 2.5.1 · Local-first · Windows · Ollama</span>
+<span class="eyebrow">Version 2.6.6 · Local-first · Windows · Ollama</span>
 <h1>Votre agent local,<br/><span class="gradient-text">de l’idée à l’exécution.</span></h1>
 <p class="hero-lead">Ce manuel explique comment configurer OD.MyLocalAgent, créer et planifier des tâches, utiliser les outils, maîtriser les placeholders et comprendre les rapports, avec des procédures guidées puis une référence structurée.</p>
 <div class="hero-actions">
@@ -2596,6 +2596,7 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
 <td><code>gmail.readToday</code>, <code>gmail.readUnread</code>, <code>gmail.readRecent</code>, <code>gmail.send</code></td>
 <td><code>gmail.send</code> exige AllowSendEmail.</td>
 </tr>
+<tr><td>Gmail decision reader (<code>gmailDecision</code>)</td><td><code>gmailDecision.readClassify</code>, <code>gmailDecision.renderReport</code></td><td>Activation explicite dans Settings ; workflows uniquement. <a href="#gmail-decision-reader">Configuration et parcours de triage</a>.</td></tr>
 <tr>
 <td>Calendar</td>
 <td><code>calendar.today</code>, <code>calendar.read</code>, <code>calendar.create</code></td>
@@ -2638,6 +2639,8 @@ Generate a short diagnostic headed "ModelName qwen3:14b - Temp 0.25 - TopP 0.9 -
 </thead>
 <tbody>
 <tr><td><code>gmail.readToday</code></td><td><code>maxMessages</code> facultatif</td><td>Messages reçus aujourd’hui, avec limite positive facultative.</td></tr>
+<tr><td><code>gmailDecision.readClassify</code></td><td><code>questions</code>, <code>reportMapping</code> requis ; <code>selection</code>, <code>daysBack</code>, <code>maxMessages</code>, <code>acceptance</code>, <code>arbitration</code>, <code>unavailableBehavior</code>, <code>batchTimeoutSeconds</code> facultatifs.</td><td>Workflow uniquement ; <a href="Technical-Manual.html#gmail-decision">contrats et syntaxe exacte</a>.</td></tr>
+<tr><td><code>gmailDecision.renderReport</code></td><td><code>source</code> requis ; <code>title</code>, <code>includeNoise</code> facultatifs.</td><td>Rapport Markdown déterministe ; enregistrement séparé avec filesystem.write.</td></tr>
 <tr><td><code>gmail.readUnread</code></td><td><code>maxMessages</code> facultatif</td><td>Messages non lus, avec limite positive facultative.</td></tr>
 <tr><td><code>gmail.readRecent</code></td><td><code>daysBack</code>, <code>maxMessages</code> facultatif</td><td>Messages reçus depuis le début du jour local moins <code>daysBack</code> jours.</td></tr>
 <tr><td><code>gmail.send</code></td><td><code>to</code>, <code>subject</code>, <code>body</code></td><td>Exige AllowSendEmail.</td></tr>
@@ -3496,10 +3499,10 @@ confinés et doivent rester réservées aux usages de confiance.
 <span class="status warn">3 tâche absente</span>
 </p>
 </section>
-<footer class="footer"><p>Organisation documentaire révisée — version française 2.5.1.</p>
+<footer class="footer"><p>Organisation documentaire révisée — version française 2.6.6.</p>
 <strong>OD.MyLocalAgent · Manuel utilisateur</strong><br/>
                 Document autonome HTML5. Les chemins, écrans et comportements décrits correspondent
-                à la version 2.5.1 du 5 septembre 2026.
+                à la version 2.6.6 du 6 octobre 2026.
                 <a href="User-Manual.en.html" lang="en">Read in English</a>.
             </footer>
 </div>
@@ -3573,6 +3576,34 @@ confinés et doivent rester réservées aux usages de confiance.
 <div class="code-block"><pre><code>Ordre du diagnostic : groupe → accès au chemin → capacité ArchiveWrite → destination/écrasement
 → chiffrement → extension/signature → corruption → limite configurée</code></pre></div>
 <p>Surface complète : <code>archive.list</code>, <code>archive.extract</code>, <code>archive.extractAll</code>, <code>archive.createZip</code>, <code>archive.addToZip</code>, <code>document.readDocx</code>, <code>spreadsheet.listSheets</code>, <code>spreadsheet.readRange</code>, <code>pdf.getInfo</code> et <code>pdf.readText</code>. L’extraction est non récursive : une archive imbriquée reste un fichier ordinaire. Aucun mot de passe, OCR, macro, recalcul de formule, accès externe, conversion d’archive ou édition Office/PDF.</p>
+</section>
+<section id="gmail-decision-reader" data-title="Lecteur de décision Gmail">
+<p class="eyebrow">Workflow Gmail · Modèles locaux</p>
+<h2>Lecteur de décision Gmail</h2>
+<p>Le groupe <code>gmailDecision</code> propose un triage local facultatif : une collecte, une classification par message, puis un rapport Markdown produit par code. Il conserve les messages pertinents, distingue le bruit et signale les résultats incertains. Les lecteurs Gmail existants et les tâches enregistrées conservent leur fonctionnement.</p>
+<h3>1. Configurer et vérifier les modèles</h3>
+<ol>
+<li>Connectez Gmail dans les réglages Google habituels. Dans <strong>Settings → Local decision models</strong>, activez le lecteur, désactivé par défaut.</li>
+<li>Sélectionnez un modèle de décision déjà installé, par défaut <code>tev1:latest</code>. Aucun téléchargement automatique. L’endpoint vide hérite d’Ollama ; seules les adresses HTTP(S) de boucle locale sont acceptées.</li>
+<li>Laissez les modèles d’arbitrage et de secours vides pour hériter du modèle de chat Ollama, ou sélectionnez d’autres modèles locaux installés. Ils restent locaux même si le fournisseur général est OpenAI. Le modèle de décision doit avoir un digest distinct des modèles chat, arbitrage, secours et embedding du même endpoint.</li>
+<li>Enregistrez les réglages. Save valide sans charger ni tester les modèles. <strong>Refresh models</strong> consulte le catalogue installé ; <strong>Test decision model</strong> lance deux requêtes synthétiques et montre l’identité et les durées observées, puis nettoie le modèle dédié. Il ne lit pas Gmail.</li>
+</ol>
+<p>Le maintien en mémoire vaut 10 secondes ; la libération de fin de lot est obligatoire. Keep-alive à zéro peut recharger le modèle à chaque mail. Les délais par défaut sont 120 secondes à froid, 15 secondes à chaud ou pour un second avis/secours, et 180 secondes pour le lot. Le nettoyage dispose de cinq secondes indépendantes après terminaison ou annulation. Les embeddings ont priorité entre deux requêtes ; les autres modèles sont protégés du nettoyage.</p>
+<h3>2. Créer le workflow de triage</h3>
+<ol>
+<li>Créez une nouvelle tâche à partir de <a href="samples/gmail-decision-watch.json">l’exemple désactivé</a>. Autorisez <code>gmailDecision</code> et, pour enregistrer le rapport, <code>filesystem</code>.</li>
+<li>Ajoutez <code>gmailDecision.readClassify</code>. Choisissez <strong>Load triage example</strong>, puis la période Today, Unread ou Recent et le maximum de messages. Seul Recent accepte daysBack. Les limites du workflow ne dépassent pas celles de Settings.</li>
+<li>Éditez les questions nommées, leurs types et descriptions : choice pour une catégorie, noul pour oui/non, score pour des niveaux ordonnés. Déplacez les niveaux score avec les boutons haut/bas ; leur ordre définit les indices 0…N−1. <strong>Apply question fields</strong> copie les champs dans le brouillon ; Apply principal valide aussi les changements en attente.</li>
+<li>Après modification directe du JSON des questions, choisissez <strong>Reload fields from JSON</strong>. Ajustez reportMapping, acceptance et arbitration dans les arguments JSON. Renommer une question ou un choix exige de modifier ses références dans ces objets.</li>
+<li>Ajoutez <code>gmailDecision.renderReport</code> avec source <code>{{mailTriage.output}}</code>, puis <code>filesystem.write</code> avec content <code>{{mailReport.output}}</code>. Le rendu n’appelle aucun LLM ; l’écriture conserve les autorisations de chemins habituelles.</li>
+<li>Validez et enregistrez la tâche ; activez ensuite cette nouvelle tâche si souhaité. StopOnError évite de répéter tout le lot après une erreur. Les tâches et planifications existantes ne sont pas migrées.</li>
+</ol>
+<h3>3. Lire les scores et les avertissements</h3>
+<p><strong>Top answer score (%)</strong> est le score du meilleur choix ; <strong>Minimum lead (percentage points)</strong> son avance sur le second ; <strong>Concentration score (%)</strong> la concentration native. Ce ne sont pas des garanties d’exactitude. Le seuil noul mesure la certitude du côté vrai ou faux ; il est distinct de la frontière true/false du rapport. Les surcharges par choix ont priorité sur celles par question, puis celles du workflow, puis Settings.</p>
+<p>Le second avis est indépendant : il reçoit la source projetée et les questions, pas les réponses natives. Son budget compte aussi les tentatives en échec et arrondit le pourcentage à l’entier inférieur : 37 mails et 20 % permettent sept tentatives. Si le fournisseur de décision est indisponible, le mode LightweightLlmFallback utilise un seul appel de classification local allégé ; Fail arrête l’étape.</p>
+<p><strong>Classified</strong> signifie réponse résolue ; <strong>Provisional</strong> conserve une réponse native nécessitant revue ; <strong>Unresolved</strong> signale l’absence de réponse valide ou le délai atteint. Les messages incertains restent visibles. Runs indique <strong>Completed with warnings</strong> en cas de dégradation. Le rapport montre couverture, sources, modèles et durées ; includeNoise=false masque les catégories de rang zéro et affiche leur nombre. Une collecte vide produit <strong>No messages found</strong>.</p>
+<p>Ce parcours est réservé aux workflows. Il est exclu de Direct Chat, des agents, des alias d’outils de ai.prompt et de forEach. Pour le Tool tester, sélectionnez une tâche autorisée et cochez <strong>Authorized workflow test</strong>. Aucun droit d’envoi, suppression, lecture de pièces jointes ou marquage comme lu n’est ajouté.</p>
+<p>Référence complète : <a href="Technical-Manual.html#gmail-decision">syntaxe, arguments, contrats JSON et configuration</a>. Voir aussi <a href="Gmail-Decision-Reader.fr.md">le guide détaillé</a>. La qualité et la latence sur mails réels restent à évaluer séparément.</p>
 </section>
 </main>
 <a aria-label="Revenir en haut" class="back-to-top" href="#accueil" id="back-to-top">↑</a>
