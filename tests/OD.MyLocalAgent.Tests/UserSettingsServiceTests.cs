@@ -388,4 +388,26 @@ public sealed class UserSettingsServiceTests : IDisposable
             0.2,
             1.0,
             8192);
+    /// <summary>Central saves retain inactive native settings, historical fallback data, and unrelated configuration.</summary>
+    [Fact]
+    public async Task CentralSaveRetainsInactiveNativeAndUnrelatedValues()
+    {
+        Directory.CreateDirectory(_directoryPath);
+        var path = Path.Combine(_directoryPath, "central-retention.json");
+        await File.WriteAllTextAsync(path, """{"Decision":{"CustomFutureSetting":"keep"},"Unrelated":{"Value":42}}""");
+        var configuration = new ConfigurationBuilder().AddJsonFile(path).Build();
+        var service = new UserSettingsService(configuration, Mock.Of<ISecretStore>(), path);
+        var decision = new DecisionOptions { Engine = "CentralLlm", DecisionModel = "retained-native", MaxInputTokens = 123,
+            DecisionColdTimeoutSeconds = -1, MinTopProbabilityPercent = 87 };
+        await service.SaveAsync(ValidSettings() with { Decision = decision, GmailDecision = new() { FallbackModel = "historical-fallback" } }, null, default);
+        using var document = JsonDocument.Parse(await File.ReadAllTextAsync(path));
+        var saved = document.RootElement.GetProperty("Decision");
+        saved.GetProperty("Engine").GetString().Should().Be("CentralLlm");
+        saved.GetProperty("DecisionModel").GetString().Should().Be("retained-native");
+        saved.GetProperty("MaxInputTokens").GetInt32().Should().Be(123);
+        saved.GetProperty("Enabled").GetBoolean().Should().BeFalse();
+        saved.GetProperty("CustomFutureSetting").GetString().Should().Be("keep");
+        document.RootElement.GetProperty("Unrelated").GetProperty("Value").GetInt32().Should().Be(42);
+        document.RootElement.GetProperty("GmailDecision").GetProperty("FallbackModel").GetString().Should().Be("historical-fallback");
+    }
 }

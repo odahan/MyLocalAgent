@@ -46,6 +46,9 @@ public static class HostApplicationBuilderExtensions
                 Path.Combine(AppContext.BaseDirectory, "appsettings.json"),
                 optional: false,
                 reloadOnChange: false)
+            .AddInMemoryCollection(File.Exists(LocalAppPaths.UserSettingsPath)
+                ? new Dictionary<string, string?>()
+                : new Dictionary<string, string?> { ["Decision:Engine"] = DecisionOptions.NewProfile().Engine })
             .AddJsonFile(
                 LocalAppPaths.UserSettingsPath,
                 optional: true,

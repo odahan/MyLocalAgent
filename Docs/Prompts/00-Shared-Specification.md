@@ -2315,9 +2315,88 @@ results or tasks. Scores remain native distributions; concentration is not corre
 model rationale is invented. Apply validates and persists only the draft contract, with [0,1]
 acceptance values and tightening-only overrides. No inference occurs on editing or saving.
 
-The first implementation increment (A–B) is available. Thirty synthetic bilingual fixture pairs,
-including ten held-out pairs, and an offline input preparation script/protocol are provided;
-proposed labels still require independent review. Real French/English quality and latency
-evaluation and the comparative executor are phase C work. See the bilingual
-`Docs/Decision-Evaluation` guides, `Docs/evaluation/Decision-Evaluation-Protocol.md` and disabled
-`Docs/samples/decision-readiness.json` sample. Integrated routing and agent exposure remain deferred.
+The first implementation increment (A–B) and phase C's first controlled pilot are available.
+The owner approved thirty bilingual fixture pairs and frozen criteria before model execution;
+no blind independent review is claimed. The isolated comparative executor uses the common
+native service, one structured local LLM call and a frozen appointment rule baseline. It also
+imports a checksum-pinned, adapted public VitaminC pilot with complete families and attribution.
+Native held-out appointment coverage was 50% with two unique wrong accepted inputs, failing the
+quality criteria; native latency met the budgets. Public evidence is descriptive and does not
+replicate the complete published benchmark. No settings or thresholds were saved. See the
+bilingual `Docs/evaluation/Stage32C-Results` reports, `Docs/Decision-Evaluation` guides, protocol
+and disabled `Docs/samples/decision-readiness.json` sample. Integrated routing and agent exposure
+remain deferred; implementation completion does not justify automatic routing.
+
+## Stage 32 C2 implemented addendum — Global decision engine choice
+
+Following the completed pilot and Qwen comparisons, the owner approved one global decision
+engine selection for the application. C2 is implemented and deterministically verified;
+the historical A–B native contract above is extended by the version 2 contract below.
+
+Retain `Decision` and the **Decision models** area with `Engine = CentralLlm | NativeDecision`.
+New-profile creation explicitly chooses the central LLM; existing profiles with no engine field
+retain their native behavior until migration/user selection. Canonical/legacy native precedence,
+disabled enablement, task grants and inactive native settings survive. There is no per-tool,
+per-step or conversation engine/model override, implicit fallback or automatic model download.
+Freeze the central/native effective configuration for a whole workflow run or classification
+batch; settings changes apply to subsequent executions. An editor test takes its own snapshot.
+
+Evolve the common service with isolated native and central structured adapters. Central mode
+inherits the central AI provider/model, receives explicit source/questions only, and uses no
+tools, RAG, history or additional explanation calls. It shares ordinary primary-model residency,
+without native cleanup/unload or the dedicated-model separation check. Bounds and full prompt
+budget use the selected provider rather than the native 2050-token ceiling. Provider/data
+authorization remains mandatory. Gmail's raw-source exception stays local-only, even when the
+central provider is cloud-hosted; incompatible calls fail without a substitute provider.
+
+Version 2 results retain `accepted`, `uncertain` and `unavailable` with explicit engine,
+capabilities and acceptance basis. Native accepted means validated threshold checks; central
+accepted means a validated allowed choice. Central probabilities/top/margin/confidence and
+acceptance are null, never manufactured or taken from self-reported LLM confidence. Native
+uncertainty and semantic review options remain distinct. Explicit native acceptance arguments
+are incompatible with central mode and cannot be silently ignored. Update score consumers,
+examples, editor displays and result readers together, preserving/versioning existing contracts.
+
+Generic and Gmail callers share the global selection. New authoring removes Gmail's independent
+engine selector; explicitly migrate/version legacy Hybrid/LlmOnly and arbitration/fallback
+contracts, report conflicts rather than silently overriding global Settings, and preserve mail
+collection/report business rules. Central Boolean/rubric/multiple-question answers must have
+meaningful mail handling without treating a selected rubric level as native weighted scores.
+No scheduled production task is automatically rewritten. Global save/edit never performs inference.
+
+C2 must pass deterministic compatibility, isolation, cancellation, residency, versioned-output,
+UI and migration checks before optional routing D or agent exposure E. The original experiments
+and unfavorable appointment criteria outcome remain unchanged; implementation completion does
+not authorize automatic routing. The revised Stage 32 specification contains the authoritative
+delivery order, contract examples and acceptance checklist. See the C2 implementation ledger
+entry and updated Technical Manual for delivered behavior and explicit Gmail migration.
+
+## Stage 32 D implemented addendum — Integrated decision routing
+
+The **Route by decision** authoring option persists an exhaustive top-level `decisionRoutes`
+object on `decision.evaluate`, alongside unchanged arguments and version 2 output. `choices`
+maps each stable option id to a literal existing destination or `@end`; `uncertain` and
+`unavailable` destinations are required. Only accepted choices follow option routes. Semantic
+review, native uncertainty and technical unavailability remain distinct. Both global engines
+use the existing snapshot, enablement, bounded evaluator and workflow-only task authorization.
+
+Do not combine the mapping with `next` or `forEach`. Graph validation includes every destination,
+cycles, reachability and guaranteed-output dependencies. Existing error policies remain:
+Stop/Retry apply to execution errors, and ContinueOnError follows declaration order on failure;
+that edge participates in graph validation. Unavailable results follow their authored destination
+as successful evaluation data. Native acceptance requirements still reject incompatible central
+mode; no score is synthesized and the mapping introduces no implicit numeric gate.
+
+The MVVM editor edits option destinations and explicit status destinations. Apply performs no
+inference; explicit sample testing executes no destination. The evaluation remains available
+through named outputs with its engine/basis/model provenance. Deletion analysis and the AI Workflow
+Helper retain route metadata. Existing flow.decision workflows and historical pilot evidence
+remain unchanged. Agentic phase E, deployment and production schedule migration remain separate.
+
+Phase E remains open and on hold until both a demonstrated agentic use case and decision engines
+more effective than Tev1 are available for it. Existing tool plumbing is not sufficient justification:
+optional agent calls are not guaranteed, and reusing the agent's central LLM does not provide an
+independent opinion. Required checkpoints remain explicit orchestration/workflow steps. MyLocalAgent
+will not add a paid JEV subscription/connection for two or three workflows and a handful of emails.
+Reconsidering implementation requires separate owner authorization and evidence of useful quality
+and practical cost/latency for that scale of use.

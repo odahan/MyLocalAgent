@@ -42,3 +42,6 @@ secrets.dat
 logs/
 reports/
 tasks/
+
+# Local benchmark downloads and per-input experiment evidence
+/artifacts/decision-evaluation/

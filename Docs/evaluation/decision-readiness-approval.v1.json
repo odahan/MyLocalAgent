@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "recordedUtc": "2026-10-07T12:42:29.3111717+00:00",
+  "fixtureSha256": "CA359719480449A2DD66C1ADC5BCA2A6114435DB4898F51BFFCCFD81DEAB12C5",
+  "executionAuthorized": true,
+  "labelsApproved": true,
+  "reviewer": "Human project owner",
+  "reviewEvidence": "Explicit reply in the Stage 32C implementation conversation: Je valide les annotations et ces critères.",
+  "reviewScope": "Owner acceptance of the proposed annotations and pilot criteria; no separate blind review is claimed.",
+  "criteria": {
+    "minAcceptedCoverage": 0.8,
+    "maxWrongAcceptedRate": 0.0,
+    "maxColdP95Ms": 180000,
+    "maxWarmP95Ms": 30000
+  }
+}

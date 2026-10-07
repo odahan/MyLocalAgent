@@ -1,6 +1,10 @@
 {
   "Decision": {
     "Enabled": false,
+    "Engine": "CentralLlm",
+    "CentralMaxOutputTokens": 512,
+    "CentralTimeoutSeconds": 180,
+    "CentralGateWaitSeconds": 30,
     "DecisionProvider": "OllamaSystemOne",
     "DecisionEndpoint": null,
     "DecisionModel": "tev1:latest",

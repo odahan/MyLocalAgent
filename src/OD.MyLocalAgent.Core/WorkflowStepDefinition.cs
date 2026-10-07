@@ -64,6 +64,9 @@ public sealed record WorkflowStepDefinition
     /// <summary>Gets the optional successor step id, or <c>@end</c>.</summary>
     public string? Next { get; init; }
 
+    /// <summary>Gets optional exhaustive destinations for an evaluated decision.</summary>
+    public JsonElement? DecisionRoutes { get; init; }
+
     /// <summary>Gets the optional JSON response schema for an <c>ai.prompt</c> step.</summary>
     public JsonElement? ResponseSchema { get; init; }
 

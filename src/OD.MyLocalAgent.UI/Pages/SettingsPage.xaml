@@ -32,28 +32,35 @@
             <materialDesign:Card Margin="0,22,0,0">
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionTitleStyle}" Text="Decision models" />
+                    <ComboBox Margin="8" Width="310" ItemsSource="{Binding DecisionEngines}" SelectedValue="{Binding DecisionEngine}" SelectedValuePath="Engine" DisplayMemberPath="Label" materialDesign:HintAssist.Hint="Global decision engine" />
+                    <TextBlock Margin="8" Text="{Binding DecisionEngineDescription}" />
+                    <TextBox Margin="8" Width="310" Text="{Binding DecisionCentralGateWaitSeconds}" materialDesign:HintAssist.Hint="Central gate wait deadline (seconds)" />
+                    <WrapPanel>
+                        <TextBox Margin="8" Width="310" Text="{Binding DecisionCentralMaxOutputTokens}" materialDesign:HintAssist.Hint="Central output token limit" />
+                        <TextBox Margin="8" Width="310" Text="{Binding DecisionCentralTimeoutSeconds}" materialDesign:HintAssist.Hint="Central request deadline (seconds)" />
+                    </WrapPanel>
                     <TextBlock Margin="0,8" TextWrapping="Wrap" Text="Shared local native settings for Gmail and generic decisions. Models must already be installed. A blank endpoint inherits local Ollama. Scores and concentration are not accuracy guarantees. Cleanup after each operation is required." />
                     <WrapPanel>
                         <CheckBox Margin="8" Width="310" IsChecked="{Binding DecisionEnabled, Mode=TwoWay}" Content="Enable generic workflow evaluation" />
-                        <ComboBox Margin="8" Width="310" ItemsSource="{Binding DecisionProviders}" SelectedItem="{Binding DecisionProvider}" materialDesign:HintAssist.Hint="Provider" />
-                        <TextBox Margin="8" Width="310" Text="{Binding DecisionEndpoint, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" materialDesign:HintAssist.Hint="Decision Endpoint" />
-                        <ComboBox Margin="8" Width="310" IsEditable="True" ItemsSource="{Binding DecisionModels}" Text="{Binding DecisionModel, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Installed decision model" />
-                        <TextBox Margin="8" Width="310" Text="{Binding DecisionKeepAliveSeconds, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" materialDesign:HintAssist.Hint="Keep Alive Seconds" />
+                        <ComboBox Margin="8" Width="310" ItemsSource="{Binding DecisionProviders}" SelectedItem="{Binding DecisionProvider}" materialDesign:HintAssist.Hint="Provider" IsEnabled="{Binding IsNativeDecisionEngine}" />
+                        <TextBox Margin="8" Width="310" Text="{Binding DecisionEndpoint, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" materialDesign:HintAssist.Hint="Decision Endpoint" IsEnabled="{Binding IsNativeDecisionEngine}" />
+                        <ComboBox Margin="8" Width="310" IsEditable="True" ItemsSource="{Binding DecisionModels}" Text="{Binding DecisionModel, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Installed decision model" IsEnabled="{Binding IsNativeDecisionEngine}" />
+                        <TextBox Margin="8" Width="310" Text="{Binding DecisionKeepAliveSeconds, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" materialDesign:HintAssist.Hint="Keep Alive Seconds" IsEnabled="{Binding IsNativeDecisionEngine}" />
                         <CheckBox Margin="8" Width="310" IsChecked="{Binding DecisionUnloadAfterBatch, Mode=TwoWay}" Content="Unload after batch (required)" IsEnabled="False" />
-                        <TextBox Margin="8" Width="310" Text="{Binding DecisionColdTimeoutSeconds, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" materialDesign:HintAssist.Hint="Decision Cold Timeout Seconds" />
-                        <TextBox Margin="8" Width="310" Text="{Binding DecisionWarmTimeoutSeconds, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" materialDesign:HintAssist.Hint="Decision Warm Timeout Seconds" />
+                        <TextBox Margin="8" Width="310" Text="{Binding DecisionColdTimeoutSeconds, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" materialDesign:HintAssist.Hint="Decision Cold Timeout Seconds" IsEnabled="{Binding IsNativeDecisionEngine}" />
+                        <TextBox Margin="8" Width="310" Text="{Binding DecisionWarmTimeoutSeconds, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" materialDesign:HintAssist.Hint="Decision Warm Timeout Seconds" IsEnabled="{Binding IsNativeDecisionEngine}" />
                         <TextBox Margin="8" Width="310" Text="{Binding DecisionGateWaitTimeoutSeconds, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" materialDesign:HintAssist.Hint="Gate Wait Timeout Seconds" />
-                        <TextBox Margin="8" Width="310" Text="{Binding DecisionMinTopProbabilityPercent, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" materialDesign:HintAssist.Hint="Top answer score (%)" />
-                        <TextBox Margin="8" Width="310" Text="{Binding DecisionMinMarginPercentagePoints, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" materialDesign:HintAssist.Hint="Minimum lead (percentage points)" />
-                        <TextBox Margin="8" Width="310" Text="{Binding DecisionMinConfidencePercent, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" materialDesign:HintAssist.Hint="Concentration score (%)" />
-                        <TextBox Margin="8" Width="310" Text="{Binding DecisionMinNoulCertaintyPercent, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" materialDesign:HintAssist.Hint="Min Noul Certainty Percent" />
+                        <TextBox Margin="8" Width="310" Text="{Binding DecisionMinTopProbabilityPercent, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" materialDesign:HintAssist.Hint="Top answer score (%)" IsEnabled="{Binding IsNativeDecisionEngine}" />
+                        <TextBox Margin="8" Width="310" Text="{Binding DecisionMinMarginPercentagePoints, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" materialDesign:HintAssist.Hint="Minimum lead (percentage points)" IsEnabled="{Binding IsNativeDecisionEngine}" />
+                        <TextBox Margin="8" Width="310" Text="{Binding DecisionMinConfidencePercent, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" materialDesign:HintAssist.Hint="Concentration score (%)" IsEnabled="{Binding IsNativeDecisionEngine}" />
+                        <TextBox Margin="8" Width="310" Text="{Binding DecisionMinNoulCertaintyPercent, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" materialDesign:HintAssist.Hint="Min Noul Certainty Percent" IsEnabled="{Binding IsNativeDecisionEngine}" />
                         <TextBox Margin="8" Width="310" Text="{Binding DecisionOperationTimeoutSeconds, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" materialDesign:HintAssist.Hint="Generic operation deadline (seconds)" />
-                        <TextBox Margin="8" Width="310" Text="{Binding DecisionMaxInputTokens, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" materialDesign:HintAssist.Hint="Full prompt token budget (512–2050)" />
+                        <TextBox Margin="8" Width="310" Text="{Binding DecisionMaxInputTokens, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" materialDesign:HintAssist.Hint="Full prompt token budget (512–2050)" IsEnabled="{Binding IsNativeDecisionEngine}" />
                     </WrapPanel>
                     <TextBlock Margin="8" TextWrapping="Wrap" Text="{Binding DecisionSettingsValidationText}" />
                     <StackPanel Orientation="Horizontal" Margin="8">
-                        <Button Content="Refresh models" Command="{Binding RefreshDecisionModelsCommand}" Margin="0,0,12,0" />
-                        <Button Content="Test decision model" Command="{Binding TestDecisionModelCommand}" />
+                        <Button Content="Refresh models" Command="{Binding RefreshDecisionModelsCommand}" Margin="0,0,12,0" IsEnabled="{Binding IsNativeDecisionEngine}" />
+                        <Button Content="Test decision model" Command="{Binding TestDecisionModelCommand}" IsEnabled="{Binding IsNativeDecisionEngine}" />
                     </StackPanel>
                     <ProgressBar Height="3" IsIndeterminate="True" Visibility="{Binding IsTestingDecisionModel, Converter={StaticResource BooleanToVisibilityConverter}}" />
                     <TextBlock Margin="8" TextWrapping="Wrap" Text="{Binding DecisionModelTestStatus}" />
@@ -62,20 +69,20 @@
             <materialDesign:Card Margin="0,22,0,0">
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionTitleStyle}" Text="Gmail decision reader" />
-                    <TextBlock Margin="0,8" TextWrapping="Wrap" Text="Independent workflow-only mail enablement, collection and fallback policy. Native provider settings are inherited from Decision models. LlmOnly does not require the decision model." />
+                    <TextBlock Margin="0,8" TextWrapping="Wrap" Text="Mail decisions use the global engine. Raw mail requires a local provider. Historical arbitration and fallback values are retained for migration and inactive." />
                     <WrapPanel>
                         <CheckBox Margin="8" Width="310" IsChecked="{Binding GmailDecisionEnabled, Mode=TwoWay}" Content="Enabled" />
-                        <CheckBox Margin="8" Width="310" IsChecked="{Binding GmailDecisionArbitrationEnabled, Mode=TwoWay}" Content="Arbitration Enabled" />
-                        <ComboBox Margin="8" Width="310" IsEditable="True" ItemsSource="{Binding DecisionModels}" Text="{Binding GmailDecisionArbitrationModel, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Arbitration Model (blank inherits)" />
-                        <TextBox Margin="8" Width="310" Text="{Binding GmailDecisionArbitrationTimeoutSeconds, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" materialDesign:HintAssist.Hint="Arbitration Timeout Seconds" />
-                        <ComboBox Margin="8" Width="310" ItemsSource="{Binding DecisionUnavailableBehaviors}" SelectedItem="{Binding GmailDecisionUnavailableBehavior}" materialDesign:HintAssist.Hint="Unavailable behavior" />
-                        <ComboBox Margin="8" Width="310" IsEditable="True" ItemsSource="{Binding DecisionModels}" Text="{Binding GmailDecisionFallbackModel, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Fallback Model (blank inherits)" />
-                        <TextBox Margin="8" Width="310" Text="{Binding GmailDecisionFallbackTimeoutSeconds, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" materialDesign:HintAssist.Hint="Fallback Timeout Seconds" />
+                        <CheckBox Margin="8" Width="310" IsChecked="{Binding GmailDecisionArbitrationEnabled, Mode=TwoWay}" Content="Arbitration Enabled" IsEnabled="False" />
+                        <ComboBox Margin="8" Width="310" IsEditable="True" ItemsSource="{Binding DecisionModels}" Text="{Binding GmailDecisionArbitrationModel, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Arbitration Model (blank inherits)" IsEnabled="False" />
+                        <TextBox Margin="8" Width="310" Text="{Binding GmailDecisionArbitrationTimeoutSeconds, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" materialDesign:HintAssist.Hint="Arbitration Timeout Seconds" IsEnabled="False" />
+                        <ComboBox Margin="8" Width="310" ItemsSource="{Binding DecisionUnavailableBehaviors}" SelectedItem="{Binding GmailDecisionUnavailableBehavior}" materialDesign:HintAssist.Hint="Unavailable behavior" IsEnabled="False" />
+                        <ComboBox Margin="8" Width="310" IsEditable="True" ItemsSource="{Binding DecisionModels}" Text="{Binding GmailDecisionFallbackModel, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Fallback Model (blank inherits)" IsEnabled="False" />
+                        <TextBox Margin="8" Width="310" Text="{Binding GmailDecisionFallbackTimeoutSeconds, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" materialDesign:HintAssist.Hint="Fallback Timeout Seconds" IsEnabled="False" />
                         <TextBox Margin="8" Width="310" Text="{Binding GmailDecisionBatchTimeoutSeconds, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" materialDesign:HintAssist.Hint="Batch Timeout Seconds" />
                         <TextBox Margin="8" Width="310" Text="{Binding GmailDecisionMaxMessagesPerOperation, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" materialDesign:HintAssist.Hint="Max Messages Per Operation" />
                         <TextBox Margin="8" Width="310" Text="{Binding GmailDecisionMaxProjectionCharacters, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" materialDesign:HintAssist.Hint="Max Projection Characters" />
-                        <TextBox Margin="8" Width="310" Text="{Binding GmailDecisionMaxArbitrationPercent, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" materialDesign:HintAssist.Hint="Second-opinion budget (%)" />
-                        <TextBox Margin="8" Width="310" Text="{Binding GmailDecisionMaxArbitrationCalls, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" materialDesign:HintAssist.Hint="Max Arbitration Calls" />
+                        <TextBox Margin="8" Width="310" Text="{Binding GmailDecisionMaxArbitrationPercent, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" materialDesign:HintAssist.Hint="Second-opinion budget (%)" IsEnabled="False" />
+                        <TextBox Margin="8" Width="310" Text="{Binding GmailDecisionMaxArbitrationCalls, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" materialDesign:HintAssist.Hint="Max Arbitration Calls" IsEnabled="False" />
                         <TextBox Margin="8" Width="310" Text="{Binding GmailDecisionQualityWarningPercent, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" materialDesign:HintAssist.Hint="Quality Warning Percent" />
                     </WrapPanel>
                 </StackPanel>

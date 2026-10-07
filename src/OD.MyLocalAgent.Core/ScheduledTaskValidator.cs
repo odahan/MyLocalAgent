@@ -130,7 +130,7 @@ public static partial class ScheduledTaskValidator
             throw new TaskValidationException("Task 'knowledgeAccess' requires the 'knowledge' tool group.");
         }
 
-        ValidateWorkflow(task.Workflow, toolGroups, knowledgeTags);
+        ValidateWorkflow(task.Workflow, toolGroups, knowledgeTags, task.ErrorPolicy);
     }
 
     /// <summary>
@@ -237,7 +237,8 @@ public static partial class ScheduledTaskValidator
     private static void ValidateWorkflow(
         IReadOnlyList<WorkflowStepDefinition> workflow,
         IReadOnlySet<string> toolGroups,
-        IReadOnlyList<string> taskKnowledgeTags)
+        IReadOnlyList<string> taskKnowledgeTags,
+        WorkflowErrorPolicy errorPolicy = WorkflowErrorPolicy.StopOnError)
     {
         var identifiers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -396,6 +397,7 @@ public static partial class ScheduledTaskValidator
             ValidateArguments(step, definition);
             if (step.Step == "gmailDecision.readClassify") GmailDecisionContractValidator.Validate(step.Args);
             if (step.Step == "decision.evaluate") DecisionEvaluateContract.Validate(step.Args);
+            if (step.DecisionRoutes is not null) _ = DecisionRouteDefinition.Parse(step);
             if (definition.IsControlFlowStep)
             {
                 _ = WorkflowDecisionDefinition.Parse(step.Args);
@@ -425,10 +427,10 @@ public static partial class ScheduledTaskValidator
             identifiers.Add(step.EffectiveId);
         }
 
-        ValidateRouting(workflow);
+        ValidateRouting(workflow, errorPolicy);
     }
 
-    private static void ValidateRouting(IReadOnlyList<WorkflowStepDefinition> workflow)
+    private static void ValidateRouting(IReadOnlyList<WorkflowStepDefinition> workflow, WorkflowErrorPolicy errorPolicy)
     {
         if (workflow.Count == 0)
         {
@@ -454,7 +456,16 @@ public static partial class ScheduledTaskValidator
                 }
             }
 
-            targets.Add(step.Next ?? (index + 1 < workflow.Count ? workflow[index + 1].EffectiveId : end));
+            if (step.DecisionRoutes is not null)
+            {
+                targets.AddRange(DecisionRouteDefinition.Parse(step).Targets);
+                if ((step.OnError ?? errorPolicy) == WorkflowErrorPolicy.ContinueOnError)
+                    targets.Add(index + 1 < workflow.Count ? workflow[index + 1].EffectiveId : end);
+            }
+            else
+            {
+                targets.Add(step.Next ?? (index + 1 < workflow.Count ? workflow[index + 1].EffectiveId : end));
+            }
             edges[index] = [];
             foreach (var target in targets.Distinct(StringComparer.OrdinalIgnoreCase))
             {

@@ -56,6 +56,14 @@ public sealed class OpenAIClientService : ILlmClientService, IOpenAIModelCatalog
     /// <inheritdoc />
     public IChatClient ChatClient => _chatClient;
 
+    /// <summary>Captures the selected cloud transport without copying settings into prompt content.</summary>
+    public LlmClientSnapshot Capture()
+    {
+        var settings = _options.CurrentValue with { };
+        return new(ProviderName, settings.Model,
+            new DynamicOpenAIChatClient(_httpClientFactory, new FrozenOptionsMonitor<OpenAIOptions>(settings), _executionGate), false);
+    }
+
     /// <inheritdoc />
     public string ProviderName => AIOptions.OpenAIProvider;
 

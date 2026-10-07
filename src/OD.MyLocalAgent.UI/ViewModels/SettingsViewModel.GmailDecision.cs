@@ -15,6 +15,22 @@ public sealed partial class SettingsViewModel
     private readonly IOptionsMonitor<GmailDecisionOptions>? _gmailDecisionOptions;
     private readonly IOptionsMonitor<DecisionOptions>? _decisionOptions;
     [ObservableProperty] private bool _decisionEnabled;
+    [ObservableProperty] private string _decisionEngine = "NativeDecision";
+    [ObservableProperty] private int _decisionCentralMaxOutputTokens = 512;
+    [ObservableProperty] private int _decisionCentralTimeoutSeconds = 180;
+    [ObservableProperty] private int _decisionCentralGateWaitSeconds = 30;
+    /// <summary>Gets the global engine choices.</summary>
+    public IReadOnlyList<DecisionEngineChoice> DecisionEngines { get; } =
+        [new("CentralLlm", "Use application LLM"), new("NativeDecision", "Use a decision model")];
+    /// <summary>Gets whether dedicated native controls apply to the selected engine.</summary>
+    public bool IsNativeDecisionEngine => DecisionEngine == "NativeDecision";
+    /// <summary>Gets the English product label for the selected engine.</summary>
+    public string DecisionEngineDescription => IsNativeDecisionEngine ? "Use a decision model" : "Use application LLM (central provider and model)";
+    partial void OnDecisionEngineChanged(string value)
+    {
+        OnPropertyChanged(nameof(IsNativeDecisionEngine));
+        OnPropertyChanged(nameof(DecisionEngineDescription));
+    }
     [ObservableProperty] private int _decisionOperationTimeoutSeconds = 180;
     [ObservableProperty] private int _decisionMaxInputTokens = 2050;
     private readonly ILocalDecisionClient? _localDecisionClient;
@@ -115,6 +131,10 @@ public sealed partial class SettingsViewModel
     private DecisionOptions GetDecisionOptions() => DecisionOptions.FromLegacy(GetGmailDecisionOptions()) with
     {
         Enabled = DecisionEnabled,
+        Engine = DecisionEngine,
+        CentralMaxOutputTokens = DecisionCentralMaxOutputTokens,
+        CentralTimeoutSeconds = DecisionCentralTimeoutSeconds,
+        CentralGateWaitSeconds = DecisionCentralGateWaitSeconds,
         OperationTimeoutSeconds = DecisionOperationTimeoutSeconds,
         MaxInputTokens = DecisionMaxInputTokens,
     };
@@ -138,6 +158,7 @@ public sealed partial class SettingsViewModel
     [RelayCommand]
     private async Task TestDecisionModelAsync(CancellationToken cancellationToken)
     {
+        if (!IsNativeDecisionEngine) { DecisionModelTestStatus = "Use Test decision in the workflow editor to test the selected application LLM."; return; }
         if (_localDecisionClient is null) { DecisionModelTestStatus = "Local decision client is unavailable."; return; }
         var settings = GetGmailDecisionOptions();
         if (!DecisionOptions.IsValid(GetDecisionOptions())) { DecisionModelTestStatus = "Check local decision settings and limits."; return; }
@@ -182,3 +203,6 @@ public sealed partial class SettingsViewModel
         }
     }
 }
+
+/// <summary>Displays an English product label while persisting the stable engine identifier.</summary>
+public sealed record DecisionEngineChoice(string Engine, string Label);

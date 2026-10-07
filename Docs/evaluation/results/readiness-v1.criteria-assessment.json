@@ -1,0 +1,38 @@
+{
+  "conclusion": "does-not-meet-pilot-criteria",
+  "failures": [
+    "Accepted coverage is below the frozen minimum.",
+    "Wrong accepted route rate exceeds the frozen maximum."
+  ],
+  "missingEvidence": [],
+  "metrics": {
+    "backend": "native",
+    "split": "held-out",
+    "language": "all",
+    "count": 60,
+    "scored": 60,
+    "correct": 36,
+    "accepted": 30,
+    "wrongAccepted": 6,
+    "uncertain": 30,
+    "unavailable": 0,
+    "choiceAccuracy": 0.6,
+    "coverage": 0.5,
+    "acceptedAccuracy": 0.8,
+    "wrongAcceptedRate": 0.1,
+    "medianMs": 200.8763,
+    "p95Ms": 2581.3508,
+    "confusion": {
+      "process -\u003E process": 21,
+      "process -\u003E review": 3,
+      "clarify -\u003E clarify": 6,
+      "clarify -\u003E process": 12,
+      "review -\u003E process": 3,
+      "review -\u003E review": 9,
+      "review -\u003E clarify": 6
+    }
+  },
+  "independentInputs": 20,
+  "independentPairs": 10,
+  "limitation": "Repeated runs are correlated. A small held-out pilot is not a production reliability guarantee or sufficient evidence of benefit over baselines."
+}

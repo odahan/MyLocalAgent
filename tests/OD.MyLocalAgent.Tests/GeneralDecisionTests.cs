@@ -119,7 +119,7 @@ public sealed class GeneralDecisionTests
         h.Response = Payload(0.75);
         var result = await h.Evaluate();
         result.Status.Should().Be("accepted");
-        result.Acceptance.MinTopProbability.Should().Be(0.75);
+        result.Acceptance!.MinTopProbability.Should().Be(0.75);
         result.Acceptance.MinMargin.Should().Be(0.5);
         result.TopProbability.Should().Be(0.75);
         result.Margin.Should().Be(0.5);
@@ -303,7 +303,7 @@ public sealed class GeneralDecisionTests
         var tool = new DecisionTool(new ToolExecutionContext("task", [], [], surface: ToolInvocationSurface.WorkflowTest), h.Service);
         var result = Json(await tool.EvaluateAsync("Explicit test text.", "Is the request complete?", Choices));
         result.GetProperty("status").GetString().Should().Be("accepted");
-        result.GetProperty("schemaVersion").GetInt32().Should().Be(1);
+        result.GetProperty("schemaVersion").GetInt32().Should().Be(2);
     }
 
     /// <summary>The common scoring service retains named Boolean and rubric question support independently of mail policy.</summary>

@@ -58,6 +58,22 @@ public sealed class LocalDecisionClientTests : IDisposable
         response.Payload.GetProperty("q").GetBoolean().Should().BeTrue();
     }
 
+    /// <summary>Explicit generic classification changes only the fixed instruction and bounded keep-alive.</summary>
+    [Fact]
+    public async Task GenericBenchmarkUsesItsRecordedInstructionAndBoundedResidency()
+    {
+        using var handler = new StubHttpMessageHandler(async (request, ct) =>
+        {
+            var body = Json(await request.Content!.ReadAsStringAsync(ct));
+            body.GetProperty("messages")[0].GetProperty("content").GetString().Should().StartWith("Assess one explicit input.").And.NotContain("email");
+            body.GetProperty("keep_alive").GetString().Should().Be("10s");
+            body.GetProperty("think").GetBoolean().Should().BeFalse();
+            body.TryGetProperty("tools", out _).Should().BeFalse();
+            return Response("{\"done\":true,\"message\":{\"content\":\"{\\\"choice\\\":\\\"one\\\"}\"}}");
+        });
+        _ = await Client(handler).ClassifyAsync(Request() with { ClassificationInstructions = "Assess one explicit input. " }, Json("{}"), default);
+    }
+
     /// <summary>Truncated, thinking-enabled and fenced responses fail without accepting an expensive alternate path.</summary>
     [Theory]
     [InlineData("{\"done\":false,\"message\":{\"content\":\"{}\"}}", "LlmOutputTruncation")]

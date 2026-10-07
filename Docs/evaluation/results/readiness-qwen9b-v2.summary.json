@@ -1,0 +1,1058 @@
+{
+  "analyzedUtc": "2026-10-07T13:51:36.134007+00:00",
+  "analysisAssemblySha256": "AEB30141ADA009E7EAEC07FCE95C68374851FE66E60E915423F4047927A46FCC",
+  "metrics": [
+    {
+      "backend": "llm",
+      "split": "all",
+      "language": "all",
+      "count": 180,
+      "scored": 180,
+      "correct": 123,
+      "accepted": 180,
+      "wrongAccepted": 57,
+      "uncertain": 0,
+      "unavailable": 0,
+      "choiceAccuracy": 0.6833333333333333,
+      "coverage": 1,
+      "acceptedAccuracy": 0.6833333333333333,
+      "wrongAcceptedRate": 0.31666666666666665,
+      "medianMs": 217.6875,
+      "p95Ms": 243.5076,
+      "confusion": {
+        "process -\u003E process": 42,
+        "process -\u003E review": 18,
+        "clarify -\u003E review": 21,
+        "clarify -\u003E clarify": 39,
+        "review -\u003E review": 42,
+        "review -\u003E clarify": 18
+      }
+    },
+    {
+      "backend": "llm",
+      "split": "all",
+      "language": "fr",
+      "count": 90,
+      "scored": 90,
+      "correct": 57,
+      "accepted": 90,
+      "wrongAccepted": 33,
+      "uncertain": 0,
+      "unavailable": 0,
+      "choiceAccuracy": 0.6333333333333333,
+      "coverage": 1,
+      "acceptedAccuracy": 0.6333333333333333,
+      "wrongAcceptedRate": 0.36666666666666664,
+      "medianMs": 213.859,
+      "p95Ms": 243.5076,
+      "confusion": {
+        "process -\u003E process": 21,
+        "process -\u003E review": 9,
+        "clarify -\u003E review": 15,
+        "clarify -\u003E clarify": 15,
+        "review -\u003E review": 21,
+        "review -\u003E clarify": 9
+      }
+    },
+    {
+      "backend": "llm",
+      "split": "all",
+      "language": "en",
+      "count": 90,
+      "scored": 90,
+      "correct": 66,
+      "accepted": 90,
+      "wrongAccepted": 24,
+      "uncertain": 0,
+      "unavailable": 0,
+      "choiceAccuracy": 0.7333333333333333,
+      "coverage": 1,
+      "acceptedAccuracy": 0.7333333333333333,
+      "wrongAcceptedRate": 0.26666666666666666,
+      "medianMs": 222.8154,
+      "p95Ms": 247.3335,
+      "confusion": {
+        "process -\u003E process": 21,
+        "process -\u003E review": 9,
+        "clarify -\u003E clarify": 24,
+        "clarify -\u003E review": 6,
+        "review -\u003E review": 21,
+        "review -\u003E clarify": 9
+      }
+    },
+    {
+      "backend": "llm",
+      "split": "development",
+      "language": "all",
+      "count": 120,
+      "scored": 120,
+      "correct": 93,
+      "accepted": 120,
+      "wrongAccepted": 27,
+      "uncertain": 0,
+      "unavailable": 0,
+      "choiceAccuracy": 0.775,
+      "coverage": 1,
+      "acceptedAccuracy": 0.775,
+      "wrongAcceptedRate": 0.225,
+      "medianMs": 219.0866,
+      "p95Ms": 243.5076,
+      "confusion": {
+        "process -\u003E process": 30,
+        "process -\u003E review": 6,
+        "clarify -\u003E review": 15,
+        "clarify -\u003E clarify": 27,
+        "review -\u003E review": 36,
+        "review -\u003E clarify": 6
+      }
+    },
+    {
+      "backend": "llm",
+      "split": "development",
+      "language": "fr",
+      "count": 60,
+      "scored": 60,
+      "correct": 45,
+      "accepted": 60,
+      "wrongAccepted": 15,
+      "uncertain": 0,
+      "unavailable": 0,
+      "choiceAccuracy": 0.75,
+      "coverage": 1,
+      "acceptedAccuracy": 0.75,
+      "wrongAcceptedRate": 0.25,
+      "medianMs": 215.4103,
+      "p95Ms": 243.5076,
+      "confusion": {
+        "process -\u003E process": 15,
+        "process -\u003E review": 3,
+        "clarify -\u003E review": 9,
+        "clarify -\u003E clarify": 12,
+        "review -\u003E review": 18,
+        "review -\u003E clarify": 3
+      }
+    },
+    {
+      "backend": "llm",
+      "split": "development",
+      "language": "en",
+      "count": 60,
+      "scored": 60,
+      "correct": 48,
+      "accepted": 60,
+      "wrongAccepted": 12,
+      "uncertain": 0,
+      "unavailable": 0,
+      "choiceAccuracy": 0.8,
+      "coverage": 1,
+      "acceptedAccuracy": 0.8,
+      "wrongAcceptedRate": 0.2,
+      "medianMs": 224.1799,
+      "p95Ms": 242.8464,
+      "confusion": {
+        "process -\u003E process": 15,
+        "process -\u003E review": 3,
+        "clarify -\u003E clarify": 15,
+        "clarify -\u003E review": 6,
+        "review -\u003E review": 18,
+        "review -\u003E clarify": 3
+      }
+    },
+    {
+      "backend": "llm",
+      "split": "held-out",
+      "language": "all",
+      "count": 60,
+      "scored": 60,
+      "correct": 30,
+      "accepted": 60,
+      "wrongAccepted": 30,
+      "uncertain": 0,
+      "unavailable": 0,
+      "choiceAccuracy": 0.5,
+      "coverage": 1,
+      "acceptedAccuracy": 0.5,
+      "wrongAcceptedRate": 0.5,
+      "medianMs": 215.8207,
+      "p95Ms": 241.3365,
+      "confusion": {
+        "process -\u003E process": 12,
+        "process -\u003E review": 12,
+        "clarify -\u003E clarify": 12,
+        "clarify -\u003E review": 6,
+        "review -\u003E review": 6,
+        "review -\u003E clarify": 12
+      }
+    },
+    {
+      "backend": "llm",
+      "split": "held-out",
+      "language": "fr",
+      "count": 30,
+      "scored": 30,
+      "correct": 12,
+      "accepted": 30,
+      "wrongAccepted": 18,
+      "uncertain": 0,
+      "unavailable": 0,
+      "choiceAccuracy": 0.4,
+      "coverage": 1,
+      "acceptedAccuracy": 0.4,
+      "wrongAcceptedRate": 0.6,
+      "medianMs": 209.2495,
+      "p95Ms": 239.8237,
+      "confusion": {
+        "process -\u003E process": 6,
+        "process -\u003E review": 6,
+        "clarify -\u003E clarify": 3,
+        "clarify -\u003E review": 6,
+        "review -\u003E review": 3,
+        "review -\u003E clarify": 6
+      }
+    },
+    {
+      "backend": "llm",
+      "split": "held-out",
+      "language": "en",
+      "count": 30,
+      "scored": 30,
+      "correct": 18,
+      "accepted": 30,
+      "wrongAccepted": 12,
+      "uncertain": 0,
+      "unavailable": 0,
+      "choiceAccuracy": 0.6,
+      "coverage": 1,
+      "acceptedAccuracy": 0.6,
+      "wrongAcceptedRate": 0.4,
+      "medianMs": 221.1933,
+      "p95Ms": 248.4208,
+      "confusion": {
+        "process -\u003E process": 6,
+        "process -\u003E review": 6,
+        "clarify -\u003E clarify": 9,
+        "review -\u003E review": 3,
+        "review -\u003E clarify": 6
+      }
+    }
+  ],
+  "latency": [
+    {
+      "backend": "llm",
+      "cold": true,
+      "count": 1,
+      "medianMs": 4320.4956,
+      "p95Ms": 4320.4956
+    },
+    {
+      "backend": "llm",
+      "cold": false,
+      "count": 179,
+      "medianMs": 217.6875,
+      "p95Ms": 243.5076
+    }
+  ],
+  "paired": [
+    {
+      "backend": "llm",
+      "pairId": "p01",
+      "repetition": 1,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p02",
+      "repetition": 1,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p03",
+      "repetition": 1,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p04",
+      "repetition": 1,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p05",
+      "repetition": 1,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p06",
+      "repetition": 1,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p07",
+      "repetition": 1,
+      "choicesDisagree": true,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p08",
+      "repetition": 1,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p09",
+      "repetition": 1,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p10",
+      "repetition": 1,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p11",
+      "repetition": 1,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p12",
+      "repetition": 1,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p13",
+      "repetition": 1,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p14",
+      "repetition": 1,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p15",
+      "repetition": 1,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p16",
+      "repetition": 1,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p17",
+      "repetition": 1,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p18",
+      "repetition": 1,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p19",
+      "repetition": 1,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p20",
+      "repetition": 1,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p21",
+      "repetition": 1,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p22",
+      "repetition": 1,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p23",
+      "repetition": 1,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p24",
+      "repetition": 1,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p25",
+      "repetition": 1,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p26",
+      "repetition": 1,
+      "choicesDisagree": true,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p27",
+      "repetition": 1,
+      "choicesDisagree": true,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p28",
+      "repetition": 1,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p29",
+      "repetition": 1,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p30",
+      "repetition": 1,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p01",
+      "repetition": 2,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p02",
+      "repetition": 2,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p03",
+      "repetition": 2,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p04",
+      "repetition": 2,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p05",
+      "repetition": 2,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p06",
+      "repetition": 2,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p07",
+      "repetition": 2,
+      "choicesDisagree": true,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p08",
+      "repetition": 2,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p09",
+      "repetition": 2,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p10",
+      "repetition": 2,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p11",
+      "repetition": 2,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p12",
+      "repetition": 2,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p13",
+      "repetition": 2,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p14",
+      "repetition": 2,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p15",
+      "repetition": 2,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p16",
+      "repetition": 2,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p17",
+      "repetition": 2,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p18",
+      "repetition": 2,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p19",
+      "repetition": 2,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p20",
+      "repetition": 2,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p21",
+      "repetition": 2,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p22",
+      "repetition": 2,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p23",
+      "repetition": 2,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p24",
+      "repetition": 2,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p25",
+      "repetition": 2,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p26",
+      "repetition": 2,
+      "choicesDisagree": true,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p27",
+      "repetition": 2,
+      "choicesDisagree": true,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p28",
+      "repetition": 2,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p29",
+      "repetition": 2,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p30",
+      "repetition": 2,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p01",
+      "repetition": 3,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p02",
+      "repetition": 3,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p03",
+      "repetition": 3,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p04",
+      "repetition": 3,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p05",
+      "repetition": 3,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p06",
+      "repetition": 3,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p07",
+      "repetition": 3,
+      "choicesDisagree": true,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p08",
+      "repetition": 3,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p09",
+      "repetition": 3,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p10",
+      "repetition": 3,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p11",
+      "repetition": 3,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p12",
+      "repetition": 3,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p13",
+      "repetition": 3,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p14",
+      "repetition": 3,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p15",
+      "repetition": 3,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p16",
+      "repetition": 3,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p17",
+      "repetition": 3,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p18",
+      "repetition": 3,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p19",
+      "repetition": 3,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p20",
+      "repetition": 3,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p21",
+      "repetition": 3,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p22",
+      "repetition": 3,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p23",
+      "repetition": 3,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p24",
+      "repetition": 3,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p25",
+      "repetition": 3,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p26",
+      "repetition": 3,
+      "choicesDisagree": true,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p27",
+      "repetition": 3,
+      "choicesDisagree": true,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p28",
+      "repetition": 3,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p29",
+      "repetition": 3,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    },
+    {
+      "backend": "llm",
+      "pairId": "p30",
+      "repetition": 3,
+      "choicesDisagree": false,
+      "statusesDisagree": false
+    }
+  ],
+  "categories": [
+    {
+      "backend": "llm",
+      "split": "development",
+      "category": "ordinary",
+      "count": 12,
+      "wrongAccepted": 0
+    },
+    {
+      "backend": "llm",
+      "split": "development",
+      "category": "field-order",
+      "count": 6,
+      "wrongAccepted": 0
+    },
+    {
+      "backend": "llm",
+      "split": "development",
+      "category": "irrelevant-content",
+      "count": 6,
+      "wrongAccepted": 0
+    },
+    {
+      "backend": "llm",
+      "split": "development",
+      "category": "negation",
+      "count": 12,
+      "wrongAccepted": 0
+    },
+    {
+      "backend": "llm",
+      "split": "development",
+      "category": "injection",
+      "count": 18,
+      "wrongAccepted": 12
+    },
+    {
+      "backend": "llm",
+      "split": "development",
+      "category": "missing-contact",
+      "count": 6,
+      "wrongAccepted": 3
+    },
+    {
+      "backend": "llm",
+      "split": "development",
+      "category": "missing-date",
+      "count": 6,
+      "wrongAccepted": 0
+    },
+    {
+      "backend": "llm",
+      "split": "development",
+      "category": "missing-time",
+      "count": 6,
+      "wrongAccepted": 0
+    },
+    {
+      "backend": "llm",
+      "split": "development",
+      "category": "missing-service",
+      "count": 6,
+      "wrongAccepted": 6
+    },
+    {
+      "backend": "llm",
+      "split": "development",
+      "category": "relative-date",
+      "count": 6,
+      "wrongAccepted": 0
+    },
+    {
+      "backend": "llm",
+      "split": "development",
+      "category": "contradictory-date",
+      "count": 6,
+      "wrongAccepted": 0
+    },
+    {
+      "backend": "llm",
+      "split": "development",
+      "category": "ambiguous-service",
+      "count": 6,
+      "wrongAccepted": 0
+    },
+    {
+      "backend": "llm",
+      "split": "development",
+      "category": "unsupported-service",
+      "count": 6,
+      "wrongAccepted": 0
+    },
+    {
+      "backend": "llm",
+      "split": "development",
+      "category": "unrelated",
+      "count": 6,
+      "wrongAccepted": 0
+    },
+    {
+      "backend": "llm",
+      "split": "development",
+      "category": "overlapping-options",
+      "count": 6,
+      "wrongAccepted": 6
+    },
+    {
+      "backend": "llm",
+      "split": "development",
+      "category": "contradictory-time",
+      "count": 6,
+      "wrongAccepted": 0
+    },
+    {
+      "backend": "llm",
+      "split": "held-out",
+      "category": "ordinary",
+      "count": 6,
+      "wrongAccepted": 0
+    },
+    {
+      "backend": "llm",
+      "split": "held-out",
+      "category": "boundary",
+      "count": 6,
+      "wrongAccepted": 0
+    },
+    {
+      "backend": "llm",
+      "split": "held-out",
+      "category": "negation",
+      "count": 12,
+      "wrongAccepted": 9
+    },
+    {
+      "backend": "llm",
+      "split": "held-out",
+      "category": "injection",
+      "count": 12,
+      "wrongAccepted": 9
+    },
+    {
+      "backend": "llm",
+      "split": "held-out",
+      "category": "missing-facts",
+      "count": 6,
+      "wrongAccepted": 0
+    },
+    {
+      "backend": "llm",
+      "split": "held-out",
+      "category": "ambiguous-date",
+      "count": 6,
+      "wrongAccepted": 0
+    },
+    {
+      "backend": "llm",
+      "split": "held-out",
+      "category": "unsupported-and-missing",
+      "count": 6,
+      "wrongAccepted": 6
+    },
+    {
+      "backend": "llm",
+      "split": "held-out",
+      "category": "unrelated-injection",
+      "count": 6,
+      "wrongAccepted": 6
+    }
+  ],
+  "sweeps": []
+}

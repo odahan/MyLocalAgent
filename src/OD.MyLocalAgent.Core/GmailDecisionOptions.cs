@@ -66,4 +66,9 @@ public sealed record GmailDecisionOptions
         o.MaxMessagesPerOperation is >= 1 and <= 500 && o.MaxProjectionCharacters is >= 2048 and <= 12000 &&
         o.MaxArbitrationPercent is >= 0 and <= 100 && o.MaxArbitrationCalls is >= 0 and <= 500 &&
         o.QualityWarningPercent is >= 0 and <= 100 && o.UnavailableBehavior is "LightweightLlmFallback" or "Fail";
+
+    /// <summary>Validates active mail limits independently from retained inactive native and arbitration settings.</summary>
+    public static bool IsValidMail(GmailDecisionOptions o) =>
+        o.BatchTimeoutSeconds is >= 10 and <= 3600 && o.MaxMessagesPerOperation is >= 1 and <= 500 &&
+        o.MaxProjectionCharacters is >= 2048 and <= 12000 && o.QualityWarningPercent is >= 0 and <= 100;
 }

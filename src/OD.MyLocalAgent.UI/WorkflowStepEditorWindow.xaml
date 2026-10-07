@@ -84,6 +84,7 @@
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Identifier" Binding="{Binding Key, UpdateSourceTrigger=PropertyChanged}" Width="150" />
                             <DataGridTextColumn Header="Description" Binding="{Binding Description, UpdateSourceTrigger=PropertyChanged}" Width="*" />
+                            <DataGridTextColumn Header="Destination (Route by decision)" Binding="{Binding Target, UpdateSourceTrigger=PropertyChanged}" Width="200" />
                         </DataGrid.Columns>
                     </DataGrid>
                     <WrapPanel>
@@ -93,13 +94,23 @@
                         <Button Content="Move down" Command="{Binding MoveEvaluationOptionDownCommand}" />
                     </WrapPanel>
                     <TextBlock Text="Identifiers start with a letter and contain letters, digits or underscores (maximum 64 characters). Descriptions are literal text (maximum 400 characters)." TextWrapping="Wrap" Style="{StaticResource CaptionTextStyle}" />
+                    <TextBlock Margin="0,8" Text="{Binding EvaluationEngineText}" TextWrapping="Wrap" />
+                    <CheckBox Margin="0,8" Content="Route by decision" IsChecked="{Binding RouteByDecision}" />
+                    <StackPanel Visibility="{Binding RouteByDecision, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Text="Set a destination for every option in the table. Only accepted choices follow these routes. Leave Next blank. Destinations must be existing step ids or @end." TextWrapping="Wrap" />
+                        <ComboBox Margin="0,8" IsEditable="True" ItemsSource="{Binding EvaluationRouteTargets}" Text="{Binding EvaluationUncertainTarget, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Uncertain destination (native thresholds or tie)" AutomationProperties.Name="Uncertain decision destination" />
+                        <ComboBox Margin="0,8" IsEditable="True" ItemsSource="{Binding EvaluationRouteTargets}" Text="{Binding EvaluationUnavailableTarget, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Unavailable destination (technical failure)" AutomationProperties.Name="Unavailable decision destination" />
+                        <TextBlock Text="A review option has its own ordinary destination. Central results use validatedChoice with no scores. Testing evaluates the sample only and never runs a destination. Execution errors retain the task error policy; ContinueOnError follows declaration order." TextWrapping="Wrap" Style="{StaticResource CaptionTextStyle}" />
+                    </StackPanel>
+                    <Button Content="Decision settings" Command="{Binding OpenDecisionSettingsCommand}" HorizontalAlignment="Left" />
                     <TextBlock Margin="0,8,0,4" Text="{Binding EvaluationDefaultsText}" TextWrapping="Wrap" />
                     <TextBlock Text="{Binding EvaluationEffectiveText}" TextWrapping="Wrap" />
+                    <Button Content="Remove explicit native acceptance" Command="{Binding RemoveEvaluationAcceptanceCommand}" HorizontalAlignment="Left" />
                     <Expander Header="Advanced acceptance settings" IsExpanded="False">
                         <StackPanel Margin="0,8">
-                            <CheckBox Content="Override minimum top probability" IsChecked="{Binding OverrideEvaluationTop}" />
+                            <CheckBox IsEnabled="{Binding EvaluationSupportsScores}" Content="Override minimum top probability" IsChecked="{Binding OverrideEvaluationTop}" />
                             <TextBox IsEnabled="{Binding OverrideEvaluationTop}" Text="{Binding EvaluationTopPercent, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Minimum top probability (%)" />
-                            <CheckBox Content="Override minimum margin" IsChecked="{Binding OverrideEvaluationMargin}" />
+                            <CheckBox IsEnabled="{Binding EvaluationSupportsScores}" Content="Override minimum margin" IsChecked="{Binding OverrideEvaluationMargin}" />
                             <TextBox IsEnabled="{Binding OverrideEvaluationMargin}" Text="{Binding EvaluationMarginPercent, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Minimum margin (percentage points)" />
                         </StackPanel>
                     </Expander>
@@ -113,7 +124,7 @@
                     </WrapPanel>
                     <TextBlock Text="{Binding EvaluationMessage}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
                     <TextBlock Margin="0,8,0,4" Text="{Binding EvaluationSummary}" TextWrapping="Wrap" />
-                    <DataGrid ItemsSource="{Binding EvaluationScores}" IsReadOnly="True" AutoGenerateColumns="False" CanUserAddRows="False" CanUserSortColumns="False" MaxHeight="300" AutomationProperties.Name="Last decision test scores">
+                    <DataGrid Visibility="{Binding EvaluationSupportsScores, Converter={StaticResource BooleanToVisibilityConverter}}" ItemsSource="{Binding EvaluationScores}" IsReadOnly="True" AutoGenerateColumns="False" CanUserAddRows="False" CanUserSortColumns="False" MaxHeight="300" AutomationProperties.Name="Last decision test scores">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Option" Binding="{Binding Identifier}" Width="150" />
                             <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*" />

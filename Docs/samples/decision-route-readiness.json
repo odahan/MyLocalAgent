@@ -1,0 +1,34 @@
+{
+  "id": "decision-route-readiness",
+  "name": "Route by decision (example)",
+  "schedule": "0 9 * * *",
+  "prompt": "",
+  "tools": ["decision"],
+  "enabled": false,
+  "errorPolicy": "StopOnError",
+  "workflow": [
+    {
+      "step": "decision.evaluate",
+      "id": "readiness",
+      "args": {
+        "source": "Please deliver the quarterly report to the project team tomorrow.",
+        "question": "Does this request contain enough essential information to proceed?",
+        "options": {
+          "process": "The work, destination and date are present.",
+          "clarify": "Essential facts are missing.",
+          "review": "The request needs human review."
+        }
+      },
+      "decisionRoutes": {
+        "choices": { "process": "handleProcess", "clarify": "handleClarify", "review": "handleReview" },
+        "uncertain": "handleUncertain",
+        "unavailable": "handleUnavailable"
+      }
+    },
+    { "step": "ai.summarize", "id": "handleProcess", "next": "@end", "args": { "text": "Ready to proceed. Decision provenance: {{readiness.output}}" } },
+    { "step": "ai.summarize", "id": "handleClarify", "next": "@end", "args": { "text": "Ask for missing essential facts. Decision provenance: {{readiness.output}}" } },
+    { "step": "ai.summarize", "id": "handleReview", "next": "@end", "args": { "text": "Semantic review option selected. Decision provenance: {{readiness.output}}" } },
+    { "step": "ai.summarize", "id": "handleUncertain", "next": "@end", "args": { "text": "Native acceptance checks failed or candidates tied. Review manually. Decision provenance: {{readiness.output}}" } },
+    { "step": "ai.summarize", "id": "handleUnavailable", "next": "@end", "args": { "text": "Technical decision failure. Review configuration and retry explicitly. Decision provenance: {{readiness.output}}" } }
+  ]
+}

@@ -27,6 +27,15 @@ public sealed class WorkflowStepEditorDialogService : IWorkflowStepEditorDialogS
         var closingByCommand = false;
         var windowLoaded = false;
         viewModel.CloseRequested += OnCloseRequested;
+        viewModel.DecisionSettingsRequested += (_, _) =>
+        {
+            var settings = new Window
+            {
+                Title = "Decision models — Settings", Owner = window, Width = 1000, Height = 800,
+                Content = new OD.MyLocalAgent.UI.Pages.SettingsPage { DataContext = _services.GetRequiredService<SettingsViewModel>() },
+            };
+            _ = settings.ShowDialog();
+        };
         window.Loaded += async (_, _) =>
         {
             windowLoaded = true;

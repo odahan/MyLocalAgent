@@ -36,13 +36,16 @@ internal sealed class DynamicOllamaChatClient : IChatClient
         var current = _options.CurrentValue;
         var model = options?.ModelId ?? current.Model;
         var timeoutSeconds = TimeoutExecutionScope.TimeoutSeconds ?? current.TimeoutSeconds;
-        using var lease = await _executionGate.EnterAsync(cancellationToken).ConfigureAwait(false);
+        var boundary = options?.AdditionalProperties?.GetValueOrDefault(BoundedLlmCall.OptionKey) as BoundedLlmCall;
+        using var lease = boundary is null ? await _executionGate.EnterAsync(cancellationToken).ConfigureAwait(false)
+            : await boundary.EnterAsync(_executionGate, cancellationToken).ConfigureAwait(false);
         using var timeoutSource = CreateTimeoutSource(timeoutSeconds, cancellationToken);
 
         try
         {
             await _ensureModelAvailableAsync(model, timeoutSource.Token).ConfigureAwait(false);
             var effectiveOptions = options?.Clone() ?? new ChatOptions();
+            effectiveOptions.AdditionalProperties?.Remove(BoundedLlmCall.OptionKey);
             effectiveOptions.ModelId = model;
             using var client = CreateClient(current, model);
             return await client.GetResponseAsync(messages, effectiveOptions, timeoutSource.Token).ConfigureAwait(false);

@@ -20,7 +20,7 @@ public sealed partial class WorkflowStepEditorViewModel
     {
         SetDecisionArgument("questions", GmailDecisionDefaults.QuestionsJson);
         SetDecisionArgument("reportMapping", GmailDecisionDefaults.ReportMappingJson);
-        SetDecisionArgument("acceptance", GmailDecisionDefaults.AcceptanceJson);
+        SetDecisionArgument("contractVersion", "2");
         OverrideErrorPolicy = true;
         OnError = WorkflowErrorPolicy.StopOnError;
         LoadDecisionQuestionFields();

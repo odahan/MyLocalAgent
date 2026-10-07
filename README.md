@@ -1998,40 +1998,61 @@ Knowledge access is deny-by-default. Enabling the task or Direct Chat `knowledge
 
 Configure the independent embedding provider and model in **Settings → Knowledge embeddings**. Ollama defaults to the pinned multilingual model `embeddinggemma:300m`; OpenAI-compatible embeddings reuse the configured endpoint and DPAPI-protected API key. The card tests the embedding endpoint separately from chat and reports the active index contract. Changing the embedding model or chunking contract marks the library as requiring reindex; **Knowledge → Reindex library** builds every replacement revision first and activates the complete new contract atomically. Knowledge data is not encrypted at rest and private workspace storage is an application-tool boundary, not an operating-system security boundary.
 
-## Gmail decision reader (Stage 31)
+## Gmail decision reader (Stages 31 and 32 C2)
 
-The opt-in **Gmail decision reader** has its own task group `gmailDecision` and two workflow-only
-aliases: `gmailDecision.readClassify` collects once and classifies locally; `gmailDecision.renderReport`
-creates Markdown by code. Settings includes independent model selectors, explicit synthetic testing,
-short residency, fixed local fallback and bounded acceptance/deadline controls. Existing Gmail
-workflows retain their behavior. Agents, Direct Chat, prompt tool aliases and forEach cannot invoke
-these tools. No production task or schedule is migrated automatically.
+The opt-in workflow group gmailDecision collects once through gmailDecision.readClassify and
+renders Markdown by code through gmailDecision.renderReport. New calls require contractVersion: 2
+and use the global decision engine. Raw mail remains local-only: cloud providers and remote
+Ollama aliases cannot receive it. Collection limits, independent enablement and task permissions
+still apply.
+
+Existing workflow arguments need an explicit migration: remove retired arbitration/unavailableBehavior
+arguments, add contractVersion 2, and remove or reconcile historical Hybrid/LlmOnly selectors
+with global Settings. Native acceptance must be retained deliberately or removed before choosing
+central mode. No saved task or schedule is automatically rewritten.
 
 See the [English guide](Docs/Gmail-Decision-Reader.en.md), [French guide](Docs/Gmail-Decision-Reader.fr.md)
-and [disabled example task](Docs/samples/gmail-decision-watch.json). Model scores are not accuracy
-guarantees. Live quality/latency benchmarking and deployment are separate authorized operations.
+and [disabled example task](Docs/samples/gmail-decision-watch.json).
 
-## Generic decision evaluation (Stage 32, phases A–B)
+## Generic decision evaluation (Stage 32 C2 and D)
 
-`decision.evaluate` exposes local native decisions independently of Gmail. Supply explicit source
-text, one literal question and 2–24 described options. The versioned JSON result distinguishes
-`accepted`, `uncertain` and `unavailable`, preserves validated native probabilities, and never
-silently falls back to a general LLM. Use unchanged `flow.decision` to check status before routing
-on an accepted choice.
+**Settings → Decision models** selects one shared engine: **Use application LLM**
+(CentralLlm) or **Use a decision model** (NativeDecision).
+New profiles select central mode while keeping feature enablement off; existing profiles without
+an Engine field retain native behavior. Canonical Decision settings take precedence over legacy
+GmailDecision values. Native settings survive a switch to central mode.
 
-**Settings → Decision models** owns the shared native configuration in `Decision`. Generic
-enablement is disabled by default and requires the task's separate `decision` group grant.
-Legacy-only settings migrate on save without enabling the generic tool or changing Gmail's
-arbitration/fallback policy. Gmail's `LlmOnly` mode still does not require Tev1. The executable
-configuration template retains legacy defaults so existing user overrides remain effective until
-migration; a complete canonical example is supplied separately.
+decision.evaluate accepts explicit source, a literal question and 2–24 described options.
+Its version 2 JSON carries engine/provider/model, capabilities, acceptanceBasis, status, choice
+and timings. Native results keep threshold checks and measured distributions. Central results
+validate an allowed choice, use validatedChoice and return null score/acceptance fields.
+A semantic review choice is an accepted answer, distinct from native uncertainty.
+
+Configuration is frozen before the first workflow step and separately for explicit editor tests.
+The central adapter uses the selected application provider/model in one isolated structured call,
+without tools, conversation history or RAG. Both engines have bounded calls, cancellation and
+provider-specific budgets, with no implicit fallback. Generic enablement and the task's
+decision group grant are independent.
+
+Check status before routing on choice. Native numeric routes need a dominating
+capabilities.scores = true guard; incompatible native acceptance is rejected before central
+execution. The editor shows the global engine, opens shared Settings and displays scores only
+when supplied. Explicit sample testing is cancellable and never runs or saves the surrounding task.
 
 See the [English guide](Docs/Decision-Evaluation.en.md), [French guide](Docs/Decision-Evaluation.fr.md),
-[configuration example](Docs/decision-settings.example.json) and
-[disabled routing sample](Docs/samples/decision-readiness.json). The specialized **Evaluate a
-decision** editor provides source placeholders, ordered options, inherited/advanced minimums
-and an explicit cancellable sample test with scores and timing. Testing neither runs the surrounding
-workflow nor saves the task; editing and saving never perform inference. A [30-pair FR/EN corpus
-and evaluation protocol](Docs/evaluation/Decision-Evaluation-Protocol.md) are prepared offline.
-Comparative model execution belongs to phase C. No live-mail evaluation or deployment is part
-of this implementation.
+[Technical Manual](Docs/Technical-Manual.html#generic-decision-evaluation),
+[configuration example](Docs/decision-settings.example.json),
+[disabled choice routing sample](Docs/samples/decision-readiness.json) and
+[native score routing sample](Docs/samples/decision-native-score.json).
+
+The original [evaluation protocol](Docs/evaluation/Decision-Evaluation-Protocol.md),
+[comparative executor](tools/DecisionEvaluation/README.md),
+[pilot results](Docs/evaluation/Stage32C-Results.en.md) and
+[Qwen comparison](Docs/evaluation/Stage32C-Qwen-Comparison.en.md) remain unchanged evidence.
+Tev1 did not meet the appointment routing criteria; the small public pilot is descriptive.
+Integrated routing D is available through **Route by decision** in the step editor. A top-level
+`decisionRoutes` maps every option plus `uncertain`/`unavailable` to explicit destinations, without
+`next` or `forEach`. The full result and global engine remain unchanged. See the
+[disabled integrated routing sample](Docs/samples/decision-route-readiness.json).
+Agent exposure E remains deferred. Live quality/latency benchmarking
+and deployment remain separately authorized operations.

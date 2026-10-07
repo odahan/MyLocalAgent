@@ -1,0 +1,543 @@
+{
+  "analyzedUtc": "2026-10-07T12:57:27.1231063+00:00",
+  "analysisAssemblySha256": "74EEB3D2A3AC2A0B8A546CECCE894B8B6ADB6EA1393A9E88BAF4A9D16A5E4C64",
+  "metrics": [
+    {
+      "backend": "native",
+      "split": "all",
+      "language": "all",
+      "count": 120,
+      "scored": 120,
+      "correct": 102,
+      "accepted": 84,
+      "wrongAccepted": 12,
+      "uncertain": 36,
+      "unavailable": 0,
+      "choiceAccuracy": 0.85,
+      "coverage": 0.7,
+      "acceptedAccuracy": 0.8571428571428571,
+      "wrongAcceptedRate": 0.1,
+      "medianMs": 3088.0901,
+      "p95Ms": 3390.2855,
+      "confusion": {
+        "SUPPORTS -\u003E SUPPORTS": 51,
+        "REFUTES -\u003E REFUTES": 33,
+        "NOT_ENOUGH_INFO -\u003E SUPPORTS": 3,
+        "NOT_ENOUGH_INFO -\u003E NOT_ENOUGH_INFO": 18,
+        "SUPPORTS -\u003E NOT_ENOUGH_INFO": 9,
+        "REFUTES -\u003E NOT_ENOUGH_INFO": 3,
+        "NOT_ENOUGH_INFO -\u003E REFUTES": 3
+      }
+    },
+    {
+      "backend": "native",
+      "split": "all",
+      "language": "en",
+      "count": 120,
+      "scored": 120,
+      "correct": 102,
+      "accepted": 84,
+      "wrongAccepted": 12,
+      "uncertain": 36,
+      "unavailable": 0,
+      "choiceAccuracy": 0.85,
+      "coverage": 0.7,
+      "acceptedAccuracy": 0.8571428571428571,
+      "wrongAcceptedRate": 0.1,
+      "medianMs": 3088.0901,
+      "p95Ms": 3390.2855,
+      "confusion": {
+        "SUPPORTS -\u003E SUPPORTS": 51,
+        "REFUTES -\u003E REFUTES": 33,
+        "NOT_ENOUGH_INFO -\u003E SUPPORTS": 3,
+        "NOT_ENOUGH_INFO -\u003E NOT_ENOUGH_INFO": 18,
+        "SUPPORTS -\u003E NOT_ENOUGH_INFO": 9,
+        "REFUTES -\u003E NOT_ENOUGH_INFO": 3,
+        "NOT_ENOUGH_INFO -\u003E REFUTES": 3
+      }
+    },
+    {
+      "backend": "native",
+      "split": "public",
+      "language": "all",
+      "count": 120,
+      "scored": 120,
+      "correct": 102,
+      "accepted": 84,
+      "wrongAccepted": 12,
+      "uncertain": 36,
+      "unavailable": 0,
+      "choiceAccuracy": 0.85,
+      "coverage": 0.7,
+      "acceptedAccuracy": 0.8571428571428571,
+      "wrongAcceptedRate": 0.1,
+      "medianMs": 3088.0901,
+      "p95Ms": 3390.2855,
+      "confusion": {
+        "SUPPORTS -\u003E SUPPORTS": 51,
+        "REFUTES -\u003E REFUTES": 33,
+        "NOT_ENOUGH_INFO -\u003E SUPPORTS": 3,
+        "NOT_ENOUGH_INFO -\u003E NOT_ENOUGH_INFO": 18,
+        "SUPPORTS -\u003E NOT_ENOUGH_INFO": 9,
+        "REFUTES -\u003E NOT_ENOUGH_INFO": 3,
+        "NOT_ENOUGH_INFO -\u003E REFUTES": 3
+      }
+    },
+    {
+      "backend": "native",
+      "split": "public",
+      "language": "en",
+      "count": 120,
+      "scored": 120,
+      "correct": 102,
+      "accepted": 84,
+      "wrongAccepted": 12,
+      "uncertain": 36,
+      "unavailable": 0,
+      "choiceAccuracy": 0.85,
+      "coverage": 0.7,
+      "acceptedAccuracy": 0.8571428571428571,
+      "wrongAcceptedRate": 0.1,
+      "medianMs": 3088.0901,
+      "p95Ms": 3390.2855,
+      "confusion": {
+        "SUPPORTS -\u003E SUPPORTS": 51,
+        "REFUTES -\u003E REFUTES": 33,
+        "NOT_ENOUGH_INFO -\u003E SUPPORTS": 3,
+        "NOT_ENOUGH_INFO -\u003E NOT_ENOUGH_INFO": 18,
+        "SUPPORTS -\u003E NOT_ENOUGH_INFO": 9,
+        "REFUTES -\u003E NOT_ENOUGH_INFO": 3,
+        "NOT_ENOUGH_INFO -\u003E REFUTES": 3
+      }
+    },
+    {
+      "backend": "llm",
+      "split": "all",
+      "language": "all",
+      "count": 120,
+      "scored": 120,
+      "correct": 96,
+      "accepted": 120,
+      "wrongAccepted": 24,
+      "uncertain": 0,
+      "unavailable": 0,
+      "choiceAccuracy": 0.8,
+      "coverage": 1,
+      "acceptedAccuracy": 0.8,
+      "wrongAcceptedRate": 0.2,
+      "medianMs": 224.7715,
+      "p95Ms": 336.2919,
+      "confusion": {
+        "SUPPORTS -\u003E SUPPORTS": 48,
+        "REFUTES -\u003E NOT_ENOUGH_INFO": 6,
+        "REFUTES -\u003E REFUTES": 30,
+        "SUPPORTS -\u003E NOT_ENOUGH_INFO": 6,
+        "NOT_ENOUGH_INFO -\u003E SUPPORTS": 6,
+        "NOT_ENOUGH_INFO -\u003E NOT_ENOUGH_INFO": 18,
+        "SUPPORTS -\u003E REFUTES": 6
+      }
+    },
+    {
+      "backend": "llm",
+      "split": "all",
+      "language": "en",
+      "count": 120,
+      "scored": 120,
+      "correct": 96,
+      "accepted": 120,
+      "wrongAccepted": 24,
+      "uncertain": 0,
+      "unavailable": 0,
+      "choiceAccuracy": 0.8,
+      "coverage": 1,
+      "acceptedAccuracy": 0.8,
+      "wrongAcceptedRate": 0.2,
+      "medianMs": 224.7715,
+      "p95Ms": 336.2919,
+      "confusion": {
+        "SUPPORTS -\u003E SUPPORTS": 48,
+        "REFUTES -\u003E NOT_ENOUGH_INFO": 6,
+        "REFUTES -\u003E REFUTES": 30,
+        "SUPPORTS -\u003E NOT_ENOUGH_INFO": 6,
+        "NOT_ENOUGH_INFO -\u003E SUPPORTS": 6,
+        "NOT_ENOUGH_INFO -\u003E NOT_ENOUGH_INFO": 18,
+        "SUPPORTS -\u003E REFUTES": 6
+      }
+    },
+    {
+      "backend": "llm",
+      "split": "public",
+      "language": "all",
+      "count": 120,
+      "scored": 120,
+      "correct": 96,
+      "accepted": 120,
+      "wrongAccepted": 24,
+      "uncertain": 0,
+      "unavailable": 0,
+      "choiceAccuracy": 0.8,
+      "coverage": 1,
+      "acceptedAccuracy": 0.8,
+      "wrongAcceptedRate": 0.2,
+      "medianMs": 224.7715,
+      "p95Ms": 336.2919,
+      "confusion": {
+        "SUPPORTS -\u003E SUPPORTS": 48,
+        "REFUTES -\u003E NOT_ENOUGH_INFO": 6,
+        "REFUTES -\u003E REFUTES": 30,
+        "SUPPORTS -\u003E NOT_ENOUGH_INFO": 6,
+        "NOT_ENOUGH_INFO -\u003E SUPPORTS": 6,
+        "NOT_ENOUGH_INFO -\u003E NOT_ENOUGH_INFO": 18,
+        "SUPPORTS -\u003E REFUTES": 6
+      }
+    },
+    {
+      "backend": "llm",
+      "split": "public",
+      "language": "en",
+      "count": 120,
+      "scored": 120,
+      "correct": 96,
+      "accepted": 120,
+      "wrongAccepted": 24,
+      "uncertain": 0,
+      "unavailable": 0,
+      "choiceAccuracy": 0.8,
+      "coverage": 1,
+      "acceptedAccuracy": 0.8,
+      "wrongAcceptedRate": 0.2,
+      "medianMs": 224.7715,
+      "p95Ms": 336.2919,
+      "confusion": {
+        "SUPPORTS -\u003E SUPPORTS": 48,
+        "REFUTES -\u003E NOT_ENOUGH_INFO": 6,
+        "REFUTES -\u003E REFUTES": 30,
+        "SUPPORTS -\u003E NOT_ENOUGH_INFO": 6,
+        "NOT_ENOUGH_INFO -\u003E SUPPORTS": 6,
+        "NOT_ENOUGH_INFO -\u003E NOT_ENOUGH_INFO": 18,
+        "SUPPORTS -\u003E REFUTES": 6
+      }
+    }
+  ],
+  "latency": [
+    {
+      "backend": "native",
+      "cold": true,
+      "count": 120,
+      "medianMs": 3088.0901,
+      "p95Ms": 3390.2855
+    },
+    {
+      "backend": "llm",
+      "cold": true,
+      "count": 1,
+      "medianMs": 6557.3816,
+      "p95Ms": 6557.3816
+    },
+    {
+      "backend": "llm",
+      "cold": false,
+      "count": 119,
+      "medianMs": 224.7715,
+      "p95Ms": 336.2919
+    }
+  ],
+  "paired": [],
+  "categories": [
+    {
+      "backend": "native",
+      "split": "public",
+      "category": "public-benchmark",
+      "count": 120,
+      "wrongAccepted": 12
+    },
+    {
+      "backend": "llm",
+      "split": "public",
+      "category": "public-benchmark",
+      "count": 120,
+      "wrongAccepted": 24
+    }
+  ],
+  "sweeps": [
+    {
+      "top": 0.8,
+      "margin": 0.2,
+      "metrics": {
+        "backend": "native",
+        "split": "public",
+        "language": "all",
+        "count": 120,
+        "scored": 120,
+        "correct": 102,
+        "accepted": 84,
+        "wrongAccepted": 12,
+        "uncertain": 36,
+        "unavailable": 0,
+        "choiceAccuracy": 0.85,
+        "coverage": 0.7,
+        "acceptedAccuracy": 0.8571428571428571,
+        "wrongAcceptedRate": 0.1,
+        "medianMs": 3088.0901,
+        "p95Ms": 3390.2855,
+        "confusion": {
+          "SUPPORTS -\u003E SUPPORTS": 51,
+          "REFUTES -\u003E REFUTES": 33,
+          "NOT_ENOUGH_INFO -\u003E SUPPORTS": 3,
+          "NOT_ENOUGH_INFO -\u003E NOT_ENOUGH_INFO": 18,
+          "SUPPORTS -\u003E NOT_ENOUGH_INFO": 9,
+          "REFUTES -\u003E NOT_ENOUGH_INFO": 3,
+          "NOT_ENOUGH_INFO -\u003E REFUTES": 3
+        }
+      }
+    },
+    {
+      "top": 0.8,
+      "margin": 0.3,
+      "metrics": {
+        "backend": "native",
+        "split": "public",
+        "language": "all",
+        "count": 120,
+        "scored": 120,
+        "correct": 102,
+        "accepted": 84,
+        "wrongAccepted": 12,
+        "uncertain": 36,
+        "unavailable": 0,
+        "choiceAccuracy": 0.85,
+        "coverage": 0.7,
+        "acceptedAccuracy": 0.8571428571428571,
+        "wrongAcceptedRate": 0.1,
+        "medianMs": 3088.0901,
+        "p95Ms": 3390.2855,
+        "confusion": {
+          "SUPPORTS -\u003E SUPPORTS": 51,
+          "REFUTES -\u003E REFUTES": 33,
+          "NOT_ENOUGH_INFO -\u003E SUPPORTS": 3,
+          "NOT_ENOUGH_INFO -\u003E NOT_ENOUGH_INFO": 18,
+          "SUPPORTS -\u003E NOT_ENOUGH_INFO": 9,
+          "REFUTES -\u003E NOT_ENOUGH_INFO": 3,
+          "NOT_ENOUGH_INFO -\u003E REFUTES": 3
+        }
+      }
+    },
+    {
+      "top": 0.8,
+      "margin": 0.5,
+      "metrics": {
+        "backend": "native",
+        "split": "public",
+        "language": "all",
+        "count": 120,
+        "scored": 120,
+        "correct": 102,
+        "accepted": 84,
+        "wrongAccepted": 12,
+        "uncertain": 36,
+        "unavailable": 0,
+        "choiceAccuracy": 0.85,
+        "coverage": 0.7,
+        "acceptedAccuracy": 0.8571428571428571,
+        "wrongAcceptedRate": 0.1,
+        "medianMs": 3088.0901,
+        "p95Ms": 3390.2855,
+        "confusion": {
+          "SUPPORTS -\u003E SUPPORTS": 51,
+          "REFUTES -\u003E REFUTES": 33,
+          "NOT_ENOUGH_INFO -\u003E SUPPORTS": 3,
+          "NOT_ENOUGH_INFO -\u003E NOT_ENOUGH_INFO": 18,
+          "SUPPORTS -\u003E NOT_ENOUGH_INFO": 9,
+          "REFUTES -\u003E NOT_ENOUGH_INFO": 3,
+          "NOT_ENOUGH_INFO -\u003E REFUTES": 3
+        }
+      }
+    },
+    {
+      "top": 0.9,
+      "margin": 0.2,
+      "metrics": {
+        "backend": "native",
+        "split": "public",
+        "language": "all",
+        "count": 120,
+        "scored": 120,
+        "correct": 102,
+        "accepted": 69,
+        "wrongAccepted": 6,
+        "uncertain": 51,
+        "unavailable": 0,
+        "choiceAccuracy": 0.85,
+        "coverage": 0.575,
+        "acceptedAccuracy": 0.9130434782608695,
+        "wrongAcceptedRate": 0.05,
+        "medianMs": 3088.0901,
+        "p95Ms": 3390.2855,
+        "confusion": {
+          "SUPPORTS -\u003E SUPPORTS": 51,
+          "REFUTES -\u003E REFUTES": 33,
+          "NOT_ENOUGH_INFO -\u003E SUPPORTS": 3,
+          "NOT_ENOUGH_INFO -\u003E NOT_ENOUGH_INFO": 18,
+          "SUPPORTS -\u003E NOT_ENOUGH_INFO": 9,
+          "REFUTES -\u003E NOT_ENOUGH_INFO": 3,
+          "NOT_ENOUGH_INFO -\u003E REFUTES": 3
+        }
+      }
+    },
+    {
+      "top": 0.9,
+      "margin": 0.3,
+      "metrics": {
+        "backend": "native",
+        "split": "public",
+        "language": "all",
+        "count": 120,
+        "scored": 120,
+        "correct": 102,
+        "accepted": 69,
+        "wrongAccepted": 6,
+        "uncertain": 51,
+        "unavailable": 0,
+        "choiceAccuracy": 0.85,
+        "coverage": 0.575,
+        "acceptedAccuracy": 0.9130434782608695,
+        "wrongAcceptedRate": 0.05,
+        "medianMs": 3088.0901,
+        "p95Ms": 3390.2855,
+        "confusion": {
+          "SUPPORTS -\u003E SUPPORTS": 51,
+          "REFUTES -\u003E REFUTES": 33,
+          "NOT_ENOUGH_INFO -\u003E SUPPORTS": 3,
+          "NOT_ENOUGH_INFO -\u003E NOT_ENOUGH_INFO": 18,
+          "SUPPORTS -\u003E NOT_ENOUGH_INFO": 9,
+          "REFUTES -\u003E NOT_ENOUGH_INFO": 3,
+          "NOT_ENOUGH_INFO -\u003E REFUTES": 3
+        }
+      }
+    },
+    {
+      "top": 0.9,
+      "margin": 0.5,
+      "metrics": {
+        "backend": "native",
+        "split": "public",
+        "language": "all",
+        "count": 120,
+        "scored": 120,
+        "correct": 102,
+        "accepted": 69,
+        "wrongAccepted": 6,
+        "uncertain": 51,
+        "unavailable": 0,
+        "choiceAccuracy": 0.85,
+        "coverage": 0.575,
+        "acceptedAccuracy": 0.9130434782608695,
+        "wrongAcceptedRate": 0.05,
+        "medianMs": 3088.0901,
+        "p95Ms": 3390.2855,
+        "confusion": {
+          "SUPPORTS -\u003E SUPPORTS": 51,
+          "REFUTES -\u003E REFUTES": 33,
+          "NOT_ENOUGH_INFO -\u003E SUPPORTS": 3,
+          "NOT_ENOUGH_INFO -\u003E NOT_ENOUGH_INFO": 18,
+          "SUPPORTS -\u003E NOT_ENOUGH_INFO": 9,
+          "REFUTES -\u003E NOT_ENOUGH_INFO": 3,
+          "NOT_ENOUGH_INFO -\u003E REFUTES": 3
+        }
+      }
+    },
+    {
+      "top": 0.95,
+      "margin": 0.2,
+      "metrics": {
+        "backend": "native",
+        "split": "public",
+        "language": "all",
+        "count": 120,
+        "scored": 120,
+        "correct": 102,
+        "accepted": 45,
+        "wrongAccepted": 0,
+        "uncertain": 75,
+        "unavailable": 0,
+        "choiceAccuracy": 0.85,
+        "coverage": 0.375,
+        "acceptedAccuracy": 1,
+        "wrongAcceptedRate": 0,
+        "medianMs": 3088.0901,
+        "p95Ms": 3390.2855,
+        "confusion": {
+          "SUPPORTS -\u003E SUPPORTS": 51,
+          "REFUTES -\u003E REFUTES": 33,
+          "NOT_ENOUGH_INFO -\u003E SUPPORTS": 3,
+          "NOT_ENOUGH_INFO -\u003E NOT_ENOUGH_INFO": 18,
+          "SUPPORTS -\u003E NOT_ENOUGH_INFO": 9,
+          "REFUTES -\u003E NOT_ENOUGH_INFO": 3,
+          "NOT_ENOUGH_INFO -\u003E REFUTES": 3
+        }
+      }
+    },
+    {
+      "top": 0.95,
+      "margin": 0.3,
+      "metrics": {
+        "backend": "native",
+        "split": "public",
+        "language": "all",
+        "count": 120,
+        "scored": 120,
+        "correct": 102,
+        "accepted": 45,
+        "wrongAccepted": 0,
+        "uncertain": 75,
+        "unavailable": 0,
+        "choiceAccuracy": 0.85,
+        "coverage": 0.375,
+        "acceptedAccuracy": 1,
+        "wrongAcceptedRate": 0,
+        "medianMs": 3088.0901,
+        "p95Ms": 3390.2855,
+        "confusion": {
+          "SUPPORTS -\u003E SUPPORTS": 51,
+          "REFUTES -\u003E REFUTES": 33,
+          "NOT_ENOUGH_INFO -\u003E SUPPORTS": 3,
+          "NOT_ENOUGH_INFO -\u003E NOT_ENOUGH_INFO": 18,
+          "SUPPORTS -\u003E NOT_ENOUGH_INFO": 9,
+          "REFUTES -\u003E NOT_ENOUGH_INFO": 3,
+          "NOT_ENOUGH_INFO -\u003E REFUTES": 3
+        }
+      }
+    },
+    {
+      "top": 0.95,
+      "margin": 0.5,
+      "metrics": {
+        "backend": "native",
+        "split": "public",
+        "language": "all",
+        "count": 120,
+        "scored": 120,
+        "correct": 102,
+        "accepted": 45,
+        "wrongAccepted": 0,
+        "uncertain": 75,
+        "unavailable": 0,
+        "choiceAccuracy": 0.85,
+        "coverage": 0.375,
+        "acceptedAccuracy": 1,
+        "wrongAcceptedRate": 0,
+        "medianMs": 3088.0901,
+        "p95Ms": 3390.2855,
+        "confusion": {
+          "SUPPORTS -\u003E SUPPORTS": 51,
+          "REFUTES -\u003E REFUTES": 33,
+          "NOT_ENOUGH_INFO -\u003E SUPPORTS": 3,
+          "NOT_ENOUGH_INFO -\u003E NOT_ENOUGH_INFO": 18,
+          "SUPPORTS -\u003E NOT_ENOUGH_INFO": 9,
+          "REFUTES -\u003E NOT_ENOUGH_INFO": 3,
+          "NOT_ENOUGH_INFO -\u003E REFUTES": 3
+        }
+      }
+    }
+  ]
+}

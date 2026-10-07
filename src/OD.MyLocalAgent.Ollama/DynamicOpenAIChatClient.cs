@@ -34,9 +34,12 @@ internal sealed class DynamicOpenAIChatClient : IChatClient
         ArgumentNullException.ThrowIfNull(messages);
         var current = GetValidatedOptions();
         var timeoutSeconds = TimeoutExecutionScope.TimeoutSeconds ?? current.TimeoutSeconds;
-        using var lease = await _executionGate.EnterAsync(cancellationToken).ConfigureAwait(false);
+        var boundary = options?.AdditionalProperties?.GetValueOrDefault(BoundedLlmCall.OptionKey) as BoundedLlmCall;
+        using var lease = boundary is null ? await _executionGate.EnterAsync(cancellationToken).ConfigureAwait(false)
+            : await boundary.EnterAsync(_executionGate, cancellationToken).ConfigureAwait(false);
         using var timeoutSource = CreateTimeoutSource(timeoutSeconds, cancellationToken);
         var effectiveOptions = options?.Clone() ?? new ChatOptions();
+        effectiveOptions.AdditionalProperties?.Remove(BoundedLlmCall.OptionKey);
         var model = options?.ModelId ?? current.Model;
         effectiveOptions.ModelId = model;
         using var client = CreateClient(current, model, timeoutSeconds);

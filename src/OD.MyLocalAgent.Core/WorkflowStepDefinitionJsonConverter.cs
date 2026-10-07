@@ -58,6 +58,7 @@ internal sealed class WorkflowStepDefinitionJsonConverter : JsonConverter<Workfl
             ToolAliases = ReadToolAliases(root, options),
             KnowledgeAccess = ReadKnowledgeAccess(root, options),
             Next = ReadOptionalString(root, "next"),
+            DecisionRoutes = ReadOptionalObject(root, "decisionRoutes"),
             ResponseSchema = ReadOptionalObject(root, "responseSchema"),
             ForEach = ReadOptionalString(root, "forEach"),
         };
@@ -80,6 +81,7 @@ internal sealed class WorkflowStepDefinitionJsonConverter : JsonConverter<Workfl
             value.ToolAliases.Count == 0 &&
             value.KnowledgeAccess is null &&
             value.Next is null &&
+            value.DecisionRoutes is null &&
             value.ResponseSchema is null &&
             value.ForEach is null)
         {
@@ -160,6 +162,12 @@ internal sealed class WorkflowStepDefinitionJsonConverter : JsonConverter<Workfl
             writer.WriteString("forEach", value.ForEach);
         }
 
+        if (value.DecisionRoutes is { } routes)
+        {
+            writer.WritePropertyName("decisionRoutes");
+            routes.WriteTo(writer);
+        }
+
         writer.WriteEndObject();
     }
 
@@ -179,6 +187,7 @@ internal sealed class WorkflowStepDefinitionJsonConverter : JsonConverter<Workfl
             "toolAliases",
             "knowledgeAccess",
             "next",
+            "decisionRoutes",
             "responseSchema",
             "forEach",
         ];

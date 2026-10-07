@@ -64,6 +64,8 @@ public sealed record ToolExecutionContext
     public string? RunId { get; init; }
     /// <summary>Gets the immutable workflow step correlation, when present.</summary>
     public string? StepId { get; init; }
+    /// <summary>The workflow-owned global decision snapshot.</summary>
+    public DecisionExecutionSnapshot? DecisionSnapshot { get; init; }
 
     /// <summary>
     /// Gets the immutable absolute-directory grants for this execution.
@@ -95,7 +97,7 @@ public sealed record ToolExecutionContext
             SqliteGuardrailsEnabled,
             UseGlobalSystemPrompt,
             KnowledgeTagPolicy.Narrow(KnowledgeTags, requestedTags),
-            Surface) { RunId = RunId, StepId = StepId };
+            Surface) { RunId = RunId, StepId = StepId, DecisionSnapshot = DecisionSnapshot };
 
     /// <summary>
     /// Creates an execution context from a validated scheduled task.

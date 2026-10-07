@@ -18,7 +18,11 @@ public sealed class LocalDecisionException(string code, bool transient = false, 
 /// <summary>The bounded, isolated local inference request.</summary>
 public sealed record LocalDecisionRequest(
     string Endpoint, string Model, string Source, JsonElement Questions,
-    int TimeoutSeconds, int GateWaitTimeoutSeconds, int KeepAliveSeconds);
+    int TimeoutSeconds, int GateWaitTimeoutSeconds, int KeepAliveSeconds)
+{
+    /// <summary>Overrides the mail-specific instruction only for an explicit isolated generic benchmark.</summary>
+    public string? ClassificationInstructions { get; init; }
+}
 
 /// <summary>A provider response with separately measured wait and inference time.</summary>
 public sealed record LocalDecisionResponse(JsonElement Payload, double GateWaitMs, double InferenceMs, bool Cold)

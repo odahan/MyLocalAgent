@@ -38,6 +38,43 @@ public sealed class DecisionEvaluationEditorTests
         status == "accepted" ? [] : [status == "uncertain" ? "BelowTopThreshold" : "ModelMissing"],
         "OllamaSystemOne", "test-model", new(3, 12, 30, true));
 
+    /// <summary>Central inspection shows the validated choice and identity without score rows or percentages.</summary>
+    [Fact]
+    public async Task CentralTestDisplaysNoNativeScores()
+    {
+        var service = new Mock<IDecisionEvaluationService>(MockBehavior.Strict);
+        var editor = new WorkflowStepEditorViewModel(decisionEvaluation: service.Object,
+            decisionOptions: new MutableOptionsMonitor<DecisionOptions>(new() { Enabled = true, Engine = "CentralLlm" }));
+        editor.Initialize(Request(Workflow, true));
+        editor.EvaluationSample = "sample";
+        service.Setup(s => s.EvaluateAsync("sample", It.IsAny<string>(), It.IsAny<JsonElement>(), null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DecisionEvaluationResult(2, "accepted", "process", null, null, null, null, null, [],
+                "Ollama", "central-model", new(2, 3, 5, null))
+            { Engine = "CentralLlm", Capabilities = new(false), AcceptanceBasis = "validatedChoice" });
+        await editor.TestDecisionCommand.ExecuteAsync(null);
+        editor.EvaluationScores.Should().BeEmpty();
+        editor.EvaluationSummary.Should().Contain("validatedChoice").And.Contain("Scores unavailable").And.NotContain("%");
+        editor.EvaluationTiming.Should().Contain("central-model").And.NotContain("Applied minimums");
+        editor.EvaluationSupportsScores.Should().BeFalse();
+        editor.EvaluationEffectiveText.Should().Contain("validatedChoice");
+    }
+
+    /// <summary>Existing native acceptance stays visible and blocks central execution until removed deliberately.</summary>
+    [Fact]
+    public void CentralDraftRetainsIncompatibleAcceptanceUntilRemoved()
+    {
+        var workflow = Workflow.Replace("\"options\":", "\"acceptance\":{\"minTopProbability\":0.9},\"options\":", StringComparison.Ordinal);
+        var editor = new WorkflowStepEditorViewModel(decisionOptions: new MutableOptionsMonitor<DecisionOptions>(new() { Engine = "CentralLlm" }));
+        editor.Initialize(Request(workflow, true));
+        editor.OverrideEvaluationTop.Should().BeTrue();
+        editor.EvaluationEffectiveText.Should().Contain("incompatible");
+        editor.ApplyCommand.Execute(null);
+        editor.Result.Should().BeNull();
+        editor.RemoveEvaluationAcceptanceCommand.Execute(null);
+        editor.ApplyCommand.Execute(null);
+        editor.Result.Should().NotBeNull(editor.StatusText);
+        WorkflowDefinitionSerializer.Deserialize(editor.Result!.WorkflowText)[0].Args.TryGetProperty("acceptance", out _).Should().BeFalse();
+    }
     /// <summary>Opening and applying an unchanged decision keeps the original draft and runs nothing.</summary>
     [Fact]
     public void OpenAndNoOpApplyPreserveOriginal()

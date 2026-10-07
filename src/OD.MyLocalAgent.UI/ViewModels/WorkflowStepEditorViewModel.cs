@@ -399,6 +399,7 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
             if (IsDecisionEvaluationSelected) CommitEvaluationFields();
             if (_decisionQuestionsDirty) CommitDecisionQuestionFields();
             var replacement = CreateStep();
+            if (replacement.DecisionRoutes is not null) _ = DecisionRouteDefinition.Parse(replacement);
             if (IsEdit && !AuthorizationProposals.Any(static item => item.IsAccepted) &&
                 string.Equals(WorkflowDefinitionSerializer.Serialize([replacement]), WorkflowDefinitionSerializer.Serialize([_workflow[_location!.Index]]), StringComparison.Ordinal))
             {
@@ -494,6 +495,8 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
         {
             var value = default(JsonElement);
             var present = step is not null && TryGetValue(step.Args, definition.Name, out value);
+            if (tool.Alias == "gmailDecision.readClassify" && !present &&
+                definition.Name is "classificationMode" or "arbitration" or "unavailableBehavior") continue;
             var pathDefinition = tool.LocalPathArguments.FirstOrDefault(path =>
                 path.Derivation == LocalPathDerivationKind.Direct &&
                 string.Equals(path.ArgumentName, definition.Name, StringComparison.OrdinalIgnoreCase)) ??
@@ -506,6 +509,7 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
         }
         _decisionQuestionsDirty = false;
         LoadDecisionQuestionFields();
+        LoadEvaluationRoutes(step);
         LoadEvaluationFields();
         if (!tool.IsAiStep && !tool.IsControlFlowStep && !_request!.ToolGroups.Contains(tool.ToolGroup, StringComparer.OrdinalIgnoreCase))
         {
@@ -584,6 +588,7 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
             ToolAliases = aliases,
             KnowledgeAccess = knowledge,
             Next = NullIfWhiteSpace(Next),
+            DecisionRoutes = CreateDecisionRoutes(),
             ResponseSchema = responseSchema,
             ForEach = SupportsForEach && RepeatForEachItem
                 ? NullIfWhiteSpace(ForEachSource) ?? throw new WorkflowValidationException("A forEach output selector is required.")

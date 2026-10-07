@@ -1,0 +1,29 @@
+{
+  "conclusion": "inconclusive",
+  "failures": [],
+  "missingEvidence": [
+    "No held-out native request-completeness observations; these criteria are not applied to general LLM comparators or unrelated public benchmarks."
+  ],
+  "metrics": {
+    "backend": "native",
+    "split": "held-out",
+    "language": "all",
+    "count": 0,
+    "scored": 0,
+    "correct": 0,
+    "accepted": 0,
+    "wrongAccepted": 0,
+    "uncertain": 0,
+    "unavailable": 0,
+    "choiceAccuracy": null,
+    "coverage": 0,
+    "acceptedAccuracy": null,
+    "wrongAcceptedRate": 0,
+    "medianMs": 0,
+    "p95Ms": 0,
+    "confusion": {}
+  },
+  "independentInputs": 0,
+  "independentPairs": 0,
+  "limitation": "Repeated runs are correlated. A small held-out pilot is not a production reliability guarantee or sufficient evidence of benefit over baselines."
+}

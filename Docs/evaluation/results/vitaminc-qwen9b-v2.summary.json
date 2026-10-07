@@ -1,0 +1,149 @@
+{
+  "analyzedUtc": "2026-10-07T13:53:03.941832+00:00",
+  "analysisAssemblySha256": "AEB30141ADA009E7EAEC07FCE95C68374851FE66E60E915423F4047927A46FCC",
+  "metrics": [
+    {
+      "backend": "llm",
+      "split": "all",
+      "language": "all",
+      "count": 120,
+      "scored": 120,
+      "correct": 81,
+      "accepted": 120,
+      "wrongAccepted": 39,
+      "uncertain": 0,
+      "unavailable": 0,
+      "choiceAccuracy": 0.675,
+      "coverage": 1,
+      "acceptedAccuracy": 0.675,
+      "wrongAcceptedRate": 0.325,
+      "medianMs": 225.6773,
+      "p95Ms": 254.3297,
+      "confusion": {
+        "SUPPORTS -\u003E SUPPORTS": 45,
+        "REFUTES -\u003E SUPPORTS": 6,
+        "REFUTES -\u003E REFUTES": 27,
+        "SUPPORTS -\u003E REFUTES": 12,
+        "NOT_ENOUGH_INFO -\u003E SUPPORTS": 9,
+        "SUPPORTS -\u003E NOT_ENOUGH_INFO": 3,
+        "NOT_ENOUGH_INFO -\u003E REFUTES": 6,
+        "NOT_ENOUGH_INFO -\u003E NOT_ENOUGH_INFO": 9,
+        "REFUTES -\u003E NOT_ENOUGH_INFO": 3
+      }
+    },
+    {
+      "backend": "llm",
+      "split": "all",
+      "language": "en",
+      "count": 120,
+      "scored": 120,
+      "correct": 81,
+      "accepted": 120,
+      "wrongAccepted": 39,
+      "uncertain": 0,
+      "unavailable": 0,
+      "choiceAccuracy": 0.675,
+      "coverage": 1,
+      "acceptedAccuracy": 0.675,
+      "wrongAcceptedRate": 0.325,
+      "medianMs": 225.6773,
+      "p95Ms": 254.3297,
+      "confusion": {
+        "SUPPORTS -\u003E SUPPORTS": 45,
+        "REFUTES -\u003E SUPPORTS": 6,
+        "REFUTES -\u003E REFUTES": 27,
+        "SUPPORTS -\u003E REFUTES": 12,
+        "NOT_ENOUGH_INFO -\u003E SUPPORTS": 9,
+        "SUPPORTS -\u003E NOT_ENOUGH_INFO": 3,
+        "NOT_ENOUGH_INFO -\u003E REFUTES": 6,
+        "NOT_ENOUGH_INFO -\u003E NOT_ENOUGH_INFO": 9,
+        "REFUTES -\u003E NOT_ENOUGH_INFO": 3
+      }
+    },
+    {
+      "backend": "llm",
+      "split": "public",
+      "language": "all",
+      "count": 120,
+      "scored": 120,
+      "correct": 81,
+      "accepted": 120,
+      "wrongAccepted": 39,
+      "uncertain": 0,
+      "unavailable": 0,
+      "choiceAccuracy": 0.675,
+      "coverage": 1,
+      "acceptedAccuracy": 0.675,
+      "wrongAcceptedRate": 0.325,
+      "medianMs": 225.6773,
+      "p95Ms": 254.3297,
+      "confusion": {
+        "SUPPORTS -\u003E SUPPORTS": 45,
+        "REFUTES -\u003E SUPPORTS": 6,
+        "REFUTES -\u003E REFUTES": 27,
+        "SUPPORTS -\u003E REFUTES": 12,
+        "NOT_ENOUGH_INFO -\u003E SUPPORTS": 9,
+        "SUPPORTS -\u003E NOT_ENOUGH_INFO": 3,
+        "NOT_ENOUGH_INFO -\u003E REFUTES": 6,
+        "NOT_ENOUGH_INFO -\u003E NOT_ENOUGH_INFO": 9,
+        "REFUTES -\u003E NOT_ENOUGH_INFO": 3
+      }
+    },
+    {
+      "backend": "llm",
+      "split": "public",
+      "language": "en",
+      "count": 120,
+      "scored": 120,
+      "correct": 81,
+      "accepted": 120,
+      "wrongAccepted": 39,
+      "uncertain": 0,
+      "unavailable": 0,
+      "choiceAccuracy": 0.675,
+      "coverage": 1,
+      "acceptedAccuracy": 0.675,
+      "wrongAcceptedRate": 0.325,
+      "medianMs": 225.6773,
+      "p95Ms": 254.3297,
+      "confusion": {
+        "SUPPORTS -\u003E SUPPORTS": 45,
+        "REFUTES -\u003E SUPPORTS": 6,
+        "REFUTES -\u003E REFUTES": 27,
+        "SUPPORTS -\u003E REFUTES": 12,
+        "NOT_ENOUGH_INFO -\u003E SUPPORTS": 9,
+        "SUPPORTS -\u003E NOT_ENOUGH_INFO": 3,
+        "NOT_ENOUGH_INFO -\u003E REFUTES": 6,
+        "NOT_ENOUGH_INFO -\u003E NOT_ENOUGH_INFO": 9,
+        "REFUTES -\u003E NOT_ENOUGH_INFO": 3
+      }
+    }
+  ],
+  "latency": [
+    {
+      "backend": "llm",
+      "cold": true,
+      "count": 1,
+      "medianMs": 4343.1911,
+      "p95Ms": 4343.1911
+    },
+    {
+      "backend": "llm",
+      "cold": false,
+      "count": 119,
+      "medianMs": 225.6773,
+      "p95Ms": 254.3297
+    }
+  ],
+  "paired": [],
+  "categories": [
+    {
+      "backend": "llm",
+      "split": "public",
+      "category": "public-benchmark",
+      "count": 120,
+      "wrongAccepted": 39
+    }
+  ],
+  "sweeps": []
+}

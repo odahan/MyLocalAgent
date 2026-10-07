@@ -23,6 +23,8 @@ public sealed class WorkflowContext
 
     /// <summary>Gets the stable identifier of this workflow execution.</summary>
     public string RunId { get; }
+    /// <summary>The effective decision configuration captured before the first step.</summary>
+    public OD.MyLocalAgent.Core.DecisionExecutionSnapshot? DecisionSnapshot { get; init; }
 
     /// <summary>
     /// Gets the step outputs in insertion order.

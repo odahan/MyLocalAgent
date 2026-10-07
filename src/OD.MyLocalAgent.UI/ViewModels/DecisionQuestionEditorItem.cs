@@ -123,4 +123,5 @@ public sealed partial class DecisionCriterionEditorItem : ObservableObject
 {
     [ObservableProperty] private string _key = "answer";
     [ObservableProperty] private string _description = "Answer description";
+    [ObservableProperty] private string _target = string.Empty;
 }

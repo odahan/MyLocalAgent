@@ -20,6 +20,7 @@ public sealed class OllamaClientService : ILlmClientService, IOllamaModelCatalog
     private readonly ILogger<OllamaClientService> _logger;
     private readonly DynamicOllamaChatClient _chatClient;
     private readonly IOptionsMonitor<AIOptions>? _aiOptions;
+    private readonly IOptionsMonitor<LlmExecutionOptions>? _executionOptions;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="OllamaClientService"/> class.
@@ -48,6 +49,7 @@ public sealed class OllamaClientService : ILlmClientService, IOllamaModelCatalog
         _timeProvider = timeProvider;
         _logger = logger;
         _aiOptions = aiOptions;
+        _executionOptions = executionOptions;
         _chatClient = new DynamicOllamaChatClient(
             httpClientFactory,
             options,
@@ -57,6 +59,33 @@ public sealed class OllamaClientService : ILlmClientService, IOllamaModelCatalog
 
     /// <inheritdoc />
     public IChatClient ChatClient => _chatClient;
+
+    /// <summary>Captures endpoint, model, and ordinary residency policy without unloading the primary model.</summary>
+    public LlmClientSnapshot Capture()
+    {
+        var settings = _options.CurrentValue with { };
+        var frozen = new OllamaClientService(_httpClientFactory, new FrozenOptionsMonitor<OllamaOptions>(settings),
+            _timeProvider, _logger, executionOptions: _executionOptions);
+        return new(ProviderName, settings.Model, frozen.ChatClient, LocalDecisionEndpoint.IsValid(settings.Endpoint) &&
+            !settings.Model.EndsWith("cloud", StringComparison.OrdinalIgnoreCase))
+        { ValidateLocalSourceAsync = frozen.IsLocalSourceModelAsync };
+    }
+
+    private async Task<bool> IsLocalSourceModelAsync(CancellationToken cancellationToken)
+    {
+        var settings = _options.CurrentValue;
+        if (!LocalDecisionEndpoint.IsValid(settings.Endpoint)) return false;
+        var http = _httpClientFactory.CreateClient(LlmHttpClientNames.Ollama);
+        http.BaseAddress = LlmOptionsValidation.ParseEndpoint(settings.Endpoint, OllamaOptions.SectionName);
+        http.Timeout = Timeout.InfiniteTimeSpan;
+        using var response = await http.PostAsJsonAsync("api/show", new { model = settings.Model }, cancellationToken).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        using var document = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false),
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+        return !document.RootElement.TryGetProperty("remote_host", out _) &&
+            !document.RootElement.TryGetProperty("remote_model", out _) &&
+            document.RootElement.TryGetProperty("model_info", out var info) && info.ValueKind == JsonValueKind.Object;
+    }
 
     /// <inheritdoc />
     public string ProviderName => AIOptions.OllamaProvider;

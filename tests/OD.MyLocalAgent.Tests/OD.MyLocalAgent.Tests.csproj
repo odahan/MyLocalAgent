@@ -13,6 +13,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\tools\DecisionEvaluation\DecisionEvaluation.csproj" />
     <ProjectReference Include="..\..\src\OD.MyLocalAgent.Connectors\OD.MyLocalAgent.Connectors.csproj" />
     <ProjectReference Include="..\..\src\OD.MyLocalAgent.Core\OD.MyLocalAgent.Core.csproj" />
     <ProjectReference Include="..\..\src\OD.MyLocalAgent.Guardrails\OD.MyLocalAgent.Guardrails.csproj" />
@@ -38,6 +39,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Remove="TestResults\**\*.cs" />
     <None Include="Fixtures\gmail-message.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures\injection-samples.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures\web-search-normal.json" CopyToOutputDirectory="PreserveNewest" />

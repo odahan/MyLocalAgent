@@ -25,6 +25,7 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
     private readonly IOptionsMonitor<AIOptions>? _aiOptions;
     private readonly ILlmClientFactory? _llmClientFactory;
     private readonly ILlmModelWarmup? _modelWarmup;
+    private readonly IDecisionEvaluationService? _decisionEvaluation;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SequentialWorkflowEngine"/> class.
@@ -37,7 +38,8 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
         ILogger<SequentialWorkflowEngine> logger,
         IOptionsMonitor<AIOptions>? aiOptions = null,
         ILlmClientFactory? llmClientFactory = null,
-        ILlmModelWarmup? modelWarmup = null)
+        ILlmModelWarmup? modelWarmup = null,
+        IDecisionEvaluationService? decisionEvaluation = null)
     {
         ArgumentNullException.ThrowIfNull(toolRegistry);
         ArgumentNullException.ThrowIfNull(skills);
@@ -54,6 +56,7 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
         _aiOptions = aiOptions;
         _llmClientFactory = llmClientFactory;
         _modelWarmup = modelWarmup;
+        _decisionEvaluation = decisionEvaluation;
     }
 
     /// <inheritdoc />
@@ -77,7 +80,8 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
         }
 
         var startedUtc = _timeProvider.GetUtcNow();
-        var context = new WorkflowContext();
+        var context = new WorkflowContext { DecisionSnapshot = _decisionEvaluation?.Capture() };
+        DecisionWorkflowCompatibility.Validate(task.Workflow, context.DecisionSnapshot);
         var results = new List<WorkflowStepResult>(task.Workflow.Count);
         var warnings = new List<ExecutionWarning>();
         var indexes = task.Workflow
@@ -94,6 +98,7 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
             }
 
             var definition = task.Workflow[currentIndex];
+            var decisionRoutes = definition.DecisionRoutes is not null ? DecisionRouteDefinition.Parse(definition) : null;
             cancellationToken.ThrowIfCancellationRequested();
             var step = WorkflowStepFactory.Create(definition, _toolRegistry);
             var policy = step.OnError ?? task.ErrorPolicy;
@@ -129,7 +134,9 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                 {
                     context.RecordOutput(step.Id, result.Output ?? string.Empty);
                     contextUpdated?.Invoke(context.ToJson());
-                    currentIndex = ResolveTarget(step.Next, indexes, currentIndex, task.Workflow.Count);
+                    currentIndex = decisionRoutes is not null
+                        ? ResolveTarget(decisionRoutes.SelectTarget(result.Output ?? string.Empty), indexes)
+                        : ResolveTarget(step.Next, indexes, currentIndex, task.Workflow.Count);
                 }
 
                 continue;
@@ -686,12 +693,15 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
         switch (step)
         {
             case ToolStep:
-                return await _toolRegistry.InvokeAsync(
+                var toolOutput = await _toolRegistry.InvokeAsync(
                     step.Alias,
                     resolvedArguments,
                     task.Tools,
-                    ToolExecutionContext.FromTask(task, ToolInvocationSurface.Workflow) with { RunId = context.RunId, StepId = step.Id },
+                    ToolExecutionContext.FromTask(task, ToolInvocationSurface.Workflow) with { RunId = context.RunId, StepId = step.Id, DecisionSnapshot = context.DecisionSnapshot },
                     cancellationToken).ConfigureAwait(false);
+                var routedDefinition = task.Workflow.FirstOrDefault(d => d.EffectiveId == step.Id && d.DecisionRoutes is not null);
+                if (routedDefinition is not null) _ = DecisionRouteDefinition.Parse(routedDefinition).SelectTarget(toolOutput);
+                return toolOutput;
 
             case SkillStep skillStep:
                 if (generationPolicy is null)

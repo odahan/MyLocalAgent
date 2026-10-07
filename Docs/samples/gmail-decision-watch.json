@@ -16,6 +16,7 @@
       "step": "gmailDecision.readClassify",
       "id": "mailTriage",
       "args": {
+        "contractVersion": 2,
         "selection": "Recent",
         "daysBack": 1,
         "maxMessages": 100,
@@ -45,21 +46,6 @@
             ]
           }
         },
-        "acceptance": {
-          "perQuestion": {
-            "category": {
-              "alwaysArbitrateChoices": [
-                "uncertain"
-              ],
-              "perChoice": {
-                "noise": {
-                  "minTopProbabilityPercent": 90,
-                  "minMarginPercentagePoints": 30
-                }
-              }
-            }
-          }
-        },
         "reportMapping": {
           "categoryQuestion": "category",
           "replyQuestion": "reply",
@@ -87,21 +73,7 @@
               "attentionRank": 1
             }
           }
-        },
-        "arbitration": {
-          "maxPercent": 100,
-          "maxCalls": 0,
-          "enabled": true,
-          "conflicts": [
-            {
-              "choiceQuestion": "category",
-              "noulAtLeastPercent": 70,
-              "choice": "noise",
-              "noulQuestion": "reply"
-            }
-          ]
-        },
-        "unavailableBehavior": "LightweightLlmFallback"
+        }
       },
       "onError": "StopOnError"
     },

@@ -718,6 +718,10 @@ public sealed partial class SettingsViewModel :
             var nativeDecision = _decisionOptions?.CurrentValue ?? DecisionOptions.FromLegacy(mailDecision);
             LoadGmailDecision(nativeDecision.ApplyTo(mailDecision));
             DecisionEnabled = nativeDecision.Enabled;
+            DecisionEngine = nativeDecision.Engine;
+            DecisionCentralMaxOutputTokens = nativeDecision.CentralMaxOutputTokens;
+            DecisionCentralTimeoutSeconds = nativeDecision.CentralTimeoutSeconds;
+            DecisionCentralGateWaitSeconds = nativeDecision.CentralGateWaitSeconds;
             DecisionOperationTimeoutSeconds = nativeDecision.OperationTimeoutSeconds;
             DecisionMaxInputTokens = nativeDecision.MaxInputTokens;
 
@@ -1319,7 +1323,7 @@ public sealed partial class SettingsViewModel :
             IsDirty = true;
             if (e.PropertyName.StartsWith("GmailDecision", StringComparison.Ordinal) || IsNativeDecisionSetting(e.PropertyName))
             {
-                DecisionSettingsValidationText = GmailDecisionOptions.IsValid(GetGmailDecisionOptions()) && DecisionOptions.IsValid(GetDecisionOptions())
+                DecisionSettingsValidationText = GmailDecisionOptions.IsValidMail(GetGmailDecisionOptions()) && DecisionOptions.IsValid(GetDecisionOptions())
                     ? "Local decision settings are valid. Scores are not accuracy guarantees."
                     : "Check the local endpoint, model, timeout, percentage and batch limits. Unload after batch must remain enabled.";
                 SaveCommand.NotifyCanExecuteChanged();
@@ -1333,7 +1337,7 @@ public sealed partial class SettingsViewModel :
     private bool CanSave() =>
         IsDirty && !IsBusy && TryGetGenerationDefaults(out _) &&
         TryGetSqliteOptions(out _) && TryGetKnowledgeOptions(out _) &&
-        GmailDecisionOptions.IsValid(GetGmailDecisionOptions()) && DecisionOptions.IsValid(GetDecisionOptions());
+        GmailDecisionOptions.IsValidMail(GetGmailDecisionOptions()) && DecisionOptions.IsValid(GetDecisionOptions());
 
     private bool CanDiscardChanges() => IsDirty && !IsBusy;
 

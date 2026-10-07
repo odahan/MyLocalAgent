@@ -1,98 +1,128 @@
-# Décisions locales génériques — Stage 32, phases A–B
+# Évaluation des décisions — Stage 32 C2 et D
 
-`decision.evaluate` évalue le texte explicitement fourni avec le modèle de décision local installé.
-L’outil est réservé aux workflows et ne réalise ni collecte Gmail, ni recherche Knowledge, ni accès
-aux fichiers. Il ne télécharge aucun modèle et ne remplace pas une décision indisponible par un appel
-au LLM général. Activez **Settings → Decision models → Enable generic workflow evaluation**, puis
-accordez séparément le groupe **Decision evaluation** à la tâche. L’activation du lecteur Gmail
-n’active pas cet outil. Les agents, Direct Chat, `ai.prompt.toolAliases` et `forEach` ne peuvent pas
-l’appeler.
+## Routage intégré « Route by decision » (phase D)
 
-L’éditeur de workflow propose **Evaluate a decision** : source, question, lignes d’options
-ordonnées et seuils avancés repliés. Il permet de rédiger et d’inspecter une décision sans JSON fournisseur.
+Dans l’éditeur **Evaluate a decision**, cochez **Route by decision**, renseignez la destination
+de chaque option et les destinations explicites **Uncertain** et **Unavailable**. Laissez **Next**
+vide. Chaque destination est un identifiant d’étape existante ou `@end`. Apply valide tout le graphe
+et modifie le brouillon ; **Test decision** évalue seulement l’échantillon sans exécuter de destination.
 
-## Rédiger et tester une décision
+Le bloc `decisionRoutes` se place au même niveau que `args` :
 
-1. Insérez ou modifiez `decision.evaluate`. Renseignez la source ou utilisez le sélecteur de
-   placeholders, puis une question littérale et 2 à 24 options avec identifiant et description.
-   Les boutons permettent d’ajouter, retirer et réordonner les options.
-2. Consultez les seuils hérités et effectifs. Les réglages avancés expriment le meilleur score
-   en pourcentage et la marge en points de pourcentage, avec un point décimal. Ils renforcent
-   uniquement les réglages globaux ; le JSON conserve les valeurs normalisées entre 0 et 1.
-   Le seuil de concentration reste hérité de Settings.
-3. Activez l’évaluation générique et accordez le groupe `decision`. Une autorisation manquante
-   apparaît sous forme de proposition non cochée. Son acceptation explicite autorise le test
-   du brouillon sans enregistrer la tâche.
-4. Saisissez un texte dans **Explicit sample text for this test**, puis cliquez sur **Test decision**.
-   Cet exemple est obligatoire, même si la source contient un placeholder. Le test utilise cet
-   exemple et les options/seuils en cours d’édition. Il ne résout aucune sortie, n’appelle aucun
-   connecteur, n’exécute pas les autres étapes et ne sauvegarde rien. L’exemple et les résultats
-   restent en mémoire. **Cancel test** annule ; la fermeture et le changement d’outil annulent
-   aussi le test et empêchent l’affichage d’un résultat tardif.
-5. Consultez statut, candidat, tous les scores, marge, concentration, raisons techniques,
-   seuils appliqués et temps d’attente/inférence/total. Les scores indisponibles restent affichés
-   comme tels. Le résultat est un instantané du dernier test explicite : une modification ne
-   relance jamais le modèle. Aucune justification prétendument produite par Tev1 n’est inventée.
-6. Cliquez sur **Apply**, puis sauvegardez la tâche normalement. Ces actions ne lancent aucune inférence.
+```json
+"decisionRoutes": {
+  "choices": { "process": "handleProcess", "clarify": "handleClarify", "review": "handleReview" },
+  "uncertain": "handleUncertain",
+  "unavailable": "handleUnavailable"
+}
+```
 
-**Arguments / raw JSON** reste accessible et initialement replié pour cet outil. Modifier le JSON
-des options ou des seuils recharge ces champs et abandonne leurs modifications en attente :
-la dernière édition explicite fait foi. Un JSON mal formé est conservé pour correction et ne
-peut pas être écrasé silencieusement par des champs partiels. Une édition sans changement
-préserve la présence et les valeurs originales des seuils optionnels.
+Chaque option doit avoir exactement une destination ; plusieurs options peuvent partager la même.
+Seuls les résultats `accepted` suivent la destination de leur choix. Un candidat `uncertain`
+ne déclenche jamais cette branche, et `unavailable` suit sa destination dédiée. L’option sémantique
+`review` garde sa propre branche. Le moteur global et son instantané restent communs ; en central,
+la base demeure `validatedChoice` et les scores sont nuls. La sortie complète version 2 reste
+accessible avec `{{stepId.output}}`, notamment sa provenance et ses temps d’exécution.
 
-Arguments obligatoires : `source` non vide, `question` littérale de 1000 caractères maximum et
-`options` associant 2 à 24 identifiants stables à des descriptions non vides de 400 caractères maximum.
-Les identifiants suivent `[A-Za-z][A-Za-z0-9_]{0,63}` ; les doublons, collisions de casse et arguments
-inconnus sont refusés. Seule la source accepte des placeholders de sorties précédentes. Un contenu
-externe ne peut pas définir les questions, options ou seuils. Les protections des outils en amont
-restent applicables.
+L’[exemple complet désactivé](samples/decision-route-readiness.json) fonctionne avec les deux moteurs.
+Les workflows `flow.decision` existants restent valides. Les seuils natifs explicites conservent leurs
+contrôles et restent incompatibles avec le mode central. Le bloc de routage n’ajoute aucun seuil.
+Les permissions, l’absence de cycles, l’accessibilité des étapes, les sorties garanties et l’annulation
+restent contrôlées. `decisionRoutes` ne se combine pas avec `next` ou `forEach`. Les exceptions
+d’exécution gardent la politique Stop/Retry/ContinueOnError ; ContinueOnError passe à l’étape suivante
+dans l’ordre de déclaration après un échec, et cette arête est validée dans le graphe. Une évaluation
+`unavailable` est une sortie normale de l’outil, avec son routage explicite.
 
-`acceptance` permet éventuellement de préciser `minTopProbability` et `minMargin` entre 0 et 1,
-uniquement pour renforcer les valeurs héritées. Les valeurs par défaut sont 0,80 et 0,20.
+**Settings → Decision models** propose un choix global : **Use application LLM** (`CentralLlm`) ou
+**Use a decision model** (`NativeDecision`). Les décisions génériques, les tests explicites de l’éditeur
+et Gmail utilisent ce même moteur. Le workflow capture configuration, fournisseur, modèle et bornes
+avant sa première étape ; une modification prend effet au prochain run. Un test capture ses propres
+réglages. Aucun remplacement par tâche, étape ou conversation, second avis ou repli implicite.
 
-| Statut | Signification | Traitement |
-| --- | --- | --- |
-| `accepted` | Meilleur candidat unique respectant tous les seuils | Router sur `choice` après vérification du statut |
-| `uncertain` | Distribution valide, égalité ou seuil non atteint | Traitement explicite ; `choice` reste un candidat |
-| `unavailable` | Modèle absent, réponse invalide, délai dépassé ou entrée trop grande | Examiner les codes techniques ; choix et scores sont nuls |
+## Rédaction et inspection
 
-La sortie porte `schemaVersion: 1`. Les probabilités, seuils, marge et concentration sont normalisés
-entre 0 et 1. La marge est la différence entre les deux meilleurs scores. `confidence`, si présent,
-mesure la concentration de la distribution ; ce n’est pas une garantie de justesse. Une égalité reste
-incertaine même avec des seuils nuls. L’annulation utilisateur est propagée. Un contrat mal formé,
-une fonctionnalité désactivée ou une permission manquante produit une erreur, et non un statut
-`unavailable`. Les temps distinguent l’attente du verrou, l’inférence et le total incluant le nettoyage.
+Activez séparément l’évaluation générique et le groupe `decision` de la tâche. Ils sont désactivés par
+défaut. `decision.evaluate` reste réservé aux workflows, en lecture seule. Il exige `source` non vide,
+`question` littérale (1000 caractères maximum) et `options` (2–24 identifiants stables, descriptions de
+400 caractères maximum). Seule la source accepte les placeholders de sorties. Les champs inconnus,
+doublons et politiques issues d’une sortie sont rejetés avant inférence.
 
-L’[exemple désactivé](samples/decision-readiness.json) vérifie d’abord `status`, puis `choice` seulement
-sur la branche acceptée, avec le routage `flow.decision` existant. Chaque cas dispose d’une branche
-explicite. Les étapes finales `ai.summarize` utilisent le LLM général pour présenter le traitement
-de la branche ; elles illustrent une action en aval et ne constituent pas un repli de classification.
-Remplacez-les par les actions autorisées souhaitées. L’import n’installe rien et n’active aucune tâche.
+```json
+{"step":"decision.evaluate","id":"readiness","args":{
+  "source":"{{request.output}}",
+  "question":"Is essential information present?",
+  "options":{"process":"Essential facts are present.","clarify":"Essential facts are missing.","review":"Human review is needed."}
+}}
+```
 
-## Réglages et migration
+L’éditeur **Evaluate a decision** affiche moteur et modèle globaux en lecture seule. **Decision settings**
+ouvre les réglages en conservant le brouillon. Les seuils avancés et les lignes de scores s’appliquent au
+natif. Une surcharge explicite existante reste visible et bloque le moteur central ; **Remove explicit
+native acceptance** permet de la retirer volontairement. **Test decision** exige exemple explicite,
+activation et permission. Il est annulable, ne résout aucun placeholder, n’exécute aucune autre étape et
+ne sauvegarde ni exemple ni résultat. Les réponses tardives après annulation sont ignorées. Édition
+et sauvegarde ne déclenchent jamais d’inférence.
 
-La section `Decision` possède les paramètres natifs partagés. Si elle existe, elle est prioritaire,
-y compris pour les valeurs par défaut des champs omis. Sinon, les valeurs historiques de
-`GmailDecision` sont reprises, en gardant l’outil générique désactivé. La sauvegarde écrit la section
-canonique et retire les paramètres natifs partagés de la section Gmail enregistrée. Gmail conserve
-son activation, ses limites de collecte, son délai de lot, ses réglages de rapport, son arbitrage et
-son repli allégé. `LlmOnly` ne nécessite toujours pas Tev1.
+## Résultat version 2 et routage
 
-Le fichier de configuration livré conserve volontairement la section historique jusqu’à la première
-sauvegarde : des valeurs canoniques dans ce fichier de base masqueraient les réglages historiques
-des utilisateurs. Un [exemple canonique complet](decision-settings.example.json) est fourni séparément.
-Le [guide technique anglais](Decision-Evaluation.en.md) détaille chaque borne.
+Champs : `schemaVersion: 2`, `engine`, `capabilities.scores`, `acceptanceBasis`, `status`, `choice`,
+`probabilities`, `topProbability`, `margin`, `confidence`, `acceptance`, `reasons`, `provider`, `model`
+et `timing` (`gateWaitMs`, `inferenceMs`, `totalMs`, `cold`). Les scores natifs sont normalisés [0,1].
+La concentration ne mesure pas la probabilité que la réponse soit correcte.
 
-Les nouvelles limites génériques sont indépendantes du nombre de mails : délai d’opération de
-180 secondes par défaut, réglable entre 1 et 3600 ; budget complet de 2050 tokens, réglable entre
-512 et 2050. L’estimation prudente compte un token par octet UTF-8 de la source et du contrat sérialisé,
-plus une réserve fixe de 400 tokens. Elle peut refuser un texte qui tiendrait avec un tokenizer exact.
-Une entrée trop grande renvoie `InputTooLarge` avant tout accès réseau, sans troncature ni résumé.
+| Moteur | Base d’acceptation | Scores | Statuts |
+| --- | --- | --- | --- |
+| NativeDecision | nativeThresholds | Distributions natives validées | accepted : meilleur choix unique satisfaisant les seuils ; égalité ou seuil insuffisant : uncertain |
+| CentralLlm | validatedChoice | probabilities/topProbability/margin/confidence/acceptance tous null | accepted : choix autorisé strictement validé ; échec technique, format invalide ou limite dépassée : unavailable |
 
-Les deux appelants et les embeddings utilisent le même verrou d’exécution et le même coordinateur
-de résidence. Le nettoyage dispose d’un délai indépendant de cinq secondes et ne décharge pas un
-modèle encore possédé par une autre opération. Le keep-alive reste limité à 60 secondes maximum.
+Un choix sémantique `review` est un choix ordinaire du LLM central. Il ne devient pas une incertitude
+native. Aucune base ne garantit la justesse ni n’autorise des effets externes. Un résultat unavailable
+conserve moteur/base/provenance et temps disponibles, avec choix et scores nuls. L’annulation se propage ;
+contrat invalide, outil désactivé et permission manquante restent des erreurs.
+
+`acceptance` facultatif contient `minTopProbability` et `minMargin` dans [0,1], uniquement pour renforcer
+les seuils natifs globaux (.80 et .20 par défaut). Le contrôle de concentration reste natif. Tout objet
+acceptance explicite, même `{}`, est incompatible avec CentralLlm et doit être modifié volontairement.
+
+Utilisez `flow.decision` pour vérifier `status` avant `choice`. L’[exemple de choix](samples/decision-readiness.json)
+fonctionne avec les deux moteurs. L’[exemple numérique protégé](samples/decision-native-score.json) vérifie
+statut, `capabilities.scores` et absence de null avant de comparer `topProbability`. Sa branche sans
+scores exige une revue explicite et ne contourne pas le seuil numérique. Un passage au moteur central
+rejette avant inférence les routes natives numériques non protégées. Les consommateurs doivent gérer
+la version 2 et les scores nuls.
+
+## Réglages, migration et limites
+
+Un nouveau profil choisit explicitement CentralLlm. Un fichier existant sans Engine conserve NativeDecision.
+Une section `Decision` explicite est prioritaire ; sinon les valeurs natives historiques Gmail sont
+reprises. Le modèle de configuration embarqué ne masque pas ces anciennes valeurs. La sauvegarde
+conserve paramètres natifs inactifs, historique arbitrage/repli Gmail, autres réglages et activations.
+Aucun téléchargement, changement de permission, inférence ou réécriture des tâches planifiées.
+
+Le mode central utilise le fournisseur et modèle centraux ainsi que le contexte global déclaré.
+`CentralTimeoutSeconds` vaut 180 (1–3600), `CentralGateWaitSeconds` 30 (1–300),
+`CentralMaxOutputTokens` 512 (64–8192). La requête isolée et structurée n’a ni outils, historique,
+prompt de tâche, RAG ou secret dans le contenu. Le raisonnement est désactivé sans nouvelle tentative.
+Le budget compte de façon conservatrice les octets UTF-8 des instructions, source/questions sérialisées
+et schéma, plus réserve de sortie et enveloppe. Un dépassement générique devient `InputTooLarge`, sans
+troncature ni résumé. Le modèle central local suit sa résidence habituelle et n’est pas déchargé.
+
+Le natif conserve OllamaSystemOne, tev1:latest, l’adresse loopback héritée et la limite conservatrice de
+2050 tokens (`MaxInputTokens`, 512–2050). `OperationTimeoutSeconds` vaut 180 (1–3600), timeouts froid/chaud
+120/15 (1–300 / 1–120), attente de verrou 30 (1–300), keep-alive 10 (0–60) et nettoyage requis.
+Le budget natif ajoute une réserve de 400 tokens ; le nettoyage a une borne indépendante de cinq secondes
+et respecte les autres propriétaires. Le chargement à froid n’est indiqué que lorsqu’il est observable.
+Les seuils top/marge/concentration sont 80/20/0 sur 100 ; la certitude booléenne vaut 80 (50–100).
+Voir l’[exemple complet de réglages](decision-settings.example.json).
+
+Gmail exige `contractVersion: 2`, son activation et le groupe `gmailDecision`. Retirez volontairement
+arbitration/unavailableBehavior. Hybrid n’est compatible qu’avec NativeDecision, LlmOnly qu’avec CentralLlm ;
+ces champs ne sélectionnent jamais le moteur. Les nouvelles étapes omettent classificationMode.
+Acceptance natif, alwaysArbitrateChoices et seuils de réponse probabilistes doivent être revus.
+Le mail brut reste local, y compris pour les alias Ollama adossés au cloud ; une configuration cloud
+échoue sans fournisseur local de substitution. Booléens et niveaux de rubrique centraux sont des valeurs
+sémantiques, jamais des probabilités. Le rendu déterministe accepte les anciens rapports version 1 et
+les nouveaux version 2. Voir le [guide Gmail](Gmail-Decision-Reader.fr.md).
 
 ## Vérification et limites
 
@@ -105,16 +135,20 @@ dotnet test OD.MyLocalAgent.sln -m:1 --no-restore --filter "Category!=Integratio
 ```
 
 Le contrat a été revérifié le 7 octobre 2026 dans la [documentation Ollama](https://ollama.com/library/tev1).
-Le CLI installé indique la version 0.40.0, mais aucun serveur en cours d’exécution n’était accessible
-depuis cet environnement. La borne de 2050 tokens reprend la [mesure locale existante](Tev1-Local-Feasibility.md).
-Aucun essai de modèle, aucune lecture de mail réel et aucun test d’intégration n’ont été lancés.
-La phase C devra mesurer l’utilité, la qualité français/anglais et les latences à froid et à chaud
-avec des cas annotés et réservés à l’évaluation. Les tests d’implémentation ne prouvent pas la qualité du modèle.
+Pendant la phase A, le CLI indiquait la version 0.40.0 sans pouvoir joindre le serveur. La phase C
+a ensuite atteint ce serveur et exécuté les essais locaux autorisés. La borne de 2050 tokens reprend
+la [mesure locale existante](Tev1-Local-Feasibility.md). Les [résultats C](evaluation/Stage32C-Results.fr.md)
+montrent que Tev1 ne satisfait pas les critères figés pour les rendez-vous. Le pilote public
+VitaminC adapté reste descriptif. Aucune lecture de mail réel ni aucun test d’intégration n’ont
+été lancés. Les tests d’implémentation ne prouvent pas la qualité du modèle.
 
 La phase B prépare [30 paires français/anglais synthétiques](evaluation/decision-readiness-pairs.v1.json),
-dont 20 de développement et 10 réservées à l’évaluation. Les étiquettes proposées doivent être
-revues indépendamment avant les essais. Le [protocole](evaluation/Decision-Evaluation-Protocol.md)
+dont 20 de développement et 10 réservées à l’évaluation. Le propriétaire a validé les annotations
+avant les essais C ; aucune relecture bilingue distincte et aveugle n’est revendiquée.
+Le [protocole](evaluation/Decision-Evaluation-Protocol.md)
 précise relecture, comparaisons, critères, identités des modèles, répétitions, latences et mesures.
 `tools/Prepare-DecisionEvaluation.ps1` valide le corpus hors ligne et peut produire 60 tâches
 désactivées d’une étape, avec manifeste et empreinte du corpus. Il n’importe et n’exécute aucune
-tâche. L’exécuteur comparatif et les résultats réels restent à réaliser en phase C.
+tâche. L’[exécuteur comparatif](../tools/DecisionEvaluation/README.md) réalise désormais les pilotes
+isolés autorisés et conserve observations, agrégats et évaluation des critères. Aucun déploiement
+n’a été réalisé ; le routage intégré est maintenant livré en phase D ; exposition agentique différée.

@@ -1,170 +1,69 @@
-# Gmail decision reader
+# Gmail decision reader — global engine contract
 
-The decision reader is a separate, opt-in workflow tool. It collects Gmail once, classifies each
-selected message sequentially with an installed local decision model, and returns structured
-coverage. A second workflow step creates Markdown in code. Existing Gmail readers and saved
-tasks retain their protected summary behavior.
+The opt-in workflow reader collects Gmail once, classifies bounded messages sequentially through the
+common global decision service and returns source-free coverage. `gmailDecision.renderReport` renders
+Markdown deterministically; it performs no model, connector or file call. Existing protected Gmail
+readers keep their normal contract. No production schedule is rewritten.
 
-## Classification modes
+## Configuration and authoring
 
-Stage 32 phase A moves shared native provider, model, residency, timeout and acceptance defaults
-to **Settings → Decision models** and the canonical `Decision` section. Gmail enablement and mail
-policy remain under **Gmail decision reader** / `GmailDecision`. Legacy-only native settings are
-migrated on save; an explicit `Decision` section is authoritative. The separate generic
-`decision.evaluate` tool stays disabled by default, including when Gmail is enabled. See the
-[generic decision guide](Decision-Evaluation.en.md).
+Enable Gmail decision reader and grant the task `gmailDecision` separately. Choose **Use application LLM**
+or **Use a decision model** in **Settings → Decision models**. Generic enablement is independent.
+One configuration/provider/model snapshot applies to the whole workflow/batch. The central local
+model retains ordinary residency; the native dedicated model uses bounded ownership-aware cleanup.
+Raw mail never enters a cloud provider, even through remotely backed Ollama aliases. Incompatible
+configuration is reported before raw-source inference, without selecting another provider.
 
-The `classificationMode` argument of `gmailDecision.readClassify` accepts `Hybrid` (default)
-or `LlmOnly`. Hybrid mode uses Tev1 and acceptance checks before any second opinion.
-`LlmOnly` makes one local structured call per mail, without querying, loading or unloading
-Tev1. The reader must remain enabled in Settings; Tev1 does not need to be installed for this mode.
+Required arguments are `questions`, `reportMapping` and **`contractVersion: 2`**. Named questions support
+choice (2–24 options), noul (Boolean), and score (2–10 ordered levels), 1–8 questions per request.
+Question descriptions/keys and report policy are literal; previous mail output cannot author policy.
+Optional collection fields: selection Today/Unread/Recent, daysBack for Recent only (0–3650),
+maxMessages within Settings/protection limits, and batchTimeoutSeconds to shorten the complete deadline.
+See the [disabled sample](samples/gmail-decision-watch.json) and
+[Technical Manual](Technical-Manual.html#gmail-decision) for executable syntax.
 
-To use the configured Ollama model directly, add this property to the step arguments:
+Native `acceptance` uses historical percent units with perQuestion/perChoice overrides and may only
+tighten global thresholds. Central mode rejects every explicit acceptance object. Central noul answers
+are semantic Booleans; rubric answers are zero-based levels, not native probability-weighted expected
+scores. Nondefault replyTrueAtPercent probability mappings must be reviewed for central mode.
 
-```json
-"classificationMode": "LlmOnly"
-```
+## Deliberate legacy migration
 
-The model is `FallbackModel`, or by inheritance `ArbitrationModel`, then the Ollama chat model;
-the timeout is `FallbackTimeoutSeconds`. The conventional context is 8192 tokens, with output
-bounded to 512 tokens. Questions and source are budgeted independently of the 2050-token native
-context. Native thresholds and arbitration budgets are not applied; choices in
-`alwaysArbitrateChoices` still require human review. Output includes `classificationMode=LlmOnly`,
-`decisionSource=directLlm`, `counts.directLlmResolved` and `timing.classificationMs`, without
-fabricated native scores.
+Version 2 is a migration acknowledgement, not an automatic conversion. Missing/older contractVersion
+blocks execution with a migration error. Review each authored requirement before setting it to 2:
 
-The `projection.decisionContentTruncated` and `projection.llmContentTruncated` flags distinguish
-omissions by model. The former is null in direct mode; older results may omit both. Reports
-label truncated LLM sources. In hybrid mode, `VisibilityProtectionOverride` retains a relevant
-native category despite a noise second opinion, with `Provisional` status and explicit human review.
+1. Choose the global engine. Hybrid is compatible only with NativeDecision; LlmOnly only with CentralLlm.
+   Remove classificationMode in new steps. A legacy selector never overrides Settings.
+2. Remove arbitration and unavailableBehavior explicitly, including false/Fail values. Historical
+   Settings fields remain persisted and inactive. There are no second opinions or fallback calls.
+3. Review native acceptance, alwaysArbitrateChoices and probability-based cross-question rules. Do not
+   discard numeric requirements silently; retain the native engine or deliberately edit the workflow.
+4. Preserve selection, limits, named questions, report labels/ranks and independent permissions.
+5. Check output consumers for schema 2, engine, capabilities and null scores. No scheduled task is saved
+   or rescheduled by migration code. Editing/saving does not run a model.
 
-## Enable and configure
+## Coverage and reports
 
-1. Open **Settings → Local decision models** and enable the reader.
-2. Select an already installed decision model (default `tev1:latest`). The application never pulls
-   models automatically. The supported provider is `OllamaSystemOne`.
-3. Leave the decision endpoint blank to inherit Ollama. Only loopback HTTP(S) is supported;
-   remote host names, credentials, URL paths and redirects are rejected.
-4. Leave arbitration and fallback models blank to inherit the local Ollama chat model. They
-   always stay local, even when the application's active provider is OpenAI. The decision model
-   must have a different installed digest from chat, arbitration, fallback and embedding models
-   at the same endpoint. Aliases do not evade this check.
-5. Save. Saving performs configuration validation and local persistence; it does not load a model
-   or wait for inference. Use **Refresh models** to inspect the installed catalog and **Test
-   decision model** for two synthetic greeting requests. The test reads no mailbox and releases
-   only the dedicated decision model afterwards.
+Output schema 2 records `engine`, `capabilities.scores`, `acceptanceBasis`, `provider`, the selected
+`effectiveModels.decision` and `classificationMode: Global`. Native basis is nativeThresholds;
+central basis is validatedChoice. Central scores remain absent/empty; no distributions are invented.
+Each collected row remains present: Classified is resolved, Provisional retains valid native answers
+requiring review, Unresolved has no valid answer or ran out of time. Central semantic review options
+are ordinary choices. Technical failure never becomes an ordinary category.
 
-Keep-alive defaults to 10 seconds, with mandatory cleanup after a batch. Zero unloads after each
-request and can make loading dominate runtime. Cold inference has a 120-second ceiling; warm
-inference, arbitration and fallback each default to 15 seconds. The complete operation has a
-180-second deadline including collection and lock/gate waits. Cleanup uses an independent
-five-second budget after cancellation. Idle lifetime does not guarantee server eviction priority.
+Counts satisfy classified + provisional + unresolved = collected. Historical arbitration/fallback
+counters remain zero in schema 2; directLlmResolved and classificationMs describe central calls.
+The deterministic report accepts archived schema 1 and schema 2, validates types/identities/counts,
+escapes display text and explains basis, capability, omissions and warnings. includeNoise=false hides
+rank-zero rows while counting them. Empty collection renders **No messages found**.
 
-## Author a workflow
+Collection and complete deadlines remain bounded. The common adapters budget full prompts; a native
+source exceeding the conservative 2050-token limit is unavailable, without invoking the central model.
+Diagnostics log identities, question hash, status, sanitized reasons and timing, not source bodies.
+Outer workflow Retry repeats collection and evaluation at the user's authored policy; it is never
+an internal alternate-engine mechanism. Tests use fake responses. Live mail/model quality evaluation,
+download, deployment and publication require a separate request.
 
-Use [the disabled starter task](samples/gmail-decision-watch.json) as a separate task. It grants
-`gmailDecision` and `filesystem`, reads Recent messages, renders a report and writes a relative
-`reports/gmail-watch.md` path under the configured file-system root. Absolute paths still need
-the existing per-task write grant. Importing this example does not enable or replace a production
-task or schedule.
-
-In the step editor, select `gmailDecision.readClassify` and choose **Load triage example**. The
-named question fields edit names, types, instructions and answer descriptions. Move rubric
-answers up/down to define their zero-based urgency order. **Apply question fields** commits
-them to the step draft; the main Apply also commits pending edits. If you edit questions JSON
-directly, use **Reload fields from JSON** before continuing in named fields. Mappings,
-per-question/per-choice thresholds and cross-question conflicts remain available as structured
-JSON arguments. Changing question names/choices requires updating references in those objects.
-No global question profile is created.
-
-Supported questions are `choice` (2–24 named choices), `noul` (a native true score, ultimately
-displayed as Boolean), and `score` (2–10 ordered rubric levels). Questions and answer keys must
-be unique literal identifiers. Instructions/descriptions can be English or French. Policies,
-enum values, keys and mappings must be literal. Authored question text may use ordinary task/date
-placeholders; previous outputs and accumulated mail/workflow context cannot author questions.
-Unknown properties, casing collisions, incompatible thresholds and invalid references fail before
-collection. The report includes only canonical answer types and bounded display metadata, never
-mail bodies, snippets, classifier prompts or reasoning.
-
-`gmailDecision.renderReport` consumes `{{mailTriage.output}}`, a title and `includeNoise`. It
-does not fetch Gmail, invoke a model or write a file. Add `filesystem.write` separately. Do not
-add screening, summarization, Knowledge/RAG or an LLM formatting step to this pipeline.
-
-These aliases cannot be agent tools, Direct Chat tools, `ai.prompt.toolAliases`, or `forEach`
-steps. The Tool tester requires a selected authorized task and the explicit **Authorized workflow
-test** checkbox. Merely possessing a task id or the old `gmail` group is insufficient. The reader
-grants no send, delete, attachment retrieval or mark-read capability.
-
-## Understand results
-
-Top answer score, minimum lead (percentage points), and concentration score refer to native model
-scores. They are not calibrated correctness probabilities or accuracy guarantees. Acceptance uses
-inclusive, unrounded comparisons. A native top score of 0.81 and runner-up of 0.16 have a lead of
-65 percentage points. A noul true score of 0.05 has 95% certainty on the false side; the report's
-true/false boundary independently defaults to 50%. Rubric acceptance evaluates the level
-distribution, not its weighted numeric score. Ties require a second opinion.
-
-Second-opinion budget is `min(M, floor(M × percent / 100), maxCalls when nonzero)`, where M is
-the collected count. Attempted failed calls also consume the budget. Valid native answers remain
-**Provisional** if arbitration is disabled, exhausted or fails. Missing valid answers produce
-**Unresolved** rows. A structurally valid lightweight fallback resolves a row without requiring
-review merely because the decision provider was unavailable. Explicit uncertain choices remain
-provisional. If one model kept a mail visible and another selected rank-zero noise, the higher
-attention category is retained, disagreement is shown, and the second model's reply/urgency
-answers remain intact.
-
-Technical unavailability defaults to **LightweightLlmFallback**. This is one fixed, non-streaming,
-tool-free, temperature-zero, thinking-disabled local chat request per affected mail, using the
-same authored questions and strict validator. It is also the independent arbitration service;
-arbitration is not given decision scores or answers. The reader never falls back to the legacy
-multi-pass pipeline or a cloud provider. **Fail** instead rejects technical unavailability.
-Transient decision errors receive at most one retry. Two consecutive malformed decisions open
-an operation circuit; missing/incompatible models and unsupported routes open it immediately.
-Remaining mails use fallback without refetching or probing SystemOne again.
-
-Every collected mail remains in source order in version-1 JSON, with `Classified`, `Provisional`
-or `Unresolved` status. Counts satisfy `classified + provisional + unresolved = collected`.
-Deadline-skipped rows explicitly carry `NotProcessedBeforeDeadline`; cancellation publishes no
-successful result. Collection bounds expose partial coverage without inventing a provider total.
-Large results omit probability details first (`scoreDetailsOmitted`), retain all rows and selected
-scores, and fail explicitly if required metadata still exceeds 512 KiB.
-
-Reports group by descending attention rank while retaining source order inside each group. They
-show coverage, local models, fallback/second-opinion usage and phase timing. Provisional/unresolved
-mail has a human-review badge. `includeNoise=false` explicitly states the intentionally hidden
-count. Empty collections say **No messages found**. All sender/subject/title values are escaped;
-Gmail links are constructed only from validated opaque hex identifiers.
-
-## Budgeting, memory and diagnostics
-
-Tev1's observed effective scoring context is approximately 2,050 tokens. Without a verified local
-tokenizer, this implementation uses a documented conservative byte-fallback BPE upper bound of
-one token per UTF-8 byte, with 400 tokens reserved for templates/scoring/output. Questions are
-never trimmed; contracts leaving fewer than 128 conservative source tokens are rejected. Mail is
-shortened deterministically on Unicode boundaries with an omission marker. Quoted history and
-current-content truncation are recorded separately. Significant source truncation forces a second
-opinion, even when native scores are strong. The conventional call has its own bounded 8,192-token
-context and 512-token output reserve. This conservative estimator can increase arbitration rates;
-the technical probe's repeated synthetic fixtures do not establish real-mail quality or latency.
-
-Cross-process OS file handles own reader intent and request-boundary leases. Empty rendezvous
-files are not ownership; process death releases handles. Pending embeddings take priority between
-mail requests, unload the verified dedicated decision model, then run under the same global LLM
-gate. Readers retain progress and detect reloads through residency checks before choosing cold
-versus warm timeout. Lock order is embedding intent, endpoint request boundary, then global LLM
-gate; no owner waits for residency while holding the gate. End-of-batch cleanup waits for the
-request boundary and skips unloading while another reader operation still owns intent, including
-model aliases. External Ollama clients are outside this coordination boundary.
-
-Runs display **Completed with warnings** and workflow reports expose degradation/quality warnings.
-Ordinary classifier diagnostics use operation/task/step correlation, per-run mail index, contract
-and response hashes, estimates, native scores, acceptance rules, timing and fixed failure codes.
-They omit mail body, sender/subject, prompts, reasoning and arbitrary provider error text.
-
-The shipped task uses StopOnError. An outer Retry authored by a user repeats this read-only
-collection and classification batch and incurs the full cost again. Live FR/EN quality evaluation
-and reference-installation latency targets require separate explicit authorization; no production
-mail benchmark, model download, deployment or task migration is part of installation of this code.
-
-Provider reference: [Ollama Tev1 API](https://ollama.com/library/tev1) and
-[Ollama model lifecycle](https://docs.ollama.com/api/generate).
+See the [common engine guide](Decision-Evaluation.en.md),
+[phase C evidence](evaluation/Stage32C-Results.en.md) and
+[Ollama structured output contract](https://docs.ollama.com/capabilities/structured-outputs).

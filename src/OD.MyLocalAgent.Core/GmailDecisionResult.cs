@@ -3,6 +3,10 @@ namespace OD.MyLocalAgent.Core;
 internal sealed record GmailDecisionResult
 {
     public int SchemaVersion { get; init; } = 1;
+    public string? Engine { get; init; }
+    public DecisionCapabilities? Capabilities { get; init; }
+    public string? AcceptanceBasis { get; init; }
+    public string? Provider { get; init; }
     public string Status { get; set; } = "Completed";
     public string ClassificationMode { get; init; } = "Hybrid";
     public DecisionSelection Selection { get; init; } = new("Recent", 1);

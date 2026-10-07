@@ -38,7 +38,7 @@ public static class DecisionConfigurationExtensions
                 mail.MinMarginPercentagePoints = value.MinMarginPercentagePoints;
                 mail.MinConfidencePercent = value.MinConfidencePercent;
                 mail.MinNoulCertaintyPercent = value.MinNoulCertaintyPercent;
-            }).Validate(GmailDecisionOptions.IsValid, "Gmail decision settings are invalid.");
+            }).Validate(GmailDecisionOptions.IsValidMail, "Gmail decision settings are invalid.");
         return services;
     }
 }

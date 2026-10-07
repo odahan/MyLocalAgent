@@ -2588,3 +2588,181 @@ Application version: **2.6.6** (incremented from 2.6.5).
   no-op preservation, fixture bounds and the shipped PowerShell script's sixty generated tasks
   validated using `ScheduledTaskSerializer`. A Windows PowerShell hashing compatibility issue
   found by the preparation test was corrected. Every build/test invocation included `-m:1`.
+
+## Stage 32 phase C — Controlled comparative executor and first pilot — 2026-10-07
+
+- Added the standalone `tools/DecisionEvaluation` executable with offline planning, approved
+  execution, checkpointed JSONL observations and offline analysis. It calls the actual common
+  native service, one structured tool-free configured local LLM call, and frozen lexical rules
+  only for the appointment corpus. References are separated from model prompts. Cancellation,
+  bounded deadlines and technical unavailability are preserved; no semantic label replaces a
+  failed operation. Process-only native enablement never saves application settings or tasks.
+- The existing classification transport accepts explicit benchmark instructions and a bounded
+  lease for this isolated comparator. Its default mail instruction/request behavior is preserved
+  and deterministically checked. No new package, workflow tool or agent permission was added.
+- Added a checksum-verified VitaminC importer from the pinned Bespoke public benchmark manifest.
+  Selection retains complete families in manifest order without consulting labels. The state
+  representation and normalized option identifier are recorded adaptations; attribution and
+  CC BY-SA 3.0 notes accompany local inputs. This is a Choice-only public pilot, not an exact
+  replication of thirteen subsets or published aggregate results. Raw data/per-input records
+  remain ignored under `artifacts/decision-evaluation/`; aggregate counts and provenance are kept.
+- Owner validation froze the proposed FR/EN annotations and appointment success criteria before
+  execution; no blind independent review is claimed. Thirty pairs (20 development, 10 held out)
+  and forty public inputs (11 families) were evaluated three times. Completed runs produced 780
+  observations, including 600 local model calls, with no unavailable results. Every input/backend
+  had stable choice/status across repetitions; repetitions do not increase independent evidence.
+- Tev1 failed the frozen held-out appointment quality criteria: 50% accepted coverage and six
+  wrong accepted observations from two unique English inputs among twenty unique held-out inputs.
+  Choice agreement was 60% for Tev1, 60% for Gemma4 and 90% for the narrow rules. Native cold/warm
+  p95 met the budgets. Descriptive higher-threshold sweeps sacrifice coverage and were not used to
+  change production thresholds. The public pilot gave 85% Tev1 versus 80% Gemma4 reference agreement
+  on forty unique inputs; it establishes neither a general advantage nor production readiness.
+- Recorded installed model digests, source/configuration/fixture hashes, Ollama 0.40.0, hardware
+  context, exact comparator instructions and residency snapshots. General cold classification
+  observes digest residency and can miss reloads when context changes. Native cleanup requests
+  unload asynchronously. No concurrent chat/embedding impact or peak memory was measured. The
+  comparator changed the cached LLM context/lease without altering persistent configuration.
+  Later offline analysis fixed public threshold partition selection; summary analysis assembly
+  hashes/timestamps are separate from preserved original scoring manifests. Future executions
+  also capture assembly hashes and explicit cold-flag provenance.
+- Bilingual result reports, guides, HTML manuals, README, spec status/index and shared-spec addendum
+  record the unfavorable appointment outcome and the limited public evidence. Phase C's first
+  pilot is complete; optional integrated routing (D) and agent exposure (E) remain deferred.
+  No live mailbox, integration tests, model download, deployment or Git publication was performed.
+- Verification: build had zero warnings/errors; full default suite
+  `dotnet test OD.MyLocalAgent.sln -m:1 --no-build --no-restore --filter "Category!=Integration"`
+  completed with **1073 passed, zero failed, one expected Ollama probe skipped**. Seventeen new
+  deterministic cases cover metrics/denominators, percentile calculation, threshold ties,
+  annotation isolation, single-call comparison, invalid choices, cancellation, criteria,
+  rule examples, public source checksums/families and transport compatibility. Every build/test
+  invocation explicitly included `-m:1`; model quality is not asserted in unit tests.
+
+## Stage 32C follow-up — Installed Qwen comparators — 2026-10-07
+
+- Following owner steering and installation of Qwen3.5 4B, added process-only `--general-model`
+  and validated `--backends` selection. Neither option changes application settings or the main
+  model. Existing corpus approvals, general instructions and explicit request options are reused;
+  general-only runs do not fabricate native threshold sweeps or claim native criteria success.
+  Manifests also record declared model details, quantization and inherited sampling defaults.
+- Two Qwen sizes evaluated both frozen corpora three times, adding 600 valid calls. No unavailable
+  or invalid choices and no repetition variation. Held-out choice agreement: Tev1/Gemma4/Qwen4B
+  60%, Qwen9B 50%; public adapted VitaminC: Tev1 85%, Gemma4 80%, Qwen4B 77.5%, Qwen9B 67.5%.
+  Equal held-out accuracy masks different errors. This is a small non-thinking comparison; it
+  does not rank general chat quality or isolate specialization independently of quantization,
+  templates, inherited defaults and inference interfaces. Tev1 still fails routing criteria.
+- The first Qwen9B passage observed an alias/digest change and was excluded (180 calls), with
+  original manifest and exclusion audit retained. Public preflight then failed on duplicate names
+  before inference. Added an isolated general identity resolver selecting the runner declared by
+  `/api/show` against `/api/tags`, rejecting ambiguity and checking before/after every call.
+  Replacement Qwen9B runs used one stable llamacpp digest. Qwen4B preflight/final resident digests
+  agree; its runs preceded the stronger per-call checks, a recorded limitation. Production native
+  identity behavior was not changed. No model download or configuration migration was performed.
+- Bilingual follow-up reports preserve results, latencies/residency, limitations and original
+  evidence. Original pilot manifests and outcomes are unchanged. General cold samples number one
+  per valid run; no reliable cold p95, concurrent workload impact or peak memory claim follows.
+- Final build: zero warnings/errors. Default suite with `-m:1`, `--no-build --no-restore` and
+  `Category!=Integration`: **1078 passed, zero failed, one expected probe skipped**. Added isolated
+  model-selection cases and runner ambiguity tests. No integration test, deployment or commit.
+
+## Stage 32 roadmap revision — Global engine selection specified — 2026-10-07
+
+- Recorded owner agreement to retain the native decision path while making central-LLM decisions
+  a globally selected alternative. Revised Stage 32 mission, phase table, configuration, adapters,
+  output examples, editor/routing rules, execution boundaries and verification requirements.
+- A–B and the C pilot/Qwen follow-up remain completed evidence. New C2 is the next required
+  implementation increment before optional D/E; it is explicitly not implemented by this revision.
+- Specified version 2 result provenance/acceptance basis with nullable central scores, new-profile
+  central defaults and existing native-profile preservation. Explicit native gates cannot be ignored.
+  Gmail legacy modes need a versioned migration rather than an independent global-choice override;
+  its raw-mail exception remains local-only. Primary-model residency differs from native cleanup.
+- Updated the prompt index and shared-spec planned addendum. Documentation-only checks: diff
+  whitespace, local reference resolution and both illustrative JSON contracts. No new model run,
+  application behavior change, build/test invocation, task migration or Git publication.
+
+## Stage 32 C2 — Global central/native decision engine delivered — 2026-10-07
+
+- Implemented global Decision.Engine = CentralLlm | NativeDecision. New profiles explicitly
+  select central mode with independent feature enablement off; existing omitted-engine profiles
+  retain native behavior. Canonical native configuration overrides legacy Gmail values; inactive
+  native and historical Gmail settings survive saving and engine changes.
+- Capture provider/model, generation policy and native settings before the first workflow step
+  or explicit test. Generic and Gmail callers use the same service and execution snapshot.
+  Central decisions make one bounded structured request with explicit source/questions only,
+  no tools/history/RAG/reasoning retry, no native fallback and no primary-model unload.
+  Native identity checks, shared gate, owned residency and independent cleanup remain active.
+- Schema 2 records engine, score capability, acceptance basis and timing. Central answers use
+  validatedChoice with null native probabilities/top/margin/confidence/acceptance. Native
+  threshold acceptance remains distinct from a semantic review choice. Numeric generic/Gmail
+  routes require a dominating capabilities.scores guard; explicit incompatible acceptance fails.
+- Gmail requires contractVersion 2 for deliberate migration. Hybrid/LlmOnly are compatibility
+  assertions against global Settings; retired arbitration/unavailableBehavior arguments fail.
+  Raw mail remains local-only, including verification of loopback Ollama model aliases.
+  Collection/report rules and independent Gmail enablement remain; report rendering reads
+  archived schema 1 as well as schema 2 without manufacturing central scores.
+- Updated global Settings and MVVM step editing: read-only engine identity, shared Settings
+  access, optional score displays, explicit removal of incompatible acceptance, no inference
+  during save/edit. Updated workflow assistant authoring, bilingual guides/user manuals,
+  Technical Manual catalog and syntax/result tables, configuration and disabled samples.
+- Verified real registry/workflow execution, engine changes between steps, guarded/no-score
+  routing, strict structured answers, typed Boolean/rubric answers, source isolation, local-only
+  failures, cancellation, limits, profile migration and retained settings. Full default test
+  command: dotnet test -m:1 --no-restore --filter "Category!=Integration".
+  **1109 passed, zero failed, one expected probe skipped (1110 total)**; compilation reported
+  no warnings or errors. Testhost required execution outside the sandbox for localhost IPC.
+- Ollama CLI read-only check reports 0.40.0; current server was unreachable. No C2 live
+  inference, integration test, model download, production task migration, deployment or Git
+  publication. Original C/Qwen observations and unfavorable appointment criteria are retained.
+  Optional D/E remain deferred.
+
+## Stage 32 D — Integrated Route by decision — 2026-10-07
+
+- Delivered the separately requested phase D over the completed C2 evaluator. Chosen persisted
+  representation is an optional top-level `WorkflowStepDefinition.DecisionRoutes` JSON object
+  on `decision.evaluate`, with exhaustive literal `choices` and mandatory `uncertain` and
+  `unavailable` destinations. No new tool alias, provider, engine selector, expression language,
+  package, model call or agent permission was added. Existing workflows retain their behavior.
+- Added `DecisionRouteDefinition` to validate option/destination correspondence and select a
+  destination from version 2 output. Only `accepted` follows a choice; uncertain candidates and
+  unavailable failures follow their own explicit destinations. Semantic review remains an
+  ordinary mapped option. Engine, acceptance basis, scores and timing remain in the full named
+  evaluation output. Central validated choices never manufacture native scores.
+- Workflow graph validation includes every destination, cycles, reachability and guaranteed
+  output dependencies. `next` and `forEach` cannot accompany the mapping. Existing task and
+  per-step Stop/Retry/ContinueOnError remain intact: execution exceptions use those policies;
+  ContinueOnError follows declaration order and adds its edge to graph validation. Evaluation
+  unavailability is successful tool data routed explicitly. Cancellation propagates. Runtime
+  result validation participates in the usual retry/error policy before output publication.
+- Extended the MVVM Toolkit editor with Route by decision, option destination fields and explicit
+  status destinations. Apply validates without inference. Explicit sample testing runs no branch
+  and persists no result. Native acceptance incompatibility and global snapshot behavior reuse
+  C2. Option edits and raw-argument reloads retain destination mappings. Deletion dependency
+  analysis, deterministic descriptions, catalog guidance and AI Workflow Helper preserve routes.
+- Added the disabled `Docs/samples/decision-route-readiness.json`, bilingual guides, user/technical
+  manual updates and normative shared/stage-spec additions. Historical experiments remain
+  unchanged; delivered convenience establishes no model correctness or production-routing claim.
+  Agent phase E, deployment, task scheduling/migration and Git publication remain separate.
+- Initial build exposed generated sources under an existing nested TestResults validator project,
+  causing duplicate assembly attributes. The test project now excludes `TestResults/**/*.cs`
+  from compilation, preserving those artifacts. A sandboxed test run could not connect local
+  vstest/testhost IPC; the successful suite ran outside that isolation.
+- Verification: `dotnet build OD.MyLocalAgent.sln -m:1 --no-restore` reported zero warnings/errors.
+  Final `dotnet test OD.MyLocalAgent.sln -m:1 --no-restore --filter "Category!=Integration"`
+  compiled the final implementation and passed **1139 tests, zero failures, one expected Ollama
+  probe skipped (1140 total)**. Thirty added deterministic cases cover both engines/statuses,
+  malformed contracts/results, graph dependencies, authorization, serialization, editor Apply
+  and test isolation, cancellation, error policies and validation of the shipped example.
+  No live inference/integration test was run. Live WPF appearance was not inspected in this pass.
+
+## Stage 32 E — Owner decision: open and on hold — 2026-10-07
+
+- Phase E remains open, awaiting both a demonstrated use case for optional agentic decision
+  evaluation and engines more effective than Tev1 for that use case. Reusable agent-tool
+  infrastructure alone does not justify implementation. An optional tool call is not guaranteed,
+  and using the agent's own central LLM does not supply an independent opinion.
+- Required checkpoints remain explicit workflow/orchestration steps. MyLocalAgent will not
+  connect to JEV through a paid subscription for two or three workflows and a handful of emails.
+  No hosted JEV dependency is planned. Reconsideration requires evidence of useful decision
+  quality and practical cost/latency, plus separate owner authorization.
+- Documentation-only update to Stage 32, its shared-spec addendum and prompt index; no runtime,
+  package, configuration, experiment, deployment or task change. Whitespace verification applies;
+  build/test execution is unnecessary for this roadmap decision.

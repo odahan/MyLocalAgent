@@ -64,7 +64,7 @@ public sealed class KnowledgeEmbeddingService : IKnowledgeEmbeddingService
                 var decision = _decisionOptions?.CurrentValue;
                 var mail = _gmailDecisionOptions?.CurrentValue ?? new GmailDecisionOptions();
                 if (decision is not null && (decision.Enabled || mail.Enabled) && _decisionClient is { } client &&
-                    DecisionOptions.IsValid(decision) && LocalDecisionEndpoint.IsValid(local.Endpoint) &&
+                    decision.Engine == "NativeDecision" && DecisionOptions.IsValid(decision) && LocalDecisionEndpoint.IsValid(local.Endpoint) &&
                     DecisionModelIdentity.SameEndpoint(decision.DecisionEndpoint ?? local.Endpoint, local.Endpoint))
                 {
                     var identities = await client.GetModelIdentitiesAsync(local.Endpoint, timeout.Token).ConfigureAwait(false);

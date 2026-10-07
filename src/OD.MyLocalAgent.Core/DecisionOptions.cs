@@ -10,6 +10,17 @@ public sealed record DecisionOptions
     public const string SectionName = "Decision";
     /// <summary>Enables generic workflow evaluation independently of Gmail.</summary>
     public bool Enabled { get; set; }
+    /// <summary>The application-wide engine; omitted fields in existing profiles retain native behavior.</summary>
+    public string Engine { get; set; } = "NativeDecision";
+    /// <summary>The central structured response token limit, independent from the native context.</summary>
+    public int CentralMaxOutputTokens { get; set; } = 512;
+    /// <summary>The central bounded request deadline, including execution-gate wait.</summary>
+    public int CentralTimeoutSeconds { get; set; } = 180;
+    /// <summary>The central gate wait bound in seconds.</summary>
+    public int CentralGateWaitSeconds { get; set; } = 30;
+
+    /// <summary>Creates disabled settings for a newly created profile.</summary>
+    public static DecisionOptions NewProfile() => new() { Engine = "CentralLlm" };
     /// <summary>The local native provider.</summary>
     public string DecisionProvider { get; set; } = "OllamaSystemOne";
     /// <summary>The loopback endpoint override; null inherits local Ollama.</summary>
@@ -75,8 +86,12 @@ public sealed record DecisionOptions
     };
 
     /// <summary>Validates bounds without network access.</summary>
-    public static bool IsValid(DecisionOptions value) => IsValidNative(value) &&
-        value.OperationTimeoutSeconds is >= 1 and <= 3600 && value.MaxInputTokens is >= 512 and <= 2050;
+    public static bool IsValid(DecisionOptions value) =>
+        value.Engine is "CentralLlm" or "NativeDecision" &&
+        value.CentralMaxOutputTokens is >= 64 and <= 8192 && value.CentralTimeoutSeconds is >= 1 and <= 3600 &&
+        value.CentralGateWaitSeconds is >= 1 and <= 300 &&
+        (value.Engine == "CentralLlm" || (IsValidNative(value) &&
+            value.OperationTimeoutSeconds is >= 1 and <= 3600 && value.MaxInputTokens is >= 512 and <= 2050));
 
     internal static bool IsValidNative(DecisionOptions value) =>
         value.DecisionProvider == "OllamaSystemOne" && !string.IsNullOrWhiteSpace(value.DecisionModel) &&

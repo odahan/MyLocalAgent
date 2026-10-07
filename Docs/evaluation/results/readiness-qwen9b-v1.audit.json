@@ -1,0 +1,6 @@
+{
+  "excluded": true,
+  "reason": "Model identity changed during the run. Preflight digest 6488c96fa5faab64bb65cbd30d4289e20e6130ef535a93ef9a49f42eda893ea7 differs from the final resident digest c97eb11d70b1acdc88af01eef566c1fe4f7fbe93eb1afc06871132f293ff425a. API tags subsequently exposed two same-name runner variants. Choices and cold flags cannot be attributed to a stable model.",
+  "replacement": "readiness-qwen9b-v2",
+  "recordedUtc": "2026-10-07T13:50:18.4272946+00:00"
+}

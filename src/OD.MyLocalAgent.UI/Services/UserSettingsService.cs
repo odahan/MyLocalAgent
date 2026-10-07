@@ -108,9 +108,14 @@ internal sealed class UserSettingsService : IUserSettingsService
                 }
                 else
                 {
-                    document[section.Key] = JsonSerializer.SerializeToNode(
+                    var saved = JsonSerializer.SerializeToNode(
                         section.Value,
                         SerializerOptions);
+                    if (section.Key == DecisionOptions.SectionName && document[section.Key] is JsonObject previous && saved is JsonObject updated)
+                    {
+                        foreach (var property in updated) previous[property.Key] = property.Value?.DeepClone();
+                    }
+                    else document[section.Key] = saved;
                 }
             }
 
@@ -415,8 +420,8 @@ internal sealed class UserSettingsService : IUserSettingsService
     {
         var native = settings.Decision ?? DecisionOptions.FromLegacy(settings.GmailDecision ?? new());
         var decision = native.ApplyTo(settings.GmailDecision ?? new());
-        if (!DecisionOptions.IsValid(native) || !GmailDecisionOptions.IsValid(decision) ||
-            ((decision.Enabled || native.Enabled) && !LocalDecisionEndpoint.IsValid(native.DecisionEndpoint ?? settings.OllamaEndpoint)))
+        if (!DecisionOptions.IsValid(native) || !GmailDecisionOptions.IsValidMail(decision) ||
+            (native.Engine == "NativeDecision" && (decision.Enabled || native.Enabled) && !LocalDecisionEndpoint.IsValid(native.DecisionEndpoint ?? settings.OllamaEndpoint)))
             throw new InvalidOperationException("Local decision model settings require bounded policies and loopback endpoints.");
         if (!KnowledgeOptions.IsValid(settings.Knowledge ?? new KnowledgeOptions()))
         {

@@ -18,6 +18,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OD.MyLocalAgent.UI", "src\O
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OD.MyLocalAgent.Tests", "tests\OD.MyLocalAgent.Tests\OD.MyLocalAgent.Tests.csproj", "{DEA5A7A0-F413-4BD2-A6DF-D3C89EBE1F9F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DecisionEvaluation", "tools\DecisionEvaluation\DecisionEvaluation.csproj", "{ED39C782-C0D6-40F5-A2F6-89C0DE265427}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -56,6 +58,10 @@ Global
 		{DEA5A7A0-F413-4BD2-A6DF-D3C89EBE1F9F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{DEA5A7A0-F413-4BD2-A6DF-D3C89EBE1F9F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{DEA5A7A0-F413-4BD2-A6DF-D3C89EBE1F9F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{ED39C782-C0D6-40F5-A2F6-89C0DE265427}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ED39C782-C0D6-40F5-A2F6-89C0DE265427}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ED39C782-C0D6-40F5-A2F6-89C0DE265427}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{ED39C782-C0D6-40F5-A2F6-89C0DE265427}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

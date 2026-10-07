@@ -167,84 +167,70 @@ public sealed class GmailDecisionTests
             .Should().ThrowAsync<WorkflowValidationException>();
     }
 
-    /// <summary>Missing decision model activates one lightweight call per already collected message.</summary>
+    /// <summary>Missing native models preserve unresolved coverage without a substitute engine.</summary>
     [Fact]
-    public async Task MissingModelFallsBackWithoutRefetchOrArbitration()
+    public async Task MissingModelIsUnavailableWithoutFallback()
     {
         using var h = new Harness(3);
         h.Client.Identities = new Dictionary<string, string>();
         var output = Json(await h.Read());
-        output.GetProperty("counts").GetProperty("collected").GetInt32().Should().Be(3);
-        output.GetProperty("counts").GetProperty("lightweightFallbackResolved").GetInt32().Should().Be(3);
+        output.GetProperty("counts").GetProperty("unresolved").GetInt32().Should().Be(3);
         h.Client.DecisionCalls.Should().Be(0);
-        h.Client.LlmCalls.Should().Be(3);
+        h.Client.LlmCalls.Should().Be(0);
         h.Connector.Verify(c => c.GetDecisionBatchAsync("Recent", 1, 100, It.IsAny<CancellationToken>()), Times.Once);
         output.GetRawText().Should().NotContain("SECRET MAIL BODY");
-        output.GetProperty("status").GetString().Should().Be("CompletedWithWarnings");
     }
 
-    /// <summary>Two consecutive invalid decisions open a batch circuit without repeated probes.</summary>
+    /// <summary>Malformed native results never invoke the central or historical fallback transport.</summary>
     [Fact]
-    public async Task InvalidResponseCircuitIsOperationScoped()
+    public async Task InvalidNativeResponsesNeverFallback()
     {
         using var h = new Harness(4);
         h.Client.NativePayload = Json("{\"answers\":{}}");
         var result = Json(await h.Read());
-        h.Client.DecisionCalls.Should().Be(2);
-        h.Client.LlmCalls.Should().Be(4);
-        result.GetProperty("counts").GetProperty("classified").GetInt32().Should().Be(4);
-        h.Client.UnloadCalls.Should().Be(1);
-    }
-
-    /// <summary>Transient retry is bounded to one and does not cause redundant arbitration after success.</summary>
-    [Fact]
-    public async Task TransientRetryIsBounded()
-    {
-        using var h = new Harness();
-        h.Client.DecisionHandler = (_, _, _) => h.Client.DecisionCalls == 1
-            ? throw new LocalDecisionException("ProviderOverload", true)
-            : Task.FromResult(new LocalDecisionResponse(Native(), 1, 2, true));
-        var result = Json(await h.Read());
-        h.Client.DecisionCalls.Should().Be(2);
+        h.Client.DecisionCalls.Should().Be(4);
         h.Client.LlmCalls.Should().Be(0);
-        result.GetProperty("messages")[0].GetProperty("status").GetString().Should().Be("Classified");
+        result.GetProperty("counts").GetProperty("unresolved").GetInt32().Should().Be(4);
+        h.Client.UnloadCalls.Should().Be(4);
     }
 
-    /// <summary>Independent arbitration cannot hide a client exchange that the decision model kept visible.</summary>
+    /// <summary>The global contract performs one selected-engine call, even on provider overload.</summary>
     [Fact]
-    public async Task ArbitrationProtectsVisibilityAndRemainsIndependent()
+    public async Task ProviderOverloadIsVisibleWithoutRetryOrFallback()
+    {
+        using var h = new Harness();
+        h.Client.DecisionHandler = (_, _, _) => throw new LocalDecisionException("ProviderOverload", true);
+        var result = Json(await h.Read());
+        h.Client.DecisionCalls.Should().Be(1);
+        h.Client.LlmCalls.Should().Be(0);
+        result.GetProperty("messages")[0].GetProperty("status").GetString().Should().Be("Unresolved");
+    }
+
+    /// <summary>Uncertain native candidates remain provisional without another model opinion.</summary>
+    [Fact]
+    public async Task UncertainNativeCandidateRemainsVisible()
     {
         using var h = new Harness();
         h.Client.NativePayload = Native("information", 0.6);
-        h.Client.LlmPayload = Json("{\"category\":\"noise\",\"reply\":true,\"priority\":2}");
-        var result = Json(await h.Read());
-        var row = result.GetProperty("messages")[0];
+        var output = await h.Read();
+        var row = Json(output).GetProperty("messages")[0];
         row.GetProperty("category").GetString().Should().Be("information");
-        row.GetProperty("answers").GetProperty("reply").GetBoolean().Should().BeTrue();
-        row.GetProperty("answers").GetProperty("priority").GetInt32().Should().Be(2);
-        row.GetProperty("disagreement").GetBoolean().Should().BeTrue();
-        row.GetProperty("decisionSource").GetString().Should().Be("arbitrated");
+        row.GetProperty("decisionSource").GetString().Should().Be("decision");
         row.GetProperty("status").GetString().Should().Be("Provisional");
-        row.GetProperty("requiresHumanReview").GetBoolean().Should().BeTrue();
-        result.GetProperty("counts").GetProperty("provisional").GetInt32().Should().Be(1);
-        result.GetProperty("status").GetString().Should().Be("CompletedWithWarnings");
-        GmailDecisionReportRenderer.Render(result.GetRawText()).Should()
-            .Contain("Visibility protection: retained native category; verify in Gmail");
-        h.Client.LastLlmRequest!.Source.Should().NotContain("probabilities").And.NotContain("SECRET TASK PROMPT");
-        h.Client.LlmCalls.Should().Be(1);
+        GmailDecisionReportRenderer.Render(output).Should().Contain("Human review: Provisional");
+        h.Client.LlmCalls.Should().Be(0);
     }
 
-    /// <summary>Exhausted arbitration retains valid native answers provisionally with complete coverage.</summary>
+    /// <summary>Legacy second-opinion arguments require explicit migration before collection.</summary>
     [Fact]
-    public async Task ArbitrationCapPreservesProvisionalRows()
+    public async Task LegacyArbitrationRequiresMigration()
     {
-        using var h = new Harness(3);
-        h.Client.NativePayload = Native("information", 0.6);
-        var result = Json(await h.Read(arbitration: Json("{\"maxPercent\":34}")));
-        h.Client.LlmCalls.Should().Be(1);
-        result.GetProperty("counts").GetProperty("provisional").GetInt32().Should().Be(2);
-        result.GetProperty("counts").GetProperty("classified").GetInt32().Should().Be(1);
-        GmailDecisionReportRenderer.Render(result.GetRawText()).Should().Contain("Human review: Provisional");
+        using var h = new Harness();
+        await FluentActions.Awaiting(() => h.Read(arbitration: Json("{\"maxPercent\":34}")))
+            .Should().ThrowAsync<WorkflowValidationException>().WithMessage("*legacy arbitration*");
+        h.Client.DecisionCalls.Should().Be(0);
+        h.Client.LlmCalls.Should().Be(0);
+        h.Connector.Verify(c => c.GetDecisionBatchAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     /// <summary>Cancellation performs independent cleanup and never invokes fallback or publishes output.</summary>
@@ -264,26 +250,27 @@ public sealed class GmailDecisionTests
         h.Client.CleanupWasCanceled.Should().BeFalse();
     }
 
-    /// <summary>Shared installed identities are rejected before collection and never unloaded.</summary>
+    /// <summary>Shared primary identities return explicit unavailability without cleanup or inference.</summary>
     [Fact]
     public async Task SharedModelAliasCannotBeUnloaded()
     {
         using var h = new Harness();
         h.Client.Identities = new Dictionary<string, string> { ["tev1:latest"] = "same", ["gemma4:12b"] = "same" };
-        await FluentActions.Awaiting(() => h.Read()).Should().ThrowAsync<WorkflowValidationException>().WithMessage("*shares*identity*");
+        var row = Json(await h.Read()).GetProperty("messages")[0];
+        row.GetProperty("arbitrationReasons")[0].GetString().Should().Be("IncompatibleModel");
         h.Client.UnloadCalls.Should().Be(0);
-        h.Connector.Verify(c => c.GetDecisionBatchAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+        h.Client.DecisionCalls.Should().Be(0);
     }
 
-    /// <summary>Empty batches explicitly render no messages; cleanup failures become visible warnings.</summary>
+    /// <summary>Empty batches render explicit coverage without loading or unloading any model.</summary>
     [Fact]
-    public async Task EmptyReportAndCleanupWarningsAreVisible()
+    public async Task EmptyBatchDoesNotLoadOrUnload()
     {
         using var h = new Harness(0);
-        h.Client.FailCleanup = true;
         var output = await h.Read();
-        GmailDecisionReportRenderer.Render(output).Should().Contain("No messages found").And.Contain("MemoryCleanupFailure");
+        GmailDecisionReportRenderer.Render(output).Should().Contain("No messages found");
         h.Client.DecisionCalls.Should().Be(0);
+        h.Client.UnloadCalls.Should().Be(0);
     }
 
     /// <summary>Display text cannot inject HTML, Markdown links or new report sections; hidden noise is accounted for.</summary>
@@ -340,26 +327,25 @@ public sealed class GmailDecisionTests
         GmailDecisionReportRenderer.Render(result.ToJsonString()).Should().Contain("Subject 0").And.NotContain("Source omissions:");
     }
 
-    /// <summary>Arbitration diagnostics describe the LLM source rather than inheriting native truncation.</summary>
+    /// <summary>Oversized native prompts are unavailable without implicit clipping or another model call.</summary>
     [Fact]
-    public async Task ArbitrationLogsItsOwnProjectionAndReportCountsOmissions()
+    public async Task OversizedNativeMailIsUnavailable()
     {
         using var h = new Harness();
-        h.Mails[0] = h.Mails[0] with { BodyPlain = new string('a', 2000) };
+        h.Mails[0] = h.Mails[0] with { BodyPlain = new string('a', 4000) };
         var output = await h.Read();
         var row = Json(output).GetProperty("messages")[0];
-        row.GetProperty("projection").GetProperty("decisionContentTruncated").GetBoolean().Should().BeTrue();
-        row.GetProperty("projection").GetProperty("llmContentTruncated").GetBoolean().Should().BeFalse();
-        h.Log.Messages.Should().Contain(m => m.Contains("phase decision") && m.Contains("truncation True"));
-        h.Log.Messages.Should().Contain(m => m.Contains("phase arbitration") && m.Contains("truncation False"));
-        GmailDecisionReportRenderer.Render(output).Should().Contain("Source omissions: decision 1; LLM 0");
+        row.GetProperty("status").GetString().Should().Be("Unresolved");
+        row.GetProperty("arbitrationReasons")[0].GetString().Should().Be("InputTooLarge");
+        h.Client.DecisionCalls.Should().Be(0);
+        h.Client.LlmCalls.Should().Be(0);
     }
 
     /// <summary>Authored output placeholders cannot turn a mail into a mutable policy.</summary>
     [Fact]
     public void PolicyPlaceholdersAndUnknownArgumentsAreRejected()
     {
-        var args = JsonSerializer.SerializeToElement(new { questions = Json(GmailDecisionDefaults.QuestionsJson), reportMapping = Json(GmailDecisionDefaults.ReportMappingJson), selection = "{{task.prompt}}" });
+        var args = JsonSerializer.SerializeToElement(new { contractVersion = 2, questions = Json(GmailDecisionDefaults.QuestionsJson), reportMapping = Json(GmailDecisionDefaults.ReportMappingJson), selection = "{{task.prompt}}" });
         FluentActions.Invoking(() => GmailDecisionContractValidator.Validate(args)).Should().Throw<WorkflowValidationException>();
         var q = GmailDecisionDefaults.QuestionsJson.Replace("Classify professional mail.", "{{prior.output}}", StringComparison.Ordinal);
         args = JsonSerializer.SerializeToElement(new { questions = Json(q), reportMapping = Json(GmailDecisionDefaults.ReportMappingJson) });
@@ -376,7 +362,7 @@ public sealed class GmailDecisionTests
         disabled.Connector.Verify(c => c.GetDecisionBatchAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
         using var fail = new Harness(settings: new() { Enabled = true, UnavailableBehavior = "Fail" });
         fail.Client.Identities = new Dictionary<string, string>();
-        await FluentActions.Awaiting(() => fail.Read()).Should().ThrowAsync<LocalDecisionException>();
+        Json(await fail.Read()).GetProperty("counts").GetProperty("unresolved").GetInt32().Should().Be(1);
         fail.Client.LlmCalls.Should().Be(0);
     }
 
@@ -463,15 +449,15 @@ public sealed class GmailDecisionTests
             Id = "decision-workflow", Name = "Decision", Schedule = "0 7 * * *", Tools = ["gmailDecision"],
             Workflow =
             [
-                new() { Step = "gmailDecision.readClassify", Id = "triage", Args = JsonSerializer.SerializeToElement(new { questions = Json(GmailDecisionDefaults.QuestionsJson), reportMapping = Json(GmailDecisionDefaults.ReportMappingJson) }) },
+                new() { Step = "gmailDecision.readClassify", Id = "triage", Args = JsonSerializer.SerializeToElement(new { contractVersion = 2, questions = Json(GmailDecisionDefaults.QuestionsJson), reportMapping = Json(GmailDecisionDefaults.ReportMappingJson) }) },
                 new() { Step = "gmailDecision.renderReport", Id = "report", Args = Json("{\"source\":\"{{triage.output}}\"}") },
             ],
         };
         var result = await engine.ExecuteAsync(task, default);
         result.Success.Should().BeTrue("workflow errors: {0}", result.ErrorMessage + string.Join("; ", result.Steps.Select(s => s.Error?.ToString() ?? s.ErrorMessage)));
-        result.FinalText.Should().Contain("Relevant information").And.Contain("Subject 0");
+        result.FinalText.Should().Contain("Unresolved (1)").And.Contain("Subject 0").And.Contain("nativeThresholds");
         result.Warnings.Should().Contain(w => w.Code.StartsWith("GmailDecision.", StringComparison.Ordinal));
-        h.Client.LlmCalls.Should().Be(1);
+        h.Client.LlmCalls.Should().Be(0);
         h.Connector.Verify(c => c.GetDecisionBatchAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -481,19 +467,20 @@ public sealed class GmailDecisionTests
     {
         using var h = new Harness(3);
         h.Client.Identities = new Dictionary<string, string>();
+        h.Engine.Set(h.Engine.CurrentValue with { Engine = "CentralLlm" });
         var output = await h.Read(classificationMode: "LlmOnly");
         var result = Json(output);
         h.Client.CatalogCalls.Should().Be(0);
         h.Client.DecisionCalls.Should().Be(0);
         h.Client.UnloadCalls.Should().Be(0);
-        h.Client.LlmCalls.Should().Be(3);
+        h.CentralCalls.Should().Be(3);
         result.GetProperty("counts").GetProperty("directLlmResolved").GetInt32().Should().Be(3);
         result.GetProperty("counts").GetProperty("lightweightFallbackResolved").GetInt32().Should().Be(0);
         result.GetProperty("counts").GetProperty("arbitrationAttempted").GetInt32().Should().Be(0);
         result.GetProperty("status").GetString().Should().Be("Completed");
         result.GetProperty("messages")[0].GetProperty("decisionSource").GetString().Should().Be("directLlm");
-        result.GetProperty("effectiveModels").TryGetProperty("decision", out _).Should().BeFalse();
-        GmailDecisionReportRenderer.Render(output).Should().Contain("Direct LLM: 3 resolved");
+        result.GetProperty("effectiveModels").GetProperty("decision").GetString().Should().Be("central-model");
+        GmailDecisionReportRenderer.Render(output).Should().Contain("validatedChoice").And.Contain("Scores unavailable");
         h.Connector.Verify(c => c.GetDecisionBatchAsync("Recent", 1, 100, It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -502,16 +489,17 @@ public sealed class GmailDecisionTests
     public async Task DirectLlmModeAcceptsQuestionsBeyondTheNativeBudget()
     {
         using var h = new Harness();
+        h.Engine.Set(h.Engine.CurrentValue with { Engine = "CentralLlm" });
         var questions = System.Text.Json.Nodes.JsonNode.Parse(GmailDecisionDefaults.QuestionsJson)!;
         foreach (var name in new[] { "category", "reply", "priority" })
             questions[name]!["instructions"] = new string('x', 900);
         var authored = Json(questions.ToJsonString());
         var args = JsonSerializer.SerializeToElement(new
         {
-            questions = authored, reportMapping = Json(GmailDecisionDefaults.ReportMappingJson), classificationMode = "LlmOnly",
+            contractVersion = 2, questions = authored, reportMapping = Json(GmailDecisionDefaults.ReportMappingJson), classificationMode = "LlmOnly",
         });
         GmailDecisionContractValidator.Validate(args);
-        var output = await h.Tool.ReadClassifyAsync(authored, Json(GmailDecisionDefaults.ReportMappingJson), classificationMode: "LlmOnly");
+        var output = await h.Tool.ReadClassifyAsync(authored, Json(GmailDecisionDefaults.ReportMappingJson), contractVersion: 2, classificationMode: "LlmOnly");
         Json(output).GetProperty("counts").GetProperty("directLlmResolved").GetInt32().Should().Be(1);
         FluentActions.Invoking(() => GmailDecisionProjection.MailBudget(DecisionQuestionSet.Parse(authored)))
             .Should().Throw<WorkflowValidationException>();
@@ -535,6 +523,8 @@ public sealed class GmailDecisionTests
         public GmailDecisionTool Tool { get; }
         public MutableOptionsMonitor<GmailDecisionOptions> Options { get; }
         public RecordingLogger<GmailDecisionTool> Log { get; } = new();
+        public MutableOptionsMonitor<DecisionOptions> Engine { get; } = new(new());
+        public int CentralCalls { get; private set; }
         public Harness(int count = 1, GmailDecisionOptions? settings = null, TimeProvider? clock = null)
         {
             Options = new(settings ?? new() { Enabled = true });
@@ -542,14 +532,24 @@ public sealed class GmailDecisionTests
                 "", "SECRET MAIL BODY", DateTimeOffset.UtcNow, false)).ToList();
             Connector.Setup(c => c.GetDecisionBatchAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .Returns(() => Task.FromResult(new GmailReadBatch(Mails, false)));
+            var local = new MutableOptionsMonitor<OllamaOptions>(new());
+            var knowledge = new MutableOptionsMonitor<KnowledgeOptions>(new());
+            var coordinator = new DecisionModelResidencyCoordinator(_directory, clock ?? TimeProvider.System);
+            Engine.Set(DecisionOptions.FromLegacy(Options.CurrentValue));
+            var chat = new Mock<Microsoft.Extensions.AI.IChatClient>();
+            chat.Setup(c => c.GetResponseAsync(It.IsAny<IEnumerable<Microsoft.Extensions.AI.ChatMessage>>(), It.IsAny<Microsoft.Extensions.AI.ChatOptions>(), It.IsAny<CancellationToken>()))
+                .Returns(() => { CentralCalls++; return Task.FromResult(new Microsoft.Extensions.AI.ChatResponse(new Microsoft.Extensions.AI.ChatMessage(Microsoft.Extensions.AI.ChatRole.Assistant, Client.LlmPayload.GetRawText()))); });
+            var factory = new Mock<ILlmClientFactory>();
+            factory.Setup(f => f.Capture()).Returns(new LlmClientSnapshot("Ollama", "central-model", chat.Object, true));
+            var service = new DecisionEvaluationService(Engine,
+                local, knowledge, Client, coordinator, clock ?? TimeProvider.System, NullLogger<DecisionEvaluationService>.Instance, factory.Object,
+                new MutableOptionsMonitor<AIOptions>(new() { GenerationDefaults = new() { ContextWindowTokens = 8192 } }));
             Tool = new GmailDecisionTool(new ToolExecutionContext("test", [], [], surface: ToolInvocationSurface.Workflow), Connector.Object,
-                Options, new MutableOptionsMonitor<OllamaOptions>(new()),
-                new MutableOptionsMonitor<KnowledgeOptions>(new()), new MutableOptionsMonitor<GuardrailsOptions>(new()), Client,
-                new LightweightMailClassifier(Client), new DecisionModelResidencyCoordinator(_directory, TimeProvider.System),
-                clock ?? TimeProvider.System, Log);
+                Options, new MutableOptionsMonitor<GuardrailsOptions>(new()), clock ?? TimeProvider.System, Log, service);
         }
-        public Task<string> Read(JsonElement arbitration = default, CancellationToken cancellationToken = default, string classificationMode = "Hybrid") =>
-            Tool.ReadClassifyAsync(Json(GmailDecisionDefaults.QuestionsJson), Json(GmailDecisionDefaults.ReportMappingJson), arbitration: arbitration,
+        public Task<string> Read(JsonElement arbitration = default, CancellationToken cancellationToken = default, string classificationMode = "Global") =>
+            Tool.ReadClassifyAsync(Json(GmailDecisionDefaults.QuestionsJson), Json(GmailDecisionDefaults.ReportMappingJson), contractVersion: 2,
+                arbitration: arbitration.ValueKind == JsonValueKind.Undefined ? null : arbitration,
                 classificationMode: classificationMode, cancellationToken: cancellationToken);
         public void Dispose() { if (Directory.Exists(_directory)) Directory.Delete(_directory, true); }
     }

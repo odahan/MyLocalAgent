@@ -33,6 +33,10 @@ public static class GmailDecisionReportRenderer
         if (result.CollectionPartial) b.AppendLine("**Collection is partial: additional messages were excluded by the collection bound.**");
         b.Append("Status: ").AppendLine(Escape(result.Status));
         b.Append("Classification mode: ").AppendLine(Escape(result.ClassificationMode));
+        if (result.SchemaVersion == 2)
+            b.Append("Engine: ").Append(Escape(result.Engine!)).Append("; provider: ").Append(Escape(result.Provider!))
+                .Append("; acceptance basis: ").Append(Escape(result.AcceptanceBasis!)).AppendLine()
+                .AppendLine(result.Capabilities!.Scores ? "Native scores are available." : "Scores unavailable. Rubric levels are semantic values, not probabilities.");
         b.Append("Local models: ").AppendLine(string.Join(", ", result.EffectiveModels.Select(p => Escape(p.Key) + ": " + Escape(p.Value))));
         b.Append("Second opinions: ").Append(result.Counts.ArbitrationAttempted).Append(" attempted, ")
             .Append(result.Counts.ArbitrationResolved).Append(" resolved. Lightweight fallback: ").Append(result.Counts.LightweightFallbackResolved).AppendLine(" resolved.");
@@ -84,7 +88,11 @@ public static class GmailDecisionReportRenderer
 
     private static void Validate(GmailDecisionResult r)
     {
-        if (r.SchemaVersion != 1 || r.ClassificationMode is not ("Hybrid" or "LlmOnly") || r.Status is not ("Completed" or "CompletedWithWarnings" or "Partial") ||
+        if ((r.SchemaVersion == 1 ? r.ClassificationMode is not ("Hybrid" or "LlmOnly") :
+                r.SchemaVersion != 2 || r.ClassificationMode != "Global" || r.Engine is not ("CentralLlm" or "NativeDecision") ||
+                r.Capabilities?.Scores != (r.Engine == "NativeDecision") || string.IsNullOrWhiteSpace(r.Provider) ||
+                r.AcceptanceBasis != (r.Engine == "NativeDecision" ? "nativeThresholds" : "validatedChoice")) ||
+            r.Status is not ("Completed" or "CompletedWithWarnings" or "Partial") ||
             r.Messages.Count > 500 || r.QuestionDefinitions.Count is < 1 or > 8 ||
             r.Messages.Select(m => m.Id).Distinct(StringComparer.Ordinal).Count() != r.Messages.Count ||
             r.Counts != GmailDecisionTool.Count(r.Messages) || !r.QuestionDefinitions.TryGetValue(r.ReportMapping.CategoryQuestion, out var category) ||
@@ -112,6 +120,9 @@ public static class GmailDecisionReportRenderer
                 row.DecisionSource is not ("decision" or "arbitrated" or "lightweightLlm" or "directLlm" or "none") ||
                 (r.ClassificationMode == "LlmOnly" && (row.DecisionSource is not ("directLlm" or "none") || row.ArbitrationAttempted || row.DecisionScores.Count != 0)) ||
                 (r.ClassificationMode == "Hybrid" && row.DecisionSource == "directLlm") ||
+                (r.SchemaVersion == 2 && (row.ArbitrationAttempted || row.DecisionSource is "arbitrated" or "lightweightLlm" ||
+                    (r.Engine == "CentralLlm" && (row.DecisionScores.Count != 0 || row.DecisionSource == "decision")) ||
+                    (r.Engine == "NativeDecision" && row.DecisionSource == "directLlm"))) ||
                 row.RequiresHumanReview != (row.Status != "Classified") ||
                 row.GmailUrl != GmailDecisionTool.GmailUrl(row.Id) ||
                 (row.Category is not null && !r.ReportMapping.Categories.ContainsKey(row.Category)) ||

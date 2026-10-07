@@ -11,7 +11,9 @@ public static class GmailDecisionContractValidator
     {
         try
         {
-            DecisionJson.Object(args, "selection", "daysBack", "maxMessages", "questions", "acceptance", "reportMapping", "arbitration", "unavailableBehavior", "batchTimeoutSeconds", "classificationMode");
+            DecisionJson.Object(args, "contractVersion", "selection", "daysBack", "maxMessages", "questions", "acceptance", "reportMapping", "arbitration", "unavailableBehavior", "batchTimeoutSeconds", "classificationMode");
+            if (!args.TryGetProperty("contractVersion", out var version) || !version.TryGetInt32(out var number) || number != 2)
+                throw new WorkflowValidationException("Gmail decision requires contractVersion 2. Review legacy mode, arbitration, fallback and numeric gates explicitly; scheduled tasks are never automatically migrated.");
             var questions = args.GetProperty("questions");
             foreach (var p in args.EnumerateObject())
             {
@@ -29,9 +31,9 @@ public static class GmailDecisionContractValidator
             _ = DecisionAcceptancePolicy.Parse(set, new GmailDecisionOptions(),
                 args.TryGetProperty("acceptance", out var a) ? a : default, args.GetProperty("reportMapping"),
                 args.TryGetProperty("arbitration", out var b) ? b : default);
-            var mode = args.TryGetProperty("classificationMode", out var modeValue) ? modeValue.GetString() : "Hybrid";
-            if (mode is not ("Hybrid" or "LlmOnly")) throw new WorkflowValidationException("Unknown Gmail classification mode.");
-            _ = mode == "LlmOnly" ? GmailDecisionProjection.LlmBudget(set) : GmailDecisionProjection.MailBudget(set);
+            var mode = args.TryGetProperty("classificationMode", out var modeValue) ? modeValue.GetString() : "Global";
+            if (mode is not ("Global" or "Hybrid" or "LlmOnly")) throw new WorkflowValidationException("Unknown Gmail classification mode.");
+            if (mode != "Global") _ = mode == "LlmOnly" ? GmailDecisionProjection.LlmBudget(set) : GmailDecisionProjection.MailBudget(set);
             var selection = args.TryGetProperty("selection", out var s) ? s.GetString() : "Recent";
             if (selection is not ("Recent" or "Today" or "Unread") || (selection != "Recent" && args.TryGetProperty("daysBack", out _)))
                 throw new WorkflowValidationException("daysBack is valid only for Recent selection.");

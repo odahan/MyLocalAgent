@@ -1,128 +1,137 @@
-# Generic local decisions — Stage 32 phases A–B
+# Decision evaluation — Stage 32 C2 and D
 
-`decision.evaluate` evaluates explicitly supplied text using the installed local decision model.
-It is a read-only workflow tool, with no Gmail collection, Knowledge retrieval, tools, file access,
-cloud substitution, model download or conventional LLM fallback. Enable **Settings → Decision
-models → Enable generic workflow evaluation**, and independently grant the task's **Decision
-evaluation** tool group. Gmail enablement does not enable this tool. Agent prompts, Direct Chat,
-`ai.prompt.toolAliases` and `forEach` cannot call it.
+Choose one global engine in **Settings → Decision models**: **Use application LLM** (`CentralLlm`)
+or **Use a decision model** (`NativeDecision`). Generic workflows, explicit editor tests and Gmail
+decisions use the same selection. Each workflow captures settings, central provider/model and bounds
+before its first step; changes apply to later runs. An explicit editor test captures its own settings.
+There are no step, task, conversation, provider or model overrides, second opinions or implicit fallbacks.
 
-The workflow step editor exposes **Evaluate a decision** with source, question, ordered option
-rows and collapsed acceptance overrides. Provider JSON is not needed to author or inspect a choice.
+## Author and inspect
 
-## Author and test a decision
-
-1. Insert or edit `decision.evaluate` in the workflow step editor. Enter source text or use the
-   existing placeholder picker, then write a literal question and 2–24 option identifiers and
-   descriptions. Add/remove/reorder controls preserve the option order.
-2. Inspect inherited and effective minimums. Advanced overrides use percentages for top
-   probability and percentage points for margin, with a decimal point. They can only tighten
-   Settings; workflow JSON continues to store normalized [0,1] values. Distribution concentration
-   remains inherited from Settings.
-3. Enable generic evaluation in Settings and grant the task's `decision` group. A missing grant
-   appears as an unchecked authorization proposal; explicitly accepting it authorizes the draft's
-   test without persisting the task.
-4. Enter **Explicit sample text for this test**, then choose **Test decision**. The sample is
-   mandatory, including when the source is a placeholder. Testing uses only that sample and the
-   current question/options/acceptance, including pending field edits. It does not resolve outputs,
-   invoke connectors, execute surrounding steps or save the task. Sample text and results are
-   never serialized. Use **Cancel test** to cancel; closing or changing tools also cancels and
-   suppresses late results.
-5. Inspect status, candidate, every option score, top probability, margin, concentration, sanitized
-   reasons, applied thresholds and gate/inference/total timings. Unavailable scores are displayed
-   as unavailable. The display is a snapshot of the last explicit test; editing never reruns it.
-   No fabricated model rationale is generated. Check status before routing on a candidate.
-6. Choose **Apply**, then save the task through its normal editor. Neither action performs inference.
-
-**Arguments / raw JSON** remains available and initially collapsed for this tool. Editing options
-or acceptance JSON reloads the corresponding draft fields and discards pending option/acceptance
-field edits. The latest explicit edit is authoritative. Malformed JSON is retained for correction
-and cannot be silently replaced by partial fields. An unchanged edit preserves original optional
-acceptance presence and values.
+Enable **generic workflow evaluation** and grant the task's separate `decision` group. Both are disabled
+by default. `decision.evaluate` remains workflow-only and read-only. Required arguments are nonempty
+`source`, a literal `question` (up to 1000 characters) and `options` (2–24 literal stable identifiers
+mapped to descriptions of up to 400 characters). Only source supports prior-output placeholders.
+Unknown arguments, duplicates and output-derived policy are rejected before inference.
 
 ```json
-{
-  "step": "decision.evaluate",
-  "id": "readiness",
-  "args": {
-    "source": "{{request.output}}",
-    "question": "Does the request contain enough information to proceed?",
-    "options": {
-      "process": "Essential information is present.",
-      "clarify": "Essential information is missing."
-    },
-    "acceptance": { "minTopProbability": 0.9, "minMargin": 0.3 }
-  }
+{"step":"decision.evaluate","id":"readiness","args":{
+  "source":"{{request.output}}",
+  "question":"Is essential information present?",
+  "options":{"process":"Essential facts are present.","clarify":"Essential facts are missing.","review":"Human review is needed."}
+}}
+```
+
+The **Evaluate a decision** editor shows the global engine and model as read-only information.
+**Decision settings** opens Settings while preserving the draft. Native advanced thresholds and score
+rows apply only to native mode. Existing explicit acceptance stays visible and blocks central execution;
+**Remove explicit native acceptance** deliberately removes that requirement. Saving never infers.
+**Test decision** requires explicit sample text, enablement and task permission. It is cancellable,
+ignores workflow placeholders, runs no surrounding step and persists neither sample nor result.
+Late responses from a cancelled/closed editor cannot replace the displayed result.
+
+## Version 2 output and routing
+
+Results include `schemaVersion: 2`, `engine`, `capabilities.scores`, `acceptanceBasis`, `status`, `choice`,
+`probabilities`, `topProbability`, `margin`, `confidence`, `acceptance`, `reasons`, `provider`, `model`
+and `timing` (`gateWaitMs`, `inferenceMs`, `totalMs`, `cold`). Native scores use [0,1]; percentages are
+only a UI representation. Concentration is not calibrated correctness.
+
+| Engine | Acceptance basis | Scores | Status semantics |
+| --- | --- | --- | --- |
+| NativeDecision | nativeThresholds | Validated native distributions | accepted meets inclusive thresholds with a unique top; ties/failed thresholds are uncertain |
+| CentralLlm | validatedChoice | probabilities, topProbability, margin, confidence and acceptance are all null | accepted is a strictly validated allowed choice; invalid/unsupported/bounded failures are unavailable |
+
+`review` or another semantic option is an ordinary central choice, not native uncertainty. Neither
+basis guarantees correctness or authorizes side effects. Unavailable results have null choice/scores
+and retain the selected engine/basis and available identity/timing. Cancellation propagates; invalid
+authoring, disabled tools and missing permission remain errors.
+
+Optional `acceptance` contains `minTopProbability` and `minMargin` in [0,1]. Native overrides can only
+tighten Settings defaults (initially .80 and .20). Global optional concentration checks remain native.
+Any explicit acceptance object, including `{}`, is incompatible with central mode and must be edited.
+
+Use unchanged `flow.decision` to route on `status`, then `choice` on accepted paths. The
+[choice sample](samples/decision-readiness.json) works with either engine. The
+[guarded numeric sample](samples/decision-native-score.json) checks status, `capabilities.scores` and
+nullability before comparing `topProbability`. Its no-score branch requires explicit review rather
+than bypassing the numeric requirement. A central mode switch rejects unguarded native numeric
+routes before inference. Consumers must read version 2 and handle null scores explicitly.
+
+## Route by decision (phase D)
+
+In the **Evaluate a decision** editor, enable **Route by decision**, fill each option's destination
+and select explicit **Uncertain** and **Unavailable** destinations. Leave **Next** blank. Destinations
+are literal existing step ids or `@end`. Apply validates the whole graph and saves only the draft;
+**Test decision** evaluates the sample without executing any destination.
+
+Persist the mapping beside `args`, using `decisionRoutes`:
+
+```json
+"decisionRoutes": {
+  "choices": { "process": "handleProcess", "clarify": "handleClarify", "review": "handleReview" },
+  "uncertain": "handleUncertain",
+  "unavailable": "handleUnavailable"
 }
 ```
 
-Source must be non-empty. Questions are literal text, at most 1000 characters. Supply 2–24
-literal option identifiers matching `[A-Za-z][A-Za-z0-9_]{0,63}`, each with a non-empty description
-of at most 400 characters. Duplicate identifiers, including case collisions, and unknown arguments
-are errors. Only source accepts previous-output placeholders; external output cannot author the
-question, options or thresholds. Upstream content protection remains unchanged.
+Every authored option needs exactly one destination; multiple options may share a destination.
+Only accepted results follow an option destination. Uncertain candidates never select that route;
+technical unavailability always follows its explicit destination. Semantic `review` remains an
+ordinary option with its own route. Both engines use the same contract and global snapshot;
+central accepted results retain `validatedChoice` and null scores. The full version 2 result remains
+available as `{{stepId.output}}`, including engine, acceptance basis and provider/model.
 
-The result has `schemaVersion: 1` and a status:
+The [disabled complete example](samples/decision-route-readiness.json) works with either engine.
+Existing `flow.decision` workflows remain valid. Native acceptance overrides retain their checks
+and are incompatible with central mode. No numeric requirement is added by the route mapping.
+Normal permissions, cycle/reachability checks, guaranteed outputs and cancellation still apply.
+Do not combine `decisionRoutes` with `next` or `forEach`. Execution exceptions retain Stop/Retry/
+ContinueOnError; ContinueOnError follows declaration order after a failed step, and graph validation
+includes that edge. An unavailable evaluation is a successful tool result with a dedicated route.
 
-| Status | Meaning | Routing |
+## Settings, migration and bounds
+
+New profiles explicitly select CentralLlm; existing profiles with no Engine field retain NativeDecision.
+An explicit `Decision` section is authoritative; otherwise historical Gmail native values are resolved.
+The bundled template keeps legacy native defaults to avoid masking persisted overrides. Saving retains
+inactive native fields, historical mail fallback/arbitration data, unrelated settings, enablement and grants.
+No inference, model download or scheduled-task rewrite occurs during migration.
+
+| Setting | Default | Range / meaning |
 | --- | --- | --- |
-| `accepted` | Unique top candidate meets every effective threshold | Route on choice after checking status |
-| `uncertain` | Valid scores tie or fail a threshold | Handle explicitly; choice remains only a candidate |
-| `unavailable` | Missing model, invalid response, timeout or oversized input | Handle the technical reason; all score fields and choice are null |
+| Engine | CentralLlm for new profiles; NativeDecision when omitted in old files | One application-wide selection |
+| CentralTimeoutSeconds | 180 | 1–3600; whole central operation |
+| CentralGateWaitSeconds | 30 | 1–300; separate execution-gate wait bound |
+| CentralMaxOutputTokens | 512 | 64–8192; structured output reserve/limit |
+| OperationTimeoutSeconds | 180 | 1–3600; native operation |
+| MaxInputTokens | 2050 | 512–2050; native conservative full-prompt budget |
+| DecisionProvider / DecisionModel | OllamaSystemOne / tev1:latest | Installed compatible dedicated native model |
+| DecisionEndpoint | null | Inherits local Ollama; native requires loopback |
+| KeepAliveSeconds / UnloadAfterBatch | 10 / true | Native 0–60 seconds and cleanup required |
+| DecisionColdTimeoutSeconds / DecisionWarmTimeoutSeconds | 120 / 15 | Native 1–300 / 1–120 seconds |
+| GateWaitTimeoutSeconds | 30 | Native 1–300 seconds |
+| MinTopProbabilityPercent / MinMarginPercentagePoints | 80 / 20 | Native 0–100, converted once to normalized units |
+| MinConfidencePercent / MinNoulCertaintyPercent | 0 / 80 | Native concentration 0–100 (0 disables), Boolean certainty 50–100 |
 
-`probabilities`, `topProbability`, `margin`, `confidence` and acceptance thresholds use [0,1].
-Margin is the top probability minus the runner-up. Optional confidence measures distribution
-concentration, not calibrated correctness. Defaults are 0.80 for the top probability and 0.20 for
-the margin; these are acceptance settings, not evidence of accuracy. Overrides can only tighten
-defaults. Ties are uncertain even with zero thresholds. User cancellation propagates as cancellation.
-Malformed authoring, disablement and missing task permission remain errors rather than successful
-unavailable results. Reasons are sanitized codes and timings separate gate wait, inference and total
-duration, including cleanup. Cold inference includes loading when the provider reports it.
+Central mode uses the configured central provider/model and global declared context, with one isolated
+schema-constrained, tool-free request. It receives no chat history, task/system prompts, RAG or secrets
+as prompt content. Reasoning is disabled without retry. Budgeting conservatively counts UTF-8 bytes of
+instructions, serialized source/questions and schema, plus output reserve and envelope allowance.
+Native mode counts source/questions plus 400 tokens of reserve. Neither path silently truncates an
+oversized generic input; `InputTooLarge` is unavailable. Provider/context incompatibility is explicit.
+Central local calls retain ordinary primary-model residency; native cleanup has its own five-second
+bound and respects other owners. Cold loading is reported only when observable; unknown remains null.
 
-The [disabled routing sample](samples/decision-readiness.json) first checks status and only then
-choice, using unchanged `flow.decision` routing. Every route has an explicit handling branch.
-Its final `ai.summarize` steps use the configured general LLM to present branch handling text;
-they are illustrative downstream actions, not classification fallback. Replace those branches
-with the desired authorized workflow actions. Importing the example does not install a model,
-enable settings or schedule a production task.
-
-## Canonical configuration and migration
-
-`Decision` owns native provider settings. An explicit section is authoritative, including defaults
-for omitted fields. Without it, native settings come from legacy `GmailDecision`; generic enablement
-still defaults to false. Save writes `Decision` through the existing settings store and removes
-shared native fields from the saved Gmail section. Gmail retains its enablement, collection bounds,
-batch deadline, report policy, arbitration and lightweight fallback. Its `LlmOnly` mode does not
-require Tev1. Both callers and embeddings share the existing execution gate and residency coordinator.
-
-The executable template intentionally retains the legacy section until the first settings save:
-adding canonical defaults to the lower-priority template would mask existing users' legacy native
-overrides. See the [canonical example](decision-settings.example.json) for the complete native section.
-
-| Setting | Default | Valid range / meaning |
-| --- | --- | --- |
-| `Enabled` | false | Independent generic workflow enablement |
-| `DecisionProvider` | OllamaSystemOne | Only this provider |
-| `DecisionEndpoint` | null | Inherit local Ollama; explicit override must be loopback HTTP(S) |
-| `DecisionModel` | tev1:latest | Already installed; dedicated identity distinct from chat and embeddings |
-| `KeepAliveSeconds` | 10 | 0–60 seconds |
-| `UnloadAfterBatch` | true | Required; cleanup after each generic operation, only when no other owner remains |
-| `DecisionColdTimeoutSeconds` | 120 | 1–300 seconds |
-| `DecisionWarmTimeoutSeconds` | 15 | 1–120 seconds |
-| `GateWaitTimeoutSeconds` | 30 | 1–300 seconds |
-| `OperationTimeoutSeconds` | 180 | 1–3600 seconds; catalog, ownership, gate and inference share this deadline |
-| `MaxInputTokens` | 2050 | 512–2050; full prompt budget including a fixed 400-token reserve |
-| `MinTopProbabilityPercent` | 80 | 0–100; converted once into normalized acceptance units |
-| `MinMarginPercentagePoints` | 20 | 0–100; converted once into normalized acceptance units |
-| `MinConfidencePercent` | 0 | 0–100; zero disables the concentration check |
-| `MinNoulCertaintyPercent` | 80 | 50–100; preserved for Boolean native callers |
-
-The budget counts one token per UTF-8 byte for source plus serialized question/options, with 400
-tokens reserved for the native template, scoring and output. This deliberately conservative bound
-reuses the existing native budgeting assumption and may reject inputs that would fit a tokenizer.
-Oversized content returns `InputTooLarge` before network access; it is never truncated or summarized.
-Gmail message counts and mail deadlines do not become generic limits. Cleanup has an independent
-five-second bound after success, failure or cancellation; short keep-alive is the safety net.
+Gmail requires `contractVersion: 2`, independent mail enablement and `gmailDecision` permission.
+Remove obsolete arbitration/unavailableBehavior fields deliberately. Historical Hybrid is compatible
+only with NativeDecision, LlmOnly only with CentralLlm; neither selects an engine. Omit classificationMode
+in new authoring. Native acceptance/alwaysArbitrateChoices and nondefault probability-based reply
+mappings require review. Raw Gmail stays local-only, including checks against remotely backed Ollama
+aliases; no substitute local provider is selected for a cloud configuration. Central Boolean/rubric
+answers are semantic Boolean values and zero-based levels, never fake probability distributions.
+The deterministic renderer supports archived schema 1 and new schema 2 reports. See the
+[Gmail guide](Gmail-Decision-Reader.en.md) and [settings example](decision-settings.example.json).
 
 ## Verification and remaining evaluation
 
@@ -135,17 +144,22 @@ dotnet test OD.MyLocalAgent.sln -m:1 --no-restore --filter "Category!=Integratio
 ```
 
 Provider contract checked on 2026-10-07 against [Ollama's Tev1 documentation](https://ollama.com/library/tev1):
-`/v1/systemone`, short `keep_alive`, 2–24 recommended options and an approximately 2000-token
-decision context. The installed CLI reports 0.40.0; it could not reach a running server during
-implementation, so no fresh runtime/context measurement was obtained. The 2050-token ceiling
+`/v1/systemone`, short `keep_alive` and 2–24 recommended options. The locally observed
+decision context is separate from the published catalog context. During phase A the installed CLI reported 0.40.0 but could not reach the
+server. Phase C subsequently reached that runtime and performed authorized local experiments.
+The 2050-token ceiling
 comes from the [existing local probe](Tev1-Local-Feasibility.md), not the download catalog's context.
-No model experiment was launched. Phase C must establish usefulness, French/English quality and
-cold/warm latency with reviewed held-out fixtures. Implementation tests do not establish model quality.
+The [phase C results](evaluation/Stage32C-Results.en.md) distinguish implementation verification
+from measured model quality: Tev1 did not meet the frozen appointment criteria. The adapted
+public VitaminC pilot is descriptive and does not establish a general benefit.
 
 Phase B prepares [30 synthetic French/English pairs](evaluation/decision-readiness-pairs.v1.json),
-with 20 development and 10 held-out pairs. Labels are proposed and require independent bilingual
-review before model execution. The [evaluation protocol](evaluation/Decision-Evaluation-Protocol.md)
+with 20 development and 10 held-out pairs. The owner approved proposed annotations before phase C;
+no separate blind bilingual review is claimed. The [evaluation protocol](evaluation/Decision-Evaluation-Protocol.md)
 defines review, baselines, acceptance criteria, identities, repetitions, timing and reporting.
 `tools/Prepare-DecisionEvaluation.ps1` validates the corpus offline and can generate 60 disabled,
 single-step workflow inputs plus a hashed manifest. It never imports or runs tasks. The actual
-comparative model executor and results remain phase C work.
+comparative [executor](../tools/DecisionEvaluation/README.md) now runs isolated approved pilots
+and produces checkpointed observations, aggregate metrics and criterion assessments. No live
+mailbox, integration test or deployment was part of the pilot. Integrated routing is now delivered
+in phase D; agent exposure remains deferred.

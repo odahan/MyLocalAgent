@@ -56,6 +56,14 @@ public static class WorkflowStepDependencyAnalyzer
     private static IReadOnlyList<string> ReferencingRoutes(WorkflowStepDefinition step, string id)
     {
         var routes = new List<string>();
+        if (step.DecisionRoutes is not null)
+        {
+            var decision = DecisionRouteDefinition.Parse(step);
+            foreach (var choice in decision.Choices)
+                if (string.Equals(choice.Value, id, StringComparison.OrdinalIgnoreCase)) routes.Add("decisionRoutes.choices." + choice.Key);
+            if (string.Equals(decision.Uncertain, id, StringComparison.OrdinalIgnoreCase)) routes.Add("decisionRoutes.uncertain");
+            if (string.Equals(decision.Unavailable, id, StringComparison.OrdinalIgnoreCase)) routes.Add("decisionRoutes.unavailable");
+        }
         if (string.Equals(step.Next, id, StringComparison.OrdinalIgnoreCase))
         {
             routes.Add("next");

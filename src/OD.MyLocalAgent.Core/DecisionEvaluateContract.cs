@@ -35,6 +35,8 @@ public static class DecisionEvaluateContract
     /// <summary>Resolves normalized acceptance overrides against the configured minimums.</summary>
     public static DecisionAcceptance Acceptance(JsonElement? json, DecisionOptions settings)
     {
+        if (settings.Engine == "CentralLlm" && json is not null)
+            throw new WorkflowValidationException("Explicit native acceptance is incompatible with Use application LLM. Remove the acceptance argument deliberately, or select Use a decision model in Settings.");
         var authored = json is null ? new DecisionAcceptanceOverrides() : DecisionContractJson.Read<DecisionAcceptanceOverrides>(json.Value);
         var top = settings.MinTopProbabilityPercent / 100;
         var margin = settings.MinMarginPercentagePoints / 100;

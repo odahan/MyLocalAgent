@@ -68,6 +68,8 @@ public static class WorkflowDescriptionFormatter
                 .AppendLine(step.RetryBackoffSeconds?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "<omitted>");
             builder.Append("  forEach: ").AppendLine(step.ForEach ?? "<omitted>");
             builder.Append("  next: ").AppendLine(step.Next ?? "<following step>");
+            if (step.DecisionRoutes is { } routes)
+                builder.Append("  decisionRoutes (status before accepted choice): ").AppendLine(routes.GetRawText());
             builder.Append("  responseSchema: ")
                 .AppendLine(step.ResponseSchema is { } schema ? schema.GetRawText() : "<omitted>");
             AppendGenerationOptions(

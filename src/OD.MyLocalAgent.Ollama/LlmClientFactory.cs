@@ -102,6 +102,17 @@ public sealed class LlmClientFactory : ILlmClientFactory
         }
     }
 
+    /// <inheritdoc />
+    public LlmClientSnapshot Capture()
+    {
+        return _aiOptions.CurrentValue.Provider switch
+        {
+            AIOptions.OllamaProvider => _ollamaClient.Capture(),
+            AIOptions.OpenAIProvider => _openAIClient.Capture(),
+            _ => throw new NotSupportedException("The selected central provider does not support structured decisions."),
+        };
+    }
+
     private void ValidateOpenAI()
     {
         try

@@ -16,6 +16,7 @@ public sealed partial class WorkflowStepEditorViewModel
     private bool _loadingEvaluationFields;
     private bool _evaluationFieldsDirty;
     private int _evaluationGeneration;
+    private Dictionary<string, string> _loadedEvaluationTargets = new(StringComparer.Ordinal);
 
     [ObservableProperty] private DecisionCriterionEditorItem? _selectedEvaluationOption;
     [ObservableProperty] private bool _overrideEvaluationTop;
@@ -29,6 +30,41 @@ public sealed partial class WorkflowStepEditorViewModel
     [ObservableProperty] private string _evaluationReasons = string.Empty;
     [ObservableProperty] private string _evaluationFieldsError = string.Empty;
     [ObservableProperty] private bool _isTestingDecision;
+    [ObservableProperty] private bool _routeByDecision;
+    [ObservableProperty] private string _evaluationUncertainTarget = string.Empty;
+    [ObservableProperty] private string _evaluationUnavailableTarget = string.Empty;
+
+    /// <summary>Gets literal destinations available in this draft.</summary>
+    public IReadOnlyList<string> EvaluationRouteTargets => ["@end", .. _workflow.Select(s => s.EffectiveId).Where(id => id != Id)];
+
+    partial void OnRouteByDecisionChanged(bool value) => EvaluationFieldsChanged();
+    partial void OnEvaluationUncertainTargetChanged(string value) => EvaluationFieldsChanged();
+    partial void OnEvaluationUnavailableTargetChanged(string value) => EvaluationFieldsChanged();
+
+    private JsonElement? CreateDecisionRoutes()
+    {
+        if (!IsDecisionEvaluationSelected || !RouteByDecision) return null;
+        var choices = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var option in EvaluationOptions)
+            if (!choices.TryAdd(option.Key, option.Target.Trim()))
+                throw new WorkflowValidationException("Decision route option identifiers must be unique.");
+        return JsonSerializer.SerializeToElement(new
+        {
+            choices,
+            uncertain = EvaluationUncertainTarget.Trim(),
+            unavailable = EvaluationUnavailableTarget.Trim(),
+        });
+    }
+
+    private void LoadEvaluationRoutes(WorkflowStepDefinition? step)
+    {
+        var routes = step?.DecisionRoutes is not null ? DecisionRouteDefinition.Parse(step) : null;
+        RouteByDecision = routes is not null;
+        EvaluationUncertainTarget = routes?.Uncertain ?? string.Empty;
+        EvaluationUnavailableTarget = routes?.Unavailable ?? string.Empty;
+        _loadedEvaluationTargets = routes?.Choices.ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal) ?? new(StringComparer.Ordinal);
+        EvaluationOptions.Clear();
+    }
 
     /// <summary>Gets whether the selected tool exposes the simple local choice editor.</summary>
     public bool IsDecisionEvaluationSelected => SelectedTool?.Alias == "decision.evaluate";
@@ -42,12 +78,47 @@ public sealed partial class WorkflowStepEditorViewModel
     public ObservableCollection<DecisionCriterionEditorItem> EvaluationOptions { get; } = [];
     /// <summary>Gets every score returned by the last explicit test.</summary>
     public ObservableCollection<DecisionOptionScoreDisplay> EvaluationScores { get; } = [];
+    /// <summary>Gets the read-only global engine and configured model.</summary>
+    public string EvaluationEngineText
+    {
+        get
+        {
+            var settings = _decisionOptions?.CurrentValue ?? new();
+            var provider = _aiOptions?.CurrentValue.Provider ?? "Ollama";
+            return settings.Engine == "NativeDecision" ? $"Use a decision model: {settings.DecisionProvider} / {settings.DecisionModel}" :
+                $"Use application LLM: {provider} / {(provider == "Ollama" ? _ollamaOptions?.CurrentValue.Model : _openAIOptions?.CurrentValue.Model) ?? "central model"}";
+        }
+    }
+    /// <summary>Gets whether native thresholds apply to the current global engine.</summary>
+    public bool EvaluationSupportsScores => (_decisionOptions?.CurrentValue.Engine ?? "NativeDecision") == "NativeDecision";
+    /// <summary>Requests Settings without applying or discarding this draft.</summary>
+    public event EventHandler? DecisionSettingsRequested;
+    [RelayCommand]
+    private void OpenDecisionSettings()
+    {
+        CancelDecisionTest();
+        DecisionSettingsRequested?.Invoke(this, EventArgs.Empty);
+        OnPropertyChanged(nameof(EvaluationEngineText));
+        OnPropertyChanged(nameof(EvaluationSupportsScores));
+        OnPropertyChanged(nameof(EvaluationDefaultsText));
+        OnPropertyChanged(nameof(EvaluationEffectiveText));
+    }
+    [RelayCommand]
+    private void RemoveEvaluationAcceptance()
+    {
+        var argument = Arguments.FirstOrDefault(a => a.Definition.Name == "acceptance");
+        if (argument is not null) argument.IsIncluded = false;
+        OverrideEvaluationTop = false;
+        OverrideEvaluationMargin = false;
+        EvaluationFieldsChanged();
+    }
     /// <summary>Gets the configured minimums without implying that concentration measures correctness.</summary>
     public string EvaluationDefaultsText
     {
         get
         {
             var settings = _decisionOptions?.CurrentValue ?? new DecisionOptions();
+            if (settings.Engine == "CentralLlm") return "Use application LLM. Scores and native thresholds are unavailable. Explicit acceptance overrides must be removed deliberately.";
             return FormattableString.Invariant($"Inherited minimums: top {settings.MinTopProbabilityPercent:0.##}%, margin {settings.MinMarginPercentagePoints:0.##} percentage points, concentration {settings.MinConfidencePercent:0.##}%. Overrides can only increase these minimums.");
         }
     }
@@ -60,6 +131,10 @@ public sealed partial class WorkflowStepEditorViewModel
             var settings = _decisionOptions?.CurrentValue ?? new DecisionOptions();
             try
             {
+                if (settings.Engine == "CentralLlm") return OverrideEvaluationTop || OverrideEvaluationMargin ||
+                    Arguments.Any(a => a.Definition.Name == "acceptance" && a.IsIncluded)
+                    ? "Explicit native acceptance is incompatible with the central LLM. Remove it deliberately."
+                    : "Acceptance basis: validatedChoice. Scores unavailable.";
                 var overrides = new Dictionary<string, double>();
                 if (OverrideEvaluationTop) overrides["minTopProbability"] = ParseEvaluationPercent(EvaluationTopPercent);
                 if (OverrideEvaluationMargin) overrides["minMargin"] = ParseEvaluationPercent(EvaluationMarginPercent);
@@ -94,6 +169,7 @@ public sealed partial class WorkflowStepEditorViewModel
         _loadingEvaluationFields = true;
         try
         {
+            foreach (var option in EvaluationOptions) _loadedEvaluationTargets[option.Key] = option.Target;
             foreach (var option in EvaluationOptions) option.PropertyChanged -= OnEvaluationOptionChanged;
             EvaluationOptions.Clear();
             SelectedEvaluationOption = null;
@@ -108,7 +184,12 @@ public sealed partial class WorkflowStepEditorViewModel
             if (options.ValueKind != JsonValueKind.Object) throw new WorkflowValidationException("Options must be a JSON object.");
             foreach (var option in options.EnumerateObject())
             {
-                var row = new DecisionCriterionEditorItem { Key = option.Name, Description = option.Value.GetString() ?? string.Empty };
+                var row = new DecisionCriterionEditorItem
+                {
+                    Key = option.Name,
+                    Description = option.Value.GetString() ?? string.Empty,
+                    Target = _loadedEvaluationTargets.GetValueOrDefault(option.Name) ?? string.Empty,
+                };
                 row.PropertyChanged += OnEvaluationOptionChanged;
                 EvaluationOptions.Add(row);
             }
@@ -137,6 +218,7 @@ public sealed partial class WorkflowStepEditorViewModel
         {
             _loadingEvaluationFields = false;
             OnPropertyChanged(nameof(EvaluationSourceArgument));
+            OnPropertyChanged(nameof(EvaluationRouteTargets));
             OnPropertyChanged(nameof(EvaluationQuestionArgument));
             OnPropertyChanged(nameof(EvaluationDefaultsText));
             OnPropertyChanged(nameof(EvaluationEffectiveText));
@@ -276,10 +358,14 @@ public sealed partial class WorkflowStepEditorViewModel
             var result = await _decisionEvaluation.EvaluateAsync(EvaluationSample, args.GetProperty("question").GetString()!,
                 choices, args.TryGetProperty("acceptance", out var rules) ? rules : null, cancellationToken);
             if (generation != _evaluationGeneration || cancellationToken.IsCancellationRequested) return;
-            EvaluationSummary = $"Status: {result.Status} | Candidate: {result.Choice ?? "unavailable"} | Top: {FormatScore(result.TopProbability)} | Margin: {FormatScore(result.Margin, " pp")} | Concentration: {FormatScore(result.Confidence)}";
+            EvaluationSummary = $"Engine: {result.Engine} | Basis: {result.AcceptanceBasis} | Status: {result.Status} | Candidate: {result.Choice ?? "unavailable"} | Top: {FormatScore(result.TopProbability)} | Margin: {FormatScore(result.Margin, " pp")} | Concentration: {FormatScore(result.Confidence)}";
+            if (!result.Capabilities.Scores)
+                EvaluationSummary = $"Status: {result.Status} | Choice: {result.Choice ?? "unavailable"} | Basis: {result.AcceptanceBasis} | Scores unavailable";
             EvaluationReasons = result.Reasons.Count == 0 ? "Acceptance checks passed." : "Reasons: " + string.Join(", ", result.Reasons);
-            EvaluationTiming = FormattableString.Invariant($"{result.Provider} / {result.Model} | Gate: {result.Timing.GateWaitMs:0.##} ms | Inference: {result.Timing.InferenceMs:0.##} ms | Total (including cleanup): {result.Timing.TotalMs:0.##} ms | Cold: {result.Timing.Cold?.ToString() ?? "unknown"} | Applied minimums: {result.Acceptance.MinTopProbability * 100:0.##}% / {result.Acceptance.MinMargin * 100:0.##} pp / {result.Acceptance.MinConfidence * 100:0.##}% concentration");
-            foreach (var option in choices.EnumerateObject())
+            EvaluationTiming = FormattableString.Invariant($"{result.Provider} / {result.Model} | Gate: {result.Timing.GateWaitMs:0.##} ms | Inference: {result.Timing.InferenceMs:0.##} ms | Total (including cleanup): {result.Timing.TotalMs:0.##} ms | Cold: {result.Timing.Cold?.ToString() ?? "unknown"} | Applied minimums: {result.Acceptance?.MinTopProbability * 100:0.##}% / {result.Acceptance?.MinMargin * 100:0.##} pp / {result.Acceptance?.MinConfidence * 100:0.##}% concentration");
+            if (!result.Capabilities.Scores)
+                EvaluationTiming = FormattableString.Invariant($"{result.Provider} / {result.Model} | Gate: {result.Timing.GateWaitMs:0.##} ms | Inference: {result.Timing.InferenceMs:0.##} ms | Total: {result.Timing.TotalMs:0.##} ms");
+            if (result.Capabilities.Scores) foreach (var option in choices.EnumerateObject())
             {
                 double? score = result.Probabilities is not null && result.Probabilities.TryGetValue(option.Name, out var value) ? value : null;
                 EvaluationScores.Add(new(option.Name, option.Value.GetString()!, FormatScore(score)));

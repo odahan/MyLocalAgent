@@ -11,4 +11,7 @@ public interface ILlmClientFactory
     /// <returns>The selected provider service.</returns>
     /// <exception cref="LlmConfigurationException">The active provider configuration is invalid.</exception>
     ILlmClientService Create();
+
+    /// <summary>Captures the central provider without task or conversation overrides.</summary>
+    LlmClientSnapshot Capture() => throw new NotSupportedException("This provider cannot freeze structured decision settings.");
 }

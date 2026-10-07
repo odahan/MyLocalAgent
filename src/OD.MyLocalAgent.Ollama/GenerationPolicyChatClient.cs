@@ -20,6 +20,7 @@ public sealed class GenerationPolicyChatClient : IChatClient
     private readonly string? _reasoningEffort;
     private readonly bool _useProviderReasoningDefault;
     private readonly string _operation;
+    private readonly bool _allowReasoningRetry;
 
     /// <summary>
     /// Initializes a new policy-bound chat client.
@@ -31,12 +32,14 @@ public sealed class GenerationPolicyChatClient : IChatClient
     /// <param name="reasoningEnabled">
     /// Whether reasoning is requested. When omitted, the effective policy is used.
     /// </param>
+    /// <param name="allowReasoningRetry">Whether an unsupported reasoning option may trigger another request.</param>
     public GenerationPolicyChatClient(
         IChatClient inner,
         EffectiveGenerationPolicy policy,
         string providerName,
         string operation = "llm",
-        bool? reasoningEnabled = null)
+        bool? reasoningEnabled = null,
+        bool allowReasoningRetry = true)
     {
         ArgumentNullException.ThrowIfNull(inner);
         ArgumentNullException.ThrowIfNull(policy);
@@ -52,6 +55,7 @@ public sealed class GenerationPolicyChatClient : IChatClient
         _reasoningEnabled = reasoningEnabled ?? policy.ReasoningEnabled;
         _reasoningEffort = _reasoningEnabled ? policy.ReasoningEffort : null;
         _operation = operation;
+        _allowReasoningRetry = allowReasoningRetry;
     }
 
     /// <summary>
@@ -82,7 +86,7 @@ public sealed class GenerationPolicyChatClient : IChatClient
                 CreateOptions(options, applyReasoning: true),
                 cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception exception) when (ShouldRetryWithoutReasoning(exception, cancellationToken))
+        catch (Exception exception) when (_allowReasoningRetry && ShouldRetryWithoutReasoning(exception, cancellationToken))
         {
             response = await _inner.GetResponseAsync(
                 messageList,
