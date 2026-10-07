@@ -142,7 +142,8 @@ internal static class RunnerCommandHandlers
                 task,
                 outcome.Error,
                 error,
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken,
+                outcome.Result.ErrorMessage).ConfigureAwait(false);
     }
 
     public static async Task<int> ListAsync(
@@ -219,7 +220,8 @@ internal static class RunnerCommandHandlers
                 task,
                 outcome.Error,
                 error,
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken,
+                outcome.Result.ErrorMessage).ConfigureAwait(false);
     }
 
     public static async Task<int> TestToolAsync(
@@ -498,10 +500,11 @@ internal static class RunnerCommandHandlers
         ScheduledTask task,
         Exception? exception,
         TextWriter error,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? errorMessage = null)
     {
         exception ??= new InvalidOperationException(
-            $"Task '{task.Id}' failed without an exception detail.");
+            errorMessage ?? $"Task '{task.Id}' failed without an exception detail.");
         var existingAgentIncident =
             RunnerExceptionClassifier.Find<AgentExecutionException>(exception);
         var correlationId = existingAgentIncident?.CorrelationId ??

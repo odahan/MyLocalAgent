@@ -92,6 +92,13 @@ collection state. Existing exported files are not rewritten, and `Exported` cont
 successful file export rather than search completeness. Deploy the updated runner for this report
 behavior to take effect; the daily workflow arguments do not need to change.
 
+When Discover returns no candidates and `searchStatus` is `rateLimited` or `unavailable`, the
+workflow finishes its downstream diagnostic/export steps but reports overall failure. The runner
+returns its task-failure exit code and includes the provider HTTP status in the failure detail;
+HTTP 429 is a provider response code, not the process exit code. A completed search with no
+eligible candidates remains successful. Partial searches, including a rate-limited search that
+already delivered candidates, retain their candidates and finish with an execution warning.
+
 CI uses deterministic embedding doubles. The annotated corpus is in
 `tests/OD.MyLocalAgent.Tests/Fixtures/discover-anti-repetition-corpus.json`. It covers the observed
 NativeAOT, Copilot, and cross-site C# union-type repetitions plus a true release evolution and an

@@ -1787,6 +1787,55 @@ public sealed class WorkflowEngineTests
         logs.Should().NotContain("private source");
     }
 
+    /// <summary>Finishes diagnostic export but reports blocked discovery as a failed task with the provider error.</summary>
+    [Theory]
+    [InlineData("rateLimited", 429)]
+    [InlineData("unavailable", 503)]
+    [InlineData("unavailable", 401)]
+    public async Task BlockedDiscoveryExportsDiagnosticAndFailsOverall(string status, int httpCode)
+    {
+        var exported = false;
+        var registry = new RecordingToolRegistry((alias, _, _) =>
+        {
+            if (alias == "research.discover")
+                return Task.FromResult(JsonSerializer.Serialize(new { searchStatus = status, candidateCount = 0, searchErrorStatusCode = httpCode }));
+            exported = true;
+            return Task.FromResult("diagnostic exported");
+        });
+        var task = CreateTask([
+            Step("research.discover", "discover", """{"themes":"[{\"terms\":[\".NET\"]}]"}"""),
+            Step("filesystem.write", "report", """{"path":"diagnostic.md","content":"Search diagnostic"}"""),
+        ]) with { Tools = ["research", ToolGroups.FileSystem] };
+
+        var result = await CreateEngine(registry).ExecuteAsync(task, CancellationToken.None);
+
+        exported.Should().BeTrue();
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("Web Search unavailable").And.Contain($"HTTP {httpCode}");
+        result.Warnings.Should().ContainSingle().Which.Code.Should().Be("ResearchDiscoveryBlocked");
+        result.Steps.Should().HaveCount(2).And.OnlyContain(step => step.Status == WorkflowStepStatus.Success);
+    }
+
+    /// <summary>Keeps valid collected candidates usable and distinguishes a completed empty search from service failure.</summary>
+    [Theory]
+    [InlineData("available", 0, false)]
+    [InlineData("degraded", 0, true)]
+    [InlineData("degraded", 2, true)]
+    [InlineData("rateLimited", 1, true)]
+    public async Task CompletedOrPartialDiscoveryRemainsSuccessful(string status, int count, bool hasWarning)
+    {
+        var registry = new RecordingToolRegistry((_, _, _) => Task.FromResult(
+            JsonSerializer.Serialize(new { searchStatus = status, candidateCount = count, searchErrorStatusCode = (int?)null })));
+        var task = CreateTask([Step("research.discover", "discover", """{"themes":"[{\"terms\":[\".NET\"]}]"}""" )])
+            with { Tools = ["research"] };
+
+        var result = await CreateEngine(registry).ExecuteAsync(task, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        result.ErrorMessage.Should().BeNull();
+        result.Warnings.Count.Should().Be(hasWarning ? 1 : 0);
+    }
+
     private static SequentialWorkflowEngine CreateEngine(
         IToolRegistry registry,
         IEnumerable<ISkill>? skills = null,

@@ -158,6 +158,12 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
             .LastOrDefault(
                 static result => result.Status == WorkflowStepStatus.Failure)
             ?.ErrorMessage;
+        var blockedDiscovery = warnings.FirstOrDefault(static warning => warning.Code == "ResearchDiscoveryBlocked");
+        if (blockedDiscovery is not null)
+        {
+            success = false;
+            errorMessage ??= blockedDiscovery.Message;
+        }
         return new WorkflowResult(
             success,
             results,
@@ -320,7 +326,7 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
                     duration,
                     attempts)
                 {
-                    Warnings = ReadDecisionWarnings(step.Alias, output),
+                    Warnings = ReadToolWarnings(step.Alias, output),
                 };
             }
             catch (Exception exception) when (
@@ -673,8 +679,30 @@ public sealed class SequentialWorkflowEngine : IWorkflowEngine
         return System.Text.Encoding.UTF8.GetString(stream.ToArray());
     }
 
-    private static IReadOnlyList<ExecutionWarning> ReadDecisionWarnings(string alias, string output)
+    /// <summary>Propagates incomplete tool outcomes while allowing downstream diagnostic reports to be exported.</summary>
+    private static IReadOnlyList<ExecutionWarning> ReadToolWarnings(string alias, string output)
     {
+        if (alias == "research.discover")
+        {
+            using var discovery = JsonDocument.Parse(output);
+            var root = discovery.RootElement;
+            var status = root.GetProperty("searchStatus").GetString();
+            if (status == "available") return [];
+            var candidateCount = root.GetProperty("candidateCount").GetInt32();
+            var blocked = candidateCount == 0 && status is "rateLimited" or "unavailable";
+            var httpCode = root.TryGetProperty("searchErrorStatusCode", out var error) &&
+                           error.ValueKind == JsonValueKind.Number && error.TryGetInt32(out var code)
+                ? $" (HTTP {code})"
+                : status == "rateLimited" ? " (HTTP 429)" : string.Empty;
+            var message = status switch
+            {
+                "rateLimited" => $"Web Search unavailable{httpCode}: the provider rejected requests because of a quota, credit or temporary rate limit. Check your provider account usage and reset date.",
+                "unavailable" => $"Web Search unavailable{httpCode}: all attempted search queries failed. Check service availability and configuration.",
+                _ => $"Web Search incomplete{httpCode}: some search queries failed.",
+            };
+            return [new ExecutionWarning(blocked ? "ResearchDiscoveryBlocked" : "ResearchDiscoveryIncomplete",
+                message + " This does not establish that no eligible articles exist.", 1)];
+        }
         if (alias != "gmailDecision.readClassify") return [];
         using var json = JsonDocument.Parse(output);
         return json.RootElement.GetProperty("warnings").EnumerateArray()
