@@ -10,26 +10,32 @@ namespace OD.MyLocalAgent.UI.ViewModels;
 
 public sealed partial class SettingsViewModel
 {
+    private static bool IsNativeDecisionSetting(string name) => name.StartsWith("Decision", StringComparison.Ordinal) &&
+        name is not (nameof(DecisionModelTestStatus) or nameof(DecisionSettingsValidationText));
     private readonly IOptionsMonitor<GmailDecisionOptions>? _gmailDecisionOptions;
+    private readonly IOptionsMonitor<DecisionOptions>? _decisionOptions;
+    [ObservableProperty] private bool _decisionEnabled;
+    [ObservableProperty] private int _decisionOperationTimeoutSeconds = 180;
+    [ObservableProperty] private int _decisionMaxInputTokens = 2050;
     private readonly ILocalDecisionClient? _localDecisionClient;
     private readonly DecisionModelResidencyCoordinator? _decisionResidency;
     [ObservableProperty] private string _decisionModelTestStatus = "Scores are model scores, not accuracy guarantees. Saving does not load or probe a model.";
     [ObservableProperty] private bool _isTestingDecisionModel;
     [ObservableProperty] private string _decisionSettingsValidationText = "Local decision settings are valid.";
     /// <summary>Gets installed local decision and conventional models from explicit refresh.</summary>
-    public ObservableCollection<string> GmailDecisionModels { get; } = [];
+    public ObservableCollection<string> DecisionModels { get; } = [];
     /// <summary>Gets the supported local provider names.</summary>
     public IReadOnlyList<string> DecisionProviders { get; } = ["OllamaSystemOne"];
     /// <summary>Gets technical decision-provider unavailability policies.</summary>
     public IReadOnlyList<string> DecisionUnavailableBehaviors { get; } = ["LightweightLlmFallback", "Fail"];
     [ObservableProperty] private bool _gmailDecisionEnabled;
-    [ObservableProperty] private string _gmailDecisionDecisionProvider = "OllamaSystemOne";
-    [ObservableProperty] private string? _gmailDecisionDecisionEndpoint;
-    [ObservableProperty] private string _gmailDecisionDecisionModel = "tev1:latest";
-    [ObservableProperty] private int _gmailDecisionKeepAliveSeconds = 10;
-    [ObservableProperty] private bool _gmailDecisionUnloadAfterBatch = true;
-    [ObservableProperty] private int _gmailDecisionDecisionColdTimeoutSeconds = 120;
-    [ObservableProperty] private int _gmailDecisionDecisionWarmTimeoutSeconds = 15;
+    [ObservableProperty] private string _decisionProvider = "OllamaSystemOne";
+    [ObservableProperty] private string? _decisionEndpoint;
+    [ObservableProperty] private string _decisionModel = "tev1:latest";
+    [ObservableProperty] private int _decisionKeepAliveSeconds = 10;
+    [ObservableProperty] private bool _decisionUnloadAfterBatch = true;
+    [ObservableProperty] private int _decisionColdTimeoutSeconds = 120;
+    [ObservableProperty] private int _decisionWarmTimeoutSeconds = 15;
     [ObservableProperty] private bool _gmailDecisionArbitrationEnabled = true;
     [ObservableProperty] private string? _gmailDecisionArbitrationModel;
     [ObservableProperty] private int _gmailDecisionArbitrationTimeoutSeconds = 15;
@@ -37,13 +43,13 @@ public sealed partial class SettingsViewModel
     [ObservableProperty] private string? _gmailDecisionFallbackModel;
     [ObservableProperty] private int _gmailDecisionFallbackTimeoutSeconds = 15;
     [ObservableProperty] private int _gmailDecisionBatchTimeoutSeconds = 180;
-    [ObservableProperty] private int _gmailDecisionGateWaitTimeoutSeconds = 30;
+    [ObservableProperty] private int _decisionGateWaitTimeoutSeconds = 30;
     [ObservableProperty] private int _gmailDecisionMaxMessagesPerOperation = 100;
     [ObservableProperty] private int _gmailDecisionMaxProjectionCharacters = 4000;
-    [ObservableProperty] private double _gmailDecisionMinTopProbabilityPercent = 80;
-    [ObservableProperty] private double _gmailDecisionMinMarginPercentagePoints = 20;
-    [ObservableProperty] private double _gmailDecisionMinConfidencePercent;
-    [ObservableProperty] private double _gmailDecisionMinNoulCertaintyPercent = 80;
+    [ObservableProperty] private double _decisionMinTopProbabilityPercent = 80;
+    [ObservableProperty] private double _decisionMinMarginPercentagePoints = 20;
+    [ObservableProperty] private double _decisionMinConfidencePercent;
+    [ObservableProperty] private double _decisionMinNoulCertaintyPercent = 80;
     [ObservableProperty] private int _gmailDecisionMaxArbitrationPercent = 100;
     [ObservableProperty] private int _gmailDecisionMaxArbitrationCalls;
     [ObservableProperty] private int _gmailDecisionQualityWarningPercent = 20;
@@ -51,13 +57,13 @@ public sealed partial class SettingsViewModel
     private void LoadGmailDecision(GmailDecisionOptions value)
     {
         GmailDecisionEnabled = value.Enabled;
-        GmailDecisionDecisionProvider = value.DecisionProvider;
-        GmailDecisionDecisionEndpoint = value.DecisionEndpoint;
-        GmailDecisionDecisionModel = value.DecisionModel;
-        GmailDecisionKeepAliveSeconds = value.KeepAliveSeconds;
-        GmailDecisionUnloadAfterBatch = value.UnloadAfterBatch;
-        GmailDecisionDecisionColdTimeoutSeconds = value.DecisionColdTimeoutSeconds;
-        GmailDecisionDecisionWarmTimeoutSeconds = value.DecisionWarmTimeoutSeconds;
+        DecisionProvider = value.DecisionProvider;
+        DecisionEndpoint = value.DecisionEndpoint;
+        DecisionModel = value.DecisionModel;
+        DecisionKeepAliveSeconds = value.KeepAliveSeconds;
+        DecisionUnloadAfterBatch = value.UnloadAfterBatch;
+        DecisionColdTimeoutSeconds = value.DecisionColdTimeoutSeconds;
+        DecisionWarmTimeoutSeconds = value.DecisionWarmTimeoutSeconds;
         GmailDecisionArbitrationEnabled = value.ArbitrationEnabled;
         GmailDecisionArbitrationModel = value.ArbitrationModel;
         GmailDecisionArbitrationTimeoutSeconds = value.ArbitrationTimeoutSeconds;
@@ -65,13 +71,13 @@ public sealed partial class SettingsViewModel
         GmailDecisionFallbackModel = value.FallbackModel;
         GmailDecisionFallbackTimeoutSeconds = value.FallbackTimeoutSeconds;
         GmailDecisionBatchTimeoutSeconds = value.BatchTimeoutSeconds;
-        GmailDecisionGateWaitTimeoutSeconds = value.GateWaitTimeoutSeconds;
+        DecisionGateWaitTimeoutSeconds = value.GateWaitTimeoutSeconds;
         GmailDecisionMaxMessagesPerOperation = value.MaxMessagesPerOperation;
         GmailDecisionMaxProjectionCharacters = value.MaxProjectionCharacters;
-        GmailDecisionMinTopProbabilityPercent = value.MinTopProbabilityPercent;
-        GmailDecisionMinMarginPercentagePoints = value.MinMarginPercentagePoints;
-        GmailDecisionMinConfidencePercent = value.MinConfidencePercent;
-        GmailDecisionMinNoulCertaintyPercent = value.MinNoulCertaintyPercent;
+        DecisionMinTopProbabilityPercent = value.MinTopProbabilityPercent;
+        DecisionMinMarginPercentagePoints = value.MinMarginPercentagePoints;
+        DecisionMinConfidencePercent = value.MinConfidencePercent;
+        DecisionMinNoulCertaintyPercent = value.MinNoulCertaintyPercent;
         GmailDecisionMaxArbitrationPercent = value.MaxArbitrationPercent;
         GmailDecisionMaxArbitrationCalls = value.MaxArbitrationCalls;
         GmailDecisionQualityWarningPercent = value.QualityWarningPercent;
@@ -80,13 +86,13 @@ public sealed partial class SettingsViewModel
     private GmailDecisionOptions GetGmailDecisionOptions() => new()
     {
         Enabled = GmailDecisionEnabled,
-        DecisionProvider = GmailDecisionDecisionProvider,
-        DecisionEndpoint = string.IsNullOrWhiteSpace(GmailDecisionDecisionEndpoint) ? null : GmailDecisionDecisionEndpoint.Trim(),
-        DecisionModel = GmailDecisionDecisionModel,
-        KeepAliveSeconds = GmailDecisionKeepAliveSeconds,
-        UnloadAfterBatch = GmailDecisionUnloadAfterBatch,
-        DecisionColdTimeoutSeconds = GmailDecisionDecisionColdTimeoutSeconds,
-        DecisionWarmTimeoutSeconds = GmailDecisionDecisionWarmTimeoutSeconds,
+        DecisionProvider = DecisionProvider,
+        DecisionEndpoint = string.IsNullOrWhiteSpace(DecisionEndpoint) ? null : DecisionEndpoint.Trim(),
+        DecisionModel = DecisionModel,
+        KeepAliveSeconds = DecisionKeepAliveSeconds,
+        UnloadAfterBatch = DecisionUnloadAfterBatch,
+        DecisionColdTimeoutSeconds = DecisionColdTimeoutSeconds,
+        DecisionWarmTimeoutSeconds = DecisionWarmTimeoutSeconds,
         ArbitrationEnabled = GmailDecisionArbitrationEnabled,
         ArbitrationModel = string.IsNullOrWhiteSpace(GmailDecisionArbitrationModel) ? null : GmailDecisionArbitrationModel.Trim(),
         ArbitrationTimeoutSeconds = GmailDecisionArbitrationTimeoutSeconds,
@@ -94,16 +100,23 @@ public sealed partial class SettingsViewModel
         FallbackModel = string.IsNullOrWhiteSpace(GmailDecisionFallbackModel) ? null : GmailDecisionFallbackModel.Trim(),
         FallbackTimeoutSeconds = GmailDecisionFallbackTimeoutSeconds,
         BatchTimeoutSeconds = GmailDecisionBatchTimeoutSeconds,
-        GateWaitTimeoutSeconds = GmailDecisionGateWaitTimeoutSeconds,
+        GateWaitTimeoutSeconds = DecisionGateWaitTimeoutSeconds,
         MaxMessagesPerOperation = GmailDecisionMaxMessagesPerOperation,
         MaxProjectionCharacters = GmailDecisionMaxProjectionCharacters,
-        MinTopProbabilityPercent = GmailDecisionMinTopProbabilityPercent,
-        MinMarginPercentagePoints = GmailDecisionMinMarginPercentagePoints,
-        MinConfidencePercent = GmailDecisionMinConfidencePercent,
-        MinNoulCertaintyPercent = GmailDecisionMinNoulCertaintyPercent,
+        MinTopProbabilityPercent = DecisionMinTopProbabilityPercent,
+        MinMarginPercentagePoints = DecisionMinMarginPercentagePoints,
+        MinConfidencePercent = DecisionMinConfidencePercent,
+        MinNoulCertaintyPercent = DecisionMinNoulCertaintyPercent,
         MaxArbitrationPercent = GmailDecisionMaxArbitrationPercent,
         MaxArbitrationCalls = GmailDecisionMaxArbitrationCalls,
         QualityWarningPercent = GmailDecisionQualityWarningPercent,
+    };
+
+    private DecisionOptions GetDecisionOptions() => DecisionOptions.FromLegacy(GetGmailDecisionOptions()) with
+    {
+        Enabled = DecisionEnabled,
+        OperationTimeoutSeconds = DecisionOperationTimeoutSeconds,
+        MaxInputTokens = DecisionMaxInputTokens,
     };
 
     [RelayCommand]
@@ -111,11 +124,11 @@ public sealed partial class SettingsViewModel
     {
         try
         {
-            var endpoint = string.IsNullOrWhiteSpace(GmailDecisionDecisionEndpoint) ? OllamaEndpoint : GmailDecisionDecisionEndpoint.Trim();
+            var endpoint = string.IsNullOrWhiteSpace(DecisionEndpoint) ? OllamaEndpoint : DecisionEndpoint.Trim();
             if (!LocalDecisionEndpoint.IsValid(endpoint)) throw new InvalidOperationException("Use a loopback HTTP(S) endpoint.");
             var models = await _ollamaModelCatalog.ListInstalledModelsAsync(endpoint, 15, cancellationToken).ConfigureAwait(true);
-            GmailDecisionModels.Clear();
-            foreach (var model in models) GmailDecisionModels.Add(model);
+            DecisionModels.Clear();
+            foreach (var model in models) DecisionModels.Add(model);
             DecisionModelTestStatus = $"{models.Count} installed local models. No model was loaded.";
         }
         catch (Exception e) when (e is not OutOfMemoryException)
@@ -127,10 +140,10 @@ public sealed partial class SettingsViewModel
     {
         if (_localDecisionClient is null) { DecisionModelTestStatus = "Local decision client is unavailable."; return; }
         var settings = GetGmailDecisionOptions();
-        if (!GmailDecisionOptions.IsValid(settings)) { DecisionModelTestStatus = "Check local decision settings and limits."; return; }
+        if (!DecisionOptions.IsValid(GetDecisionOptions())) { DecisionModelTestStatus = "Check local decision settings and limits."; return; }
         var endpoint = settings.DecisionEndpoint ?? OllamaEndpoint;
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        deadline.CancelAfter(TimeSpan.FromSeconds(settings.BatchTimeoutSeconds));
+        deadline.CancelAfter(TimeSpan.FromSeconds(DecisionOperationTimeoutSeconds));
         IsTestingDecisionModel = true;
         IDisposable? owner = null;
         var safeCleanup = false;

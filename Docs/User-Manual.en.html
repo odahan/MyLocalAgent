@@ -3391,7 +3391,7 @@ capabilities start unrestricted local processes and must remain limited to trust
 <p>The <code>gmailDecision</code> group provides optional local triage: one collection, one classification per message, then a Markdown report produced by code. It preserves relevant messages, separates noise and flags uncertain results. Existing Gmail readers and saved tasks retain their behavior.</p>
 <h3>1. Configure and check models</h3>
 <ol>
-<li>Connect Gmail through the normal Google settings. In <strong>Settings → Local decision models</strong>, enable the reader, which is disabled by default.</li>
+<li>Connect Gmail through the normal Google settings. In <strong>Settings → Gmail decision reader</strong>, enable the reader, which is disabled by default.</li>
 <li>Select an already installed decision model, default <code>tev1:latest</code>. No automatic download. A blank endpoint inherits Ollama; only loopback HTTP(S) addresses are allowed.</li>
 <li>Leave arbitration and fallback models blank to inherit the Ollama chat model, or select other installed local models. They remain local even when the general provider is OpenAI. The decision model must have a distinct digest from chat, arbitration, fallback and embedding models on the same endpoint.</li>
 <li>Save settings. Save validates without loading or probing models. <strong>Refresh models</strong> reads the installed catalog; <strong>Test decision model</strong> sends two synthetic requests and displays identity and observed durations, then cleans up the dedicated model. It does not read Gmail.</li>
@@ -3414,6 +3414,13 @@ capabilities start unrestricted local processes and must remain limited to trust
 <p><strong>Classified</strong> means resolved; <strong>Provisional</strong> retains an answer requiring review; <strong>Unresolved</strong> means no valid answer or the deadline was reached. Uncertain messages remain visible. Runs shows <strong>Completed with warnings</strong> on degradation. Reports show coverage, sources, models and timing; includeNoise=false hides rank-zero categories and displays their count. An empty collection produces <strong>No messages found</strong>.</p>
 <p>This path is workflow-only. Direct Chat, agents, ai.prompt tool aliases and forEach cannot use it. In Tool tester, select an authorized task and check <strong>Authorized workflow test</strong>. It adds no send, delete, attachment retrieval or mark-read capability.</p>
 <p>Complete reference: <a href="Technical-Manual.html#gmail-decision">syntax, arguments, JSON contracts and configuration</a>. Also see the <a href="Gmail-Decision-Reader.en.md">detailed guide</a>. Real-mail quality and latency remain to be evaluated separately.</p>
+</section>
+<section id="generic-decision-evaluation" data-title="Generic local decisions">
+<h2>Generic local decisions — Stage 32 phase A</h2>
+<p>Enable <strong>Settings → Decision models → Enable generic workflow evaluation</strong> and grant the task's <code>decision</code> group independently. The workflow-only <code>decision.evaluate</code> accepts explicit <code>source</code>, a literal <code>question</code> and 2–24 described <code>options</code>. It does not collect Gmail, retrieve Knowledge or fall back to a general LLM.</p>
+<p>Check <code>status</code> with <code>flow.decision</code> before routing on <code>choice</code>. Only <code>accepted</code> meets every threshold; <code>uncertain</code> retains a candidate and scores, while <code>unavailable</code> has null choice and scores. Probabilities and margin use [0,1]. Confidence measures concentration, not correctness.</p>
+<p>The canonical <code>Decision</code> section owns shared native settings. Without it, legacy <code>GmailDecision</code> values are migrated on save without enabling generic evaluation. Gmail keeps its independent enablement, mail limits, arbitration and fallback; <code>LlmOnly</code> still does not require Tev1. Phase A uses the generic step form. The specialized editor and score display belong to phase B; quality evaluation belongs to phase C.</p>
+<p>See the <a href="Decision-Evaluation.en.md">complete guide</a> and <a href="samples/decision-readiness.json">disabled routing sample</a>.</p>
 </section>
 </main>
 <a aria-label="Revenir en haut" class="back-to-top" href="#accueil" id="back-to-top">↑</a>

@@ -68,6 +68,7 @@ namespace OD.MyLocalAgent.UI.Services;
 /// <param name="GenerationReasoningEffort">The optional global provider thinking level.</param>
 /// <param name="InternalThinking">The independent thinking settings for application-owned operations.</param>
 /// <param name="GmailDecision">The opt-in independent local Gmail decision settings.</param>
+/// <param name="Decision">The canonical native settings and independent generic evaluation enablement.</param>
 public sealed record UserSettingsData(
     string Provider,
     string OllamaEndpoint,
@@ -130,4 +131,5 @@ public sealed record UserSettingsData(
     bool GenerationReasoningEnabled = true,
     string? GenerationReasoningEffort = null,
     InternalThinkingOptions? InternalThinking = null,
-    GmailDecisionOptions? GmailDecision = null);
+    GmailDecisionOptions? GmailDecision = null,
+    DecisionOptions? Decision = null);

@@ -7,6 +7,13 @@ Gmail existants, leurs protections et les tâches enregistrées conservent leur 
 
 ## Modes de classification
 
+La phase A du stage 32 déplace les réglages natifs partagés (fournisseur, modèle, résidence,
+délais et seuils par défaut) dans **Settings → Decision models** et la section canonique `Decision`.
+L’activation Gmail et sa politique restent dans **Gmail decision reader** / `GmailDecision`.
+Les anciens réglages natifs sont repris lors de la sauvegarde ; une section `Decision` explicite
+est prioritaire. L’outil générique `decision.evaluate` reste désactivé par défaut, même si Gmail
+est activé. Voir le [guide des décisions génériques](Decision-Evaluation.fr.md).
+
 L'argument `classificationMode` de `gmailDecision.readClassify` accepte `Hybrid` (par défaut)
 ou `LlmOnly`. Le mode hybride utilise Tev1 et les contrôles d'acceptation avant un éventuel
 second avis. Le mode `LlmOnly` effectue un seul appel local structuré par mail, sans consulter,

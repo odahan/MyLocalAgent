@@ -2010,3 +2010,25 @@ these tools. No production task or schedule is migrated automatically.
 See the [English guide](Docs/Gmail-Decision-Reader.en.md), [French guide](Docs/Gmail-Decision-Reader.fr.md)
 and [disabled example task](Docs/samples/gmail-decision-watch.json). Model scores are not accuracy
 guarantees. Live quality/latency benchmarking and deployment are separate authorized operations.
+
+## Generic decision evaluation (Stage 32, phase A)
+
+`decision.evaluate` exposes local native decisions independently of Gmail. Supply explicit source
+text, one literal question and 2–24 described options. The versioned JSON result distinguishes
+`accepted`, `uncertain` and `unavailable`, preserves validated native probabilities, and never
+silently falls back to a general LLM. Use unchanged `flow.decision` to check status before routing
+on an accepted choice.
+
+**Settings → Decision models** owns the shared native configuration in `Decision`. Generic
+enablement is disabled by default and requires the task's separate `decision` group grant.
+Legacy-only settings migrate on save without enabling the generic tool or changing Gmail's
+arbitration/fallback policy. Gmail's `LlmOnly` mode still does not require Tev1. The executable
+configuration template retains legacy defaults so existing user overrides remain effective until
+migration; a complete canonical example is supplied separately.
+
+See the [English guide](Docs/Decision-Evaluation.en.md), [French guide](Docs/Decision-Evaluation.fr.md),
+[configuration example](Docs/decision-settings.example.json) and
+[disabled routing sample](Docs/samples/decision-readiness.json). Phase A uses the existing generic
+step form; the specialized decision editor and score inspection belong to phase B. Comparative
+French/English model evaluation belongs to phase C. No live-mail evaluation or deployment is part
+of this implementation.

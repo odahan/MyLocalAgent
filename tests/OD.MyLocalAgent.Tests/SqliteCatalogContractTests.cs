@@ -81,7 +81,7 @@ public sealed class SqliteCatalogContractTests
     public void TaskWhitelistContainsTheExpectedGroupsIncludingStage22()
     {
         ToolGroups.TaskWhitelist.Select(static group => group.Name).Should().Equal(
-            "gmail", "gmailDecision", "calendar", "dropbox", "filesystem", "sqlite", "archive", "document", "spreadsheet", "pdf", "http", "web", "research", "knowledge");
+            "gmail", "gmailDecision", "decision", "calendar", "dropbox", "filesystem", "sqlite", "archive", "document", "spreadsheet", "pdf", "http", "web", "research", "knowledge");
         ToolGroups.Find("sqlite")!.DisplayOrder.Should().Be(500);
     }
 

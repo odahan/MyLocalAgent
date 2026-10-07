@@ -2489,3 +2489,62 @@ Application version: **2.6.6** (incremented from 2.6.5).
   failures, one expected Ollama probe skipped; every command used `-m:1`.
   `git diff --check` passed. Live Gmail quality/latency evaluation, integration tests,
   deployment and production schedule changes remain separately authorized operations.
+
+## Stage 32 phase A — Common local decision evaluation — 2026-10-07
+
+- Added `DecisionOptions` and reloadable `AddDecisionConfiguration`. An explicit `Decision`
+  section is authoritative, including an empty section's defaults; without it, native settings
+  come from legacy `GmailDecision`. Generic enablement remains false even when Gmail is enabled.
+  Shared native validation is extracted from the mail contract; generic operation/input budgets
+  do not inherit mail counts or batch deadlines. Saved settings persist the canonical section
+  and remove shared native properties from the saved mail section.
+- Both option monitors resolve the current configuration on reload. Gmail projection deliberately
+  does not read a potentially stale native monitor during reload callbacks. Tests caught and
+  removed this callback-order dependence. Gmail retains collection, report, arbitration and
+  lightweight fallback policy; `LlmOnly` still does not require a decision-model installation.
+- The base `appsettings.json` intentionally retains legacy native defaults. Adding a canonical
+  section there would mask existing user-file legacy overrides before migration. A standalone
+  canonical configuration example documents the new section without changing effective user
+  settings at bootstrap. Application version and package versions are unchanged in this phase.
+- Added `IDecisionEvaluationService` / `DecisionEvaluationService`, simple-contract validation,
+  normalized acceptance and versioned result/timing contracts. Common `ScoreAsync` preserves
+  named Boolean/rubric/multiple native questions and is reused by Gmail in application DI.
+  Generic evaluation has no mail classifier, report mapping or Gmail credential dependency.
+- Declarative `decision.evaluate` accepts explicit source, one literal question and 2–24 named
+  described options. Policy fields cannot be authored from previous outputs; only source permits
+  placeholders. The independent task group is opt-in, workflow-only, unavailable to agents,
+  Direct Chat, prompt tool aliases and forEach. The existing authorized workflow-test surface
+  remains supported; a specialized authoring/test action is deferred to phase B.
+- Valid unique winners meeting every effective threshold are `accepted`; valid ties or failed
+  thresholds are `uncertain`, retaining candidates/scores. Technical `unavailable` results have
+  null choice and scores with sanitized reason codes. Overrides only tighten defaults; legacy
+  percentage defaults convert once to [0,1]. Authoring/enablement/authorization errors remain
+  errors and caller cancellation propagates. No conventional LLM fallback is introduced.
+- Full-prompt budgeting reuses the conservative one-token-per-UTF-8-byte assumption, counting
+  source and serialized questions/options with a 400-token reserve and at most 2050 tokens.
+  Oversized input is unavailable before any catalog/inference call, without truncation.
+  Generic deadlines are 1–3600 seconds (default 180), input budgets 512–2050 (default 2050).
+- Native transport, global execution gate and residency coordinator are reused. Generic model
+  identity checks protect configured chat/embedding models; Gmail retains its additional mail
+  model checks. Embedding handoff uses canonical settings for either enabled caller. Cleanup
+  uses the existing ownership rules and an independent five-second deadline after success,
+  failure or cancellation. Logs retain hashes, model, status, sanitized codes and timings, not
+  source content. Cold timings include provider-reported loading/inference, without invented
+  separate loading durations.
+- Settings separates **Decision models** from **Gmail decision reader**, using MVVM Toolkit.
+  Catalog/editor generic metadata and AI Helper expose the contract. The disabled
+  `decision-readiness.json` sample checks status before accepted choice and exercises all four
+  handling branches through the actual registry/engine in tests. Bilingual guides, user manuals,
+  technical manual, README and shared-spec addendum describe phase A and deferred work.
+- Verification: `dotnet build OD.MyLocalAgent.sln -m:1 --no-restore` completed with zero warnings
+  and zero errors. `dotnet test OD.MyLocalAgent.sln -m:1 --no-restore --filter "Category!=Integration"`
+  completed with **1029 passed, zero failed, one expected Ollama probe skipped**. The suite uses
+  fake provider responses and covers migration/reload/persistence, authorization, score validity,
+  threshold boundaries, cancellation/deadlines, cleanup ownership, embedding handoff and routing.
+  Two initial isolated test runs could not establish the local testhost connection; the successful
+  suite ran outside that isolation. Every build/test invocation included `-m:1`.
+- Provider contract was rechecked against the official Tev1 documentation; the isolated CLI
+  version check reported Ollama 0.40.0 but could not reach its server. No new live inference,
+  integration test, model download, deployment, Git publication, production migration or model
+  quality claim is part of this phase. Specialized UX (B), controlled FR/EN evaluation (C),
+  optional integrated routing (D) and agentic exposure (E) remain deferred.

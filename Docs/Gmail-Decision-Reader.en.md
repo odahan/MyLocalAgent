@@ -7,6 +7,13 @@ tasks retain their protected summary behavior.
 
 ## Classification modes
 
+Stage 32 phase A moves shared native provider, model, residency, timeout and acceptance defaults
+to **Settings → Decision models** and the canonical `Decision` section. Gmail enablement and mail
+policy remain under **Gmail decision reader** / `GmailDecision`. Legacy-only native settings are
+migrated on save; an explicit `Decision` section is authoritative. The separate generic
+`decision.evaluate` tool stays disabled by default, including when Gmail is enabled. See the
+[generic decision guide](Decision-Evaluation.en.md).
+
 The `classificationMode` argument of `gmailDecision.readClassify` accepts `Hybrid` (default)
 or `LlmOnly`. Hybrid mode uses Tev1 and acceptance checks before any second opinion.
 `LlmOnly` makes one local structured call per mail, without querying, loading or unloading

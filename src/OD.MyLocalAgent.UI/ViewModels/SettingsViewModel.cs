@@ -422,11 +422,13 @@ public sealed partial class SettingsViewModel :
         IOptionsMonitor<LlmExecutionOptions>? llmExecutionOptions = null,
         IOptionsMonitor<GmailDecisionOptions>? gmailDecisionOptions = null,
         ILocalDecisionClient? localDecisionClient = null,
-        DecisionModelResidencyCoordinator? decisionResidency = null)
+        DecisionModelResidencyCoordinator? decisionResidency = null,
+        IOptionsMonitor<DecisionOptions>? decisionOptions = null)
         : base(messenger)
     {
         _aiOptions = aiOptions;
         _gmailDecisionOptions = gmailDecisionOptions;
+        _decisionOptions = decisionOptions;
         _localDecisionClient = localDecisionClient;
         _decisionResidency = decisionResidency;
         _ollamaOptions = ollamaOptions;
@@ -712,7 +714,12 @@ public sealed partial class SettingsViewModel :
             var sqlite = _sqliteOptions?.CurrentValue ?? new SQLiteOptions();
             var fileContent = _fileContentOptions?.CurrentValue ?? new FileContentOptions();
             var knowledge = _knowledgeOptions?.CurrentValue ?? new KnowledgeOptions();
-            LoadGmailDecision(_gmailDecisionOptions?.CurrentValue ?? new GmailDecisionOptions());
+            var mailDecision = _gmailDecisionOptions?.CurrentValue ?? new GmailDecisionOptions();
+            var nativeDecision = _decisionOptions?.CurrentValue ?? DecisionOptions.FromLegacy(mailDecision);
+            LoadGmailDecision(nativeDecision.ApplyTo(mailDecision));
+            DecisionEnabled = nativeDecision.Enabled;
+            DecisionOperationTimeoutSeconds = nativeDecision.OperationTimeoutSeconds;
+            DecisionMaxInputTokens = nativeDecision.MaxInputTokens;
 
             IsOllamaProvider = string.Equals(
                 ai.Provider,
@@ -948,7 +955,8 @@ public sealed partial class SettingsViewModel :
                 generationDefaults.ReasoningEnabled,
                 generationDefaults.ReasoningEffort,
                 generationDefaults.InternalThinking,
-                GetGmailDecisionOptions());
+                GetGmailDecisionOptions(),
+                GetDecisionOptions());
             await _userSettingsService
                 .SaveAsync(
                     settings,
@@ -1305,12 +1313,13 @@ public sealed partial class SettingsViewModel :
         if (!_isLoading &&
             !_isUpdatingModelCatalog &&
             e.PropertyName is not null &&
-            (EditablePropertyNames.Contains(e.PropertyName) || e.PropertyName.StartsWith("GmailDecision", StringComparison.Ordinal)))
+            (EditablePropertyNames.Contains(e.PropertyName) ||
+             e.PropertyName.StartsWith("GmailDecision", StringComparison.Ordinal) || IsNativeDecisionSetting(e.PropertyName)))
         {
             IsDirty = true;
-            if (e.PropertyName.StartsWith("GmailDecision", StringComparison.Ordinal))
+            if (e.PropertyName.StartsWith("GmailDecision", StringComparison.Ordinal) || IsNativeDecisionSetting(e.PropertyName))
             {
-                DecisionSettingsValidationText = GmailDecisionOptions.IsValid(GetGmailDecisionOptions())
+                DecisionSettingsValidationText = GmailDecisionOptions.IsValid(GetGmailDecisionOptions()) && DecisionOptions.IsValid(GetDecisionOptions())
                     ? "Local decision settings are valid. Scores are not accuracy guarantees."
                     : "Check the local endpoint, model, timeout, percentage and batch limits. Unload after batch must remain enabled.";
                 SaveCommand.NotifyCanExecuteChanged();
@@ -1323,7 +1332,8 @@ public sealed partial class SettingsViewModel :
 
     private bool CanSave() =>
         IsDirty && !IsBusy && TryGetGenerationDefaults(out _) &&
-        TryGetSqliteOptions(out _) && TryGetKnowledgeOptions(out _) && GmailDecisionOptions.IsValid(GetGmailDecisionOptions());
+        TryGetSqliteOptions(out _) && TryGetKnowledgeOptions(out _) &&
+        GmailDecisionOptions.IsValid(GetGmailDecisionOptions()) && DecisionOptions.IsValid(GetDecisionOptions());
 
     private bool CanDiscardChanges() => IsDirty && !IsBusy;
 

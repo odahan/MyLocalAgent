@@ -1,0 +1,29 @@
+{
+  "id": "decision-readiness",
+  "name": "Request readiness decision (example)",
+  "schedule": "0 9 * * *",
+  "prompt": "",
+  "tools": ["decision"],
+  "enabled": false,
+  "errorPolicy": "StopOnError",
+  "workflow": [
+    { "step": "decision.evaluate", "id": "readiness", "args": {
+      "source": "Please deliver the requested report to the project team tomorrow.",
+      "question": "Does the request include enough essential information to proceed?",
+      "options": { "process": "The requested work, destination and date are present.", "clarify": "Essential information is missing." }
+    } },
+    { "step": "flow.decision", "id": "acceptedStatus", "next": "uncertainStatus", "args": {
+      "source": "{{readiness.output}}", "path": "status", "operator": "equals", "value": "accepted", "target": "acceptedChoice"
+    } },
+    { "step": "flow.decision", "id": "uncertainStatus", "next": "handleUnavailable", "args": {
+      "source": "{{readiness.output}}", "path": "status", "operator": "equals", "value": "uncertain", "target": "handleUncertain"
+    } },
+    { "step": "ai.summarize", "id": "handleUnavailable", "next": "@end", "args": { "text": "Handled unavailable: review configuration and retry explicitly." } },
+    { "step": "ai.summarize", "id": "handleUncertain", "next": "@end", "args": { "text": "Handled uncertain: request human review of the candidate and scores." } },
+    { "step": "flow.decision", "id": "acceptedChoice", "next": "handleClarify", "args": {
+      "source": "{{readiness.output}}", "path": "choice", "operator": "equals", "value": "process", "target": "handleProcess"
+    } },
+    { "step": "ai.summarize", "id": "handleClarify", "next": "@end", "args": { "text": "Handled clarify: ask for missing essential information." } },
+    { "step": "ai.summarize", "id": "handleProcess", "next": "@end", "args": { "text": "Handled process: request is ready for the next workflow action." } }
+  ]
+}

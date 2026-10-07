@@ -52,6 +52,12 @@ internal sealed class UserSettingsService : IUserSettingsService
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(settings);
+        settings = settings with
+        {
+            Decision = settings.Decision ?? (DecisionOptions.HasCanonicalSection(_configuration)
+                ? DecisionOptions.Resolve(_configuration)
+                : settings.GmailDecision is { } legacy ? DecisionOptions.FromLegacy(legacy) : DecisionOptions.Resolve(_configuration)),
+        };
         Validate(settings);
 
         await _saveLock.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -253,7 +259,8 @@ internal sealed class UserSettingsService : IUserSettingsService
         string googleClientSecret) =>
         new(StringComparer.Ordinal)
         {
-            [GmailDecisionOptions.SectionName] = settings.GmailDecision ?? new GmailDecisionOptions(),
+            [GmailDecisionOptions.SectionName] = CreateMailDecisionDocument(settings.GmailDecision ?? new()),
+            [DecisionOptions.SectionName] = settings.Decision!,
             ["Appearance"] = new Dictionary<string, object>
             {
                 ["Theme"] = settings.Theme,
@@ -394,11 +401,22 @@ internal sealed class UserSettingsService : IUserSettingsService
             ["MaximumLexicalTermCharacters"] = options.MaximumLexicalTermCharacters,
         };
 
+    private static Dictionary<string, JsonElement> CreateMailDecisionDocument(GmailDecisionOptions mail)
+    {
+        var nativeNames = typeof(DecisionOptions).GetProperties()
+            .Where(property => property.Name != nameof(DecisionOptions.Enabled))
+            .Select(property => property.Name).ToHashSet(StringComparer.Ordinal);
+        return JsonSerializer.SerializeToElement(mail).EnumerateObject()
+            .Where(property => !nativeNames.Contains(property.Name))
+            .ToDictionary(property => property.Name, property => property.Value.Clone(), StringComparer.Ordinal);
+    }
+
     private static void Validate(UserSettingsData settings)
     {
-        var decision = settings.GmailDecision ?? new GmailDecisionOptions();
-        if (!GmailDecisionOptions.IsValid(decision) ||
-            (decision.Enabled && !LocalDecisionEndpoint.IsValid(settings.OllamaEndpoint)))
+        var native = settings.Decision ?? DecisionOptions.FromLegacy(settings.GmailDecision ?? new());
+        var decision = native.ApplyTo(settings.GmailDecision ?? new());
+        if (!DecisionOptions.IsValid(native) || !GmailDecisionOptions.IsValid(decision) ||
+            ((decision.Enabled || native.Enabled) && !LocalDecisionEndpoint.IsValid(native.DecisionEndpoint ?? settings.OllamaEndpoint)))
             throw new InvalidOperationException("Local decision model settings require bounded policies and loopback endpoints.");
         if (!KnowledgeOptions.IsValid(settings.Knowledge ?? new KnowledgeOptions()))
         {

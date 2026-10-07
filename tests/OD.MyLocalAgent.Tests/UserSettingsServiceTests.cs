@@ -1,6 +1,8 @@
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Moq;
 using OD.MyLocalAgent.Connectors;
 using OD.MyLocalAgent.Core;
@@ -303,12 +305,56 @@ public sealed class UserSettingsServiceTests : IDisposable
         using (var json = JsonDocument.Parse(await File.ReadAllTextAsync(path)))
             json.RootElement.GetProperty("GmailDecision").GetProperty("Enabled").GetBoolean().Should().BeFalse();
         var decision = new GmailDecisionOptions { Enabled = true, KeepAliveSeconds = 0, MaxArbitrationPercent = 0, FallbackModel = "small:latest" };
-        await service.SaveAsync(ValidSettings() with { GmailDecision = decision }, null, default);
+        await service.SaveAsync(ValidSettings() with { GmailDecision = decision, Decision = DecisionOptions.FromLegacy(decision) }, null, default);
         using var document = JsonDocument.Parse(await File.ReadAllTextAsync(path));
-        document.RootElement.GetProperty("GmailDecision").GetProperty("KeepAliveSeconds").GetInt32().Should().Be(0);
+        document.RootElement.GetProperty("Decision").GetProperty("KeepAliveSeconds").GetInt32().Should().Be(0);
+        document.RootElement.GetProperty("Decision").GetProperty("Enabled").GetBoolean().Should().BeFalse();
+        document.RootElement.GetProperty("GmailDecision").TryGetProperty("KeepAliveSeconds", out _).Should().BeFalse();
         document.RootElement.GetProperty("GmailDecision").GetProperty("FallbackModel").GetString().Should().Be("small:latest");
-        await FluentActions.Awaiting(() => service.SaveAsync(ValidSettings() with { GmailDecision = decision with { DecisionEndpoint = "https://remote.example.test" } }, null, default))
+        await FluentActions.Awaiting(() => service.SaveAsync(ValidSettings() with { GmailDecision = decision,
+            Decision = DecisionOptions.FromLegacy(decision) with { DecisionEndpoint = "https://remote.example.test" } }, null, default))
             .Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    /// <summary>Legacy native values survive the first save and reload without enabling generic evaluation.</summary>
+    [Fact]
+    public async Task LegacyNativeMigrationPreservesEffectiveMailSettingsOnReload()
+    {
+        Directory.CreateDirectory(_directoryPath);
+        var path = Path.Combine(_directoryPath, "settings.json");
+        var legacy = new GmailDecisionOptions { Enabled = true, DecisionModel = "custom:latest", KeepAliveSeconds = 3,
+            MinTopProbabilityPercent = 73.5, ArbitrationEnabled = false, BatchTimeoutSeconds = 600 };
+        await File.WriteAllTextAsync(path, JsonSerializer.Serialize(new { GmailDecision = legacy }));
+        var configuration = new ConfigurationBuilder().AddJsonFile(path).Build();
+        using var provider = new ServiceCollection().AddDecisionConfiguration(configuration).BuildServiceProvider();
+        var before = provider.GetRequiredService<IOptionsMonitor<GmailDecisionOptions>>().CurrentValue;
+        var service = new UserSettingsService(configuration, Mock.Of<ISecretStore>(), path);
+        await service.SaveAsync(ValidSettings() with { GmailDecision = before }, null, default);
+        var after = provider.GetRequiredService<IOptionsMonitor<GmailDecisionOptions>>().CurrentValue;
+        after.Should().BeEquivalentTo(before);
+        var native = provider.GetRequiredService<IOptionsMonitor<DecisionOptions>>().CurrentValue;
+        native.Enabled.Should().BeFalse();
+        native.DecisionModel.Should().Be("custom:latest");
+        native.MinTopProbabilityPercent.Should().Be(73.5);
+        native.OperationTimeoutSeconds.Should().Be(180);
+        using var document = JsonDocument.Parse(await File.ReadAllTextAsync(path));
+        document.RootElement.GetProperty("GmailDecision").TryGetProperty("DecisionModel", out _).Should().BeFalse();
+    }
+
+    /// <summary>An authoritative native section is preserved by callers that save only legacy mail policy.</summary>
+    [Fact]
+    public async Task SavingMailPolicyDoesNotReplaceCanonicalNativeSettings()
+    {
+        Directory.CreateDirectory(_directoryPath);
+        var path = Path.Combine(_directoryPath, "settings.json");
+        await File.WriteAllTextAsync(path, """{"Decision":{"Enabled":true,"DecisionModel":"canonical:latest","KeepAliveSeconds":7}}""");
+        var configuration = new ConfigurationBuilder().AddJsonFile(path).Build();
+        var service = new UserSettingsService(configuration, Mock.Of<ISecretStore>(), path);
+        await service.SaveAsync(ValidSettings() with { GmailDecision = new() { Enabled = true, DecisionModel = "legacy:latest" } }, null, default);
+        var native = DecisionOptions.Resolve(configuration);
+        native.Enabled.Should().BeTrue();
+        native.DecisionModel.Should().Be("canonical:latest");
+        native.KeepAliveSeconds.Should().Be(7);
     }
 
     private static UserSettingsData ValidSettings() =>

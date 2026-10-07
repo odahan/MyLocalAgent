@@ -1,0 +1,19 @@
+{
+  "Decision": {
+    "Enabled": false,
+    "DecisionProvider": "OllamaSystemOne",
+    "DecisionEndpoint": null,
+    "DecisionModel": "tev1:latest",
+    "KeepAliveSeconds": 10,
+    "UnloadAfterBatch": true,
+    "DecisionColdTimeoutSeconds": 120,
+    "DecisionWarmTimeoutSeconds": 15,
+    "GateWaitTimeoutSeconds": 30,
+    "OperationTimeoutSeconds": 180,
+    "MaxInputTokens": 2050,
+    "MinTopProbabilityPercent": 80,
+    "MinMarginPercentagePoints": 20,
+    "MinConfidencePercent": 0,
+    "MinNoulCertaintyPercent": 80
+  }
+}

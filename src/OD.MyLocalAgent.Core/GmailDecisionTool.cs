@@ -20,7 +20,8 @@ public sealed class GmailDecisionTool(
     IOptionsMonitor<GmailDecisionOptions> options, IOptionsMonitor<OllamaOptions> ollamaOptions,
     IOptionsMonitor<KnowledgeOptions> knowledgeOptions, IOptionsMonitor<GuardrailsOptions> guardrailsOptions,
     ILocalDecisionClient decisionClient, ILightweightMailClassifier classifier,
-    DecisionModelResidencyCoordinator residency, TimeProvider timeProvider, ILogger<GmailDecisionTool> logger)
+    DecisionModelResidencyCoordinator residency, TimeProvider timeProvider, ILogger<GmailDecisionTool> logger,
+    IDecisionEvaluationService? evaluationService = null)
 {
     /// <summary>Fetches a bounded batch once, validates native scores, and returns source-free coverage.</summary>
     [Tool("gmailDecision.readClassify", "Workflow-only Gmail triage using local decisions and isolated lightweight second opinions; returns structured coverage without mail bodies.", 100, WorkflowOnly = true)]
@@ -159,13 +160,16 @@ public sealed class GmailDecisionTool(
                             var request = new LocalDecisionRequest(decisionEndpoint, settings.DecisionModel, projection.DecisionSource, questionSet.Json,
                                 settings.DecisionWarmTimeoutSeconds, settings.GateWaitTimeoutSeconds, settings.KeepAliveSeconds);
                             LocalDecisionResponse response;
-                            try { response = await decisionClient.DecideAsync(request, settings.DecisionColdTimeoutSeconds, deadline.Token).ConfigureAwait(false); }
+                            Task<LocalDecisionResponse> ScoreAsync() => evaluationService is null
+                                ? decisionClient.DecideAsync(request, settings.DecisionColdTimeoutSeconds, deadline.Token)
+                                : evaluationService.ScoreAsync(request, settings.DecisionColdTimeoutSeconds, questionSet, deadline.Token);
+                            try { response = await ScoreAsync().ConfigureAwait(false); }
                             catch (LocalDecisionException e) when (e.Transient && !deadline.IsCancellationRequested)
                             {
                                 row.Timing.GateWaitMs += e.GateWaitMs;
                                 row.Timing.DecisionMs += e.InferenceMs;
                                 row.ArbitrationReasons.Add("TransientRetry");
-                                response = await decisionClient.DecideAsync(request, settings.DecisionColdTimeoutSeconds, deadline.Token).ConfigureAwait(false);
+                                response = await ScoreAsync().ConfigureAwait(false);
                             }
                             row.Timing.GateWaitMs += response.GateWaitMs;
                             row.Timing.DecisionMs += response.InferenceMs;
@@ -377,11 +381,11 @@ public sealed class GmailDecisionTool(
     }
 
     internal static bool TryIdentity(IReadOnlyDictionary<string, string> models, string model, out string? identity) =>
-        models.TryGetValue(model.Contains(':') ? model : model + ":latest", out identity) || models.TryGetValue(model, out identity);
+        DecisionModelIdentity.TryGet(models, model, out identity);
 
     /// <summary>Compares validated loopback endpoint identities with localhost normalization.</summary>
     public static bool SameEndpoint(string a, string b)
     {
-        return LocalDecisionEndpoint.Identity(a) == LocalDecisionEndpoint.Identity(b);
+        return DecisionModelIdentity.SameEndpoint(a, b);
     }
 }

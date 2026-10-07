@@ -42,6 +42,7 @@ Ce dossier contient la version révisée du « Master Prompt » v1, corrigée pu
 | `29-Stage29-ConditionalWorkflowRouting.md` | **Implemented extension post-v1** — routage conditionnel acyclique avec <code>flow.decision</code>, destinations explicites et réponses JSON structurées de <code>ai.prompt</code>. |
 | `30-Stage30-ForEachStepExecution.md` | **Implemented limited extension post-v1** — répétition séquentielle et bornée d’une seule étape <code>ai.prompt</code> ou <code>filesystem.write</code> sur un tableau antérieur, sans sous-workflow. |
 | `31-Extension Jev.md` | **Implémentée et validée automatiquement** — lecteur Gmail facultatif réservé aux workflows : modèle de décision local (Tev1/Ollama), questions et seuils configurables, second avis LLM ponctuel, repli local allégé, gestion mémoire et rapport déterministe. Évaluation qualité/latence sur mails réels à réaliser séparément. Les outils Gmail existants conservent leur comportement. |
+| `32-Stage32-GeneralDecisionEvaluation.md` | **Phase A implémentée et vérifiée** — service commun, settings de décision génériques avec migration et outil workflow `decision.evaluate` utilisant le routage existant. Éditeur spécialisé (B), évaluation comparative FR/EN (C), routage intégré (D) et exposition agentique (E) restent à réaliser. |
 
 ## Mode d'emploi
 

@@ -9,7 +9,8 @@ public sealed class KnowledgeEmbeddingService : IKnowledgeEmbeddingService
 {
     private readonly IOptionsMonitor<KnowledgeOptions> _knowledgeOptions;
     private readonly IKnowledgeEmbeddingGeneratorFactory _generatorFactory;
-    private readonly IOptionsMonitor<GmailDecisionOptions>? _decisionOptions;
+    private readonly IOptionsMonitor<DecisionOptions>? _decisionOptions;
+    private readonly IOptionsMonitor<GmailDecisionOptions>? _gmailDecisionOptions;
     private readonly IOptionsMonitor<OllamaOptions>? _ollamaOptions;
     private readonly ILocalDecisionClient? _decisionClient;
     private readonly DecisionModelResidencyCoordinator? _residency;
@@ -19,15 +20,17 @@ public sealed class KnowledgeEmbeddingService : IKnowledgeEmbeddingService
     public KnowledgeEmbeddingService(
         IOptionsMonitor<KnowledgeOptions> knowledgeOptions,
         IKnowledgeEmbeddingGeneratorFactory generatorFactory,
-        IOptionsMonitor<GmailDecisionOptions>? decisionOptions = null,
+        IOptionsMonitor<DecisionOptions>? decisionOptions = null,
         IOptionsMonitor<OllamaOptions>? ollamaOptions = null,
         ILocalDecisionClient? decisionClient = null,
         DecisionModelResidencyCoordinator? residency = null,
-        GlobalLlmExecutionGate? gate = null)
+        GlobalLlmExecutionGate? gate = null,
+        IOptionsMonitor<GmailDecisionOptions>? gmailDecisionOptions = null)
     {
         _knowledgeOptions = knowledgeOptions;
         _generatorFactory = generatorFactory;
         _decisionOptions = decisionOptions;
+        _gmailDecisionOptions = gmailDecisionOptions;
         _ollamaOptions = ollamaOptions;
         _decisionClient = decisionClient;
         _residency = residency;
@@ -59,15 +62,16 @@ public sealed class KnowledgeEmbeddingService : IKnowledgeEmbeddingService
             return await _residency.EmbeddingAsync(local.Endpoint, async () =>
             {
                 var decision = _decisionOptions?.CurrentValue;
-                if (decision?.Enabled == true && _decisionClient is { } client &&
-                    GmailDecisionOptions.IsValid(decision) && LocalDecisionEndpoint.IsValid(local.Endpoint) &&
-                    GmailDecisionTool.SameEndpoint(decision.DecisionEndpoint ?? local.Endpoint, local.Endpoint))
+                var mail = _gmailDecisionOptions?.CurrentValue ?? new GmailDecisionOptions();
+                if (decision is not null && (decision.Enabled || mail.Enabled) && _decisionClient is { } client &&
+                    DecisionOptions.IsValid(decision) && LocalDecisionEndpoint.IsValid(local.Endpoint) &&
+                    DecisionModelIdentity.SameEndpoint(decision.DecisionEndpoint ?? local.Endpoint, local.Endpoint))
                 {
                     var identities = await client.GetModelIdentitiesAsync(local.Endpoint, timeout.Token).ConfigureAwait(false);
-                    if (GmailDecisionTool.TryIdentity(identities, decision.DecisionModel, out var dedicated) &&
-                        new[] { local.Model, decision.ArbitrationModel ?? local.Model,
-                            decision.FallbackModel ?? decision.ArbitrationModel ?? local.Model, options.EmbeddingModel }
-                        .All(model => !GmailDecisionTool.TryIdentity(identities, model, out var identity) || identity != dedicated))
+                    if (DecisionModelIdentity.TryGet(identities, decision.DecisionModel, out var dedicated) &&
+                        new[] { local.Model, mail.ArbitrationModel ?? local.Model,
+                            mail.FallbackModel ?? mail.ArbitrationModel ?? local.Model, options.EmbeddingModel }
+                        .All(model => !DecisionModelIdentity.TryGet(identities, model, out var identity) || identity != dedicated))
                         await client.ReleaseForEmbeddingAsync(local.Endpoint, decision.DecisionModel, timeout.Token).ConfigureAwait(false);
                 }
                 using var gate = _gate is null ? null : await _gate.EnterAsync(timeout.Token).ConfigureAwait(false);

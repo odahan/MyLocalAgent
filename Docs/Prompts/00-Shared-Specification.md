@@ -2282,3 +2282,32 @@ provisional/unresolved coverage and execution warnings. Settings defaults remain
 
 See `Docs/Gmail-Decision-Reader.en.md`, its French counterpart and the disabled starter task for
 configuration, conservative context budgeting and the separate live-quality acceptance procedure.
+
+## Stage 32 phase A addendum — Generic local decisions
+
+The independent opt-in `decision` group exposes workflow-only `decision.evaluate(source, question,
+options, acceptance?)`. It evaluates only explicitly supplied content with the installed native
+provider, without Gmail collection, RAG, tools or conventional LLM fallback. The Stage 31 raw-mail
+exception remains confined to its Gmail reader; this tool does not change upstream protection.
+
+`Decision` is authoritative for shared native settings when present. Legacy-only `GmailDecision`
+native values migrate on save without enabling the generic tool. Gmail retains independent
+enablement, collection limits, report policy, arbitration/fallback and its model-free `LlmOnly`
+installation requirement. The shipped base template deliberately retains legacy native defaults
+until save, so a lower-priority canonical template cannot mask existing user legacy overrides.
+
+Versioned output distinguishes `accepted`, `uncertain` and `unavailable`. Valid ties remain
+uncertain; unavailable has null choices and scores. Probabilities and step acceptance use [0,1];
+persisted historical default percentages convert once. Per-step overrides only tighten defaults.
+Use unchanged `flow.decision` to check status before routing on an accepted choice. Authoring and
+authorization errors remain errors; caller cancellation propagates.
+
+Reuse the native execution gate, endpoint/model identity checks and residency coordinator.
+Generic deadlines are independent from mail-count/batch budgets. Full prompt budgeting uses the
+existing conservative UTF-8-byte bound plus 400 tokens of reserve, at most 2050 tokens; oversized
+input is unavailable without truncation. Cleanup has an independent five-second deadline and
+respects other operation owners. No new package, production migration or deployment is required.
+
+Phase A uses the existing generic editor. Specialized authoring/testing and score inspection are
+phase B; real French/English quality and latency evaluation is phase C. See the bilingual
+`Docs/Decision-Evaluation` guides and disabled `Docs/samples/decision-readiness.json` sample.
