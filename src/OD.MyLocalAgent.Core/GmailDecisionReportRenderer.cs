@@ -32,14 +32,29 @@ public static class GmailDecisionReportRenderer
             .Append(" provisional; ").Append(result.Counts.Unresolved).AppendLine(" unresolved.");
         if (result.CollectionPartial) b.AppendLine("**Collection is partial: additional messages were excluded by the collection bound.**");
         b.Append("Status: ").AppendLine(Escape(result.Status));
+        b.Append("Classification mode: ").AppendLine(Escape(result.ClassificationMode));
         b.Append("Local models: ").AppendLine(string.Join(", ", result.EffectiveModels.Select(p => Escape(p.Key) + ": " + Escape(p.Value))));
         b.Append("Second opinions: ").Append(result.Counts.ArbitrationAttempted).Append(" attempted, ")
             .Append(result.Counts.ArbitrationResolved).Append(" resolved. Lightweight fallback: ").Append(result.Counts.LightweightFallbackResolved).AppendLine(" resolved.");
+        if (result.ClassificationMode == "LlmOnly")
+            b.Append("Direct LLM: ").Append(result.Counts.DirectLlmResolved).AppendLine(" resolved; native decisions and arbitration are bypassed.");
+        if (result.Messages.Count > 0 && result.Messages.All(m =>
+                m.Projection.LlmContentTruncated.HasValue))
+        {
+            b.Append("Source omissions: decision ").Append(result.ClassificationMode == "LlmOnly" ? "not used" :
+                    result.Messages.Count(m => m.Projection.DecisionContentTruncated == true).ToString(CultureInfo.InvariantCulture))
+                .Append("; LLM ").Append(result.Messages.Count(m =>
+                    m.DecisionSource is "arbitrated" or "lightweightLlm" or "directLlm" && m.Projection.LlmContentTruncated == true))
+                .Append("; quoted history removed ").Append(result.Messages.Count(m => m.Projection.QuotedHistoryRemoved))
+                .AppendLine(" (separate from current content truncation).");
+        }
         b.Append("Timing: collection ").Append(Milliseconds(result.CollectionMs)).Append("; gate wait ")
             .Append(Milliseconds(result.Messages.Sum(m => m.Timing.GateWaitMs))).Append("; decision load + inference ")
             .Append(Milliseconds(result.Messages.Sum(m => m.Timing.DecisionMs))).Append("; second opinion ")
             .Append(Milliseconds(result.Messages.Sum(m => m.Timing.ArbitrationMs))).Append("; fallback ")
             .Append(Milliseconds(result.Messages.Sum(m => m.Timing.FallbackMs))).Append("; total ").Append(Milliseconds(result.TotalMs)).AppendLine(".");
+        if (result.ClassificationMode == "LlmOnly")
+            b.Append("Direct LLM load + inference: ").Append(Milliseconds(result.Messages.Sum(m => m.Timing.ClassificationMs))).AppendLine(".");
         foreach (var warning in result.Warnings) b.Append("**Warning: ").Append(Escape(warning)).AppendLine("**");
         b.AppendLine();
         if (result.Messages.Count == 0) return b.AppendLine("**No messages found.**").ToString();
@@ -69,7 +84,7 @@ public static class GmailDecisionReportRenderer
 
     private static void Validate(GmailDecisionResult r)
     {
-        if (r.SchemaVersion != 1 || r.Status is not ("Completed" or "CompletedWithWarnings" or "Partial") ||
+        if (r.SchemaVersion != 1 || r.ClassificationMode is not ("Hybrid" or "LlmOnly") || r.Status is not ("Completed" or "CompletedWithWarnings" or "Partial") ||
             r.Messages.Count > 500 || r.QuestionDefinitions.Count is < 1 or > 8 ||
             r.Messages.Select(m => m.Id).Distinct(StringComparer.Ordinal).Count() != r.Messages.Count ||
             r.Counts != GmailDecisionTool.Count(r.Messages) || !r.QuestionDefinitions.TryGetValue(r.ReportMapping.CategoryQuestion, out var category) ||
@@ -94,7 +109,9 @@ public static class GmailDecisionReportRenderer
         {
             if (row.Id.Length is < 1 or > 256 || row.Sender.Length > 256 || row.Subject.Length > 300 ||
                 row.Status is not ("Classified" or "Provisional" or "Unresolved") ||
-                row.DecisionSource is not ("decision" or "arbitrated" or "lightweightLlm" or "none") ||
+                row.DecisionSource is not ("decision" or "arbitrated" or "lightweightLlm" or "directLlm" or "none") ||
+                (r.ClassificationMode == "LlmOnly" && (row.DecisionSource is not ("directLlm" or "none") || row.ArbitrationAttempted || row.DecisionScores.Count != 0)) ||
+                (r.ClassificationMode == "Hybrid" && row.DecisionSource == "directLlm") ||
                 row.RequiresHumanReview != (row.Status != "Classified") ||
                 row.GmailUrl != GmailDecisionTool.GmailUrl(row.Id) ||
                 (row.Category is not null && !r.ReportMapping.Categories.ContainsKey(row.Category)) ||
@@ -118,7 +135,7 @@ public static class GmailDecisionReportRenderer
             if (row.Category is not null && (!row.Answers.TryGetValue(r.ReportMapping.CategoryQuestion, out var a) ||
                 ((JsonElement)a).GetString() != row.Category))
                 throw new WorkflowValidationException("Decision report category does not match its answer.");
-            foreach (var duration in new[] { row.Timing.GateWaitMs, row.Timing.DecisionMs, row.Timing.ArbitrationMs, row.Timing.FallbackMs })
+            foreach (var duration in new[] { row.Timing.GateWaitMs, row.Timing.DecisionMs, row.Timing.ArbitrationMs, row.Timing.FallbackMs, row.Timing.ClassificationMs })
                 if (!double.IsFinite(duration) || duration < 0) throw new WorkflowValidationException("Invalid decision report timing.");
             foreach (var score in row.DecisionScores.Values)
             {
@@ -144,6 +161,10 @@ public static class GmailDecisionReportRenderer
             b.Append(" — Urgency level: ").Append(((JsonElement)level).GetInt32());
         if (row.RequiresHumanReview) b.Append(" — **Human review: ").Append(row.Status).Append("**");
         if (row.Disagreement) b.Append(" — **Models disagree**");
+        if (row.ArbitrationReasons.Contains("VisibilityProtectionOverride"))
+            b.Append(" — **Visibility protection: retained native category; verify in Gmail**");
+        if (row.DecisionSource is "arbitrated" or "lightweightLlm" or "directLlm" && row.Projection.LlmContentTruncated == true)
+            b.Append(" — **LLM source truncated**");
         b.AppendLine();
     }
 

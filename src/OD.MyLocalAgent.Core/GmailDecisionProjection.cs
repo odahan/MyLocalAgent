@@ -6,6 +6,12 @@ namespace OD.MyLocalAgent.Core;
 internal sealed record GmailDecisionProjection(string DecisionSource, string LlmSource, bool CurrentContentTruncated,
     bool QuotedHistoryRemoved, int TokenEstimate, int CharacterCount)
 {
+    /// <summary>Identifies omissions in the exact source submitted to the decision model.</summary>
+    internal bool DecisionContentTruncated { get; init; }
+
+    /// <summary>Identifies omissions in the richer source submitted to arbitration or fallback.</summary>
+    internal bool LlmContentTruncated { get; init; }
+
     internal static int MailBudget(DecisionQuestionSet questions)
     {
         var budget = 2050 - 400 - EstimateTokens(questions.Json.GetRawText());
@@ -20,6 +26,31 @@ internal sealed record GmailDecisionProjection(string DecisionSource, string Llm
     /// </summary>
     internal static int EstimateTokens(string text) => Encoding.UTF8.GetByteCount(text);
 
+    /// <summary>Budgets direct classification against the conventional context, independently of Tev1.</summary>
+    internal static int LlmBudget(DecisionQuestionSet questions)
+    {
+        var budget = 8192 - 1200 - EstimateTokens(questions.Json.GetRawText());
+        if (budget < 128)
+            throw new WorkflowValidationException("Question contract leaves fewer than 128 conservative mail tokens in the LLM context.");
+        return budget;
+    }
+
+    /// <summary>Creates only the source used by direct LLM classification.</summary>
+    internal static GmailDecisionProjection CreateForLlm(EmailMessageDto mail, int maximumCharacters, int tokenBudget)
+    {
+        var projected = GmailContentProjector.Project(mail with
+        {
+            From = Bound(mail.From, 256), To = "", Subject = Bound(mail.Subject, 300), Snippet = "",
+        }, maximumCharacters);
+        var source = TruncateBytes(projected.Content, tokenBudget, out var clipped);
+        var truncated = clipped || System.Text.RegularExpressions.Regex.IsMatch(projected.Content,
+            @"\[\.\.\. \d+ characters omitted \.\.\.\]", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        return new GmailDecisionProjection("", source, truncated, projected.QuotedHistoryWasRemoved, 0, 0)
+        {
+            LlmContentTruncated = truncated,
+        };
+    }
+
     internal static GmailDecisionProjection Create(EmailMessageDto mail, int maximumCharacters, int tokenBudget)
     {
         var projected = GmailContentProjector.Project(mail with
@@ -28,10 +59,14 @@ internal sealed record GmailDecisionProjection(string DecisionSource, string Llm
         }, maximumCharacters);
         var llm = TruncateBytes(projected.Content, 8192 - 1200 - (2050 - 400 - tokenBudget), out var llmTruncated);
         var source = TruncateBytes(llm, tokenBudget, out var truncated);
-        var currentTruncated = truncated || llmTruncated || System.Text.RegularExpressions.Regex.IsMatch(projected.Content,
+        var projectionTruncated = System.Text.RegularExpressions.Regex.IsMatch(projected.Content,
             @"\[\.\.\. \d+ characters omitted \.\.\.\]", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
-        return new GmailDecisionProjection(source, llm, currentTruncated, projected.QuotedHistoryWasRemoved,
-            EstimateTokens(source), source.Length);
+        return new GmailDecisionProjection(source, llm, truncated || llmTruncated || projectionTruncated,
+            projected.QuotedHistoryWasRemoved, EstimateTokens(source), source.Length)
+        {
+            DecisionContentTruncated = truncated || llmTruncated || projectionTruncated,
+            LlmContentTruncated = llmTruncated || projectionTruncated,
+        };
     }
 
     internal static string Bound(string value, int maximum) => value.Length <= maximum ? value :

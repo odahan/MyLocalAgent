@@ -5,6 +5,34 @@ une seule fois, classe les messages séquentiellement avec un modèle de décisi
 une couverture structurée. Un second outil produit le rapport Markdown par code. Les lecteurs
 Gmail existants, leurs protections et les tâches enregistrées conservent leur fonctionnement.
 
+## Modes de classification
+
+L'argument `classificationMode` de `gmailDecision.readClassify` accepte `Hybrid` (par défaut)
+ou `LlmOnly`. Le mode hybride utilise Tev1 et les contrôles d'acceptation avant un éventuel
+second avis. Le mode `LlmOnly` effectue un seul appel local structuré par mail, sans consulter,
+charger ou décharger Tev1. Le lecteur doit rester activé dans Settings ; Tev1 n'a pas besoin
+d'être installé pour ce mode.
+
+Pour utiliser directement le modèle Ollama configuré, ajoutez aux arguments de l'étape :
+
+```json
+"classificationMode": "LlmOnly"
+```
+
+Le modèle utilisé est `FallbackModel`, ou par héritage `ArbitrationModel`, puis le modèle de
+chat Ollama ; le délai est `FallbackTimeoutSeconds`. Le contexte conventionnel est de 8192
+tokens, avec une sortie limitée à 512 tokens. Le budget des questions et de la source est
+calculé indépendamment du contexte natif de 2050 tokens. Les seuils natifs et budgets d'arbitrage
+ne sont pas appliqués ; les choix de `alwaysArbitrateChoices` restent soumis à revue humaine.
+Le résultat indique `classificationMode=LlmOnly`, `decisionSource=directLlm`,
+`counts.directLlmResolved` et `timing.classificationMs`, sans scores natifs inventés.
+
+Les indicateurs `projection.decisionContentTruncated` et `projection.llmContentTruncated`
+distinguent les omissions par modèle. Le premier vaut null en mode direct ; les anciens
+résultats peuvent omettre les deux. Le rapport signale les sources LLM tronquées. En mode
+hybride, `VisibilityProtectionOverride` conserve une catégorie native pertinente malgré un
+second avis bruit, avec état `Provisional` et une demande explicite de vérification humaine.
+
 ## Configuration
 
 Dans **Settings → Local decision models**, activez le lecteur et choisissez un modèle déjà

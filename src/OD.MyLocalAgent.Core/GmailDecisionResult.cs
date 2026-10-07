@@ -4,6 +4,7 @@ internal sealed record GmailDecisionResult
 {
     public int SchemaVersion { get; init; } = 1;
     public string Status { get; set; } = "Completed";
+    public string ClassificationMode { get; init; } = "Hybrid";
     public DecisionSelection Selection { get; init; } = new("Recent", 1);
     public DateTimeOffset CollectedAt { get; init; }
     public bool CollectionPartial { get; init; }
@@ -28,6 +29,7 @@ internal sealed record DecisionCounts
     public int ArbitrationAttempted { get; init; }
     public int ArbitrationResolved { get; init; }
     public int LightweightFallbackResolved { get; init; }
+    public int DirectLlmResolved { get; init; }
     public int Provisional { get; init; }
     public int Unresolved { get; init; }
 }
@@ -51,12 +53,20 @@ internal sealed record DecisionMailResult
     public bool Processed { get; set; }
     public bool ArbitrationAttempted { get; set; }
 }
-internal sealed record DecisionProjectionMetadata(bool CurrentContentTruncated, bool QuotedHistoryRemoved);
+internal sealed record DecisionProjectionMetadata(bool CurrentContentTruncated, bool QuotedHistoryRemoved)
+{
+    /// <summary>Null denotes an older result that did not distinguish model-specific omissions.</summary>
+    public bool? DecisionContentTruncated { get; init; }
+
+    /// <summary>Null denotes an older result that did not distinguish model-specific omissions.</summary>
+    public bool? LlmContentTruncated { get; init; }
+}
 internal sealed record DecisionTiming
 {
     public double GateWaitMs { get; set; }
     public double DecisionMs { get; set; }
     public double ArbitrationMs { get; set; }
     public double FallbackMs { get; set; }
+    public double ClassificationMs { get; set; }
     public bool ColdOrReload { get; set; }
 }

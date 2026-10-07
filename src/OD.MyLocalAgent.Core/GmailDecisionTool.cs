@@ -34,6 +34,7 @@ public sealed class GmailDecisionTool(
         [ToolArgument(WorkflowArgumentKind.Object, "Second-opinion enablement, budget, and typed cross-question conflicts.", IsLongText = true, Example = "{\"enabled\":true,\"maxPercent\":100,\"maxCalls\":0}")] JsonElement? arbitration = null,
         [ToolArgument(WorkflowArgumentKind.Enumeration, "Technical decision-provider unavailability policy.", AllowedValues = ["LightweightLlmFallback", "Fail"], Example = "LightweightLlmFallback")] string? unavailableBehavior = null,
         [ToolArgument(WorkflowArgumentKind.Integer, "Optional shorter complete operation deadline.", Minimum = 10, Maximum = 3600, Example = "120")] int? batchTimeoutSeconds = null,
+        [ToolArgument(WorkflowArgumentKind.Enumeration, "Hybrid native decisions with arbitration, or one direct local LLM classification per mail.", AllowedValues = ["Hybrid", "LlmOnly"], Example = "LlmOnly")] string classificationMode = "Hybrid",
         CancellationToken cancellationToken = default)
     {
         EnsureWorkflow();
@@ -44,7 +45,10 @@ public sealed class GmailDecisionTool(
             throw new WorkflowValidationException("Gmail decision settings require valid loopback-only endpoints and bounded policies.");
         var questionSet = DecisionQuestionSet.Parse(questions);
         var policy = DecisionAcceptancePolicy.Parse(questionSet, settings, acceptance ?? default, reportMapping, arbitration ?? default);
-        var sourceBudget = GmailDecisionProjection.MailBudget(questionSet);
+        if (classificationMode is not ("Hybrid" or "LlmOnly"))
+            throw new WorkflowValidationException("Unknown Gmail classification mode.");
+        var llmOnly = classificationMode == "LlmOnly";
+        var sourceBudget = llmOnly ? GmailDecisionProjection.LlmBudget(questionSet) : GmailDecisionProjection.MailBudget(questionSet);
         if (selection is not ("Today" or "Unread" or "Recent") || daysBack is < 0 or > 3650 || (selection != "Recent" && daysBack.HasValue))
             throw new WorkflowValidationException("Invalid Gmail selection or daysBack for the selection.");
         if (maxMessages is < 1 || maxMessages > settings.MaxMessagesPerOperation ||
@@ -72,32 +76,35 @@ public sealed class GmailDecisionTool(
         GmailDecisionResult? completed = null;
         try
         {
-            try
+            if (!llmOnly)
             {
-                using var catalogTimeout = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token);
-                catalogTimeout.CancelAfter(TimeSpan.FromSeconds(10));
-                IReadOnlyDictionary<string, string> identities;
-                try { identities = await decisionClient.GetModelIdentitiesAsync(decisionEndpoint, catalogTimeout.Token).ConfigureAwait(false); }
-                catch (OperationCanceledException) when (!deadline.IsCancellationRequested)
-                { throw new LocalDecisionException("CatalogTimeout", true); }
-                if (!TryIdentity(identities, settings.DecisionModel, out var decisionIdentity))
-                    throw new LocalDecisionException("ModelMissing");
-                if (SameEndpoint(decisionEndpoint, ollama.Endpoint))
+                try
                 {
-                    foreach (var shared in new[] { ollama.Model, arbitrationModel, fallbackModel, embeddingModel })
+                    using var catalogTimeout = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token);
+                    catalogTimeout.CancelAfter(TimeSpan.FromSeconds(10));
+                    IReadOnlyDictionary<string, string> identities;
+                    try { identities = await decisionClient.GetModelIdentitiesAsync(decisionEndpoint, catalogTimeout.Token).ConfigureAwait(false); }
+                    catch (OperationCanceledException) when (!deadline.IsCancellationRequested)
+                    { throw new LocalDecisionException("CatalogTimeout", true); }
+                    if (!TryIdentity(identities, settings.DecisionModel, out var decisionIdentity))
+                        throw new LocalDecisionException("ModelMissing");
+                    if (SameEndpoint(decisionEndpoint, ollama.Endpoint))
                     {
-                        if (TryIdentity(identities, shared, out var identity) && identity == decisionIdentity)
-                            throw new WorkflowValidationException("Decision model shares an installed identity with a chat or embedding model; cleanup would unload a primary model.");
+                        foreach (var shared in new[] { ollama.Model, arbitrationModel, fallbackModel, embeddingModel })
+                        {
+                            if (TryIdentity(identities, shared, out var identity) && identity == decisionIdentity)
+                                throw new WorkflowValidationException("Decision model shares an installed identity with a chat or embedding model; cleanup would unload a primary model.");
+                        }
                     }
+                    cleanupAllowed = true;
+                    ownership = await residency.BeginOperationAsync(decisionEndpoint, settings.DecisionModel, deadline.Token).ConfigureAwait(false);
                 }
-                cleanupAllowed = true;
-                ownership = await residency.BeginOperationAsync(decisionEndpoint, settings.DecisionModel, deadline.Token).ConfigureAwait(false);
-            }
-            catch (LocalDecisionException e)
-            {
-                if (unavailable == "Fail") throw;
-                circuit = true;
-                warnings.Add(e.Code);
+                catch (LocalDecisionException e)
+                {
+                    if (unavailable == "Fail") throw;
+                    circuit = true;
+                    warnings.Add(e.Code);
+                }
             }
             var collectionTimer = Stopwatch.StartNew();
             logger.LogInformation("Gmail decision {OperationId}: collection started for task {TaskId}.", operationId, context.TaskId);
@@ -109,7 +116,9 @@ public sealed class GmailDecisionTool(
             {
                 Selection = new DecisionSelection(selection, selection == "Recent" ? daysBack ?? 1 : null),
                 CollectedAt = timeProvider.GetLocalNow(), CollectionPartial = batch.CollectionPartial,
-                EffectiveModels = new() { ["decision"] = settings.DecisionModel, ["arbitration"] = arbitrationModel, ["fallback"] = fallbackModel },
+                ClassificationMode = classificationMode,
+                EffectiveModels = llmOnly ? new() { ["classification"] = fallbackModel } :
+                    new() { ["decision"] = settings.DecisionModel, ["arbitration"] = arbitrationModel, ["fallback"] = fallbackModel },
                 QuestionDefinitions = questionSet.Questions.ToDictionary(p => p.Key, p => new AnswerDefinition(p.Value.Type, p.Value.Keys)),
                 ReportMapping = policy.Mapping, Warnings = warnings, CollectionMs = collectionTimer.Elapsed.TotalMilliseconds,
                 Messages = mails.Select(m => new DecisionMailResult
@@ -130,14 +139,20 @@ public sealed class GmailDecisionTool(
                     continue;
                 }
                 row.Processed = true;
-                var projection = GmailDecisionProjection.Create(mails[index], settings.MaxProjectionCharacters, sourceBudget);
-                row.Projection = new(projection.CurrentContentTruncated, projection.QuotedHistoryRemoved);
+                var projection = llmOnly
+                    ? GmailDecisionProjection.CreateForLlm(mails[index], settings.MaxProjectionCharacters, sourceBudget)
+                    : GmailDecisionProjection.Create(mails[index], settings.MaxProjectionCharacters, sourceBudget);
+                row.Projection = new(projection.CurrentContentTruncated, projection.QuotedHistoryRemoved)
+                {
+                    DecisionContentTruncated = llmOnly ? null : projection.DecisionContentTruncated,
+                    LlmContentTruncated = projection.LlmContentTruncated,
+                };
                 try
                 {
                     DecisionScores? native = null;
-                    var useFallback = circuit;
+                    var useFallback = circuit || llmOnly;
                     if (circuit) row.ArbitrationReasons.Add("DecisionCircuitOpen");
-                    if (!circuit)
+                    if (!circuit && !llmOnly)
                     {
                         try
                         {
@@ -193,11 +208,12 @@ public sealed class GmailDecisionTool(
                             questionSet.Json, settings.FallbackTimeoutSeconds, settings.GateWaitTimeoutSeconds, 0), questionSet, deadline.Token).ConfigureAwait(false);
                         row.Answers = questionSet.ValidateLlmAnswers(response.Payload);
                         row.Category = (string)row.Answers[policy.Mapping.CategoryQuestion];
-                        row.DecisionSource = "lightweightLlm";
+                        row.DecisionSource = llmOnly ? "directLlm" : "lightweightLlm";
                         row.Timing.GateWaitMs += response.GateWaitMs;
-                        row.Timing.FallbackMs = response.InferenceMs;
+                        if (llmOnly) row.Timing.ClassificationMs = response.InferenceMs;
+                        else row.Timing.FallbackMs = response.InferenceMs;
                         Resolve(row, policy.RemainsUncertain(row.Answers));
-                        Trace(operationId, index, hash, fallbackModel, projection, response, "fallback", "Valid", row.ArbitrationReasons);
+                        Trace(operationId, index, hash, fallbackModel, projection, response, llmOnly ? "classification" : "fallback", "Valid", row.ArbitrationReasons);
                     }
                     else if (native is not null && row.ArbitrationReasons.Count == 0)
                         Resolve(row, false);
@@ -224,7 +240,8 @@ public sealed class GmailDecisionTool(
                             row.DecisionSource = "arbitrated";
                             row.Timing.GateWaitMs += response.GateWaitMs;
                             row.Timing.ArbitrationMs = response.InferenceMs;
-                            Resolve(row, policy.RemainsUncertain(row.Answers));
+                            Resolve(row, policy.RemainsUncertain(row.Answers) ||
+                                row.ArbitrationReasons.Contains("VisibilityProtectionOverride"));
                             Trace(operationId, index, hash, arbitrationModel, projection, response, "arbitration", "Valid", row.ArbitrationReasons);
                         }
                         else row.ArbitrationReasons.Add(policy.Arbitration.Enabled == true ? "ArbitrationCap" : "ArbitrationDisabled");
@@ -236,11 +253,12 @@ public sealed class GmailDecisionTool(
                 {
                     if (unavailable == "Fail" && row.DecisionScores.Count == 0) throw;
                     row.ArbitrationReasons.Add(FailureCode(e));
-                    TraceFailure(operationId, index, row.ArbitrationAttempted ? "arbitration" : "fallback", e);
+                    TraceFailure(operationId, index, llmOnly ? "classification" : row.ArbitrationAttempted ? "arbitration" : "fallback", e);
                     if (e is LocalDecisionException failed)
                     {
                         row.Timing.GateWaitMs += failed.GateWaitMs;
                         if (row.ArbitrationAttempted) row.Timing.ArbitrationMs += failed.InferenceMs;
+                        else if (llmOnly) row.Timing.ClassificationMs += failed.InferenceMs;
                         else row.Timing.FallbackMs += failed.InferenceMs;
                     }
                     logger.LogWarning("Gmail decision {OperationId}, mail index {MailIndex}: classification failed ({FailureCode}).", operationId, index, FailureCode(e));
@@ -300,6 +318,7 @@ public sealed class GmailDecisionTool(
         ArbitrationAttempted = rows.Count(r => r.ArbitrationAttempted),
         ArbitrationResolved = rows.Count(r => r.Status == "Classified" && r.DecisionSource == "arbitrated"),
         LightweightFallbackResolved = rows.Count(r => r.Status == "Classified" && r.DecisionSource == "lightweightLlm"),
+        DirectLlmResolved = rows.Count(r => r.Status == "Classified" && r.DecisionSource == "directLlm"),
     };
 
     internal static string SerializeBounded(GmailDecisionResult result)
@@ -351,7 +370,8 @@ public sealed class GmailDecisionTool(
         logger.LogInformation(
             "Gmail decision trace {OperationId}, task {TaskId}, workflow run {RunId}, step {StepId}, mail index {MailIndex}, phase {Phase}, model {Model}, question hash {QuestionHash}, chars {ProjectionChars}, conservative tokens {TokenEstimate}, truncation {Truncated}, history removed {HistoryRemoved}, gate wait {GateWaitMs} ms, load+inference {InferenceMs} ms, cold/reload {Cold}, validation {Validation}, reasons {Reasons}, input tokens {InputTokens}, output tokens {OutputTokens}, finish {FinishReason}, response hash {ResponseHash}.",
             operation, context.TaskId, context.RunId, context.StepId, index, phase, model, hash, source.Length, GmailDecisionProjection.EstimateTokens(source),
-            projection.CurrentContentTruncated, projection.QuotedHistoryRemoved, response.GateWaitMs, response.InferenceMs,
+            phase == "decision" ? projection.DecisionContentTruncated : projection.LlmContentTruncated,
+            projection.QuotedHistoryRemoved, response.GateWaitMs, response.InferenceMs,
             response.Cold, validation, string.Join(",", reasons), response.InputTokens, response.OutputTokens, response.FinishReason,
             Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(response.Payload.GetRawText()))));
     }

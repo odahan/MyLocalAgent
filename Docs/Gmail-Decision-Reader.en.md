@@ -5,6 +5,32 @@ selected message sequentially with an installed local decision model, and return
 coverage. A second workflow step creates Markdown in code. Existing Gmail readers and saved
 tasks retain their protected summary behavior.
 
+## Classification modes
+
+The `classificationMode` argument of `gmailDecision.readClassify` accepts `Hybrid` (default)
+or `LlmOnly`. Hybrid mode uses Tev1 and acceptance checks before any second opinion.
+`LlmOnly` makes one local structured call per mail, without querying, loading or unloading
+Tev1. The reader must remain enabled in Settings; Tev1 does not need to be installed for this mode.
+
+To use the configured Ollama model directly, add this property to the step arguments:
+
+```json
+"classificationMode": "LlmOnly"
+```
+
+The model is `FallbackModel`, or by inheritance `ArbitrationModel`, then the Ollama chat model;
+the timeout is `FallbackTimeoutSeconds`. The conventional context is 8192 tokens, with output
+bounded to 512 tokens. Questions and source are budgeted independently of the 2050-token native
+context. Native thresholds and arbitration budgets are not applied; choices in
+`alwaysArbitrateChoices` still require human review. Output includes `classificationMode=LlmOnly`,
+`decisionSource=directLlm`, `counts.directLlmResolved` and `timing.classificationMs`, without
+fabricated native scores.
+
+The `projection.decisionContentTruncated` and `projection.llmContentTruncated` flags distinguish
+omissions by model. The former is null in direct mode; older results may omit both. Reports
+label truncated LLM sources. In hybrid mode, `VisibilityProtectionOverride` retains a relevant
+native category despite a noise second opinion, with `Provisional` status and explicit human review.
+
 ## Enable and configure
 
 1. Open **Settings → Local decision models** and enable the reader.
