@@ -69,6 +69,29 @@ visible and recoverable; do not delete its rows to make the next run appear succ
 
 ## Verification and limits
 
+### Observed provider limit on 2026-10-04
+
+Production logs recorded 12 Web Search requests from the daily workflow and two batches of
+8 requests from `editorial-blog-sunday-db` on October 4, 2026 (Europe/Paris). These 28 searches
+had no reported search failure; the next weekly-workflow attempt received HTTP 429 at 20:34.
+The account's recent-request list displayed 28 entries at USD 0.01 for that day. Subsequent daily
+runs through October 7 were refused on their first search request. These observations are a
+comparison baseline, not evidence of a 28-request daily cap or a specific monthly allowance.
+
+### Collection diagnostics in reports
+
+Daily report preparation persists the collection status, delivered candidate count, and optional
+HTTP error code in the additive `editorial_run_discovery` table, atomically with the reservation.
+An empty completed search is reported as no eligible article after Discover and novelty filters.
+HTTP 429 is reported as a provider limit, with quota, credits, and temporary throttling listed as
+possible causes rather than claiming a specific exhausted allowance. Unavailable or partial
+searches cannot be presented as evidence that no eligible articles exist. Partial searches can
+still produce approved subjects, with the collection warning retained at the top of the report.
+Legacy reservations without persisted diagnostics are explicitly reported as having an unknown
+collection state. Existing exported files are not rewritten, and `Exported` continues to describe
+successful file export rather than search completeness. Deploy the updated runner for this report
+behavior to take effect; the daily workflow arguments do not need to change.
+
 CI uses deterministic embedding doubles. The annotated corpus is in
 `tests/OD.MyLocalAgent.Tests/Fixtures/discover-anti-repetition-corpus.json`. It covers the observed
 NativeAOT, Copilot, and cross-site C# union-type repetitions plus a true release evolution and an

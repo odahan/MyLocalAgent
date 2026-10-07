@@ -175,6 +175,7 @@ public sealed partial class ProposalMemoryService
 
         using var transaction = connection.BeginTransaction();
         InsertRun(connection, transaction, runId, selection.Proposals.Count, decisions.Count(static item => item.Approved), decisions.Count(static item => !item.Approved), model, dimension, incompatibleCount);
+        InsertDiscoveryDiagnostic(connection, transaction, runId, discovery);
         var approved = new List<ReservedEditorialProposal>();
         var rejected = new List<RejectedEditorialProposal>();
         for (var decisionIndex = 0; decisionIndex < decisions.Count; decisionIndex++)
@@ -242,7 +243,8 @@ public sealed partial class ProposalMemoryService
             }
         }
 
-        var markdown = BuildMarkdown(reportTitle, proposals, draftById);
+        var discovery = ReadDiscoveryDiagnostic(connection, runId);
+        var markdown = BuildMarkdown(reportTitle, proposals, draftById, discovery);
         var hash = Sha256(markdown);
         using var transaction = connection.BeginTransaction();
         using var update = connection.CreateCommand();
@@ -503,6 +505,9 @@ public sealed partial class ProposalMemoryService
               projection_version TEXT NOT NULL, incompatible_embedding_count INTEGER NOT NULL,
               report_markdown TEXT NULL, report_sha256 TEXT NULL,
               report_path TEXT NULL, exported_at_utc TEXT NULL);
+            CREATE TABLE IF NOT EXISTS editorial_run_discovery (
+              run_id TEXT PRIMARY KEY REFERENCES editorial_runs(run_id), search_status TEXT NOT NULL,
+              candidate_count INTEGER NOT NULL, error_status_code INTEGER NULL);
             CREATE TABLE IF NOT EXISTS editorial_proposal_metadata (
               proposal_id INTEGER PRIMARY KEY REFERENCES editorial_proposals(id), language TEXT NOT NULL,
               event_version TEXT NULL, event_date TEXT NULL, event_fingerprint TEXT NOT NULL,
@@ -543,7 +548,11 @@ public sealed partial class ProposalMemoryService
                 static item => item.GetProperty("hitId").GetString() ?? string.Empty,
                 static item => NormalizeUrl(item.GetProperty("canonicalUrl").GetString()) ?? throw new EditorialContractException("A discovered candidate has no valid canonical URL."),
                 StringComparer.Ordinal);
-            return new DiscoveryEnvelope(status, candidates);
+            var errorStatusCode = root.TryGetProperty("searchErrorStatusCode", out var error) &&
+                                  error.ValueKind == JsonValueKind.Number && error.TryGetInt32(out var code)
+                ? (int?)code
+                : null;
+            return new DiscoveryEnvelope(status, candidates, errorStatusCode);
         }
         catch (Exception exception) when (exception is JsonException or KeyNotFoundException or ArgumentException)
         {
@@ -778,11 +787,62 @@ public sealed partial class ProposalMemoryService
         return output;
     }
 
-    private static string BuildMarkdown(string title, IReadOnlyList<ReportProposal> proposals, IReadOnlyDictionary<string, DraftSubject> drafts)
+    /// <summary>Persists collection diagnostics atomically with the editorial reservation.</summary>
+    private static void InsertDiscoveryDiagnostic(SqliteConnection connection, SqliteTransaction transaction, string runId, DiscoveryEnvelope discovery)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "INSERT INTO editorial_run_discovery(run_id,search_status,candidate_count,error_status_code) VALUES($id,$status,$count,$code)";
+        command.Parameters.AddWithValue("$id", runId);
+        command.Parameters.AddWithValue("$status", discovery.SearchStatus);
+        command.Parameters.AddWithValue("$count", discovery.Candidates.Count);
+        command.Parameters.AddWithValue("$code", (object?)discovery.ErrorStatusCode ?? DBNull.Value);
+        command.ExecuteNonQuery();
+    }
+
+    /// <summary>Reads the original collection outcome, including when a report is prepared after a restart.</summary>
+    private static DiscoveryDiagnostic? ReadDiscoveryDiagnostic(SqliteConnection connection, string runId)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT search_status,candidate_count,error_status_code FROM editorial_run_discovery WHERE run_id=$id";
+        command.Parameters.AddWithValue("$id", runId);
+        using var reader = command.ExecuteReader();
+        return reader.Read()
+            ? new DiscoveryDiagnostic(reader.GetString(0), reader.GetInt32(1), reader.IsDBNull(2) ? null : reader.GetInt32(2))
+            : null;
+    }
+
+    private static string BuildMarkdown(string title, IReadOnlyList<ReportProposal> proposals, IReadOnlyDictionary<string, DraftSubject> drafts, DiscoveryDiagnostic? discovery)
     {
         var builder = new StringBuilder().Append("# ").AppendLine(title).AppendLine();
+        var searchComplete = discovery?.SearchStatus == "available";
+        if (!searchComplete)
+        {
+            builder.AppendLine("## État de la collecte").AppendLine();
+            var message = discovery?.SearchStatus switch
+            {
+                "rateLimited" => "Recherche Web bloquée par une limite du fournisseur (HTTP 429). Le quota ou les crédits peuvent être épuisés, ou une limite temporaire de débit peut être atteinte. Vérifiez l’usage et la date de réinitialisation dans votre compte fournisseur.",
+                "unavailable" => "Recherche Web indisponible : les requêtes de recherche ont échoué. Vérifiez l’accès au service et sa configuration.",
+                "degraded" => "Recherche Web partielle : certaines requêtes ont échoué. La couverture de la collecte est incomplète.",
+                _ => "L’état de la recherche Web n’est pas disponible pour cette exécution.",
+            };
+            builder.AppendLine(message).AppendLine();
+            if (discovery?.ErrorStatusCode is { } code && discovery.SearchStatus != "rateLimited")
+            {
+                builder.Append("Code HTTP signalé : ").Append(code.ToString(CultureInfo.InvariantCulture)).AppendLine(".").AppendLine();
+            }
+            builder.AppendLine("Cette collecte ne permet pas de conclure à l’absence d’articles éligibles.").AppendLine();
+        }
         if (proposals.Count == 0)
         {
+            if (!searchComplete)
+            {
+                return builder.AppendLine("Aucun sujet n’a pu être validé à partir de cette collecte.").ToString();
+            }
+            if (discovery!.CandidateCount == 0)
+            {
+                return builder.AppendLine("Recherche Web terminée : aucun article éligible n’a été retenu après application des critères de Discover et du contrôle anti-répétition.").ToString();
+            }
             return builder.AppendLine("Aucun sujet nouveau validé aujourd’hui.").ToString();
         }
 
@@ -820,7 +880,8 @@ public sealed partial class ProposalMemoryService
         }
     }
 
-    private sealed record DiscoveryEnvelope(string SearchStatus, IReadOnlyDictionary<string, string> Candidates);
+    private sealed record DiscoveryEnvelope(string SearchStatus, IReadOnlyDictionary<string, string> Candidates, int? ErrorStatusCode);
+    private sealed record DiscoveryDiagnostic(string SearchStatus, int CandidateCount, int? ErrorStatusCode);
     private sealed record SelectionEnvelope(IReadOnlyList<SelectionProposal> Proposals);
     private sealed record SelectionProposal(string TemporaryId, string Title, string FactualSummary, IReadOnlyList<string> SourceIds, IReadOnlyList<string> Entities, string? EventVersion, DateOnly? EventDate, IReadOnlyList<ClaimedFact> ClaimedNewFacts, EditorialNoveltyDecision NoveltyDecision, string? Language);
     private sealed record ClaimedFact(string Text, IReadOnlyList<string> SourceIds);

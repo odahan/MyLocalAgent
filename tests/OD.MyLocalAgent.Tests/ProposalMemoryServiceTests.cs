@@ -342,6 +342,74 @@ public sealed class ProposalMemoryServiceTests : IDisposable
         (await ScalarAsync(path, "SELECT count(*) FROM editorial_runs")).Should().Be(1L);
     }
 
+    /// <summary>Distinguishes an empty completed search from blocked or incomplete collection after a restart.</summary>
+    [Theory]
+    [InlineData("available", "aucun article éligible", true)]
+    [InlineData("rateLimited", "Recherche Web bloquée", false)]
+    [InlineData("unavailable", "Recherche Web indisponible", false)]
+    [InlineData("degraded", "Recherche Web partielle", false)]
+    public async Task EmptyReportExplainsThePersistedCollectionOutcome(string status, string expected, bool complete)
+    {
+        var (service, path) = await CreateCurrentDatabaseAsync();
+        await service.ReserveSelectionAsync(path, "empty-report", DiscoveryWithStatus(status),
+            Selection(), 6, 0.92, CancellationToken.None);
+
+        await CreateService().ReserveSelectionAsync(path, "empty-report", Discovery(),
+            Selection(), 6, 0.92, CancellationToken.None);
+        var report = await CreateService().PrepareReportAsync(path, "empty-report", "{\"subjects\":[]}", "Veille", CancellationToken.None);
+
+        report.SubjectCount.Should().Be(0);
+        report.Markdown.Should().Contain(expected).And.NotContain("Aucun sujet nouveau validé aujourd’hui.");
+        if (!complete)
+        {
+            report.Markdown.Should().Contain("ne permet pas de conclure à l’absence d’articles éligibles");
+        }
+        if (status == "rateLimited")
+        {
+            report.Markdown.Should().Contain("HTTP 429").And.Contain("crédits");
+        }
+        var reportPath = Path.Combine(_root, $"empty-{status}.md");
+        await File.WriteAllTextAsync(reportPath, report.Markdown);
+        var exported = await service.ConfirmExportAsync(path, "empty-report", reportPath, CancellationToken.None);
+        exported.Sha256.Should().Be(report.Sha256);
+    }
+
+    /// <summary>Shows the collection warning while retaining approved subjects from a partial search.</summary>
+    [Fact]
+    public async Task PartialReportRetainsApprovedSubjectsAndShowsHttpDiagnostic()
+    {
+        var (service, path) = await CreateCurrentDatabaseAsync();
+        var discovery = JsonSerializer.Serialize(new
+        {
+            searchStatus = "degraded",
+            searchErrorStatusCode = 503,
+            candidates = new[] { new { hitId = "source", canonicalUrl = "https://example.com/partial" } },
+        });
+        await service.ReserveSelectionAsync(path, "partial-report", discovery,
+            Selection(Proposal("p1", "A verified event", "source")), 6, 0.92, CancellationToken.None);
+
+        var report = await CreateService().PrepareReportAsync(path, "partial-report", Drafts("p1"), "Veille", CancellationToken.None);
+
+        report.SubjectCount.Should().Be(1);
+        report.Markdown.Should().Contain("Recherche Web partielle").And.Contain("503")
+            .And.Contain("A verified event").And.Contain("https://example.com/partial");
+    }
+
+    /// <summary>Does not invent a successful collection outcome for a legacy reservation without diagnostics.</summary>
+    [Fact]
+    public async Task LegacyReservationWithoutDiagnosticsReportsUnknownCollectionState()
+    {
+        var (service, path) = await CreateCurrentDatabaseAsync();
+        await service.ReserveSelectionAsync(path, "legacy-report", Discovery(), Selection(), 6, 0.92, CancellationToken.None);
+        await ExecuteAsync(path, "DROP TABLE editorial_run_discovery");
+
+        var report = await service.PrepareReportAsync(path, "legacy-report", "{\"subjects\":[]}", "Veille", CancellationToken.None);
+
+        report.Markdown.Should().Contain("L’état de la recherche Web n’est pas disponible")
+            .And.NotContain("Recherche Web terminée");
+        (await ScalarAsync(path, "SELECT count(*) FROM editorial_runs")).Should().Be(1L);
+    }
+
     /// <summary>Fails visibly when a selector discards every delivered candidate.</summary>
     [Fact]
     public async Task EmptySelectionWithCandidatesIsRejected()
