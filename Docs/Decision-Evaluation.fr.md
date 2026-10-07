@@ -1,4 +1,4 @@
-# Décisions locales génériques — Stage 32, phase A
+# Décisions locales génériques — Stage 32, phases A–B
 
 `decision.evaluate` évalue le texte explicitement fourni avec le modèle de décision local installé.
 L’outil est réservé aux workflows et ne réalise ni collecte Gmail, ni recherche Knowledge, ni accès
@@ -8,8 +8,38 @@ accordez séparément le groupe **Decision evaluation** à la tâche. L’activa
 n’active pas cet outil. Les agents, Direct Chat, `ai.prompt.toolAliases` et `forEach` ne peuvent pas
 l’appeler.
 
-La phase A utilise le formulaire générique existant et l’éditeur JSON. L’éditeur spécialisé avec
-lignes d’options, test sur texte d’exemple et affichage des scores relève de la phase B.
+L’éditeur de workflow propose **Evaluate a decision** : source, question, lignes d’options
+ordonnées et seuils avancés repliés. Il permet de rédiger et d’inspecter une décision sans JSON fournisseur.
+
+## Rédiger et tester une décision
+
+1. Insérez ou modifiez `decision.evaluate`. Renseignez la source ou utilisez le sélecteur de
+   placeholders, puis une question littérale et 2 à 24 options avec identifiant et description.
+   Les boutons permettent d’ajouter, retirer et réordonner les options.
+2. Consultez les seuils hérités et effectifs. Les réglages avancés expriment le meilleur score
+   en pourcentage et la marge en points de pourcentage, avec un point décimal. Ils renforcent
+   uniquement les réglages globaux ; le JSON conserve les valeurs normalisées entre 0 et 1.
+   Le seuil de concentration reste hérité de Settings.
+3. Activez l’évaluation générique et accordez le groupe `decision`. Une autorisation manquante
+   apparaît sous forme de proposition non cochée. Son acceptation explicite autorise le test
+   du brouillon sans enregistrer la tâche.
+4. Saisissez un texte dans **Explicit sample text for this test**, puis cliquez sur **Test decision**.
+   Cet exemple est obligatoire, même si la source contient un placeholder. Le test utilise cet
+   exemple et les options/seuils en cours d’édition. Il ne résout aucune sortie, n’appelle aucun
+   connecteur, n’exécute pas les autres étapes et ne sauvegarde rien. L’exemple et les résultats
+   restent en mémoire. **Cancel test** annule ; la fermeture et le changement d’outil annulent
+   aussi le test et empêchent l’affichage d’un résultat tardif.
+5. Consultez statut, candidat, tous les scores, marge, concentration, raisons techniques,
+   seuils appliqués et temps d’attente/inférence/total. Les scores indisponibles restent affichés
+   comme tels. Le résultat est un instantané du dernier test explicite : une modification ne
+   relance jamais le modèle. Aucune justification prétendument produite par Tev1 n’est inventée.
+6. Cliquez sur **Apply**, puis sauvegardez la tâche normalement. Ces actions ne lancent aucune inférence.
+
+**Arguments / raw JSON** reste accessible et initialement replié pour cet outil. Modifier le JSON
+des options ou des seuils recharge ces champs et abandonne leurs modifications en attente :
+la dernière édition explicite fait foi. Un JSON mal formé est conservé pour correction et ne
+peut pas être écrasé silencieusement par des champs partiels. Une édition sans changement
+préserve la présence et les valeurs originales des seuils optionnels.
 
 Arguments obligatoires : `source` non vide, `question` littérale de 1000 caractères maximum et
 `options` associant 2 à 24 identifiants stables à des descriptions non vides de 400 caractères maximum.
@@ -80,3 +110,11 @@ depuis cet environnement. La borne de 2050 tokens reprend la [mesure locale exis
 Aucun essai de modèle, aucune lecture de mail réel et aucun test d’intégration n’ont été lancés.
 La phase C devra mesurer l’utilité, la qualité français/anglais et les latences à froid et à chaud
 avec des cas annotés et réservés à l’évaluation. Les tests d’implémentation ne prouvent pas la qualité du modèle.
+
+La phase B prépare [30 paires français/anglais synthétiques](evaluation/decision-readiness-pairs.v1.json),
+dont 20 de développement et 10 réservées à l’évaluation. Les étiquettes proposées doivent être
+revues indépendamment avant les essais. Le [protocole](evaluation/Decision-Evaluation-Protocol.md)
+précise relecture, comparaisons, critères, identités des modèles, répétitions, latences et mesures.
+`tools/Prepare-DecisionEvaluation.ps1` valide le corpus hors ligne et peut produire 60 tâches
+désactivées d’une étape, avec manifeste et empreinte du corpus. Il n’importe et n’exécute aucune
+tâche. L’exécuteur comparatif et les résultats réels restent à réaliser en phase C.

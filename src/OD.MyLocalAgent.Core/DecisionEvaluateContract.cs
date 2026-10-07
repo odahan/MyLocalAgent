@@ -32,7 +32,8 @@ public static class DecisionEvaluateContract
         }));
     }
 
-    internal static DecisionAcceptance Acceptance(JsonElement? json, DecisionOptions settings)
+    /// <summary>Resolves normalized acceptance overrides against the configured minimums.</summary>
+    public static DecisionAcceptance Acceptance(JsonElement? json, DecisionOptions settings)
     {
         var authored = json is null ? new DecisionAcceptanceOverrides() : DecisionContractJson.Read<DecisionAcceptanceOverrides>(json.Value);
         var top = settings.MinTopProbabilityPercent / 100;

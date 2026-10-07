@@ -2548,3 +2548,43 @@ Application version: **2.6.6** (incremented from 2.6.5).
   integration test, model download, deployment, Git publication, production migration or model
   quality claim is part of this phase. Specialized UX (B), controlled FR/EN evaluation (C),
   optional integrated routing (D) and agentic exposure (E) remain deferred.
+
+## Stage 32 phase B — Choice authoring and explicit inspection — 2026-10-07
+
+- Added the MVVM Toolkit **Evaluate a decision** editor over the existing workflow argument
+  contract: source with the shared placeholder/selection aid, literal question, ordered option
+  identifiers/descriptions, bounded add/remove/reorder controls and collapsed acceptance overrides.
+  Inherited and effective minimums are visible; UI percentages convert to normalized JSON and
+  reuse the common tightening-only acceptance validator. Unchanged optional acceptance survives
+  a no-op edit without serialization loss.
+- **Test decision** requires explicit sample text, generic enablement and the task's existing or
+  explicitly accepted draft `decision` group grant. It calls only `IDecisionEvaluationService`,
+  uses pending option/acceptance edits without committing them, and never resolves placeholders,
+  runs surrounding steps or persists samples/results/tasks. Editing, Apply and Save perform no
+  inference. Cancel propagates the command token; dialog close/tool changes cancel and invalidate
+  late results, including non-cooperative provider responses.
+- Results show status, candidate, all option distributions, top probability, margin, concentration,
+  sanitized reasons, actual thresholds, model/provider and observed gate/inference/total timings.
+  Unavailable scores remain unavailable; result text identifies the last explicit test snapshot.
+  No model rationale or correctness guarantee is synthesized from native scores.
+- Raw JSON remains an initially collapsed fallback. Editing options/acceptance JSON reloads those
+  fields with last-edit precedence; malformed raw JSON is preserved and blocks partial-field
+  overwrite. Sample/results/busy/selection display state does not mark an unchanged workflow dirty.
+  The existing disabled status-first routing sample and its real registry/engine tests remain valid.
+- Prepared 30 synthetic French/English pairs (60 inputs), with 20 development and 10 held-out
+  pairs frozen before tuning, covering missing facts, negation, ambiguity, contradictory facts,
+  irrelevant text, overlapping options and injected instructions. Labels remain proposed and need
+  independent bilingual review. The offline preparation script produces disabled one-step tasks
+  and a hashed manifest, never importing or running them. The protocol defines predeclared criteria,
+  review, baselines, identities, repetitions, cold/warm conditions and reporting. Actual comparative
+  execution/aggregation and model evidence remain phase C work.
+- Bilingual guides, HTML manuals, README, spec status/index and the shared-spec addendum now describe
+  the completed A–B implementation increment and its evaluation limits. No package/version change,
+  live model/mail run, integration test, production migration, deployment or Git publication.
+- Verification: build completed with zero warnings/errors. Full default suite
+  `dotnet test OD.MyLocalAgent.sln -m:1 --no-restore --filter "Category!=Integration"` completed with
+  **1056 passed, zero failed, one expected Ollama probe skipped**. Twenty-seven new deterministic
+  cases cover serialization, policy/permissions, explicit test isolation, cancellation/late results,
+  no-op preservation, fixture bounds and the shipped PowerShell script's sixty generated tasks
+  validated using `ScheduledTaskSerializer`. A Windows PowerShell hashing compatibility issue
+  found by the preparation test was corrected. Every build/test invocation included `-m:1`.

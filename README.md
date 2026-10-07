@@ -2011,7 +2011,7 @@ See the [English guide](Docs/Gmail-Decision-Reader.en.md), [French guide](Docs/G
 and [disabled example task](Docs/samples/gmail-decision-watch.json). Model scores are not accuracy
 guarantees. Live quality/latency benchmarking and deployment are separate authorized operations.
 
-## Generic decision evaluation (Stage 32, phase A)
+## Generic decision evaluation (Stage 32, phases A–B)
 
 `decision.evaluate` exposes local native decisions independently of Gmail. Supply explicit source
 text, one literal question and 2–24 described options. The versioned JSON result distinguishes
@@ -2028,7 +2028,10 @@ migration; a complete canonical example is supplied separately.
 
 See the [English guide](Docs/Decision-Evaluation.en.md), [French guide](Docs/Decision-Evaluation.fr.md),
 [configuration example](Docs/decision-settings.example.json) and
-[disabled routing sample](Docs/samples/decision-readiness.json). Phase A uses the existing generic
-step form; the specialized decision editor and score inspection belong to phase B. Comparative
-French/English model evaluation belongs to phase C. No live-mail evaluation or deployment is part
+[disabled routing sample](Docs/samples/decision-readiness.json). The specialized **Evaluate a
+decision** editor provides source placeholders, ordered options, inherited/advanced minimums
+and an explicit cancellable sample test with scores and timing. Testing neither runs the surrounding
+workflow nor saves the task; editing and saving never perform inference. A [30-pair FR/EN corpus
+and evaluation protocol](Docs/evaluation/Decision-Evaluation-Protocol.md) are prepared offline.
+Comparative model execution belongs to phase C. No live-mail evaluation or deployment is part
 of this implementation.

@@ -1,7 +1,7 @@
 # Stage 32 — General local decision evaluation
 
 Date: 2026-10-07
-Status: phase A implemented and deterministically verified; phases B–E and model evaluation have not started
+Status: phases A–B implemented and deterministically verified; phase C fixtures/protocol prepared, no model experiments executed; phases D–E deferred
 Product names in the UI: **Decision models**, **Evaluate a decision**
 
 ## 1. Mission

@@ -67,6 +67,62 @@
                     <ItemsControl.ItemTemplate><DataTemplate><CheckBox Margin="0,2" IsChecked="{Binding IsAccepted}" Content="{Binding Description}" /></DataTemplate></ItemsControl.ItemTemplate>
                 </ItemsControl>
                 <ItemsControl ItemsSource="{Binding ExecutionWarnings}"><ItemsControl.ItemTemplate><DataTemplate><TextBlock Margin="0,2" Text="{Binding}" TextWrapping="Wrap" AutomationProperties.Name="Execution warning" /></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+                <StackPanel Margin="0,18,0,6" Visibility="{Binding IsDecisionEvaluationSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="Evaluate a decision" />
+                    <TextBox Margin="0,8,0,0" MinHeight="80" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                             Text="{Binding EvaluationSourceArgument.Value, UpdateSourceTrigger=PropertyChanged}"
+                             behaviors:TextBoxSelectionBinding.SelectionStart="{Binding EvaluationSourceArgument.SelectionStart, Mode=TwoWay}"
+                             behaviors:TextBoxSelectionBinding.SelectionLength="{Binding EvaluationSourceArgument.SelectionLength, Mode=TwoWay}"
+                             materialDesign:HintAssist.Hint="Source text or workflow output placeholder" AutomationProperties.Name="Decision source" />
+                    <WrapPanel Margin="0,5,0,8">
+                        <ComboBox Width="280" ItemsSource="{Binding Placeholders}" DisplayMemberPath="DisplayText" SelectedItem="{Binding EvaluationSourceArgument.SelectedPlaceholder}" materialDesign:HintAssist.Hint="Source placeholder" />
+                        <Button Content="Insert placeholder" Command="{Binding InsertPlaceholderCommand}" CommandParameter="{Binding EvaluationSourceArgument}" />
+                    </WrapPanel>
+                    <TextBox MinHeight="65" MaxLength="1000" AcceptsReturn="True" TextWrapping="Wrap" Text="{Binding EvaluationQuestionArgument.Value, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Literal question" AutomationProperties.Name="Decision question" />
+                    <TextBlock Margin="0,12,0,5" Text="Options (2–24): stable identifier and description" />
+                    <DataGrid ItemsSource="{Binding EvaluationOptions}" SelectedItem="{Binding SelectedEvaluationOption}" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False" CanUserSortColumns="False" MinHeight="100" MaxHeight="320" AutomationProperties.Name="Decision options">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Identifier" Binding="{Binding Key, UpdateSourceTrigger=PropertyChanged}" Width="150" />
+                            <DataGridTextColumn Header="Description" Binding="{Binding Description, UpdateSourceTrigger=PropertyChanged}" Width="*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <WrapPanel>
+                        <Button Content="Add option" Command="{Binding AddEvaluationOptionCommand}" />
+                        <Button Content="Remove option" Command="{Binding RemoveEvaluationOptionCommand}" />
+                        <Button Content="Move up" Command="{Binding MoveEvaluationOptionUpCommand}" />
+                        <Button Content="Move down" Command="{Binding MoveEvaluationOptionDownCommand}" />
+                    </WrapPanel>
+                    <TextBlock Text="Identifiers start with a letter and contain letters, digits or underscores (maximum 64 characters). Descriptions are literal text (maximum 400 characters)." TextWrapping="Wrap" Style="{StaticResource CaptionTextStyle}" />
+                    <TextBlock Margin="0,8,0,4" Text="{Binding EvaluationDefaultsText}" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding EvaluationEffectiveText}" TextWrapping="Wrap" />
+                    <Expander Header="Advanced acceptance settings" IsExpanded="False">
+                        <StackPanel Margin="0,8">
+                            <CheckBox Content="Override minimum top probability" IsChecked="{Binding OverrideEvaluationTop}" />
+                            <TextBox IsEnabled="{Binding OverrideEvaluationTop}" Text="{Binding EvaluationTopPercent, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Minimum top probability (%)" />
+                            <CheckBox Content="Override minimum margin" IsChecked="{Binding OverrideEvaluationMargin}" />
+                            <TextBox IsEnabled="{Binding OverrideEvaluationMargin}" Text="{Binding EvaluationMarginPercent, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Minimum margin (percentage points)" />
+                        </StackPanel>
+                    </Expander>
+                    <TextBlock Margin="0,8" TextWrapping="Wrap" Text="Scores and confidence show the model's distribution and concentration. They do not establish correctness. Uncertain candidates must not drive normal routing. No model explanation is generated." />
+                    <TextBlock Text="{Binding EvaluationFieldsError}" TextWrapping="Wrap" Foreground="{DynamicResource ErrorBrush}" />
+                    <TextBox MinHeight="90" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Text="{Binding EvaluationSample, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Explicit sample text for this test (never saved)" AutomationProperties.Name="Decision test sample" />
+                    <TextBlock Margin="0,5" Style="{StaticResource CaptionTextStyle}" Text="Testing evaluates only this sample. It does not resolve source placeholders or execute any other workflow step." TextWrapping="Wrap" />
+                    <WrapPanel>
+                        <Button Content="Test decision" Command="{Binding TestDecisionCommand}" />
+                        <Button Content="Cancel test" Command="{Binding TestDecisionCancelCommand}" />
+                    </WrapPanel>
+                    <TextBlock Text="{Binding EvaluationMessage}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                    <TextBlock Margin="0,8,0,4" Text="{Binding EvaluationSummary}" TextWrapping="Wrap" />
+                    <DataGrid ItemsSource="{Binding EvaluationScores}" IsReadOnly="True" AutoGenerateColumns="False" CanUserAddRows="False" CanUserSortColumns="False" MaxHeight="300" AutomationProperties.Name="Last decision test scores">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Option" Binding="{Binding Identifier}" Width="150" />
+                            <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*" />
+                            <DataGridTextColumn Header="Score" Binding="{Binding Probability}" Width="110" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <TextBlock Margin="0,5" Text="{Binding EvaluationReasons}" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding EvaluationTiming}" TextWrapping="Wrap" Style="{StaticResource CaptionTextStyle}" />
+                </StackPanel>
                 <Expander Margin="0,14,0,6" Header="Gmail decision questions" IsExpanded="True" Visibility="{Binding IsGmailDecisionSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <StackPanel>
                         <TextBlock Margin="0,6" TextWrapping="Wrap" Text="Edit named questions, answer descriptions and ordered rubric levels below. Report mappings and acceptance overrides remain in the structured JSON arguments. Reload fields after editing questions JSON; Apply also commits pending field edits." />
@@ -105,7 +161,9 @@
                         </ItemsControl>
                     </StackPanel>
                 </Expander>
-                <TextBlock Margin="0,18,0,6" Style="{StaticResource SectionTitleStyle}" Text="Arguments" />
+                <Expander Margin="0,18,0,6" Header="Arguments / raw JSON" IsExpanded="{Binding ShowGenericArguments, Mode=OneWay}">
+                <StackPanel>
+                <TextBlock Visibility="{Binding IsDecisionEvaluationSelected, Converter={StaticResource BooleanToVisibilityConverter}}" Margin="0,8" Text="Editing options or acceptance JSON reloads the fields above. Apply commits pending field edits; the test never modifies these arguments." TextWrapping="Wrap" />
                 <ListBox ItemsSource="{Binding Arguments}" SelectedItem="{Binding SelectedArgument}" ScrollViewer.VerticalScrollBarVisibility="Auto">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
@@ -136,6 +194,8 @@
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
+                </StackPanel>
+                </Expander>
             </StackPanel>
         </ScrollViewer>
         <StackPanel Grid.Row="2" Margin="20,0,20,16"><TextBlock AutomationProperties.LiveSetting="Assertive" Text="{Binding StatusText}" TextWrapping="Wrap" /><WrapPanel HorizontalAlignment="Right"><Button Command="{Binding CancelCommand}" AutomationProperties.Name="Cancel workflow step editing" Content="Cancel" IsCancel="True"/><Button Command="{Binding ApplyCommand}" AutomationProperties.Name="Apply workflow step changes" Content="{Binding ApplyLabel}" /></WrapPanel></StackPanel>

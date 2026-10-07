@@ -2308,6 +2308,16 @@ existing conservative UTF-8-byte bound plus 400 tokens of reserve, at most 2050 
 input is unavailable without truncation. Cleanup has an independent five-second deadline and
 respects other operation owners. No new package, production migration or deployment is required.
 
-Phase A uses the existing generic editor. Specialized authoring/testing and score inspection are
-phase B; real French/English quality and latency evaluation is phase C. See the bilingual
-`Docs/Decision-Evaluation` guides and disabled `Docs/samples/decision-readiness.json` sample.
+Phase B adds specialized choice authoring and explicit cancellable sample testing over the common
+service. It requires global enablement and the task's existing or explicitly accepted draft group
+grant. Testing does not resolve placeholders, execute other workflow steps or persist sample,
+results or tasks. Scores remain native distributions; concentration is not correctness and no
+model rationale is invented. Apply validates and persists only the draft contract, with [0,1]
+acceptance values and tightening-only overrides. No inference occurs on editing or saving.
+
+The first implementation increment (A–B) is available. Thirty synthetic bilingual fixture pairs,
+including ten held-out pairs, and an offline input preparation script/protocol are provided;
+proposed labels still require independent review. Real French/English quality and latency
+evaluation and the comparative executor are phase C work. See the bilingual
+`Docs/Decision-Evaluation` guides, `Docs/evaluation/Decision-Evaluation-Protocol.md` and disabled
+`Docs/samples/decision-readiness.json` sample. Integrated routing and agent exposure remain deferred.

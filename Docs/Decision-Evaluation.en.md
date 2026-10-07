@@ -1,4 +1,4 @@
-# Generic local decisions — Stage 32 phase A
+# Generic local decisions — Stage 32 phases A–B
 
 `decision.evaluate` evaluates explicitly supplied text using the installed local decision model.
 It is a read-only workflow tool, with no Gmail collection, Knowledge retrieval, tools, file access,
@@ -7,8 +7,38 @@ models → Enable generic workflow evaluation**, and independently grant the tas
 evaluation** tool group. Gmail enablement does not enable this tool. Agent prompts, Direct Chat,
 `ai.prompt.toolAliases` and `forEach` cannot call it.
 
-The existing generic step form and JSON editor expose the arguments in phase A. The specialized
-option-row editor, sample-text test action and score display belong to phase B.
+The workflow step editor exposes **Evaluate a decision** with source, question, ordered option
+rows and collapsed acceptance overrides. Provider JSON is not needed to author or inspect a choice.
+
+## Author and test a decision
+
+1. Insert or edit `decision.evaluate` in the workflow step editor. Enter source text or use the
+   existing placeholder picker, then write a literal question and 2–24 option identifiers and
+   descriptions. Add/remove/reorder controls preserve the option order.
+2. Inspect inherited and effective minimums. Advanced overrides use percentages for top
+   probability and percentage points for margin, with a decimal point. They can only tighten
+   Settings; workflow JSON continues to store normalized [0,1] values. Distribution concentration
+   remains inherited from Settings.
+3. Enable generic evaluation in Settings and grant the task's `decision` group. A missing grant
+   appears as an unchecked authorization proposal; explicitly accepting it authorizes the draft's
+   test without persisting the task.
+4. Enter **Explicit sample text for this test**, then choose **Test decision**. The sample is
+   mandatory, including when the source is a placeholder. Testing uses only that sample and the
+   current question/options/acceptance, including pending field edits. It does not resolve outputs,
+   invoke connectors, execute surrounding steps or save the task. Sample text and results are
+   never serialized. Use **Cancel test** to cancel; closing or changing tools also cancels and
+   suppresses late results.
+5. Inspect status, candidate, every option score, top probability, margin, concentration, sanitized
+   reasons, applied thresholds and gate/inference/total timings. Unavailable scores are displayed
+   as unavailable. The display is a snapshot of the last explicit test; editing never reruns it.
+   No fabricated model rationale is generated. Check status before routing on a candidate.
+6. Choose **Apply**, then save the task through its normal editor. Neither action performs inference.
+
+**Arguments / raw JSON** remains available and initially collapsed for this tool. Editing options
+or acceptance JSON reloads the corresponding draft fields and discards pending option/acceptance
+field edits. The latest explicit edit is authoritative. Malformed JSON is retained for correction
+and cannot be silently replaced by partial fields. An unchanged edit preserves original optional
+acceptance presence and values.
 
 ```json
 {
@@ -111,3 +141,11 @@ implementation, so no fresh runtime/context measurement was obtained. The 2050-t
 comes from the [existing local probe](Tev1-Local-Feasibility.md), not the download catalog's context.
 No model experiment was launched. Phase C must establish usefulness, French/English quality and
 cold/warm latency with reviewed held-out fixtures. Implementation tests do not establish model quality.
+
+Phase B prepares [30 synthetic French/English pairs](evaluation/decision-readiness-pairs.v1.json),
+with 20 development and 10 held-out pairs. Labels are proposed and require independent bilingual
+review before model execution. The [evaluation protocol](evaluation/Decision-Evaluation-Protocol.md)
+defines review, baselines, acceptance criteria, identities, repetitions, timing and reporting.
+`tools/Prepare-DecisionEvaluation.ps1` validates the corpus offline and can generate 60 disabled,
+single-step workflow inputs plus a hashed manifest. It never imports or runs tasks. The actual
+comparative model executor and results remain phase C work.

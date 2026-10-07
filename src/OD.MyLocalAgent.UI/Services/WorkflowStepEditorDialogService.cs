@@ -36,6 +36,7 @@ public sealed class WorkflowStepEditorDialogService : IWorkflowStepEditorDialogS
         window.Closed += (_, _) =>
         {
             lifetime.Cancel();
+            viewModel.CancelDecisionTest();
             viewModel.PropertyChanged -= OnViewModelPropertyChanged;
         };
         window.Closing += (_, eventArgs) =>

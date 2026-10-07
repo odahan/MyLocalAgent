@@ -39,7 +39,9 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
         IOpenAIModelCatalog? openAIModelCatalog = null,
         IOptionsMonitor<AIOptions>? aiOptions = null,
         IOptionsMonitor<OllamaOptions>? ollamaOptions = null,
-        IOptionsMonitor<OpenAIOptions>? openAIOptions = null)
+        IOptionsMonitor<OpenAIOptions>? openAIOptions = null,
+        IDecisionEvaluationService? decisionEvaluation = null,
+        IOptionsMonitor<DecisionOptions>? decisionOptions = null)
     {
         _catalog = catalog ?? ToolCatalog.Default;
         _desktopInteraction = desktopInteraction;
@@ -48,6 +50,8 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
         _aiOptions = aiOptions;
         _ollamaOptions = ollamaOptions;
         _openAIOptions = openAIOptions;
+        _decisionEvaluation = decisionEvaluation;
+        _decisionOptions = decisionOptions;
         PropertyChanged += OnEditorPropertyChanged;
     }
 
@@ -208,6 +212,7 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
             return;
         }
         _lastSelectedTool = value;
+        CancelDecisionTest();
         if (_request is not null && !IsEdit && value is not null)
         {
             Rebuild(value, null);
@@ -215,6 +220,8 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
         }
         OnPropertyChanged(nameof(IsPromptSelected));
         OnPropertyChanged(nameof(IsGmailDecisionSelected));
+        OnPropertyChanged(nameof(IsDecisionEvaluationSelected));
+        OnPropertyChanged(nameof(ShowGenericArguments));
         OnPropertyChanged(nameof(IsAiSelected));
         OnPropertyChanged(nameof(SupportsForEach));
         OnPropertyChanged(nameof(ShowForEachSource));
@@ -389,6 +396,7 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
         }
         try
         {
+            if (IsDecisionEvaluationSelected) CommitEvaluationFields();
             if (_decisionQuestionsDirty) CommitDecisionQuestionFields();
             var replacement = CreateStep();
             if (IsEdit && !AuthorizationProposals.Any(static item => item.IsAccepted) &&
@@ -498,6 +506,7 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
         }
         _decisionQuestionsDirty = false;
         LoadDecisionQuestionFields();
+        LoadEvaluationFields();
         if (!tool.IsAiStep && !tool.IsControlFlowStep && !_request!.ToolGroups.Contains(tool.ToolGroup, StringComparer.OrdinalIgnoreCase))
         {
             AuthorizationProposals.Add(new WorkflowProposalItem("Tool group", tool.ToolGroup, $"Allow the '{tool.ToolGroup}' tool group for this task."));
@@ -645,6 +654,8 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
     private static bool TryGetValue(JsonElement args, string name, out JsonElement value) { if (args.ValueKind == JsonValueKind.Object && args.TryGetProperty(name, out value)) return true; value = default; return false; }
     private static string InitialValue(ToolDefinition tool, ToolArgumentDefinition argument)
     {
+        if (tool.Alias == "decision.evaluate" && argument.Name == "options") return "{\"process\":\"The request includes the essential information needed to proceed.\",\"clarify\":\"Ask for missing essential information before proceeding.\"}";
+        if (tool.Alias == "decision.evaluate" && argument.Name == "question") return "Does this request include the essential information needed to proceed?";
         if (string.Equals(tool.Alias, ToolMap.PromptAlias, StringComparison.OrdinalIgnoreCase) && string.Equals(argument.Name, "prompt", StringComparison.OrdinalIgnoreCase)) return WorkflowSnippetBuilder.DefaultPromptText;
         if (string.Equals(tool.Alias, ToolMap.PromptAlias, StringComparison.OrdinalIgnoreCase) && string.Equals(argument.Name, "includeContext", StringComparison.OrdinalIgnoreCase)) return "true";
         return argument.DefaultValue?.GetRawText() ?? (argument.Kind == WorkflowArgumentKind.Boolean ? "false" : argument.Kind == WorkflowArgumentKind.Object ? "{}" : string.Empty);
@@ -670,6 +681,8 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
         }
 
         HasChanges = true;
+        if (IsDecisionEvaluationSelected && !_loadingEvaluationFields && sender is WorkflowStepArgumentEditorItem argument &&
+            argument.Definition.Name is "options" or "acceptance") LoadEvaluationFields();
         RefreshAuthorizationProposals();
     }
 
@@ -825,7 +838,7 @@ public sealed partial class WorkflowStepEditorViewModel : ObservableObject
 
     private void OnEditorPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs eventArgs)
     {
-        if (_initializing || eventArgs.PropertyName is nameof(HasChanges) or nameof(StatusText) or nameof(ToolSearchText) or nameof(SelectedArgument) or nameof(IsLoadingModels) or nameof(ModelCatalogStatus))
+        if (_initializing || _loadingEvaluationFields || IsEvaluationUiProperty(eventArgs.PropertyName) || eventArgs.PropertyName is nameof(HasChanges) or nameof(StatusText) or nameof(ToolSearchText) or nameof(SelectedArgument) or nameof(IsLoadingModels) or nameof(ModelCatalogStatus))
         {
             return;
         }
