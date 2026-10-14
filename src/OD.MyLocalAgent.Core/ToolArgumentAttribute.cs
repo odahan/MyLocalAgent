@@ -49,6 +49,9 @@ public sealed class ToolArgumentAttribute : DescriptionAttribute
     /// </summary>
     public bool IsLongText { get; set; }
 
+    /// <summary>Gets or sets whether nested string placeholders must remain text inside an object argument.</summary>
+    public bool PreserveNestedPlaceholderStrings { get; set; }
+
     /// <summary>
     /// Gets or sets whether this short or format-constrained string is omitted from the workflow
     /// text editor even when it is present in workflow JSON.

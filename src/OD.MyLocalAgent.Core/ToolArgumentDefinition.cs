@@ -32,6 +32,9 @@ public sealed record ToolArgumentDefinition(
     /// <summary>Gets whether authoring surfaces should prioritize this argument as long-form text.</summary>
     public bool IsLongText { get; init; }
 
+    /// <summary>Gets whether nested string placeholders must remain text inside an object argument.</summary>
+    public bool PreserveNestedPlaceholderStrings { get; init; }
+
     /// <summary>Gets whether this short or constrained string is excluded from the workflow text editor.</summary>
     public bool IsExcludedFromWorkflowTextEditor { get; init; }
 

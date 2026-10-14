@@ -78,7 +78,8 @@ internal static class WorkflowPlaceholderResolver
         DateTimeOffset localNow,
         ModelPromptPlaceholderContext modelContext,
         WorkflowForEachContext? forEachContext,
-        bool allowTypedPlaceholderValues = false)
+        bool allowTypedPlaceholderValues = false,
+        bool preserveNestedPlaceholderStrings = false)
     {
         switch (element.ValueKind)
         {
@@ -102,8 +103,11 @@ internal static class WorkflowPlaceholderResolver
                         localNow,
                         modelContext,
                         forEachContext,
-                        allowTypedPlaceholderValues ||
-                        SupportsTypedPlaceholderValues(argumentDefinition?.Kind));
+                        !preserveNestedPlaceholderStrings &&
+                        (allowTypedPlaceholderValues ||
+                         SupportsTypedPlaceholderValues(argumentDefinition?.Kind)),
+                        preserveNestedPlaceholderStrings ||
+                        argumentDefinition?.PreserveNestedPlaceholderStrings == true);
                 }
 
                 writer.WriteEndObject();
@@ -123,7 +127,8 @@ internal static class WorkflowPlaceholderResolver
                         localNow,
                         modelContext,
                         forEachContext,
-                        allowTypedPlaceholderValues);
+                        allowTypedPlaceholderValues,
+                        preserveNestedPlaceholderStrings);
                 }
 
                 writer.WriteEndArray();

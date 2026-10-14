@@ -377,6 +377,7 @@ public sealed class ToolCatalog : IToolCatalog
                         AllowedValues = allowedValues,
                         SupportsPlaceholders = supportsPlaceholders,
                         IsLongText = argAttr.IsLongText,
+                        PreserveNestedPlaceholderStrings = argAttr.PreserveNestedPlaceholderStrings,
                         IsExcludedFromWorkflowTextEditor = argAttr.IsExcludedFromWorkflowTextEditor,
                         ValueType = paramType,
                         AllowsNull = Nullable.GetUnderlyingType(param.ParameterType) is not null || !param.ParameterType.IsValueType,

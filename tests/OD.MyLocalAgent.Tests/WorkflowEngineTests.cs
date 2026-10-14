@@ -132,6 +132,89 @@ public sealed class WorkflowEngineTests
     }
 
     /// <summary>
+    /// Keeps structured discovery data and JSON-looking titles bindable as scalar SQLite parameters.
+    /// </summary>
+    [Theory]
+    [InlineData("sqlite.query")]
+    [InlineData("sqlite.execute")]
+    public async Task PreservesSqliteParameterPlaceholderStrings(string sqliteAlias)
+    {
+        const string discovery = """{"candidateCount":6,"title":"123","items":[1,2]}""";
+        var registry = new RecordingToolRegistry((alias, arguments, _) =>
+        {
+            if (alias == "filesystem.list")
+            {
+                return Task.FromResult(discovery);
+            }
+
+            var parameters = arguments.GetProperty("parameters");
+            parameters.GetProperty("@discovery").ValueKind.Should().Be(JsonValueKind.String);
+            parameters.GetProperty("@discovery").GetString().Should().Be(discovery);
+            parameters.GetProperty("@title").GetString().Should().Be("123");
+            parameters.GetProperty("@items").GetString().Should().Be("[1,2]");
+            parameters.GetProperty("@limit").GetInt32().Should().Be(1);
+            return Task.FromResult("queried");
+        });
+        var task = CreateTask(
+        [
+            Step("filesystem.list", "discoverWeek", "{}"),
+            Step(sqliteAlias, "prepareBlogSources", """
+                {
+                  "databasePath": "data.db",
+                  "sql": "SELECT json_extract(@discovery, '$.candidateCount')",
+                  "parameters": {
+                    "@discovery": "{{discoverWeek.output}}",
+                    "@title": "{{discoverWeek.output.title}}",
+                    "@items": "{{discoverWeek.output.items}}",
+                    "@limit": 1
+                  }
+                }
+                """),
+        ]);
+
+        task = task with
+        {
+            Tools = [ToolGroups.FileSystem, ToolGroups.Sqlite],
+            Capabilities = [TaskCapability.SqliteWrite],
+        };
+        var result = await CreateEngine(registry).ExecuteAsync(task, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        registry.Aliases.Should().Equal("filesystem.list", sqliteAlias);
+    }
+
+    /// <summary>
+    /// Still resolves a complete SQLite parameter map as an object.
+    /// </summary>
+    [Fact]
+    public async Task PreservesWholeSqliteParameterMapPlaceholderAsJson()
+    {
+        var registry = new RecordingToolRegistry((alias, arguments, _) =>
+        {
+            if (alias == "filesystem.list")
+            {
+                return Task.FromResult("""{"parameters":{"@count":6}}""");
+            }
+
+            arguments.GetProperty("parameters").GetProperty("@count").GetInt32().Should().Be(6);
+            return Task.FromResult("queried");
+        });
+        var task = CreateTask(
+        [
+            Step("filesystem.list", "source", "{}"),
+            Step("sqlite.query", "query", """
+                { "databasePath": "data.db", "sql": "SELECT @count", "parameters": "{{source.output.parameters}}" }
+                """),
+        ]);
+
+        task = task with { Tools = [ToolGroups.FileSystem, ToolGroups.Sqlite] };
+        var result = await CreateEngine(registry).ExecuteAsync(task, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        registry.Aliases.Should().Equal("filesystem.list", "sqlite.query");
+    }
+
+    /// <summary>
     /// Verifies the observable workflow context is refreshed after every successful step.
     /// </summary>
     [Fact]

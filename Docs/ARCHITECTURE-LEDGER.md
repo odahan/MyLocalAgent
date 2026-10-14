@@ -2797,3 +2797,27 @@ Application version: **2.6.6** (incremented from 2.6.5).
   UI and Runner executable product versions both verified as 2.6.7. SHA-256 verification
   confirmed both deployed appsettings.json files were preserved unchanged.
 - No live Tavily search, application launch, commit, push or tag was performed.
+
+## SQLite workflow parameter substitution — 2026-10-14
+
+- Fixed `prepareBlogSources` failing with `ParameterMismatch` when a complete
+  `research.discover` output placeholder inside `parameters` was promoted from JSON
+  text to an object. SQLite bindings require scalar values.
+- Added `PreserveNestedPlaceholderStrings` argument metadata for `sqlite.query` and
+  `sqlite.execute`. Nested string placeholders retain their text, including JSON
+  payloads, arrays and numeric-looking titles. A whole parameter-map placeholder
+  still resolves as a JSON object, and literal scalar types remain unchanged.
+- Validation: 70 workflow tests passed; the non-integration suite passed with
+  1,170 successful tests, one skipped and no failures. Testhost communication required
+  execution outside the sandbox. No production deployment or editorial task rerun
+  was performed.
+
+## Release 2.6.8 preparation — 2026-10-14
+
+- Incremented the shared application version and current-version documentation to
+  2.6.8 for the SQLite workflow parameter substitution fix.
+- Release validation: `dotnet test -m:1 --no-restore --configuration Release --filter
+  "Category!=Integration"` passed with 1,170 successful tests, one skipped and no failures.
+- Release publication uses `scripts/publish.ps1 -NoRestore` and the existing installation
+  under `%LOCALAPPDATA%\Programs\OD.MyLocalAgent`; the script preserves deployed
+  UI and Runner configuration files. The requested release tag is `V268`.
