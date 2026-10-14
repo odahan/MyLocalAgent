@@ -31,7 +31,7 @@ internal sealed class WebSearchConnector : IWebSearchConnector
         if (string.IsNullOrWhiteSpace(options.Provider))
         {
             throw new WebSearchNotConfiguredException(
-                "Web search is disabled. Open the Tools page and enable Web search (Ollama).");
+                "Web search is disabled. Open the Tools page and enable Web search.");
         }
 
         if (!_providers.TryGetValue(options.Provider, out var provider))

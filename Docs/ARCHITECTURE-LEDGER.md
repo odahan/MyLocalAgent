@@ -2766,3 +2766,34 @@ Application version: **2.6.6** (incremented from 2.6.5).
 - Documentation-only update to Stage 32, its shared-spec addendum and prompt index; no runtime,
   package, configuration, experiment, deployment or task change. Whitespace verification applies;
   build/test execution is unnecessary for this roadmap decision.
+
+## Tavily web-search provider — 2026-10-13
+
+- Added `TavilyWebSearchConnector` behind the existing `IWebSearchProvider` boundary.
+  Agent tools and workflows keep their existing normalized result and guardrails contracts.
+- Tools now offers an explicit Tavily/Ollama selector and a separate enable checkbox.
+  Fresh unconfigured installs prefer Tavily; existing enabled Ollama configurations are retained.
+  Provider changes are manual, with no automatic fallback. Tests require saved settings and
+  report the actual provider used.
+- Ollama retains `WebSearch:Endpoint` and the existing DPAPI `WebSearch:ApiKey` secret.
+  Tavily uses its own `WebSearch:TavilyEndpoint` and whitelisted DPAPI `WebSearch:TavilyApiKey`.
+  Disabling search retains `PreferredProvider`, both endpoints and both protected keys.
+- Tavily requests pin `search_depth=basic`, `auto_parameters=false`, `include_answer=false`
+  and `include_raw_content=false`. Connection tests also consume one search credit.
+- Validation: `dotnet test -m:1 --no-restore --filter "Category!=Integration"` passed with
+  1,167 successful tests, one skipped test and no failures. Added 16 deterministic cases for
+  the HTTP contract, registration/hot switching, safe failures, settings/secret preservation
+  and UI selection. Sandbox testhost startup stalled; execution outside isolation succeeded.
+  No live Tavily API request or visual WPF inspection was performed.
+
+## Production release 2.6.7 — 2026-10-13
+
+- Incremented the shared application version from 2.6.6 to 2.6.7 for Tavily search and
+  manual Tavily/Ollama provider selection; updated the current-version documentation.
+- Release validation: `dotnet test -m:1 --no-restore --configuration Release --filter
+  "Category!=Integration"` passed: 1,167 successful tests, one skipped, no failures.
+- Deployed with `scripts/publish.ps1 -NoRestore` to the existing production installation
+  `%LOCALAPPDATA%\Programs\OD.MyLocalAgent` (self-contained single-file, win-x64).
+  UI and Runner executable product versions both verified as 2.6.7. SHA-256 verification
+  confirmed both deployed appsettings.json files were preserved unchanged.
+- No live Tavily search, application launch, commit, push or tag was performed.

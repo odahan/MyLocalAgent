@@ -5,6 +5,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <Version>2.6.6</Version>
+    <Version>2.6.7</Version>
   </PropertyGroup>
 </Project>

@@ -1,6 +1,6 @@
 # Publish Script Explained
 
-Application version: **2.6.6**.
+Application version: **2.6.7**.
 
 Step-by-step breakdown of `scripts/publish.ps1`.
 

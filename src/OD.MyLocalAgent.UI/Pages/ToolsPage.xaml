@@ -129,7 +129,7 @@
                 <StackPanel>
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Style="{StaticResource SectionTitleStyle}"
-                                   Text="Web search (Ollama)" />
+                                   Text="Web search" />
                         <TextBlock Margin="10,3,0,0"
                                    Foreground="{DynamicResource WarningBrush}"
                                    FontWeight="SemiBold"
@@ -139,8 +139,16 @@
                                Style="{StaticResource CaptionTextStyle}"
                                Text="Disabled by default. The API key is write-only here and stored exclusively with Windows DPAPI." />
 
-                    <CheckBox Content="Enable Ollama Web Search"
+                    <CheckBox Content="Enable web search"
                               IsChecked="{Binding IsWebSearchEnabled}" />
+
+                    <ComboBox Margin="0,14,0,0"
+                              ItemsSource="{Binding WebSearchProviders}"
+                              SelectedItem="{Binding WebSearchProvider, Mode=TwoWay}"
+                              materialDesign:HintAssist.Hint="Provider" />
+                    <TextBlock Margin="0,6,0,0" TextWrapping="Wrap"
+                               Style="{StaticResource CaptionTextStyle}"
+                               Text="Tavily uses Basic search (1 credit per request). Each provider keeps its own credentials. Save before testing; tests perform a search and consume a Tavily credit. Provider changes are manual." />
 
                     <TextBox Margin="0,14,0,0"
                              Text="{Binding WebSearchEndpoint, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -153,7 +161,7 @@
                     <PasswordBox Margin="0,14,0,0"
                                  behaviors:PasswordBoxBinding.Attach="True"
                                  behaviors:PasswordBoxBinding.Password="{Binding WebSearchApiKeyReplacement, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                 materialDesign:HintAssist.Hint="Replace Ollama Web Search API key" />
+                                 materialDesign:HintAssist.Hint="Replace selected provider API key" />
                     <TextBlock Margin="0,8,0,0"
                                Text="{Binding WebSearchMaskedStatus}" />
 

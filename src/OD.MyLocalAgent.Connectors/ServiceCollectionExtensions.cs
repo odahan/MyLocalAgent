@@ -57,6 +57,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ICalendarConnector, CalendarConnector>();
         services.AddSingleton<IDropboxConnector, DropboxConnector>();
         services.AddSingleton<IWebSearchProvider, OllamaWebSearchConnector>();
+        services.AddSingleton<IWebSearchProvider, TavilyWebSearchConnector>();
         services.AddSingleton<IWebSearchConnector, WebSearchConnector>();
         return services;
     }

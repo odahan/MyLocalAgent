@@ -21,9 +21,11 @@ public interface IUserSettingsService
     /// <param name="endpoint">The absolute provider endpoint.</param>
     /// <param name="replacementApiKey">The optional replacement API key.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <param name="enabled">Whether the selected provider is enabled.</param>
     Task SaveWebSearchAsync(
         string provider,
         string endpoint,
         string? replacementApiKey,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        bool enabled = true);
 }

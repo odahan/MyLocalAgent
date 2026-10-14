@@ -15,18 +15,30 @@ public sealed record WebSearchOptions
     /// </summary>
     public const string OllamaProvider = "Ollama";
 
+    /// <summary>Gets the Tavily provider name.</summary>
+    public const string TavilyProvider = "Tavily";
+
+    /// <summary>Gets the provider retained while search is disabled.</summary>
+    public string PreferredProvider { get; init; } = TavilyProvider;
+
+    /// <summary>Gets the independent Tavily search endpoint.</summary>
+    public string TavilyEndpoint { get; init; } = "https://api.tavily.com/search";
+
+    /// <summary>Gets the Tavily key supplied through the protected secret pipeline.</summary>
+    public string? TavilyApiKey { get; init; }
+
     /// <summary>
     /// Gets or initializes the selected provider, or an empty value when disabled.
     /// </summary>
     public string Provider { get; init; } = string.Empty;
 
     /// <summary>
-    /// Gets or initializes the provider endpoint.
+    /// Gets or initializes the Ollama endpoint, retaining the legacy configuration key.
     /// </summary>
     public string Endpoint { get; init; } = "https://ollama.com/api/web_search";
 
     /// <summary>
-    /// Gets or initializes the API key supplied through the protected secret pipeline.
+    /// Gets or initializes the Ollama API key supplied through the protected secret pipeline.
     /// </summary>
     public string? ApiKey { get; init; }
 

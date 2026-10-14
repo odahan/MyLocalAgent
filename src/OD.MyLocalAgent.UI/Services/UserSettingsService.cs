@@ -146,7 +146,8 @@ internal sealed class UserSettingsService : IUserSettingsService
         string provider,
         string endpoint,
         string? replacementApiKey,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool enabled = true)
     {
         ValidateWebSearch(provider, endpoint);
         await _saveLock.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -156,25 +157,40 @@ internal sealed class UserSettingsService : IUserSettingsService
                 .ConfigureAwait(false);
             var webSearch = document[WebSearchOptions.SectionName] as JsonObject
                 ?? new JsonObject();
-            webSearch[nameof(WebSearchOptions.Provider)] = provider;
-            webSearch[nameof(WebSearchOptions.Endpoint)] = endpoint.Trim();
+            var endpointProperty = provider == WebSearchOptions.TavilyProvider
+                ? nameof(WebSearchOptions.TavilyEndpoint)
+                : nameof(WebSearchOptions.Endpoint);
+            var secretKey = provider == WebSearchOptions.TavilyProvider
+                ? SecretKeys.TavilyApiKey
+                : SecretKeys.WebSearchApiKey;
+            var activeProvider = enabled ? provider : string.Empty;
+            webSearch[nameof(WebSearchOptions.Provider)] = activeProvider;
+            if (!string.IsNullOrEmpty(provider))
+            {
+                webSearch[nameof(WebSearchOptions.PreferredProvider)] = provider;
+            }
+            webSearch[endpointProperty] = endpoint.Trim();
             document[WebSearchOptions.SectionName] = webSearch;
             await WriteDocumentAsync(document, cancellationToken)
                 .ConfigureAwait(false);
 
-            _configuration[$"{WebSearchOptions.SectionName}:Provider"] = provider;
-            _configuration[$"{WebSearchOptions.SectionName}:Endpoint"] =
+            _configuration[$"{WebSearchOptions.SectionName}:Provider"] = activeProvider;
+            if (!string.IsNullOrEmpty(provider))
+            {
+                _configuration[$"{WebSearchOptions.SectionName}:PreferredProvider"] = provider;
+            }
+            _configuration[$"{WebSearchOptions.SectionName}:{endpointProperty}"] =
                 endpoint.Trim();
             if (!string.IsNullOrWhiteSpace(replacementApiKey))
             {
                 var apiKey = replacementApiKey.Trim();
                 await _secretStore
                     .SetAsync(
-                        SecretKeys.WebSearchApiKey,
+                        secretKey,
                         apiKey,
                         cancellationToken)
                     .ConfigureAwait(false);
-                _configuration[SecretKeys.WebSearchApiKey] = apiKey;
+                _configuration[secretKey] = apiKey;
             }
 
             ReloadConfiguration();
@@ -594,7 +610,7 @@ internal sealed class UserSettingsService : IUserSettingsService
         string provider,
         string endpoint)
     {
-        if (provider is not ("" or WebSearchOptions.OllamaProvider))
+        if (provider is not ("" or WebSearchOptions.OllamaProvider or WebSearchOptions.TavilyProvider))
         {
             throw new InvalidOperationException(
                 "Select a supported Web Search provider.");

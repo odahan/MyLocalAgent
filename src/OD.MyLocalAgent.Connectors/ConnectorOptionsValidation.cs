@@ -32,9 +32,14 @@ internal static class ConnectorOptionsValidation
 
     public static string? ValidateWebSearch(WebSearchOptions options)
     {
-        if (options.Provider is not ("" or WebSearchOptions.OllamaProvider))
+        if (options.Provider is not ("" or WebSearchOptions.OllamaProvider or WebSearchOptions.TavilyProvider))
         {
             return $"WebSearch:Provider '{options.Provider}' is not supported.";
+        }
+
+        if (options.PreferredProvider is not (WebSearchOptions.OllamaProvider or WebSearchOptions.TavilyProvider))
+        {
+            return "WebSearch:PreferredProvider is not supported.";
         }
 
         if (options.MaxResultsCap < 1 ||
@@ -50,7 +55,7 @@ internal static class ConnectorOptionsValidation
         }
 
         if (!string.IsNullOrWhiteSpace(options.Provider) &&
-            (!Uri.TryCreate(options.Endpoint, UriKind.Absolute, out var endpoint) ||
+            (!Uri.TryCreate(options.Provider == WebSearchOptions.TavilyProvider ? options.TavilyEndpoint : options.Endpoint, UriKind.Absolute, out var endpoint) ||
              endpoint.Scheme is not ("http" or "https")))
         {
             return "WebSearch:Endpoint must be an absolute HTTP or HTTPS URL.";

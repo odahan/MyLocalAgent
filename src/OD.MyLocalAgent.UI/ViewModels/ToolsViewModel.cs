@@ -85,9 +85,43 @@ public sealed partial class ToolsViewModel :
     [ObservableProperty]
     private bool _isWebSearchEnabled;
 
+    /// <summary>Gets the available web-search providers.</summary>
+    public IReadOnlyList<string> WebSearchProviders { get; } =
+        [WebSearchOptions.TavilyProvider, WebSearchOptions.OllamaProvider];
+
+    private readonly Dictionary<string, string> _webSearchEndpoints = new();
+    private readonly Dictionary<string, bool> _webSearchKeyStatuses = new();
+
+    [ObservableProperty]
+    private string _webSearchProvider = WebSearchOptions.TavilyProvider;
+
+    partial void OnWebSearchProviderChanging(string value)
+    {
+        _webSearchEndpoints[WebSearchProvider] = WebSearchEndpoint;
+    }
+
+    partial void OnWebSearchProviderChanged(string value)
+    {
+        var options = _webSearchOptions.CurrentValue;
+        WebSearchEndpoint = _webSearchEndpoints.GetValueOrDefault(value)
+            ?? (value == WebSearchOptions.TavilyProvider ? options.TavilyEndpoint : options.Endpoint);
+        WebSearchApiKeyReplacement = string.Empty;
+        UpdateWebSearchKeyStatus();
+        WebSearchTestState = "Unknown";
+        WebSearchTestStatus = "Not tested";
+    }
+
+    private void UpdateWebSearchKeyStatus()
+    {
+        IsWebSearchConfigured = _webSearchKeyStatuses.GetValueOrDefault(WebSearchProvider);
+        WebSearchMaskedStatus = IsWebSearchConfigured
+            ? $"{WebSearchProvider}: configured · •••••••• · stored with Windows DPAPI"
+            : $"{WebSearchProvider}: not configured · add an API key.";
+    }
+
     [ObservableProperty]
     private string _webSearchEndpoint =
-        "https://ollama.com/api/web_search";
+        "https://api.tavily.com/search";
 
     [ObservableProperty]
     private string _webSearchApiKeyReplacement = string.Empty;
@@ -196,19 +230,17 @@ public sealed partial class ToolsViewModel :
                 : "Not configured · enter an access token, or refresh token and app key.";
 
             var webSearch = _webSearchOptions.CurrentValue;
-            IsWebSearchEnabled = string.Equals(
-                webSearch.Provider,
-                WebSearchOptions.OllamaProvider,
-                StringComparison.OrdinalIgnoreCase);
-            WebSearchEndpoint = webSearch.Endpoint;
-            IsWebSearchConfigured = await _secretStore
-                .ExistsAsync(
-                    SecretKeys.WebSearchApiKey,
-                    cancellationToken)
-                .ConfigureAwait(true);
-            WebSearchMaskedStatus = IsWebSearchConfigured
-                ? "Configured: yes · •••••••• · stored with Windows DPAPI"
-                : "Configured: no · add an Ollama Web Search API key.";
+            IsWebSearchEnabled = !string.IsNullOrWhiteSpace(webSearch.Provider);
+            _webSearchKeyStatuses[WebSearchOptions.OllamaProvider] = await _secretStore
+                .ExistsAsync(SecretKeys.WebSearchApiKey, cancellationToken).ConfigureAwait(true);
+            _webSearchKeyStatuses[WebSearchOptions.TavilyProvider] = await _secretStore
+                .ExistsAsync(SecretKeys.TavilyApiKey, cancellationToken).ConfigureAwait(true);
+            WebSearchProvider = IsWebSearchEnabled ? webSearch.Provider : webSearch.PreferredProvider;
+            _webSearchEndpoints.Clear();
+            _webSearchEndpoints[WebSearchOptions.OllamaProvider] = webSearch.Endpoint;
+            _webSearchEndpoints[WebSearchOptions.TavilyProvider] = webSearch.TavilyEndpoint;
+            WebSearchEndpoint = _webSearchEndpoints[WebSearchProvider];
+            UpdateWebSearchKeyStatus();
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -413,15 +445,13 @@ public sealed partial class ToolsViewModel :
         IsBusy = true;
         try
         {
-            var provider = IsWebSearchEnabled
-                ? WebSearchOptions.OllamaProvider
-                : string.Empty;
             await _userSettingsService
                 .SaveWebSearchAsync(
-                    provider,
+                    WebSearchProvider,
                     WebSearchEndpoint,
                     WebSearchApiKeyReplacement,
-                    cancellationToken)
+                    cancellationToken,
+                    IsWebSearchEnabled)
                 .ConfigureAwait(true);
             WebSearchApiKeyReplacement = string.Empty;
             WebSearchTestState = "Unknown";
@@ -450,20 +480,27 @@ public sealed partial class ToolsViewModel :
     private async Task TestWebSearchAsync(CancellationToken cancellationToken)
     {
         WebSearchTestState = "Checking";
-        WebSearchTestStatus = "Testing Ollama Web Search cloud access…";
+        WebSearchTestStatus = $"Testing {WebSearchProvider} Web Search cloud access…";
         var started = _timeProvider.GetTimestamp();
         try
         {
             var options = _webSearchOptions.CurrentValue;
+            var savedEndpoint = options.Provider == WebSearchOptions.TavilyProvider
+                ? options.TavilyEndpoint : options.Endpoint;
+            if (!IsWebSearchEnabled || options.Provider != WebSearchProvider ||
+                savedEndpoint != WebSearchEndpoint.Trim() || !string.IsNullOrWhiteSpace(WebSearchApiKeyReplacement))
+            {
+                throw new ConnectorConfigurationException("Enable Web Search and save the selected provider, endpoint and key before testing.");
+            }
             var result = await _webSearchConnector
                 .SearchAsync(
-                    "ollama web search",
+                    "web search documentation",
                     options.DefaultMaxResults,
                     cancellationToken)
                 .ConfigureAwait(true);
             WebSearchTestState = "Healthy";
             WebSearchTestStatus =
-                $"Connected · {ElapsedMilliseconds(started):F0} ms · {result.Items.Count} result(s).";
+                $"{result.Provider}: connected · {ElapsedMilliseconds(started):F0} ms · {result.Items.Count} result(s).";
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

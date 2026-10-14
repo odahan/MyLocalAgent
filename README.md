@@ -1,6 +1,6 @@
 # OD.MyLocalAgent
 
-Current application release: **2.6.6**.
+Current application release: **2.6.7**.
 
 OD.MyLocalAgent is a native Windows desktop application for running scheduled, AI-driven
 tasks locally. It combines a WPF management UI, a headless runner, Ollama, deterministic
@@ -117,7 +117,7 @@ On first launch:
 2. Select **Test connection**. A healthy result requires a reachable active endpoint and the
    exact configured model identifier.
 3. Open **Tools** to authorize Google, store Dropbox credentials, or explicitly enable the
-   Ollama cloud Web Search provider when those integrations are needed.
+   Tavily or Ollama cloud Web Search provider when those integrations are needed.
 4. Create a task. Prefer an explicit workflow for unattended execution.
 
 The default `Settings -> Scheduler:RunnerPath` value is empty. This is intentional:
@@ -304,8 +304,17 @@ and Direct Chat location pickers also refuse to authorize the directory explicit
 attribute is only a visual safeguard; the managed-tool path policy is the enforcement boundary.
 
 The DPAPI keys are `OpenAI:ApiKey`, `Dropbox:AccessToken`, `Dropbox:RefreshToken`,
-`Dropbox:AppKey`, and `WebSearch:ApiKey`. They must not be added to either JSON configuration
+`Dropbox:AppKey`, `WebSearch:ApiKey` (Ollama), and `WebSearch:TavilyApiKey`. They must not be added to either JSON configuration
 file.
+
+Web search is configured on the **Tools** page. Enable search, choose **Tavily** or **Ollama**,
+enter the selected provider's API key, and save before testing the connection. Tavily is the
+initial selection for an unconfigured installation; existing Ollama configurations are retained.
+Switching providers is manual. Each provider keeps its own endpoint and DPAPI-protected key,
+including while search is disabled. `WebSearch:Endpoint` and `WebSearch:ApiKey` retain their
+existing Ollama meaning; Tavily uses `WebSearch:TavilyEndpoint` and `WebSearch:TavilyApiKey`.
+Tavily requests explicitly use Basic search with automatic parameters disabled (one credit per
+search). Connection tests also perform a search and consume one Tavily credit.
 
 ## Project-wide AI instructions
 

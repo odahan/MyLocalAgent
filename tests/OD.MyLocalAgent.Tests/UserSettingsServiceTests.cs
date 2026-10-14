@@ -17,6 +17,42 @@ namespace OD.MyLocalAgent.Tests;
 /// </summary>
 public sealed class UserSettingsServiceTests : IDisposable
 {
+    /// <summary>Verifies switching and disabling search preserve independent provider settings and secrets.</summary>
+    [Fact]
+    public async Task ProviderSwitchPreservesEndpointsAndProtectedKeys()
+    {
+        Directory.CreateDirectory(_directoryPath);
+        var settingsPath = Path.Combine(_directoryPath, "settings.json");
+        var configuration = new ConfigurationBuilder()
+            .AddJsonFile(settingsPath, optional: true, reloadOnChange: false)
+            .AddInMemoryCollection()
+            .Build();
+        var secrets = new Mock<ISecretStore>(MockBehavior.Strict);
+        secrets.Setup(store => store.SetAsync(SecretKeys.WebSearchApiKey, "ollama-secret", It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        secrets.Setup(store => store.SetAsync(SecretKeys.TavilyApiKey, "tavily-secret", It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        var service = new UserSettingsService(configuration, secrets.Object, settingsPath);
+
+        await service.SaveWebSearchAsync("Ollama", "https://ollama.example/search", "ollama-secret", CancellationToken.None);
+        await service.SaveWebSearchAsync("Tavily", "https://tavily.example/search", "tavily-secret", CancellationToken.None);
+        await service.SaveWebSearchAsync("Ollama", "https://ollama.example/search", null, CancellationToken.None);
+        await service.SaveWebSearchAsync("Tavily", "https://tavily.example/search", null, CancellationToken.None, enabled: false);
+
+        var json = await File.ReadAllTextAsync(settingsPath);
+        json.Should().NotContain("ollama-secret").And.NotContain("tavily-secret").And.NotContain("ApiKey");
+        using var document = JsonDocument.Parse(json);
+        var options = document.RootElement.GetProperty("WebSearch");
+        options.GetProperty("Provider").GetString().Should().BeEmpty();
+        options.GetProperty("PreferredProvider").GetString().Should().Be("Tavily");
+        options.GetProperty("Endpoint").GetString().Should().Be("https://ollama.example/search");
+        options.GetProperty("TavilyEndpoint").GetString().Should().Be("https://tavily.example/search");
+        configuration[SecretKeys.WebSearchApiKey].Should().Be("ollama-secret");
+        configuration[SecretKeys.TavilyApiKey].Should().Be("tavily-secret");
+        secrets.Verify(store => store.SetAsync(SecretKeys.WebSearchApiKey, "ollama-secret", It.IsAny<CancellationToken>()), Times.Once);
+        secrets.Verify(store => store.SetAsync(SecretKeys.TavilyApiKey, "tavily-secret", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     private readonly string _directoryPath =
         Path.Combine(
             Path.GetTempPath(),
