@@ -1,6 +1,6 @@
 # What's Where
 
-Application version: **2.6.9**.
+Application version: **2.6.10**.
 
 All file and folder locations used by OD.MyLocalAgent after deployment.
 
