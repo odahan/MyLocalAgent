@@ -2,7 +2,8 @@
 param(
     [Parameter(Mandatory)] [string]$TaskPath,
     [Parameter(Mandatory)] [string]$ContextPath,
-    [Parameter(Mandatory)] [string]$RunnerPath
+    [Parameter(Mandatory)] [string]$RunnerPath,
+    [string]$OutputPath = ''
 )
 
 Set-StrictMode -Version Latest
@@ -16,6 +17,7 @@ if (-not $article.markdown -or -not $source.canonicalUrl) { throw 'No completed 
 $validator = $task.workflow | Where-Object id -EQ 'validateBlogArticle'
 $export = $task.workflow | Where-Object id -EQ 'export'
 $store = $task.workflow | Where-Object id -EQ 'storeBlogProposal'
+if (-not [string]::IsNullOrWhiteSpace($OutputPath)) { $export.args.path = $OutputPath }
 $validator.args.articleJson = $article | ConvertTo-Json -Depth 100 -Compress
 $validator.args.sourceUrl = $source.canonicalUrl
 $store.args.sourceUrl = $source.canonicalUrl
@@ -25,11 +27,13 @@ try {
     [IO.File]::WriteAllText($recoveryPath, ($task | ConvertTo-Json -Depth 100), [Text.UTF8Encoding]::new($false))
     if ([IO.Path]::GetExtension($RunnerPath) -eq '.dll') {
         & dotnet $RunnerPath run --task $task.id
+        $runnerExitCode = $LASTEXITCODE
     }
     else {
-        & $RunnerPath run --task $task.id
+        $runnerProcess = Start-Process -FilePath $RunnerPath -ArgumentList @('run', '--task', $task.id) -WindowStyle Hidden -Wait -PassThru
+        $runnerExitCode = $runnerProcess.ExitCode
     }
-    if ($LASTEXITCODE -ne 0) { throw "Editorial export recovery failed with exit code $LASTEXITCODE." }
+    if ($runnerExitCode -ne 0) { throw "Editorial export recovery failed with exit code $runnerExitCode." }
 }
 finally {
     [IO.File]::WriteAllText($recoveryPath, $originalTaskText, [Text.UTF8Encoding]::new($false))

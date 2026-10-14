@@ -25,11 +25,13 @@ try {
     [IO.File]::WriteAllText($resolvedTaskPath, ($task | ConvertTo-Json -Depth 100), [Text.UTF8Encoding]::new($false))
     if ([IO.Path]::GetExtension($RunnerPath) -eq '.dll') {
         & dotnet $RunnerPath run --task $task.id
+        $runnerExitCode = $LASTEXITCODE
     }
     else {
-        & $RunnerPath run --task $task.id
+        $runnerProcess = Start-Process -FilePath $RunnerPath -ArgumentList @('run', '--task', $task.id) -WindowStyle Hidden -Wait -PassThru
+        $runnerExitCode = $runnerProcess.ExitCode
     }
-    if ($LASTEXITCODE -ne 0) { throw "Editorial drafting recovery failed with exit code $LASTEXITCODE." }
+    if ($runnerExitCode -ne 0) { throw "Editorial drafting recovery failed with exit code $runnerExitCode." }
 }
 finally {
     [IO.File]::WriteAllText($resolvedTaskPath, $originalTaskText, [Text.UTF8Encoding]::new($false))

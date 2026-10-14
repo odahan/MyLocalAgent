@@ -2852,3 +2852,19 @@ Application version: **2.6.6** (incremented from 2.6.5).
   A subsequent cached-discovery replay also completed all six steps from source
   preparation through drafting, validation, export and memory storage with status Success
   in approximately 32 seconds and no search calls.
+
+### Installed Runner and recovery script verification
+
+- The installed 2.6.9 Runner also completed the complete live Sunday workflow with
+  status Success, including all ten collection-to-storage steps, in approximately
+  110 seconds. This validation made twelve search requests in addition to the eight
+  requests from the initial validation; saved-data replays made none.
+- Corrected the recovery helpers to wait explicitly for the published WinExe with
+  `Start-Process -WindowStyle Hidden -Wait -PassThru` before restoring the original
+  task file. Direct PowerShell invocation had returned early, unexpectedly causing
+  a complete live run rather than the intended export-only recovery.
+- Export recovery can now choose an alternate output path. Verified with the
+  installed Runner: the longer preserved Azure article was exported separately,
+  the new C# Dev Kit article was retained, no search was performed, and the complete
+  task definition was restored. Runtime binaries and the V269 release tag remain
+  those of the already published application commit; this follow-up fixes helper scripts.
