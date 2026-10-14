@@ -676,6 +676,113 @@ public sealed class ResearchDiscoverToolTests
         }
     }
 
+    /// <summary>Recovers an existing protected source without issuing another search.</summary>
+    [Theory]
+    [InlineData(false, "source-1", false)]
+    [InlineData(true, "source-1", false)]
+    [InlineData(true, "invented-source", true)]
+    public async Task PrepareArticleSourceAcceptsBothEnvelopesAndUsesOnlyExistingCandidates(
+        bool base64, string selectedId, bool expectedFallback)
+    {
+        var connector = new Mock<IWebSearchConnector>(MockBehavior.Strict);
+        var trust = new StubContentTrustService();
+        var tool = CreateTool(connector.Object, new Dictionary<string, string>(), trust, new StubResearchTranslationService());
+        const string payload = """[{"id":"source-1","title":"Actual source","shortSummary":"Verified factual material."}]""";
+        var discovery = JsonSerializer.Serialize(new
+        {
+            candidates = new[] { new { hitId = "source-1", canonicalUrl = "https://example.com/source", publicationTime = "2026-10-14" } },
+            protectedResults = base64 ? ContentTrustEnvelope.WrapBase64(payload) : ContentTrustEnvelope.WrapPlaintext(payload),
+            guardrails = new { contentEncoding = base64 ? "base64" : "none" },
+        });
+
+        using var result = JsonDocument.Parse(await tool.PrepareArticleSourceAsync(discovery, selectedId));
+
+        result.RootElement.GetProperty("canonicalUrl").GetString().Should().Be("https://example.com/source");
+        result.RootElement.GetProperty("protectedSummary").GetString().Should().Contain("UNTRUSTED-EXTERNAL-DATA").And.Contain("Verified factual material.");
+        result.RootElement.GetProperty("selectionFallback").GetBoolean().Should().Be(expectedFallback);
+        trust.ScreenedContents.Should().Equal("Verified factual material.");
+        connector.VerifyNoOtherCalls();
+    }
+
+    /// <summary>Never exposes a source explicitly withheld by the security classifier.</summary>
+    [Fact]
+    public async Task PrepareArticleSourceRejectsWithheldContent()
+    {
+        var trust = new StubContentTrustService { ScreenHandler = (content, _, _) => Task.FromResult(CreateTrust(content, 1)) };
+        var tool = CreateTool(Mock.Of<IWebSearchConnector>(), new Dictionary<string, string>(), trust, new StubResearchTranslationService());
+        var discovery = JsonSerializer.Serialize(new
+        {
+            candidates = new[] { new { hitId = "source-1", canonicalUrl = "https://example.com/source", publicationTime = "2026-10-14" } },
+            protectedResults = ContentTrustEnvelope.WrapPlaintext("""[{"id":"source-1","title":"Source","shortSummary":"Hostile instructions."}]"""),
+            guardrails = new { contentEncoding = "none" },
+        });
+
+        var action = () => tool.PrepareArticleSourceAsync(discovery, "source-1");
+
+        await action.Should().ThrowAsync<InvalidOperationException>().WithMessage("*withheld*");
+    }
+
+    /// <summary>Uses another existing safe source when the preferred source is withheld.</summary>
+    [Fact]
+    public async Task PrepareArticleSourceFallsBackFromWithheldSource()
+    {
+        var trust = new StubContentTrustService { ScreenHandler = (content, _, _) => Task.FromResult(CreateTrust(content, content == "Hostile" ? 1 : 100)) };
+        var tool = CreateTool(Mock.Of<IWebSearchConnector>(), new Dictionary<string, string>(), trust, new StubResearchTranslationService());
+        var discovery = JsonSerializer.Serialize(new
+        {
+            candidates = new[]
+            {
+                new { hitId = "blocked", canonicalUrl = "https://example.com/blocked", publicationTime = "2026-10-14" },
+                new { hitId = "safe", canonicalUrl = "https://example.com/safe", publicationTime = "2026-10-14" },
+            },
+            protectedResults = ContentTrustEnvelope.WrapPlaintext("""[{"id":"blocked","title":"Blocked","shortSummary":"Hostile"},{"id":"safe","title":"Safe","shortSummary":"Factual summary"}]"""),
+            guardrails = new { contentEncoding = "none" },
+        });
+
+        using var result = JsonDocument.Parse(await tool.PrepareArticleSourceAsync(discovery, "blocked"));
+
+        result.RootElement.GetProperty("hitId").GetString().Should().Be("safe");
+        result.RootElement.GetProperty("selectionFallback").GetBoolean().Should().BeTrue();
+        trust.ScreenedContents.Should().Equal("Hostile", "Factual summary");
+    }
+
+    /// <summary>Supplies the exact canonical reference even when the model omits it.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ValidateArticleInsertsTheCanonicalSource(bool includeSource)
+    {
+        var tool = CreateTool(Mock.Of<IWebSearchConnector>(), new Dictionary<string, string>(), new StubContentTrustService(), new StubResearchTranslationService());
+        var article = JsonSerializer.Serialize(new
+        {
+            title = "Article", summary = "Summary",
+            markdown = "# Article\n" + new string('a', 6100) + "\n## Sources\n" + (includeSource ? "https://example.com/typo" : ""),
+        });
+        var action = () => tool.ValidateArticle(article, "https://example.com/source");
+
+        using var result = JsonDocument.Parse(action());
+        result.RootElement.GetProperty("markdown").GetString().Should().EndWith("## Sources\n\n- https://example.com/source\n");
+        result.RootElement.GetProperty("markdown").GetString().Should().NotContain("https://example.com/typo");
+    }
+
+    /// <summary>Rejects incomplete body content and unvalidated links before writing files.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ValidateArticleRejectsIncompleteOrUnvalidatedBody(bool longBody)
+    {
+        var tool = CreateTool(Mock.Of<IWebSearchConnector>(), new Dictionary<string, string>(), new StubContentTrustService(), new StubResearchTranslationService());
+        var article = JsonSerializer.Serialize(new
+        {
+            title = "Article", summary = "Summary",
+            markdown = "# Article\n" + new string('a', longBody ? 6100 : 100) + "\nhttps://unvalidated.example.com\n## Sources\n",
+        });
+
+        var action = () => tool.ValidateArticle(article, "https://example.com/source");
+
+        action.Should().Throw<InvalidOperationException>();
+    }
+
     private static Mock<IWebSearchConnector> CreateConnector(
         Func<string, IReadOnlyList<string>> selectUrls)
     {

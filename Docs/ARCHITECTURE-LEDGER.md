@@ -2821,3 +2821,34 @@ Application version: **2.6.6** (incremented from 2.6.5).
 - Release publication uses `scripts/publish.ps1 -NoRestore` and the existing installation
   under `%LOCALAPPDATA%\Programs\OD.MyLocalAgent`; the script preserves deployed
   UI and Runner configuration files. The requested release tag is `V268`.
+
+## Editorial pipeline reliability — 2.6.9 — 2026-10-14
+
+- Guardrails now request provider-enforced JSON schemas for individual and batch
+  screening and summarization. Parsing, exact batch-id checks and trust thresholds
+  remain enforced. No screening option was disabled.
+- Added `research.prepareArticleSource` to resolve a discovered candidate from its
+  matching nonce-bound plaintext or Base64 envelope without another web search.
+  Source summaries retain the mandatory trust envelope; withheld sources are rejected.
+  An invalid or withheld preferred source falls back to an existing eligible candidate, with explicit
+  `selectionFallback` metadata. The resolved source defines the drafting topic.
+- Added `research.validateArticle` to require substantial Markdown, reject unvalidated
+  body links, normalize escaped newlines and insert the exact canonical source footer.
+  A mistyped generated reference no longer prevents exporting a complete article.
+- `scripts/repair-editorial-sunday.ps1` backs up and migrates the existing Sunday task:
+  discovery is saved to a daily cache, intermediate source/validation SQL is removed,
+  and export and proposal storage consume validated output. The previous silent
+  end branch on article validation is removed. `scripts/resume-editorial-export.ps1`
+  resumes an existing draft without another search or generation, then restores the
+  complete task definition. `scripts/resume-editorial-draft.ps1` can restart preparation
+  and drafting from the discovery cache without any web search.
+- Release validation passed: 1,179 successful non-integration tests, one skipped,
+  no failures. Live validation used eight search queries, returned six candidates
+  with no proposal-history exclusions, and successfully screened the source.
+  The preserved draft was exported and inserted into SundayProposal.db after its
+  generated URL typo was corrected deterministically. The output has 9,017 characters
+  and approximately 1,311 whitespace-delimited words; it is below the prompt's
+  aspirational 1,500–2,500-word target. The recovery run used no search or drafting call.
+  A subsequent cached-discovery replay also completed all six steps from source
+  preparation through drafting, validation, export and memory storage with status Success
+  in approximately 32 seconds and no search calls.

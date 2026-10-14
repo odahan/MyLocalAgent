@@ -1433,7 +1433,7 @@ public sealed class ContentTrustService : IContentTrustService
                     {
                         Tools = null,
                         MaxOutputTokens = maxOutputTokens,
-                        ResponseFormat = ChatResponseFormat.Json,
+                        ResponseFormat = GuardrailResponseSchemas.Resolve(systemPrompt),
                     },
                     linkedSource.Token)
                 .ConfigureAwait(false);

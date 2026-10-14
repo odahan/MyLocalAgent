@@ -181,6 +181,134 @@ public sealed class ResearchDiscoverTool : IResearchDiscoverTool
             SummarizeResult);
     }
 
+    /// <summary>Prepares one existing discovery source without another search or a SQL intermediary.</summary>
+    [Tool("research.prepareArticleSource", "Resolves one discovered source and preserves its mandatory trust envelope for article drafting.", 1300)]
+    public async Task<string> PrepareArticleSourceAsync(
+        [ToolArgument(WorkflowArgumentKind.String, "Complete JSON output from research.discover.", IsLongText = true, Example = "{{discoverWeek.output}}")] string discoveryJson,
+        [ToolArgument(WorkflowArgumentKind.String, "Preferred discovered source identifier.", Example = "{{selectBlogTopic.output.primarySourceId}}")] string sourceId,
+        CancellationToken cancellationToken = default)
+    {
+        using var discovery = JsonDocument.Parse(discoveryJson);
+        var root = discovery.RootElement;
+        var protectedResults = root.GetProperty("protectedResults").GetString()
+            ?? throw new InvalidOperationException("Discovery has no source payload.");
+        var encoding = root.GetProperty("guardrails").GetProperty("contentEncoding").GetString();
+        var startMarker = encoding == "base64"
+            ? "<<<UNTRUSTED-EXTERNAL-DATA-BASE64 "
+            : "<<<UNTRUSTED-EXTERNAL-DATA ";
+        var start = protectedResults.IndexOf(startMarker, StringComparison.Ordinal);
+        if (start < 0)
+        {
+            throw new InvalidOperationException("Discovery sources were withheld or have an invalid envelope.");
+        }
+
+        var markerEnd = protectedResults.IndexOf(">>>", start, StringComparison.Ordinal);
+        if (markerEnd < 0)
+        {
+            throw new InvalidOperationException("Discovery source envelope is incomplete.");
+        }
+
+        var nonce = protectedResults[(start + startMarker.Length)..markerEnd];
+        var endMarker = encoding == "base64"
+            ? $"<<<END-UNTRUSTED-EXTERNAL-DATA-BASE64 {nonce}>>>"
+            : $"<<<END-UNTRUSTED-EXTERNAL-DATA {nonce}>>>";
+        var end = protectedResults.IndexOf(endMarker, markerEnd + 3, StringComparison.Ordinal);
+        if (end < 0)
+        {
+            throw new InvalidOperationException("Discovery source envelope has no matching end marker.");
+        }
+
+        var payload = protectedResults[(markerEnd + 3)..end].Trim();
+        if (encoding == "base64")
+        {
+            payload = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(payload));
+        }
+        else if (encoding != "none")
+        {
+            throw new InvalidOperationException("Discovery source encoding is unsupported.");
+        }
+
+        using var content = JsonDocument.Parse(payload);
+        var sources = (from candidate in root.GetProperty("candidates").EnumerateArray()
+                       from item in content.RootElement.EnumerateArray()
+                       where candidate.GetProperty("hitId").GetString() == item.GetProperty("id").GetString()
+                       let url = candidate.GetProperty("canonicalUrl").GetString()
+                       let summary = item.GetProperty("shortSummary").GetString()
+                       where Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+                             uri.Scheme is "http" or "https" && !string.IsNullOrWhiteSpace(summary)
+                       select (Candidate: candidate, Item: item, Url: url!, Summary: summary!)).ToArray();
+        if (sources.Length == 0)
+        {
+            throw new InvalidOperationException("Discovery contains no usable source with a canonical URL and factual summary.");
+        }
+
+        var chosenIndex = Array.FindIndex(sources, source => source.Candidate.GetProperty("hitId").GetString() == sourceId);
+        foreach (var index in Enumerable.Range(0, sources.Length).OrderBy(index => index == chosenIndex ? 0 : 1))
+        {
+            var source = sources[index];
+            var trust = await ScreenWithFallbackAsync(source.Summary, "research.prepareArticleSource", cancellationToken)
+                .ConfigureAwait(false);
+            if (ContentTrustPolicy.Decide(trust, _guardrailsOptions.CurrentValue) == TrustDisposition.Withhold)
+            {
+                continue;
+            }
+
+            var delivery = GuardrailDelivery.Apply(source.Summary, trust, _guardrailsOptions.CurrentValue);
+            return JsonSerializer.Serialize(new
+            {
+                hitId = source.Candidate.GetProperty("hitId").GetString(),
+                canonicalUrl = source.Url,
+                title = source.Item.GetProperty("title").GetString(),
+                publicationTime = source.Candidate.GetProperty("publicationTime"),
+                protectedSummary = delivery.Content,
+                contentEncoding = delivery.ContentEncoding,
+                trustStatus = trust.Status.ToString(),
+                selectionFallback = index != chosenIndex,
+            });
+        }
+
+        throw new InvalidOperationException("All available article sources were withheld by Guardrails.");
+    }
+
+    /// <summary>Rejects incomplete articles before export and returns their validated content.</summary>
+    [Tool("research.validateArticle", "Validates a complete Markdown article and its discovered source URL before export.", 1400)]
+    public string ValidateArticle(
+        [ToolArgument(WorkflowArgumentKind.String, "Schema-validated article JSON.", IsLongText = true, Example = "{{writeBlogArticle.output}}")] string articleJson,
+        [ToolArgument(WorkflowArgumentKind.String, "Exact canonical source URL.", Example = "https://example.com/source")] string sourceUrl)
+    {
+        using var article = JsonDocument.Parse(articleJson);
+        var root = article.RootElement;
+        if (!root.TryGetProperty("title", out var title) || title.ValueKind != JsonValueKind.String ||
+            string.IsNullOrWhiteSpace(title.GetString()) || title.GetString()!.Length > 240 ||
+            !root.TryGetProperty("summary", out var summary) || summary.ValueKind != JsonValueKind.String ||
+            string.IsNullOrWhiteSpace(summary.GetString()) || summary.GetString()!.Length > 1200)
+        {
+            throw new InvalidOperationException("The article requires a valid title and editorial memory summary.");
+        }
+        var markdown = (root.GetProperty("markdown").GetString() ?? string.Empty).Replace("\\n", "\n", StringComparison.Ordinal);
+        if (markdown.Trim().Length < 6000 || !markdown.TrimStart().StartsWith("# ", StringComparison.Ordinal) ||
+            !Uri.TryCreate(sourceUrl, UriKind.Absolute, out var sourceUri) || sourceUri.Scheme is not ("http" or "https"))
+        {
+            throw new InvalidOperationException("The article is incomplete or its validated source URL is invalid; export was not attempted.");
+        }
+
+        var sourcesStart = markdown.LastIndexOf("## Sources", StringComparison.Ordinal);
+        var body = sourcesStart < 0 ? markdown : markdown[..sourcesStart];
+        if (body.Trim().Length < 6000)
+        {
+            throw new InvalidOperationException("The article body is incomplete; export was not attempted.");
+        }
+        var urls = System.Text.RegularExpressions.Regex.Matches(body, @"https?://[^\s<>\)\]]+");
+        if (urls.Any(match => !string.Equals(match.Value.TrimEnd('.', ',', ';'), sourceUrl, StringComparison.Ordinal)))
+        {
+            throw new InvalidOperationException("The article body contains an unvalidated URL; export was not attempted.");
+        }
+
+        var validated = System.Text.Json.Nodes.JsonNode.Parse(root.GetRawText())!;
+        validated["markdown"] = body.TrimEnd() + "\n\n## Sources\n\n- " + sourceUrl + "\n";
+        return validated.ToJsonString();
+    }
+
     private async Task<string> RunSlidingModeAsync(
         IReadOnlyList<Theme> themes,
         string sourceLanguage,

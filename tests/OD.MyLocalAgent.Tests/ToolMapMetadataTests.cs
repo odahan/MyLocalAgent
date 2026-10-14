@@ -249,6 +249,8 @@ public sealed class ToolMapMetadataTests
             ["http.post"] = (["url", "body", "contentType"], []),
             ["http.getText"] = (["url"], []),
             ["web.search"] = (["query", "maxResults"], ["maxResults"]),
+            ["research.prepareArticleSource"] = (["discoveryJson", "sourceId"], []),
+            ["research.validateArticle"] = (["articleJson", "sourceUrl"], []),
             ["research.discover"] = (["themes", "freshnessWindow", "sourceLanguage", "language", "preferredDomains", "minimumDocuments", "maxResultsPerQuery", "maxRetrievalsPerRun", "previousProposalsDatabasePath", "previousProposalsLookbackMonths", "usePreviousProposalUsedTag", "previousProposalsSemanticSimilarityThreshold"], ["freshnessWindow", "sourceLanguage", "language", "preferredDomains", "minimumDocuments", "maxResultsPerQuery", "maxRetrievalsPerRun", "previousProposalsDatabasePath", "previousProposalsLookbackMonths", "usePreviousProposalUsedTag", "previousProposalsSemanticSimilarityThreshold"]),
             ["knowledge.search"] = (["query", "tags", "maxResults"], ["tags", "maxResults"]),
         };
