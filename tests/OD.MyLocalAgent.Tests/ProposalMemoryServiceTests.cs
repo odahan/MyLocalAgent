@@ -16,6 +16,25 @@ public sealed class ProposalMemoryServiceTests : IDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"od-proposal-memory-{Guid.NewGuid():N}");
     private readonly FixedTimeProvider _time = new(new DateTimeOffset(2026, 8, 30, 12, 0, 0, TimeSpan.Zero));
 
+    /// <summary>Reads the original reservation without creating another run or changing proposal identity.</summary>
+    [Fact]
+    public async Task RecoveryReadsDurableReservationWithoutMutatingIt()
+    {
+        var (service, path) = await CreateCurrentDatabaseAsync();
+        var reserved = await service.ReserveSelectionAsync(path, "recovery",
+            Discovery(("source", "https://example.com/recovery")),
+            Selection(Proposal("p1", "Original recovery subject", "source")), 6, 0.92, CancellationToken.None);
+        await ExecuteAsync(path, "UPDATE editorial_runs SET created_at_utc='2026-08-30T12:00:00+00:00' WHERE run_id='recovery'");
+        var state = await service.ReadRecoveryStateAsync(path, "recovery", CancellationToken.None);
+        state.Reservation.Approved.Should().BeEquivalentTo(reserved.Approved);
+        state.Reservation.Status.Should().Be("Reserved");
+        state.CreatedAtUtc.Should().Be(_time.GetUtcNow());
+        state.Markdown.Should().BeNull();
+        var missing = () => service.ReadRecoveryStateAsync(path, "missing", CancellationToken.None);
+        await missing.Should().ThrowAsync<EditorialContractException>();
+        (await ScalarAsync(path, "SELECT count(*) FROM editorial_runs")).Should().Be(1L);
+    }
+
     /// <summary>Creates the current schema idempotently and upgrades the supported legacy schema atomically.</summary>
     [Fact]
     public async Task CreateDatabaseIsIdempotentAndMigratesLegacyRows()

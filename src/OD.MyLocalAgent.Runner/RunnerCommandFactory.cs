@@ -152,6 +152,20 @@ public static class RunnerCommandFactory
                     output,
                     cancellationToken));
 
+        var resumeTaskOption = CreateTaskOption();
+        var resumeRunOption = new Option<string>("--run-id") { Required = true, Description = "The existing editorial reservation id." };
+        resumeRunOption.Validators.Add(result =>
+        {
+            if (!Guid.TryParseExact(result.GetValueOrDefault<string>(), "N", out _))
+                result.AddError("--run-id requires a 32-character hexadecimal run id.");
+        });
+        var resumeCommand = new Command("resume-editorial", "Resumes a reserved editorial run without discovery or schedule changes.");
+        resumeCommand.Options.Add(resumeTaskOption);
+        resumeCommand.Options.Add(resumeRunOption);
+        resumeCommand.SetAction((parseResult, cancellationToken) => RunnerCommandHandlers.ResumeEditorialAsync(
+            serviceProviderAccessor(), parseResult.GetRequiredValue(resumeTaskOption),
+            parseResult.GetRequiredValue(resumeRunOption), output, error, cancellationToken));
+        root.Subcommands.Add(resumeCommand);
         root.Subcommands.Add(runCommand);
         root.Subcommands.Add(listCommand);
         root.Subcommands.Add(testPromptCommand);

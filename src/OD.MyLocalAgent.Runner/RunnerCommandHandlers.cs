@@ -20,6 +20,46 @@ internal static class RunnerCommandHandlers
         WriteIndented = true,
     };
 
+    public static async Task<int> ResumeEditorialAsync(IServiceProvider services, string taskId, string runId,
+        TextWriter output, TextWriter error, CancellationToken cancellationToken)
+    {
+        using var executionMutex = new TaskExecutionMutex(taskId);
+        if (!executionMutex.TryAcquire())
+        {
+            error.WriteLine($"Task '{taskId}' is already running in another process.");
+            return RunnerExitCodes.TaskFailure;
+        }
+        var holder = services.GetService<RunLogSessionHolder>();
+        using var log = await TryStartRunLogAsync(services, taskId, cancellationToken).ConfigureAwait(false);
+        if (holder is not null) holder.Session = log;
+        var exitCode = RunnerExitCodes.TaskFailure;
+        try
+        {
+            var task = await services.GetRequiredService<ITaskStore>().GetAsync(taskId, cancellationToken).ConfigureAwait(false);
+            if (task is null) return exitCode = RunnerExitCodes.TaskNotFound;
+            var databasePath = task.Workflow.Single(step => step.EffectiveId == "reserveEditorialSubjects")
+                .Args.GetProperty("databasePath").GetString()!;
+            var state = await services.GetRequiredService<IProposalMemoryService>()
+                .ReadRecoveryStateAsync(databasePath, runId, cancellationToken).ConfigureAwait(false);
+            var recovery = EditorialRecoveryTaskBuilder.Build(task, state, services.GetRequiredService<TimeProvider>().LocalTimeZone);
+            output.WriteLine($"Resuming editorial run '{runId}' from {state.Reservation.Status} without discovery or schedule changes.");
+            var outcome = await ExecuteAndWriteReportAsync(services, recovery, true, output, cancellationToken).ConfigureAwait(false);
+            output.WriteLine($"Recovery execution report: {outcome.Report.ReportPath}");
+            if (!outcome.Result.Success)
+            {
+                error.WriteLine(outcome.Result.ErrorMessage);
+                return exitCode;
+            }
+            output.WriteLine($"Editorial run '{runId}' exported and confirmed.");
+            return exitCode = RunnerExitCodes.Success;
+        }
+        finally
+        {
+            if (holder is not null) holder.Session = null;
+            log?.Complete(exitCode);
+        }
+    }
+
     public static async Task<int> RunAsync(
         IServiceProvider services,
         string taskId,

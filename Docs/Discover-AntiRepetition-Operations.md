@@ -69,6 +69,39 @@ visible and recoverable; do not delete its rows to make the next run appear succ
 
 ## Verification and limits
 
+### Drafting reliability and recovery — October 19, 2026
+
+The daily sample disables reasoning explicitly on `draftApprovedSubjects` and allows two
+retries with an initial two-second backoff. This overrides task-level reasoning settings.
+Apply the targeted repair to an existing daily task with
+`scripts/repair-editorial-daily.ps1 -TaskPath <absolute-task-path>`; it preserves other
+settings and writes a timestamped `.bak` file before replacement.
+
+The runner now rejects empty final output and budget-truncated structured output before
+JSON parsing, reporting the operation, model, finish reason and token counts. Structured
+failures retain the workflow's existing retry and safe-fallback handling.
+
+Use `OD.MyLocalAgent.Runner.exe resume-editorial --task editorial-watch-daily-db --run-id <id>`
+to recover an existing run. The command acquires the same task mutex as a scheduled run,
+reads the reservation from SQLite and builds a recovery workflow in memory. It does not
+change the stored task or its schedule. For a `Reserved` run with approved subjects it
+resumes drafting and export. For `ReadyToExport`, it reuses the persisted Markdown; an
+existing file is only confirmed against the stored SHA-256. An `Exported` run is verified
+without rewriting it. Missing and failed runs are rejected. Report paths retain the
+original reservation's local date and run id. Back up the database through SQLite's online
+backup API before a production recovery; do not copy an active WAL database file alone.
+
+The command currently targets the bundled daily workflow's named drafting/export steps;
+it is not a general checkpoint/replay mechanism for arbitrary workflows.
+
+Production verification on October 19 at 22:21 Europe/Paris: the repaired task and runner
+recovered `d7cbe9a55274477baf716c27a83f6d06` from `Reserved` to `Exported`, retaining
+proposal ids 70, 71 and 72. Drafting succeeded on its first attempt in 13.0 seconds, with
+1,495 generated tokens, zero reasoning characters and finish reason `stop`. The exported
+file's SHA-256 matched the database. The old runner executable and a SQLite online backup
+with successful integrity check were retained under `E:/OD.MyLocalAgent-reliability-20261019/`.
+The non-integration suite passed 1,187 tests with one skipped test.
+
 ### Observed provider limit on 2026-10-04
 
 Production logs recorded 12 Web Search requests from the daily workflow and two batches of

@@ -13,6 +13,28 @@ public sealed partial class ProposalMemoryService
 {
     internal const string EditorialProjectionVersion = "editorial-event-v2";
     private const double DraftAlignmentThreshold = 0.50;
+
+    /// <inheritdoc />
+    public Task<EditorialRecoveryState> ReadRecoveryStateAsync(string databasePath, string runId, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(runId);
+        return Task.Run(() =>
+        {
+            using var connection = Open(databasePath, SqliteOpenMode.ReadOnly);
+            using var interrupt = RegisterInterrupt(connection, cancellationToken);
+            var reservation = ReadReservation(connection, runId)
+                ?? throw new EditorialContractException($"Editorial run '{runId}' does not exist.");
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT created_at_utc,report_markdown,report_path FROM editorial_runs WHERE run_id=$id";
+            command.Parameters.AddWithValue("$id", runId);
+            using var reader = command.ExecuteReader();
+            if (!reader.Read()) throw new EditorialContractException($"Editorial run '{runId}' no longer exists.");
+            return new EditorialRecoveryState(reservation,
+                DateTimeOffset.Parse(reader.GetString(0), CultureInfo.InvariantCulture),
+                reader.IsDBNull(1) ? null : reader.GetString(1),
+                reader.IsDBNull(2) ? null : reader.GetString(2));
+        }, cancellationToken);
+    }
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> ProcessLocks = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Regex AbsoluteUrlRegex = new(@"https?://[^\s\)\]>]+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     private static readonly JsonSerializerOptions EditorialJsonOptions = new(JsonSerializerDefaults.Web)

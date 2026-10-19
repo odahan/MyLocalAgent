@@ -3,6 +3,9 @@ namespace OD.MyLocalAgent.Core;
 /// <summary>Owns proposal-memory persistence and deterministic candidate filtering.</summary>
 public interface IProposalMemoryService
 {
+    /// <summary>Reads durable editorial recovery state without creating or changing reservations.</summary>
+    Task<EditorialRecoveryState> ReadRecoveryStateAsync(string databasePath, string runId, CancellationToken cancellationToken);
+
     /// <summary>Creates or validates the proposal-memory schema.</summary>
     Task<ProposalDatabaseResult> CreateDatabaseAsync(
         string databasePath,
@@ -117,6 +120,9 @@ public sealed record EditorialReservationResult(
 
 /// <summary>Contains deterministic Markdown prepared for one reserved run.</summary>
 public sealed record EditorialReportResult(string RunId, string Status, string Markdown, string Sha256, int SubjectCount);
+
+/// <summary>Contains the reservation and original export data needed to resume an interrupted run.</summary>
+public sealed record EditorialRecoveryState(EditorialReservationResult Reservation, DateTimeOffset CreatedAtUtc, string? Markdown, string? ReportPath);
 
 /// <summary>Describes reconciliation of an exported report with its prepared fingerprint.</summary>
 public sealed record EditorialExportResult(string RunId, string Status, string ReportPath, string Sha256);

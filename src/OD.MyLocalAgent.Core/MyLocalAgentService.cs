@@ -657,6 +657,27 @@ public sealed class MyLocalAgentService : IMyLocalAgentService
                 logicalOperation, response.ModelId ?? modelName, response.FinishReason,
                 response.Usage?.TotalTokenCount, client.Policy.ContextWindowTokens, response.Text.Length, reasoningCharacters);
         }
+        if (string.IsNullOrWhiteSpace(response.Text) ||
+            (responseSchema is not null && response.FinishReason == ChatFinishReason.Length))
+        {
+            var message =
+                $"AI prompt '{logicalOperation}' from provider '{providerName}', model '{response.ModelId ?? modelName}' " +
+                (response.FinishReason == ChatFinishReason.Length
+                    ? "exhausted its generation budget before completing the response. "
+                    : "returned no usable final text. ") +
+                $"Finish reason: {response.FinishReason}; input tokens: {response.Usage?.InputTokenCount}; " +
+                $"output tokens: {response.Usage?.OutputTokenCount}; context window: {client.Policy.ContextWindowTokens}; " +
+                $"final text characters: {response.Text.Length}; reasoning characters: {reasoningCharacters}. " +
+                "Retry with reasoning disabled or a smaller output request.";
+            if (responseSchema is not null)
+            {
+                var failure = new WorkflowStructuredResponseException(message);
+                failure.CaptureResponse(response.Text, response.FinishReason == ChatFinishReason.Length
+                    ? "GenerationBudgetExceeded" : "EmptyResponse");
+                throw failure;
+            }
+            throw new InvalidOperationException(message);
+        }
         return response.Text;
     }
 

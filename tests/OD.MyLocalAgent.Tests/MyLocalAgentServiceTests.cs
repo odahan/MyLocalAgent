@@ -15,6 +15,29 @@ namespace OD.MyLocalAgent.Tests;
 /// </summary>
 public sealed class MyLocalAgentServiceTests
 {
+    /// <summary>Rejects even syntactically valid structured output when the provider reports truncation.</summary>
+    [Fact]
+    public async Task StructuredPromptRejectsBudgetLimitedJsonBeforeSchemaValidation()
+    {
+        var client = new StubChatClient("{}")
+        {
+            ResponseFactory = _ => new ChatResponse(new ChatMessage(ChatRole.Assistant, "{}"))
+            {
+                FinishReason = ChatFinishReason.Length,
+            },
+        };
+        var factory = new Mock<ILlmClientFactory>();
+        factory.Setup(instance => instance.Create()).Returns(new StubLlmClientService(client, AIOptions.OllamaProvider));
+        var service = new MyLocalAgentService(factory.Object, Mock.Of<IToolRegistry>(), [],
+            Mock.Of<IIncidentReporter>(), TimeProvider.System);
+        var policy = new EffectiveGenerationPolicy(0.1, 1, 16384,
+            GenerationOptionSource.Task, GenerationOptionSource.Settings);
+        using var schema = JsonDocument.Parse("{\"type\":\"object\"}");
+        var action = () => service.RunPromptWithoutToolsStructuredAsync(
+            "Draft the report.", policy, "draft", false, schema.RootElement, CancellationToken.None);
+        await action.Should().ThrowAsync<WorkflowStructuredResponseException>().WithMessage("*exhausted its generation budget*");
+    }
+
     /// <summary>Exposes reasoning-only exhaustion without logging the source prompt or reasoning text.</summary>
     [Fact]
     public async Task PromptDiagnosticsIdentifyReasoningOnlyBudgetExhaustion()
@@ -37,10 +60,14 @@ public sealed class MyLocalAgentServiceTests
         var policy = new EffectiveGenerationPolicy(0.1, 1, 16384,
             GenerationOptionSource.Task, GenerationOptionSource.Settings) { ReasoningEffort = "medium" };
 
-        var result = await service.RunPromptWithoutToolsAsync(
+        var action = () => service.RunPromptWithoutToolsAsync(
             "private mail content", policy, "classification", CancellationToken.None);
 
-        result.Text.Should().BeEmpty();
+        var failure = await action.Should().ThrowAsync<InvalidOperationException>();
+        failure.Which.Message.Should().Contain("exhausted its generation budget")
+            .And.Contain("classification").And.Contain("test-model")
+            .And.Contain("final text characters: 0").And.Contain("reasoning characters: 17")
+            .And.NotContain("private reasoning").And.NotContain("private mail content");
         var logs = string.Join("\n", logger.Messages);
         logs.Should().Contain("operation classification").And.Contain("test-model")
             .And.Contain("total tokens 16384").And.Contain("text characters 0")

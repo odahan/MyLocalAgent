@@ -199,7 +199,10 @@
           }
         }
       },
-      "generationOptions": {"temperature": 0.25, "topP": 0.9},
+      "generationOptions": {"temperature": 0.25, "topP": 0.9, "reasoningEnabled": false},
+      "onError": "Retry",
+      "retryCount": 2,
+      "retryBackoffSeconds": 2,
       "next": "prepareEditorialReport"
     },
     {
