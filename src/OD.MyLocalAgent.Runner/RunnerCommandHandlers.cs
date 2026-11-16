@@ -63,6 +63,7 @@ internal static class RunnerCommandHandlers
     public static async Task<int> RunAsync(
         IServiceProvider services,
         string taskId,
+        bool manual,
         TextWriter output,
         TextWriter error,
         CancellationToken cancellationToken)
@@ -91,6 +92,7 @@ internal static class RunnerCommandHandlers
             exitCode = await RunCoreAsync(
                 services,
                 taskId,
+                manual,
                 output,
                 error,
                 cancellationToken).ConfigureAwait(false);
@@ -138,6 +140,7 @@ internal static class RunnerCommandHandlers
     private static async Task<int> RunCoreAsync(
         IServiceProvider services,
         string taskId,
+        bool manual,
         TextWriter output,
         TextWriter error,
         CancellationToken cancellationToken)
@@ -154,7 +157,7 @@ internal static class RunnerCommandHandlers
 
         WriteModelInfoToRunLog(services, task);
 
-        if (!task.Enabled)
+        if (!manual && !task.Enabled)
         {
             error.WriteLine($"Task '{taskId}' is disabled.");
             return RunnerExitCodes.TaskFailure;
@@ -173,8 +176,11 @@ internal static class RunnerCommandHandlers
         output.WriteLine($"Task execution report: {outcome.Report.ReportPath}");
 
         var scheduler = services.GetRequiredService<ITaskSchedulerService>();
-        await scheduler.RegisterAsync(task, cancellationToken).ConfigureAwait(false);
-        output.WriteLine("Next occurrence registered.");
+        if (!manual || (task.Enabled && scheduler.IsRegistered(task.Id)))
+        {
+            await scheduler.RegisterAsync(task, cancellationToken).ConfigureAwait(false);
+            output.WriteLine("Next occurrence registered.");
+        }
 
         return outcome.Result.Success
             ? RunnerExitCodes.Success

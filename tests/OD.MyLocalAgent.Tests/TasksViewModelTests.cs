@@ -49,8 +49,8 @@ public sealed class TasksViewModelTests
     }
 
     /// <summary>
-    /// Verifies runner detection failures surface in the status bar without
-    /// polluting the Runner output panel.
+    /// Verifies a disabled, unregistered task can invoke Run now and that runner
+    /// detection failures appear in the status bar without altering the output panel.
     /// </summary>
     [Fact]
     public async Task RunNowKeepsRunnerOutputIntactWhenRunnerIsNotDetected()
@@ -83,11 +83,12 @@ public sealed class TasksViewModelTests
                 "n/a",
                 "n/a",
                 "n/a",
-                IsEnabled: true,
+                IsEnabled: false,
                 IsRegistered: false),
         };
         var initialOutput = viewModel.RunnerOutput;
 
+        viewModel.RunNowCommand.CanExecute(null).Should().BeTrue();
         await viewModel.RunNowCommand.ExecuteAsync(null);
 
         viewModel.RunnerOutput.Should().Be(initialOutput);

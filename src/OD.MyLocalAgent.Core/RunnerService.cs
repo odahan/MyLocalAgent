@@ -49,6 +49,7 @@ public sealed class RunnerService : IRunnerService
         startInfo.ArgumentList.Add("run");
         startInfo.ArgumentList.Add("--task");
         startInfo.ArgumentList.Add(taskId);
+        startInfo.ArgumentList.Add("--manual");
         startInfo.Environment["ODMLA_RUNNER_DEBUG"] = debugEnabled ? "1" : "0";
 
         using var process = new Process { StartInfo = startInfo };

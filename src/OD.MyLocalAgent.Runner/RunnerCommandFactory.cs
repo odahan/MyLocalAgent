@@ -34,15 +34,21 @@ public static class RunnerCommandFactory
             "Executes OD.MyLocalAgent tasks and maintenance commands.");
 
         var runTaskOption = CreateTaskOption();
+        var manualRunOption = new Option<bool>("--manual")
+        {
+            Description = "Runs the task on demand, including when scheduling is disabled.",
+        };
         var runCommand = new Command(
             "run",
             "Executes a task and rolls its Task Scheduler registration.");
         runCommand.Options.Add(runTaskOption);
+        runCommand.Options.Add(manualRunOption);
         runCommand.SetAction(
             (parseResult, cancellationToken) =>
                 RunnerCommandHandlers.RunAsync(
                     serviceProviderAccessor(),
                     parseResult.GetRequiredValue(runTaskOption),
+                    parseResult.GetValue(manualRunOption),
                     output,
                     error,
                     cancellationToken));

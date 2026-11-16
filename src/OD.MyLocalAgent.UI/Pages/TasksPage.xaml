@@ -95,9 +95,6 @@
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
-                                <DataGridCheckBoxColumn Width="95"
-                                                        Binding="{Binding IsRegistered}"
-                                                        Header="Registered" />
                             </DataGrid.Columns>
                         </DataGrid>
 

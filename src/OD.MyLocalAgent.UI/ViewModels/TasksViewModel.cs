@@ -459,7 +459,7 @@ public sealed partial class TasksViewModel :
         (SelectedTask.IsRegistered || SelectedTask.IsEnabled);
 
     private bool CanRunNow() =>
-        SelectedTask is { IsEnabled: true } && !IsRunning;
+        SelectedTask is not null && !IsRunning;
 
     [RelayCommand]
     private void ToggleRunContext() =>
