@@ -12,8 +12,7 @@ incidents, or intermediate fixes.
 - .NET SDK 10;
 - PowerShell 5.1 or PowerShell 7;
 - Ollama installed and running, with the selected model downloaded;
-- a Google, Dropbox, and/or Ollama.com account only for connectors that will
-  actually be used.
+- credentials for any optional Google, Dropbox, or web search integrations you use.
 
 For the default local model:
 
@@ -32,7 +31,7 @@ From the repository root (`E:\OD.MyLocalAgent`):
 ```powershell
 dotnet restore OD.MyLocalAgent.sln -m:1
 dotnet build OD.MyLocalAgent.sln -m:1 --no-restore --configuration Release
-dotnet test OD.MyLocalAgent.sln -m:1 --no-build --no-restore --configuration Release
+dotnet test OD.MyLocalAgent.sln -m:1 --no-build --no-restore --configuration Release --filter "Category!=Integration"
 ```
 
 The build and tests must complete without errors. An Ollama integration test
@@ -244,22 +243,16 @@ the clipboard. It does not write the token to disk:
 Dropbox credentials are encrypted by Windows DPAPI for the current user and are
 not written to `settings.json`.
 
-## 8. Configure Web Search (Ollama cloud)
+## 8. Configure web search
 
-This feature is optional: queries and search-result snippets are sent to
-Ollama.com.
+Web search is disabled on a fresh install. Tavily is the preferred provider.
+Ollama Web Search is available as an alternative. Queries are sent to the selected provider.
 
-1. Sign in to <https://ollama.com/settings/keys> and create an API key.
-2. Copy the key without disclosing it.
-3. In **Tools → Web search (Ollama)**, select **Enable Ollama Web Search**.
-4. Keep the official endpoint:
-
-```text
-https://ollama.com/api/web_search
-```
-
-5. Paste the key into **Replace Ollama Web Search API key**.
-6. Select **Save Web Search**, then **Test connection**.
+1. Get an API key from the [Tavily dashboard](https://app.tavily.com/).
+2. In **Tools → Web search**, select **Enable web search** and choose **Tavily**.
+3. Keep the default endpoint, `https://api.tavily.com/search`, and enter the key in
+   **Replace selected provider API key**.
+4. Select **Save Web Search**, then **Test connection**. The test uses a Tavily search credit.
 
 The key is protected by Windows DPAPI. Enable the **Web search (web) (cloud)**
 tool group only for tasks that need it.
@@ -316,6 +309,16 @@ Successful discovery exposes aggregate diagnostics only, including
 - Sensitive operations remain disabled by default: sending email, deleting
   files, HTTP POST, SQLite writes, and process execution. Enable them only when a specific task
   justifies them.
+
+### Sort Downloads with a reviewed plan
+
+Copy the two scripts into `<FileSystem:RootPath>\scripts\` before calling them from a task. The application publisher deploys the UI and runner.
+
+1. Run [Build-DownloadsInventory.ps1](../scripts/Build-DownloadsInventory.ps1) with `-RootPath <DownloadsPath>` to inventory top-level files, immediate destination folders, and possible duplicates.
+2. Use an `ai.prompt` step to draft a JSON sorting plan from the inventory. Save the plan inside the workspace and review it before enabling the move step.
+3. Run [Invoke-DownloadsSortPlan.ps1](../scripts/Invoke-DownloadsSortPlan.ps1) with `-RootPath <DownloadsPath> -PlanPath <PlanPath>`. It checks source paths, hashes, and destinations, moves files without overwriting, and returns a JSON execution log.
+
+Enable the **File system** and **Local execution** tool groups, grant `PowerShellExecution`, and authorize read/write access to the Downloads directory when it is outside the workspace.
 
 ### First safe SQLite task
 

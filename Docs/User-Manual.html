@@ -1734,27 +1734,26 @@ ollama list</code></pre>
 </section>
 <section data-title="Scénario : activer Web Search" id="scenario-web-search">
 <p class="section-kicker">Scénario guidé 06 · Activation cloud</p>
-<h2>Activer la recherche web Ollama protégée</h2>
+<h2>Activer la recherche web protégée</h2>
 <p class="section-intro">
-                    Web Search est désactivé sur une installation neuve. Les requêtes et les
-                    extraits reçus quittent l’ordinateur vers l’endpoint cloud Ollama configuré.
+                    La recherche web est désactivée sur une installation neuve. Tavily est le fournisseur présélectionné.
+                    Ollama Web Search est disponible en option. Les requêtes sont envoyées au fournisseur choisi.
                 </p>
 <ol class="steps">
 <li>
-<strong>Créez un compte ollama.com et obtenez une clé Web Search.</strong>
-<p>L’offre individuelle gratuite peut être limitée, surtout lors de rafales de requêtes.</p>
+<strong>Obtenez une clé API dans le <a href="https://app.tavily.com/">tableau de bord Tavily</a>.</strong>
 </li>
 <li>
-<strong>Ouvrez <span class="ui-label">Tools</span> → <span class="ui-label">Web search (cloud)</span>.</strong>
-<p>Activez la recherche et conservez normalement <code>https://ollama.com/api/web_search</code>.</p>
+<strong>Ouvrez <span class="ui-label">Tools</span> → <span class="ui-label">Web search</span>.</strong>
+<p>Cochez <span class="ui-label">Enable web search</span>, choisissez <strong>Tavily</strong> et conservez l’URL par défaut <code>https://api.tavily.com/search</code>.</p>
 </li>
 <li>
-<strong>Collez la clé en écriture seule puis sélectionnez <span class="ui-label">Save</span>.</strong>
+<strong>Saisissez la clé dans <span class="ui-label">Replace selected provider API key</span>, puis sélectionnez <span class="ui-label">Save Web Search</span>.</strong>
 <p>DPAPI protège la clé, qui n’est jamais écrite dans <code>settings.json</code>. Un endpoint personnalisé reçoit la clé et les requêtes.</p>
 </li>
 <li>
 <strong>Sélectionnez <span class="ui-label">Test connection</span>.</strong>
-<p>Le test à requête fixe affiche seulement la durée et le nombre de résultats, jamais les extraits.</p>
+<p>Le test utilise un crédit Tavily et affiche la durée et le nombre de résultats.</p>
 </li>
 <li>
 <strong>Activez <span class="ui-label">Web search (web) (cloud)</span> dans la tâche.</strong>

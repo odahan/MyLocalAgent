@@ -12,8 +12,7 @@ les incidents de mise en place.
 - .NET SDK 10 ;
 - PowerShell 5.1 ou PowerShell 7 ;
 - Ollama installé, démarré, avec le modèle choisi téléchargé ;
-- un compte Google, Dropbox et/ou Ollama.com uniquement pour les connecteurs
-  utilisés.
+- les identifiants des intégrations Google, Dropbox ou de recherche web utilisées.
 
 Pour le modèle local par défaut :
 
@@ -32,7 +31,7 @@ Depuis la racine du dépôt (`E:\OD.MyLocalAgent`) :
 ```powershell
 dotnet restore OD.MyLocalAgent.sln -m:1
 dotnet build OD.MyLocalAgent.sln -m:1 --no-restore --configuration Release
-dotnet test OD.MyLocalAgent.sln -m:1 --no-build --no-restore --configuration Release
+dotnet test OD.MyLocalAgent.sln -m:1 --no-build --no-restore --configuration Release --filter "Category!=Integration"
 ```
 
 La compilation et les tests doivent se terminer sans erreur. Un test
@@ -251,22 +250,17 @@ le presse-papiers. Il ne l’écrit pas sur disque :
 Les identifiants Dropbox sont chiffrés par Windows DPAPI pour le compte courant
 et ne sont pas écrits dans `settings.json`.
 
-## 8. Configurer Web Search (Ollama cloud)
+## 8. Configurer la recherche web
 
-Cette fonction est optionnelle : les requêtes et les extraits de résultats sont
-envoyés à Ollama.com.
+La recherche web est désactivée sur une installation neuve. Tavily est le fournisseur
+présélectionné. Ollama Web Search est disponible en option. Les requêtes sont envoyées
+au fournisseur choisi.
 
-1. Se connecter à <https://ollama.com/settings/keys> et créer une clé API.
-2. Copier la clé sans la communiquer.
-3. Dans **Tools → Web search (Ollama)**, cocher **Enable Ollama Web Search**.
-4. Conserver l’endpoint officiel :
-
-```text
-https://ollama.com/api/web_search
-```
-
-5. Coller la clé dans **Replace Ollama Web Search API key**.
-6. Cliquer sur **Save Web Search**, puis sur **Test connection**.
+1. Obtenir une clé API dans le [tableau de bord Tavily](https://app.tavily.com/).
+2. Dans **Tools → Web search**, cocher **Enable web search** et choisir **Tavily**.
+3. Conserver l’URL par défaut, `https://api.tavily.com/search`, et saisir la clé dans
+   **Replace selected provider API key**.
+4. Cliquer sur **Save Web Search**, puis sur **Test connection**. Le test utilise un crédit Tavily.
 
 La clé est protégée par Windows DPAPI. Activer ensuite le groupe d’outils
 **Web search (web) (cloud)** seulement sur les tâches qui en ont besoin.

@@ -1701,27 +1701,26 @@ ollama list</code></pre>
 </section>
 <section data-title="Scenario: enable Web Search" id="scenario-web-search">
 <p class="section-kicker">Guided scenario 06 · Cloud opt-in</p>
-<h2>Enable guarded Ollama Web Search</h2>
+<h2>Enable guarded web search</h2>
 <p class="section-intro">
-                    Web Search is disabled on a fresh install. Queries and returned snippets
-                    leave the computer for the configured Ollama cloud endpoint.
+                    Web search is disabled on a fresh install. Tavily is the preferred provider.
+                    Ollama Web Search is available as an alternative. Queries are sent to the selected provider.
                 </p>
 <ol class="steps">
 <li>
-<strong>Create an ollama.com account and obtain a Web Search API key.</strong>
-<p>The free individual tier may be rate-limited, especially during bursts.</p>
+<strong>Get an API key from the <a href="https://app.tavily.com/">Tavily dashboard</a>.</strong>
 </li>
 <li>
-<strong>Open <span class="ui-label">Tools</span> → <span class="ui-label">Web search (cloud)</span>.</strong>
-<p>Enable Web search and normally keep <code>https://ollama.com/api/web_search</code>.</p>
+<strong>Open <span class="ui-label">Tools</span> → <span class="ui-label">Web search</span>.</strong>
+<p>Select <span class="ui-label">Enable web search</span>, choose <strong>Tavily</strong>, and keep the default endpoint <code>https://api.tavily.com/search</code>.</p>
 </li>
 <li>
-<strong>Paste the write-only key and select <span class="ui-label">Save</span>.</strong>
+<strong>Enter the key in <span class="ui-label">Replace selected provider API key</span> and select <span class="ui-label">Save Web Search</span>.</strong>
 <p>The key is protected by DPAPI and never stored in <code>settings.json</code>. A custom endpoint receives both the key and queries.</p>
 </li>
 <li>
 <strong>Select <span class="ui-label">Test connection</span>.</strong>
-<p>The fixed-query test displays only duration and result count, never snippets.</p>
+<p>The test uses a Tavily search credit and displays the duration and result count.</p>
 </li>
 <li>
 <strong>Enable <span class="ui-label">Web search (web) (cloud)</span> on the task.</strong>
