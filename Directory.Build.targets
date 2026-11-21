@@ -1,0 +1,9 @@
+<Project>
+  <!-- The app uses OllamaSharp's client API without its tool source generator. -->
+  <Target Name="RemoveOllamaSharpToolSourceGenerator" AfterTargets="ResolveLockFileAnalyzers">
+    <ItemGroup>
+      <Analyzer Remove="@(Analyzer)"
+                Condition="'%(Analyzer.NuGetPackageId)' == 'OllamaSharp' And '%(Analyzer.Filename)' == 'OllamaSharp.SourceGenerators'" />
+    </ItemGroup>
+  </Target>
+</Project>
