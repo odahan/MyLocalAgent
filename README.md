@@ -22,6 +22,8 @@ ollama pull gemma4:12b
 
 You can also double-click [publish.bat](publish.bat). The publisher builds self-contained x64 executables for the desktop app and runner under `%LOCALAPPDATA%\Programs\OD.MyLocalAgent`. Use [OpenProdFolder.Bat](OpenProdFolder.Bat) to open that folder, then launch `UI\OD.MyLocalAgent.UI.exe`.
 
+Both executables include their default settings. User settings are shared through `%LOCALAPPDATA%\OD.MyLocalAgent\settings.json`.
+
 1. In **Settings**, confirm the model and endpoint and select **Test connection**. Choose the workspace root where local tasks will read and write files.
 2. In **Tasks**, select **New**. Enter a name and a simple prompt, such as “Write a three-item checklist for preparing a meeting.” Clear **Enabled and mirrored to Windows Task Scheduler** for a manual trial. Select **Save task**, then **Run now**.
 3. Watch the output in **Tasks** and review the run in **Runs**. Add workflow steps or a schedule when you want to automate the task.

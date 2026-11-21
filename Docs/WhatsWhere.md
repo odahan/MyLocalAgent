@@ -1,6 +1,6 @@
 # What's Where
 
-Application version: **2.6.12**.
+Application version: **2.6.13**.
 
 All file and folder locations used by OD.MyLocalAgent after deployment.
 
@@ -11,11 +11,10 @@ Default: `%LOCALAPPDATA%\Programs\OD.MyLocalAgent`
 | Path | Contents |
 |------|----------|
 | `UI\OD.MyLocalAgent.UI.exe` | UI executable |
-| `UI\appsettings.json` | Base configuration (UI) |
 | `Runner\OD.MyLocalAgent.Runner.exe` | Runner executable |
-| `Runner\appsettings.json` | Base configuration (Runner) |
 
-These files are replaced on each publish. Do not edit `appsettings.json` here — use user settings instead.
+Each executable contains its default settings. Updates preserve any existing
+`appsettings.json` beside an executable as a legacy, optional override.
 
 ## Global User Configuration Directory
 
@@ -23,7 +22,7 @@ Default: `%LOCALAPPDATA%\OD.MyLocalAgent`
 
 | Path | Contents |
 |------|----------|
-| `settings.json` | User settings (overrides `appsettings.json`) |
+| `settings.json` | User settings shared by the UI and runner |
 | `secrets.dat` | DPAPI-protected secrets (API keys, OAuth tokens) |
 | `Auth/Google/` | Google OAuth token data |
 
@@ -86,9 +85,10 @@ prepares reports, and confirms exports through dedicated deterministic SQLite al
 
 Configuration is loaded in this priority order (last wins):
 
-1. **`appsettings.json`** (in each EXE folder) — base config, shipped with the app. Overwritten on publish.
-2. **`%LOCALAPPDATA%\OD.MyLocalAgent\settings.json`** — user overrides. Survives updates.
-3. **DPAPI secrets** — injected from `secrets.dat`. Highest priority.
+1. Embedded defaults from the repository’s **`appsettings.json`**.
+2. Optional **`appsettings.json`** beside the executable, if present on an existing installation.
+3. **`%LOCALAPPDATA%\OD.MyLocalAgent\settings.json`** for user overrides shared by both executables.
+4. **DPAPI secrets** from `secrets.dat`.
 
 The `Knowledge` section is stored in `settings.json` when changed from **Settings → Knowledge
 embeddings**. It controls the independent embedding provider, model, chunking, import, and search

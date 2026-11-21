@@ -32,12 +32,6 @@
     <Resource Include="Assets\OD.MyLocalAgent.ico" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Include="..\..\appsettings.json"
-          Link="appsettings.json"
-          CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
-
   <Target Name="RemoveWebView2XmlFiles" AfterTargets="Publish">
     <ItemGroup>
       <_WebView2XmlFiles Include="$(PublishDir)Microsoft.Web.WebView2.*.xml" />

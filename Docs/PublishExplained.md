@@ -1,6 +1,6 @@
 # Publish Script Explained
 
-Application version: **2.6.12**.
+Application version: **2.6.13**.
 
 Step-by-step breakdown of `scripts/publish.ps1`.
 
@@ -39,7 +39,6 @@ $repositoryRoot = [System.IO.Path]::GetFullPath(
     (Join-Path $PSScriptRoot '..'))
 $uiProject = Join-Path $repositoryRoot 'src\OD.MyLocalAgent.UI\OD.MyLocalAgent.UI.csproj'
 $runnerProject = Join-Path $repositoryRoot 'src\OD.MyLocalAgent.Runner\OD.MyLocalAgent.Runner.csproj'
-$appSettingsPath = Join-Path $repositoryRoot 'appsettings.json'
 $resolvedDestination = [System.IO.Path]::GetFullPath(
     [Environment]::ExpandEnvironmentVariables($DestinationPath))
 $destinationRoot = [System.IO.Path]::GetPathRoot($resolvedDestination)
@@ -153,28 +152,23 @@ Invoke-ProjectPublish -ProjectPath $runnerProject -OutputPath $runnerOutput
 
 Publishes UI first, then Runner. Each gets its own output folder inside the staging directory.
 
-## 8. Preserve User Settings
+## 8. Preserve legacy installation overrides
 
 ```powershell
-foreach ($outputPath in @($uiOutput, $runnerOutput)) {
-    $publishedSettingsPath = Join-Path $outputPath 'appsettings.json'
-    $existingSettingsPath = Join-Path $resolvedDestination (
-        $outputPath.Substring($deploymentOutput.Length + 1) + '\appsettings.json')
-    if (Test-Path -LiteralPath $existingSettingsPath) {
+foreach ($component in @('UI', 'Runner')) {
+    $relativeSettingsPath = Join-Path $component 'appsettings.json'
+    $existingSettingsPath = Join-Path $resolvedDestination $relativeSettingsPath
+    if (Test-Path -LiteralPath $existingSettingsPath -PathType Leaf) {
+        $publishedSettingsPath = Join-Path $deploymentOutput $relativeSettingsPath
         Copy-Item -LiteralPath $existingSettingsPath -Destination $publishedSettingsPath
-    }
-    else {
-        Copy-Item -LiteralPath $appSettingsPath -Destination $publishedSettingsPath
     }
 }
 ```
 
-For each project (UI and Runner):
-1. Check if `appsettings.json` already exists at the **final destination** (i.e. from a previous deployment).
-2. If it exists — copy the **existing** one into the staging directory (preserves user customizations).
-3. If not (first install) — copy the **repo default**.
-
-This prevents a publish from overwriting a user's edited `appsettings.json` with blank defaults.
+The build embeds the repository defaults into both executables. A clean deployment
+starts without a separate configuration file. On upgrades, the publisher keeps any
+existing `appsettings.json` beside the corresponding executable. The shared user
+settings in `%LOCALAPPDATA%\OD.MyLocalAgent` stay outside the deployment directory.
 
 ## 9. Validate Executables
 

@@ -18,7 +18,6 @@ $repositoryRoot = [System.IO.Path]::GetFullPath(
     (Join-Path $PSScriptRoot '..'))
 $uiProject = Join-Path $repositoryRoot 'src\OD.MyLocalAgent.UI\OD.MyLocalAgent.UI.csproj'
 $runnerProject = Join-Path $repositoryRoot 'src\OD.MyLocalAgent.Runner\OD.MyLocalAgent.Runner.csproj'
-$appSettingsPath = Join-Path $repositoryRoot 'appsettings.json'
 $resolvedDestination = [System.IO.Path]::GetFullPath(
     [Environment]::ExpandEnvironmentVariables($DestinationPath))
 $destinationRoot = [System.IO.Path]::GetPathRoot($resolvedDestination)
@@ -83,15 +82,12 @@ try {
     Invoke-ProjectPublish -ProjectPath $uiProject -OutputPath $uiOutput
     Invoke-ProjectPublish -ProjectPath $runnerProject -OutputPath $runnerOutput
 
-    foreach ($outputPath in @($uiOutput, $runnerOutput)) {
-        $publishedSettingsPath = Join-Path $outputPath 'appsettings.json'
-        $existingSettingsPath = Join-Path $resolvedDestination (
-            $outputPath.Substring($deploymentOutput.Length + 1) + '\appsettings.json')
-        if (Test-Path -LiteralPath $existingSettingsPath) {
+    foreach ($component in @('UI', 'Runner')) {
+        $relativeSettingsPath = Join-Path $component 'appsettings.json'
+        $existingSettingsPath = Join-Path $resolvedDestination $relativeSettingsPath
+        if (Test-Path -LiteralPath $existingSettingsPath -PathType Leaf) {
+            $publishedSettingsPath = Join-Path $deploymentOutput $relativeSettingsPath
             Copy-Item -LiteralPath $existingSettingsPath -Destination $publishedSettingsPath
-        }
-        else {
-            Copy-Item -LiteralPath $appSettingsPath -Destination $publishedSettingsPath
         }
     }
 

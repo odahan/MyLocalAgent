@@ -5,6 +5,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="OD.MyLocalAgent.Tests" />
+    <EmbeddedResource Include="..\..\appsettings.json" LogicalName="OD.MyLocalAgent.DefaultSettings.json" />
   </ItemGroup>
 
   <ItemGroup>

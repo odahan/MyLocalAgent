@@ -1,6 +1,6 @@
 # MyLocalAgent — first-run guide
 
-Application version: **2.6.12**.
+Application version: **2.6.13**.
 
 This guide summarizes the setup used to build the application, publish it, and
 configure its connectors. It does not cover creating a business task, setup
@@ -58,6 +58,9 @@ It produces, in particular:
 %LOCALAPPDATA%\Programs\OD.MyLocalAgent\UI\OD.MyLocalAgent.UI.exe
 %LOCALAPPDATA%\Programs\OD.MyLocalAgent\Runner\OD.MyLocalAgent.Runner.exe
 ```
+
+Both executables include their default settings. User overrides live in
+`%LOCALAPPDATA%\OD.MyLocalAgent\settings.json` and are shared by the UI and runner.
 
 To deploy a later change, rerun the same script after building and testing.
 Close MyLocalAgent before publishing.

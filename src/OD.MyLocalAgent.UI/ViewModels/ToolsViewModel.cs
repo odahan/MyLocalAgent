@@ -197,7 +197,7 @@ public sealed partial class ToolsViewModel :
                 !IsMissingOrPlaceholder(clientSecret);
             GoogleConfigurationStatus = googleConfigured
                 ? "OAuth desktop client id and secret are configured."
-                : "Set Google:ClientId and Google:ClientSecret in appsettings.json before connecting.";
+                : "Set Google:ClientId and Google:ClientSecret in your user settings.json before connecting.";
             IsGoogleConnected =
                 Directory.Exists(GoogleCredentialProvider.CredentialStorePath) &&
                 Directory.EnumerateFiles(

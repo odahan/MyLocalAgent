@@ -40,20 +40,8 @@ public static class HostApplicationBuilderExtensions
                 static pair => (string?)pair.Value,
                 StringComparer.OrdinalIgnoreCase);
 
-        builder.Configuration.Sources.Clear();
-        builder.Configuration
-            .AddJsonFile(
-                Path.Combine(AppContext.BaseDirectory, "appsettings.json"),
-                optional: false,
-                reloadOnChange: false)
-            .AddInMemoryCollection(File.Exists(LocalAppPaths.UserSettingsPath)
-                ? new Dictionary<string, string?>()
-                : new Dictionary<string, string?> { ["Decision:Engine"] = DecisionOptions.NewProfile().Engine })
-            .AddJsonFile(
-                LocalAppPaths.UserSettingsPath,
-                optional: true,
-                reloadOnChange: true)
-            .AddInMemoryCollection(secrets);
+        AddApplicationConfiguration(builder.Configuration, AppContext.BaseDirectory, LocalAppPaths.UserSettingsPath);
+        builder.Configuration.AddInMemoryCollection(secrets);
 
         var workspacePaths = new WorkspacePaths(
             builder.Configuration[$"{FileSystemOptions.SectionName}:RootPath"]
@@ -170,6 +158,30 @@ public static class HostApplicationBuilderExtensions
             static services => new RunLogCatalog(
                 services.GetRequiredService<WorkspacePaths>().RunLogsDirectory));
         return builder;
+    }
+
+    /// <summary>Loads the embedded defaults, legacy installation overrides, and user settings in precedence order.</summary>
+    internal static void AddApplicationConfiguration(
+        IConfigurationManager configuration,
+        string applicationDirectory,
+        string userSettingsPath)
+    {
+        using var defaults = typeof(HostApplicationBuilderExtensions).Assembly
+            .GetManifestResourceStream("OD.MyLocalAgent.DefaultSettings.json")
+            ?? throw new InvalidOperationException("The embedded application settings are missing.");
+
+        configuration.Sources.Clear();
+        configuration
+            .AddJsonStream(defaults)
+            .AddJsonFile(Path.Combine(applicationDirectory, "appsettings.json"), optional: true, reloadOnChange: false);
+
+        if (!File.Exists(userSettingsPath))
+        {
+            configuration.AddInMemoryCollection(
+                new Dictionary<string, string?> { ["Decision:Engine"] = DecisionOptions.NewProfile().Engine });
+        }
+
+        configuration.AddJsonFile(userSettingsPath, optional: true, reloadOnChange: true);
     }
 
     private static void RegisterOptions(IHostApplicationBuilder builder)
